@@ -82,4 +82,10 @@ export type RewardResult = {
 	snapshot: ProfileSnapshot?,
 }
 
+export type ProfileMutationResult = {
+	applied: boolean,
+	reason: string?,
+	snapshot: ProfileSnapshot?,
+}
+
 return {}

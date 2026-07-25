@@ -2,6 +2,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local configFolder = Shared:WaitForChild("Config")
@@ -98,6 +99,9 @@ end
 local function getPhaseDuration(phaseName: PhaseName): number
 	for _, phaseConfig in RoundConfig.phases do
 		if phaseConfig.name == phaseName then
+			if RunService:IsStudio() and phaseConfig.studioDurationSeconds then
+				return phaseConfig.studioDurationSeconds
+			end
 			return phaseConfig.durationSeconds
 		end
 	end

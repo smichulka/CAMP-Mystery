@@ -33,14 +33,29 @@ type BotRosterSystem = {
 		emptySlotCount: number,
 		roundId: string
 	) -> { Types.RosterParticipant },
+	FillReplacement: (
+		self: any,
+		roundId: string,
+		departedParticipantId: string
+	) -> (Types.RosterParticipant?, string?),
+	ReleaseRound: (self: any, roundId: string?) -> boolean,
 }
 type DisconnectHook = (context: Types.DisconnectContext) -> ()
+type RosterHook = (roster: Types.LockedRoster) -> ()
+type ReplacementHook = (
+	context: Types.DisconnectContext,
+	replacement: Types.RosterParticipant,
+	roster: Types.LockedRoster
+) -> ()
 
 export type MatchmakingOptions = {
 	clock: Clock?,
 	roundIdPrefix: string?,
 	onLobbyDisconnect: DisconnectHook?,
 	onLockedDisconnect: DisconnectHook?,
+	onRosterLocked: RosterHook?,
+	onRosterChanged: RosterHook?,
+	onBotReplacement: ReplacementHook?,
 }
 
 type MatchmakingServiceState = {
@@ -50,6 +65,9 @@ type MatchmakingServiceState = {
 	roundIdPrefix: string,
 	onLobbyDisconnect: DisconnectHook?,
 	onLockedDisconnect: DisconnectHook?,
+	onRosterLocked: RosterHook?,
+	onRosterChanged: RosterHook?,
+	onBotReplacement: ReplacementHook?,
 	roundRevision: number,
 	fillStartedAt: number?,
 	activeRoster: Types.LockedRoster?,
@@ -70,6 +88,18 @@ end
 
 local function makeRoundId(prefix: string, revision: number): string
 	return string.format("%s:r%06d", prefix, revision)
+end
+
+local function cloneRosterParticipant(
+	participant: Types.RosterParticipant
+): Types.RosterParticipant
+	return {
+		participantId = participant.participantId,
+		displayName = participant.displayName,
+		controllerKind = participant.controllerKind,
+		userId = participant.userId,
+		botId = participant.botId,
+	}
 end
 
 local function validateParticipants(
@@ -121,6 +151,9 @@ function MatchmakingService.new(
 		roundIdPrefix = prefix,
 		onLobbyDisconnect = configured.onLobbyDisconnect,
 		onLockedDisconnect = configured.onLockedDisconnect,
+		onRosterLocked = configured.onRosterLocked,
+		onRosterChanged = configured.onRosterChanged,
+		onBotReplacement = configured.onBotReplacement,
 		roundRevision = 0,
 		fillStartedAt = nil,
 		activeRoster = nil,
@@ -138,13 +171,17 @@ function MatchmakingService:GetActiveRoster(): Types.LockedRoster?
 	if not roster then
 		return nil
 	end
+	local participants: { Types.RosterParticipant } = {}
+	for _, participant in roster.participants do
+		table.insert(participants, cloneRosterParticipant(participant))
+	end
 	return {
 		roundId = roster.roundId,
 		revision = roster.revision,
 		mode = roster.mode,
 		targetSize = roster.targetSize,
 		createdAt = roster.createdAt,
-		participants = table.clone(roster.participants),
+		participants = participants,
 	}
 end
 
@@ -161,6 +198,7 @@ end
 
 function MatchmakingService:AddPlayer(player: Player)
 	self.lobbyService:AddPlayer(player)
+	self:Tick()
 end
 
 function MatchmakingService:RemovePlayer(player: Player)
@@ -170,6 +208,7 @@ function MatchmakingService:RemovePlayer(player: Player)
 	end
 
 	if context.wasLocked then
+		self:_ReplaceLockedParticipant(context)
 		local hook = self.onLockedDisconnect
 		if hook then
 			hook(context)
@@ -181,6 +220,56 @@ function MatchmakingService:RemovePlayer(player: Player)
 		end
 	end
 	self:Tick()
+end
+
+function MatchmakingService:_ReplaceLockedParticipant(
+	context: Types.DisconnectContext
+): Types.RosterParticipant?
+	local roster = self.activeRoster
+	local roundId = context.roundId
+	if not roster or not roundId or roster.roundId ~= roundId then
+		return nil
+	end
+
+	local rosterIndex: number? = nil
+	for index, participant in roster.participants do
+		if participant.participantId == context.participantId then
+			rosterIndex = index
+			break
+		end
+	end
+	if not rosterIndex then
+		return nil
+	end
+
+	local replacement, reason = self.botRosterSystem:FillReplacement(
+		roundId,
+		context.participantId
+	)
+	if not replacement then
+		warn(
+			string.format(
+				"[MatchmakingService] Could not replace %s: %s",
+				context.participantId,
+				reason or "UnknownFailure"
+			)
+		)
+		return nil
+	end
+
+	roster.participants[rosterIndex] = replacement
+	roster.revision += 1
+	local snapshot = self:GetActiveRoster()
+	assert(snapshot, "Active roster disappeared during replacement")
+	local replacementHook = self.onBotReplacement
+	if replacementHook then
+		replacementHook(context, replacement, snapshot)
+	end
+	local changedHook = self.onRosterChanged
+	if changedHook then
+		changedHook(snapshot)
+	end
+	return replacement
 end
 
 function MatchmakingService:_TryLockRoster(): (Types.LockedRoster?, string?)
@@ -235,7 +324,13 @@ function MatchmakingService:_TryLockRoster(): (Types.LockedRoster?, string?)
 	self.activeRoster = roster
 	self.fillStartedAt = nil
 	self.lobbyService:LockRoster(roundId, humans)
-	return roster, nil
+	local snapshot = self:GetActiveRoster()
+	assert(snapshot, "Locked roster disappeared")
+	local lockedHook = self.onRosterLocked
+	if lockedHook then
+		lockedHook(snapshot)
+	end
+	return snapshot, nil
 end
 
 function MatchmakingService:ForceLock(): (Types.LockedRoster?, string?)
@@ -267,7 +362,8 @@ function MatchmakingService:Tick(): (Types.LockedRoster?, string?)
 
 	local countdownExpired = now
 		>= (self.fillStartedAt :: number) + MatchConfig.fillCountdownSeconds
-	if readyCount >= MatchConfig.maximumParticipants
+	local targetSize = MatchConfig.targetForHumanCount(readyCount)
+	if readyCount >= targetSize
 		or countdownExpired
 	then
 		return self:_TryLockRoster()
@@ -291,6 +387,7 @@ function MatchmakingService:FinishRound(roundId: string): boolean
 	if not self.lobbyService:ReleaseRound(roundId) then
 		return false
 	end
+	self.botRosterSystem:ReleaseRound(roundId)
 	self.activeRoster = nil
 	self.fillStartedAt = nil
 	return true

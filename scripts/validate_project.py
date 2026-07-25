@@ -19,11 +19,13 @@ REQUIRED_FILES = (
     ROOT / "src/shared/Types/MatchTypes.lua",
     ROOT / "src/shared/Types/BotTypes.lua",
     ROOT / "src/shared/Types/WorldTypes.lua",
+    ROOT / "src/shared/Types/RuntimeTypes.lua",
     ROOT / "src/shared/Config/RoleCatalog.lua",
     ROOT / "src/shared/Config/EquipmentCatalog.lua",
     ROOT / "src/shared/Config/PublicMonsterCatalog.lua",
     ROOT / "src/shared/Config/ProgressionConfig.lua",
     ROOT / "src/shared/Config/CosmeticCatalog.lua",
+    ROOT / "src/shared/Config/UpgradeCatalog.lua",
     ROOT / "src/shared/Config/MatchConfig.lua",
     ROOT / "src/shared/Config/RoundConfig.lua",
     ROOT / "src/server/Config/EquipmentRules.lua",
@@ -42,6 +44,11 @@ REQUIRED_FILES = (
     ROOT / "src/server/Services/ComputerPlayerService.lua",
     ROOT / "src/server/Services/WorldService.lua",
     ROOT / "src/server/Services/RoundLifecycle.lua",
+    ROOT / "src/server/Services/GameRuntimeService.lua",
+    ROOT / "src/server/Services/RoleAbilityService.lua",
+    ROOT / "src/server/Services/StatusEffectService.lua",
+    ROOT / "src/server/Services/VotingService.lua",
+    ROOT / "src/server/Services/PlaceholderCharacterService.lua",
     ROOT / "src/server/Adapters/MemoryProfileStore.lua",
     ROOT / "src/server/Adapters/RobloxProfileStore.lua",
     ROOT / "src/server/Systems/RewardCalculation.lua",
@@ -51,6 +58,12 @@ REQUIRED_FILES = (
     ROOT / "src/server/Services/RoundService.lua",
     ROOT / "src/server/Bootstrap.server.lua",
     ROOT / "src/client/Controllers/RoundController.lua",
+    ROOT / "src/client/Controllers/RemoteBridge.lua",
+    ROOT / "src/client/Controllers/InputController.lua",
+    ROOT / "src/client/Controllers/InteractionController.lua",
+    ROOT / "src/client/UI/GameView.lua",
+    ROOT / "src/client/UI/Components.lua",
+    ROOT / "src/client/UI/Theme.lua",
     ROOT / "src/client/Bootstrap.client.lua",
 )
 REQUIRED_REMOTES = {
@@ -59,6 +72,10 @@ REQUIRED_REMOTES = {
     "PlayerStateChanged": "RemoteEvent",
     "GetPlayerState": "RemoteFunction",
     "SubmitVote": "RemoteEvent",
+    "GameStateChanged": "RemoteEvent",
+    "GetGameState": "RemoteFunction",
+    "RequestAction": "RemoteFunction",
+    "Announcement": "RemoteEvent",
 }
 
 ROLE_NAMES = {
@@ -90,6 +107,42 @@ MONETIZATION_TOKENS = {
     "ProcessReceipt",
 }
 
+SERVICE_API_CONTRACTS = {
+    ROOT / "src/server/Services/LobbyService.lua": {
+        "AddPlayer",
+        "RemovePlayer",
+        "SetReady",
+        "GetReadyHumans",
+        "GetSnapshot",
+    },
+    ROOT / "src/server/Services/MatchmakingService.lua": {
+        "SetReady",
+        "Tick",
+        "GetActiveRoster",
+        "FinishRound",
+    },
+    ROOT / "src/server/Services/ComputerPlayerService.lua": {
+        "BeginRound",
+        "GetRuntimeSnapshot",
+        "StepBot",
+        "StepAll",
+    },
+    ROOT / "src/server/Services/ProfileService.lua": {
+        "LoadPlayer",
+        "ReleasePlayer",
+        "ApplyReward",
+        "UpdateSettings",
+        "PurchaseUpgrade",
+        "UnlockCosmetic",
+        "EquipCosmetic",
+    },
+    ROOT / "src/server/Systems/BotRosterSystem.lua": {
+        "FillEmptySlots",
+        "FillReplacement",
+        "ReleaseRound",
+    },
+}
+
 
 def require_tokens(path: Path, tokens: set[str]) -> None:
     contents = path.read_text(encoding="utf-8")
@@ -97,6 +150,19 @@ def require_tokens(path: Path, tokens: set[str]) -> None:
     if missing:
         raise SystemExit(
             f"{path.relative_to(ROOT)} is missing required tokens: {missing}"
+        )
+
+
+def require_service_methods(path: Path, methods: set[str]) -> None:
+    contents = path.read_text(encoding="utf-8")
+    missing = sorted(
+        method
+        for method in methods
+        if f":{method}(" not in contents
+    )
+    if missing:
+        raise SystemExit(
+            f"{path.relative_to(ROOT)} is missing service methods: {missing}"
         )
 
 
@@ -157,6 +223,44 @@ def main() -> None:
         ROOT / "src/shared/Config/ProgressionConfig.lua",
         {"schemaVersion = 1"},
     )
+    require_tokens(
+        ROOT / "src/server/Bootstrap.server.lua",
+        {
+            "GameRuntimeService",
+            "GetGameState",
+            "RequestAction",
+            "GameStateChanged",
+            "runtime:Start()",
+        },
+    )
+    require_tokens(
+        ROOT / "src/server/Services/GameRuntimeService.lua",
+        {
+            "TextService:FilterStringAsync",
+            "self:_isNearPart",
+            "self.computerPlayers:BeginRound",
+            "self.matchmaking:MarkRoundStarted",
+            "self.profile:ApplyReward",
+        },
+    )
+    require_tokens(
+        ROOT / "src/server/Services/ProfileService.lua",
+        {
+            "RunService:IsStudio()",
+            "MemoryProfileStore.new()",
+            "recentRewardReceipts",
+        },
+    )
+    require_tokens(
+        ROOT / "src/shared/Config/MatchConfig.lua",
+        {
+            "standardTarget = 10",
+            "maximumParticipants = 12",
+            "fillCountdownSeconds = 150",
+        },
+    )
+    for path, methods in SERVICE_API_CONTRACTS.items():
+        require_service_methods(path, methods)
 
     for documentation in (
         ROOT / "docs/PRODUCT_SPEC.md",

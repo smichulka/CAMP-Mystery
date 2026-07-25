@@ -199,6 +199,59 @@ function EvidenceService:PlantFake(
 	return true, nil
 end
 
+function EvidenceService:SetMonsterForRound(monsterId: string)
+	assert(self.roundId > 0, "BeginRound must be called before changing monster evidence")
+	assert(monsterId ~= "", "monsterId cannot be empty")
+	self.monsterId = monsterId
+	for _, record in self.records do
+		if record.channel == "Monster" then
+			record.monsterWeights = { [monsterId] = 0.6 }
+		end
+	end
+	self.revision += 1
+end
+
+function EvidenceService:TransferCulprit(
+	previousParticipantId: string,
+	replacementParticipantId: string
+)
+	if self.culpritParticipantId ~= previousParticipantId then
+		return
+	end
+	self.culpritParticipantId = replacementParticipantId
+	for _, record in self.records do
+		local weight = record.suspectWeights[previousParticipantId]
+		if weight then
+			record.suspectWeights[previousParticipantId] = nil
+			record.suspectWeights[replacementParticipantId] = weight
+		end
+	end
+	self.revision += 1
+end
+
+function EvidenceService:ReframeFake(
+	murdererParticipantId: string,
+	frameParticipantId: string
+): (boolean, string?)
+	if murdererParticipantId ~= self.culpritParticipantId then
+		return false, "Only the Murderer can change the frame target"
+	end
+	if
+		frameParticipantId == murdererParticipantId
+		or not self.participants:GetById(frameParticipantId)
+	then
+		return false, "Invalid frame target"
+	end
+	for _, record in self.records do
+		if record.authenticity == "Fake" then
+			record.suspectWeights = { [frameParticipantId] = 0.9 }
+			self.revision += 1
+			return true, nil
+		end
+	end
+	return self:PlantFake(murdererParticipantId, frameParticipantId)
+end
+
 function EvidenceService:Discover(
 	participantId: string,
 	evidenceId: string,
@@ -290,6 +343,28 @@ function EvidenceService:GetRecordServer(evidenceId: string): EvidenceRecord?
 	return self.records[evidenceId]
 end
 
+function EvidenceService:GetAllServer(): { EvidenceRecord }
+	local result: { EvidenceRecord } = {}
+	for _, evidenceId in self.order do
+		local record = self.records[evidenceId]
+		if record then
+			table.insert(result, record)
+		end
+	end
+	return result
+end
+
+function EvidenceService:GetUndiscoveredServer(): { EvidenceRecord }
+	local result: { EvidenceRecord } = {}
+	for _, evidenceId in self.order do
+		local record = self.records[evidenceId]
+		if record and not record.discovery then
+			table.insert(result, record)
+		end
+	end
+	return result
+end
+
 function EvidenceService:GetBoardSnapshot(): EvidenceBoardSnapshot
 	local culpritEvidence: { PublicEvidenceRecord } = {}
 	local monsterEvidence: { PublicEvidenceRecord } = {}
@@ -311,4 +386,3 @@ function EvidenceService:GetBoardSnapshot(): EvidenceBoardSnapshot
 end
 
 return EvidenceService
-

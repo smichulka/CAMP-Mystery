@@ -126,6 +126,21 @@ function InventoryService:GetOwnedItem(
 	return item
 end
 
+function InventoryService:GetItemServer(instanceId: string): ItemInstance?
+	return self.items[instanceId]
+end
+
+function InventoryService:GetDroppedItemIds(): { string }
+	local result: { string } = {}
+	for instanceId, item in self.items do
+		if item.ownerParticipantId == nil then
+			table.insert(result, instanceId)
+		end
+	end
+	table.sort(result)
+	return result
+end
+
 function InventoryService:Equip(
 	participantId: string,
 	instanceId: string
@@ -278,4 +293,3 @@ function InventoryService:GetSnapshot(participantId: string): InventorySnapshot
 end
 
 return InventoryService
-

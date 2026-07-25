@@ -73,7 +73,7 @@ return table.freeze({
 	maxTotalXP = 2_000_000_000,
 	maxCampTokens = 2_000_000_000,
 	maxRoleMasteryXP = 2_000_000_000,
-	maxUpgradeRank = 20,
+	maxUpgradeRank = 5,
 	maxMapEntries = 128,
 	maxIdentifierLength = 64,
 	defaultSettings = DEFAULT_SETTINGS,

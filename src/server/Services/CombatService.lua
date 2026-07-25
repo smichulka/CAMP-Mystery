@@ -127,6 +127,39 @@ function CombatService:Eliminate(
 	return dropped
 end
 
+-- Applies one serious injury outside the normal monster attack request path. This is
+-- used by authored hazards and role interception consequences. It deliberately keeps
+-- the same two-injuries-to-death rule and lifecycle events as ApplyAttack.
+function CombatService:ApplyInjury(
+	targetParticipantId: string,
+	reason: string,
+	attackerParticipantId: string?
+): (boolean, string?)
+	local target = self.participants:GetById(targetParticipantId)
+	if not target then
+		return false, "Unknown participant"
+	end
+	if not target.alive or target.isGhost or target.team ~= "Campers" then
+		return false, "Target is not eligible"
+	end
+
+	if target.injuryLevel >= 1 then
+		self:Eliminate(target, reason, attackerParticipantId)
+		return true, "Eliminated"
+	end
+
+	target.injuryLevel = 1
+	target.healthState = "Injured"
+	target.health = math.min(target.health, 50)
+	self.revision += 1
+	self.lifecycle:Emit("ParticipantInjured", {
+		participantId = target.participantId,
+		attackerParticipantId = attackerParticipantId,
+		source = reason,
+	})
+	return true, "Injured"
+end
+
 function CombatService:ApplyAttack(request: AttackRequest): AttackResult
 	if request.roundId ~= self.roundId then
 		return rejected(request, "Stale or unknown round")
@@ -178,15 +211,7 @@ function CombatService:ApplyAttack(request: AttackRequest): AttackResult
 		}
 	end
 
-	target.injuryLevel = 1
-	target.healthState = "Injured"
-	target.health = math.min(target.health, 50)
-	self.revision += 1
-	self.lifecycle:Emit("ParticipantInjured", {
-		participantId = target.participantId,
-		attackerParticipantId = attacker.participantId,
-		source = request.source,
-	})
+	self:ApplyInjury(target.participantId, request.source, attacker.participantId)
 	self.emitEvidence("Injury", attacker, target, request)
 	return {
 		accepted = true,
@@ -249,4 +274,3 @@ function CombatService:GetSnapshot(participantId: string): CombatSnapshot?
 end
 
 return CombatService
-
