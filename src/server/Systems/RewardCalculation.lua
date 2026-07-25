@@ -1,0 +1,85 @@
+--!strict
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local configFolder = Shared:WaitForChild("Config")
+local typesFolder = Shared:WaitForChild("Types")
+local ProgressionConfig = require(configFolder:WaitForChild("ProgressionConfig"))
+local Types = require(typesFolder:WaitForChild("ProfileTypes"))
+
+type RewardInput = Types.RewardInput
+type RewardGrant = Types.RewardGrant
+
+local RewardCalculation = {}
+
+local function safeCount(value: number, maximum: number): number
+	if value ~= value or value == math.huge or value == -math.huge then
+		return 0
+	end
+	return math.clamp(math.floor(value), 0, maximum)
+end
+
+function RewardCalculation.Calculate(input: RewardInput): RewardGrant
+	local rewards = ProgressionConfig.rewards
+	local objectives = safeCount(
+		input.objectivesCompleted,
+		rewards.maxRewardedObjectives
+	)
+	local evidence = safeCount(input.evidenceCollected, rewards.maxRewardedEvidence)
+
+	if not input.participated then
+		objectives = 0
+		evidence = 0
+	end
+
+	local xp = 0
+	local campTokens = 0
+	local roleMasteryXP = 0
+	local roundsPlayed = 0
+
+	if input.participated then
+		roundsPlayed = 1
+		xp += rewards.participationXP
+		campTokens += rewards.participationTokens
+		roleMasteryXP += rewards.roleParticipationXP
+
+		xp += objectives * rewards.objectiveXP
+		xp += evidence * rewards.evidenceXP
+		campTokens += objectives * rewards.objectiveTokens
+		campTokens += evidence * rewards.evidenceTokens
+		roleMasteryXP += (objectives + evidence) * rewards.roleContributionXP
+
+		if input.won then
+			xp += rewards.winXP
+			campTokens += rewards.winTokens
+			roleMasteryXP += rewards.roleWinXP
+		end
+		if input.survived then
+			xp += rewards.survivalXP
+			campTokens += rewards.survivalTokens
+		end
+	end
+
+	local roleIsMurderer = input.roleId == "Murderer"
+	return {
+		receiptId = input.receiptId,
+		roleId = input.roleId,
+		xp = xp,
+		campTokens = campTokens,
+		roleMasteryXP = roleMasteryXP,
+		roundsPlayed = roundsPlayed,
+		wins = if input.participated and input.won then 1 else 0,
+		camperWins = if input.participated and input.won and not roleIsMurderer
+			then 1
+			else 0,
+		murdererWins = if input.participated and input.won and roleIsMurderer
+			then 1
+			else 0,
+		objectivesCompleted = objectives,
+		evidenceCollected = evidence,
+		survivals = if input.participated and input.survived then 1 else 0,
+	}
+end
+
+return RewardCalculation
