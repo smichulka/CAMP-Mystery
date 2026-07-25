@@ -13,3 +13,6 @@
 Thumbs.db
 .idea/
 
+# Python validation cache
+__pycache__/
+*.pyc

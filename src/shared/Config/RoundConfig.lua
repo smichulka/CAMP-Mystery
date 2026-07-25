@@ -10,7 +10,7 @@ local phases: { PhaseConfig } = {
 	{
 		name = "Lobby",
 		displayName = "Waiting at Camp",
-		durationSeconds = 15,
+		durationSeconds = 10,
 	},
 	{
 		name = "RoleReveal",
@@ -20,27 +20,27 @@ local phases: { PhaseConfig } = {
 	{
 		name = "Day",
 		displayName = "Daytime Objectives",
-		durationSeconds = 30,
+		durationSeconds = 45,
 	},
 	{
 		name = "MurderPlanning",
 		displayName = "Something Is Being Planned",
-		durationSeconds = 12,
+		durationSeconds = 10,
 	},
 	{
 		name = "NightTransform",
 		displayName = "The Town Is Appearing",
-		durationSeconds = 8,
+		durationSeconds = 6,
 	},
 	{
 		name = "Investigation",
 		displayName = "Night Investigation",
-		durationSeconds = 45,
+		durationSeconds = 60,
 	},
 	{
 		name = "Campfire",
-		displayName = "Campfire Discussion",
-		durationSeconds = 25,
+		displayName = "Campfire Vote",
+		durationSeconds = 30,
 	},
 	{
 		name = "Resolution",
@@ -56,5 +56,10 @@ local phases: { PhaseConfig } = {
 
 return table.freeze({
 	minimumPlayers = 1,
+	objectiveGoal = 3,
+	evidenceGoal = 3,
+	computerCulpritKey = "cpu:counselor-holloway",
+	computerCulpritName = "Counselor Holloway",
+	computerVictimName = "Jamie Vale",
 	phases = table.freeze(phases),
 })

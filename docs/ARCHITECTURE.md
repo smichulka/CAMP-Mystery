@@ -38,15 +38,19 @@ The client owns player input, camera work, UI, sound, animation, and visual effe
 | `ServerStorage/ServerAssets` | Server-only storage | Maps, monsters, NPCs, items, and evidence |
 | `Workspace/Runtime` | Live round state | Spawned map, characters, evidence, and effects |
 
-## First milestone
+## Milestone 2: gray-box round
 
-The foundation intentionally implements only a synchronized round state machine and phase HUD. It proves:
+The current implementation proves one complete round without depending on final art:
 
-1. Rojo builds and live-syncs the project.
-2. The server starts a round and owns its current phase.
-3. clients receive the current phase without deciding it themselves.
-4. late-joining clients can request the current round snapshot.
-5. the phase and countdown are visible during a Studio playtest.
+1. The server waits for at least one player and privately assigns roles.
+2. Players complete three interactive camp jobs during the day.
+3. A victim is selected and the abandoned town appears at night.
+4. Players collect three shared evidence clues in the town.
+5. Living players vote for a suspect at the campfire.
+6. The server resolves a Camper or Murderer victory and resets the map.
 
-Gameplay systems will be added behind this boundary in later milestones.
+With one Studio player, Counselor Holloway acts as the computer-controlled murderer and Jamie Vale acts as the off-screen victim. With two or more players, one player receives the Murderer role. A player victim is only selected when at least two innocent candidates remain, which keeps small playtests viable.
 
+`RoundService` owns private roles, phase transitions, objectives, evidence, votes, and results. `GrayboxMapService` creates disposable placeholder geometry and interaction prompts. `RoundController` presents authorized public and private state; it cannot decide gameplay outcomes.
+
+The gray-box buildings, labels, colors, clues, names, and timings are test content. Final visual references and the eight launch monsters remain outside this milestone.
