@@ -18,6 +18,7 @@ export type PhaseConfig = {
 	name: PhaseName,
 	displayName: string,
 	durationSeconds: number,
+	studioDurationSeconds: number?,
 }
 
 export type Suspect = {

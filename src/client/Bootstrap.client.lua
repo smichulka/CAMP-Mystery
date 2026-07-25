@@ -5,4 +5,4 @@ local RoundController = require(controllers:WaitForChild("RoundController"))
 
 RoundController.Start()
 
-print("[CAMP-Mystery] Client foundation started")
+print("[CAMP-Mystery] Production client started")

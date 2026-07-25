@@ -22,6 +22,7 @@ type ScoredAction = BotTypes.ScoredAction
 type ActionContext = BotTypes.ActionContext
 type ActionCallbacks = BotTypes.ActionCallbacks
 type BotRuntimeState = BotTypes.BotRuntimeState
+type BotRuntimeSnapshot = BotTypes.BotRuntimeSnapshot
 type BotRandomSource = BotTypes.BotRandomSource
 type BotClock = BotTypes.BotClock
 type ParticipantState = ParticipantTypes.ParticipantState
@@ -36,6 +37,7 @@ type ComputerPlayerServiceState = {
 	runtimeOrder: { string },
 	schedulerIndex: number,
 	maxDecisionsPerSecond: number,
+	observationRevision: number,
 	running: boolean,
 	schedulerGeneration: number,
 }
@@ -67,8 +69,6 @@ local ALLOWED_PHASES: { [ActionType]: { [PhaseName]: boolean } } = {
 		Campfire = true,
 	},
 	Attack = {
-		MurderPlanning = true,
-		NightTransform = true,
 		Investigation = true,
 	},
 	Discuss = {
@@ -141,6 +141,7 @@ function ComputerPlayerService.new(
 		runtimeOrder = {},
 		schedulerIndex = 0,
 		maxDecisionsPerSecond = rate,
+		observationRevision = 0,
 		running = false,
 		schedulerGeneration = 0,
 	}, ComputerPlayerService)
@@ -164,11 +165,13 @@ function ComputerPlayerService:RegisterBot(participantId: string): BotRuntimeSta
 		profileId = profile.id,
 		difficulty = BotProfiles.ResolveDifficulty(participant.controller.difficulty),
 		personality = clonePersonality(profile.personality),
+		roundNumber = 0,
 		memories = {},
 		relationships = {},
 		nextThinkAt = self.clock:Now(),
 		lastActionAt = nil,
 		lastActionId = nil,
+		decisionCount = 0,
 		active = true,
 	}
 	self.runtimesByParticipantId[participantId] = runtime
@@ -188,6 +191,73 @@ end
 
 function ComputerPlayerService:GetRuntime(participantId: string): BotRuntimeState?
 	return self.runtimesByParticipantId[participantId]
+end
+
+function ComputerPlayerService:GetRuntimeSnapshot(
+	participantId: string
+): BotRuntimeSnapshot?
+	local runtime = self.runtimesByParticipantId[participantId]
+	if not runtime then
+		return nil
+	end
+	local relationshipCount = 0
+	for _ in runtime.relationships do
+		relationshipCount += 1
+	end
+	return {
+		participantId = runtime.participantId,
+		profileId = runtime.profileId,
+		difficulty = runtime.difficulty,
+		roundNumber = runtime.roundNumber,
+		memoryCount = #self:GetMemories(participantId),
+		relationshipCount = relationshipCount,
+		nextThinkAt = runtime.nextThinkAt,
+		lastActionAt = runtime.lastActionAt,
+		lastActionId = runtime.lastActionId,
+		decisionCount = runtime.decisionCount,
+		active = runtime.active,
+	}
+end
+
+function ComputerPlayerService:GetAllRuntimeSnapshots(): { BotRuntimeSnapshot }
+	local snapshots: { BotRuntimeSnapshot } = {}
+	for _, participantId in self.runtimeOrder do
+		local snapshot = self:GetRuntimeSnapshot(participantId)
+		if snapshot then
+			table.insert(snapshots, snapshot)
+		end
+	end
+	return snapshots
+end
+
+function ComputerPlayerService:BeginRound(
+	roundNumber: number,
+	participantIds: { string }
+)
+	assert(roundNumber > 0 and roundNumber % 1 == 0, "Round number must be a positive integer")
+	local selected: { [string]: boolean } = {}
+	for _, participantId in participantIds do
+		assert(not selected[participantId], "Duplicate participant in bot roster")
+		selected[participantId] = true
+		local participant = self.participantService:GetById(participantId)
+		if participant and participant.controller.kind == "Bot" then
+			local runtime = self:RegisterBot(participantId)
+			runtime.roundNumber = roundNumber
+			runtime.memories = {}
+			runtime.relationships = {}
+			runtime.nextThinkAt = self.clock:Now()
+			runtime.lastActionAt = nil
+			runtime.lastActionId = nil
+			runtime.decisionCount = 0
+			runtime.active = true
+			self:RefreshRelationships(participantId)
+		end
+	end
+	for participantId, runtime in self.runtimesByParticipantId do
+		if not selected[participantId] then
+			runtime.active = false
+		end
+	end
 end
 
 function ComputerPlayerService:RefreshRelationships(participantId: string)
@@ -227,6 +297,87 @@ function ComputerPlayerService:AdjustRelationship(
 	relationship.suspicion = clampUnit(relationship.suspicion + suspicionDelta)
 	relationship.lastUpdatedAt = self.clock:Now()
 	return true
+end
+
+function ComputerPlayerService:ObserveForBot(
+	observerParticipantId: string,
+	kind: BotTypes.MemoryKind,
+	subjectParticipantId: string?,
+	summary: string,
+	confidence: number,
+	importance: number,
+	relatedParticipantId: string?
+): boolean
+	local runtime = self.runtimesByParticipantId[observerParticipantId]
+	if not runtime or not runtime.active or summary == "" then
+		return false
+	end
+	local now = self.clock:Now()
+	self.observationRevision += 1
+	local safeSummary = string.sub(summary, 1, 200)
+	local memoryId = string.format(
+		"round:%d:%s:%d:%d:%s",
+		runtime.roundNumber,
+		kind,
+		math.floor(now * 1000),
+		self.observationRevision,
+		subjectParticipantId or "world"
+	)
+	local remembered = self:Remember(observerParticipantId, {
+		id = memoryId,
+		kind = kind,
+		subjectParticipantId = subjectParticipantId,
+		relatedParticipantId = relatedParticipantId,
+		summary = safeSummary,
+		confidence = clampUnit(confidence),
+		importance = clampUnit(importance),
+		createdAt = now,
+		expiresAt = nil,
+	})
+	if remembered and subjectParticipantId and subjectParticipantId ~= observerParticipantId then
+		local suspicionDelta = 0
+		local trustDelta = 0
+		if kind == "Evidence" or kind == "Injury" or kind == "RoleHint" then
+			suspicionDelta = clampUnit(confidence) * clampUnit(importance) * 0.15
+			trustDelta = -suspicionDelta * 0.35
+		elseif kind == "Statement" then
+			trustDelta = clampUnit(confidence) * 0.04
+		end
+		self:AdjustRelationship(
+			observerParticipantId,
+			subjectParticipantId,
+			trustDelta,
+			suspicionDelta
+		)
+	end
+	return remembered
+end
+
+function ComputerPlayerService:BroadcastObservation(
+	kind: BotTypes.MemoryKind,
+	subjectParticipantId: string?,
+	summary: string,
+	confidence: number,
+	importance: number,
+	relatedParticipantId: string?
+): number
+	local observers = 0
+	for participantId, runtime in self.runtimesByParticipantId do
+		if runtime.active
+			and self:ObserveForBot(
+				participantId,
+				kind,
+				subjectParticipantId,
+				summary,
+				confidence,
+				importance,
+				relatedParticipantId
+			)
+		then
+			observers += 1
+		end
+	end
+	return observers
 end
 
 function ComputerPlayerService:Remember(participantId: string, memory: BotMemory): boolean
@@ -330,10 +481,21 @@ function ComputerPlayerService:ScoreAction(
 		return -math.huge
 	end
 	if not participant.alive or participant.isGhost then
-		return if candidate.actionType == "Idle" then candidate.baseUtility else -math.huge
+		local protectorIntervention = participant.isGhost
+			and participant.role == "Protector"
+			and candidate.actionType == "UseRoleAbility"
+		return if candidate.actionType == "Idle" or protectorIntervention
+			then candidate.baseUtility
+			else -math.huge
 	end
 	if candidate.targetParticipantId == participantId then
 		return -math.huge
+	end
+	if candidate.targetParticipantId then
+		local target = self.participantService:GetById(candidate.targetParticipantId)
+		if not target or not target.alive or target.isGhost then
+			return -math.huge
+		end
 	end
 	if candidate.actionType == "Attack" and participant.role ~= "Murderer" then
 		return -math.huge
@@ -393,7 +555,22 @@ function ComputerPlayerService:ChooseAction(
 		return nil
 	end
 
-	local candidates = table.clone(self.callbacks.getAvailableActions(participant, context))
+	local actionSuccess, actionResult = pcall(
+		self.callbacks.getAvailableActions,
+		participant,
+		context
+	)
+	if not actionSuccess then
+		warn(
+			string.format(
+				"[ComputerPlayerService] Action discovery failed for %s: %s",
+				participantId,
+				tostring(actionResult)
+			)
+		)
+		return nil
+	end
+	local candidates = table.clone(actionResult :: { ActionCandidate })
 	if
 		participant.role == "Murderer"
 		and ALLOWED_PHASES.Discuss[context.phase]
@@ -421,6 +598,9 @@ function ComputerPlayerService:ChooseAction(
 	end
 	local best: ScoredAction? = nil
 	for _, candidate in candidates do
+		if candidate.id == "" or candidate.baseUtility ~= candidate.baseUtility then
+			continue
+		end
 		local utility = self:ScoreAction(participantId, candidate, context)
 		if not best or utility > best.utility then
 			best = {
@@ -458,7 +638,25 @@ function ComputerPlayerService:StepBot(
 	local selected = self:ChooseAction(participantId, context)
 	local acted = false
 	if selected and selected.utility > -math.huge then
-		acted = self.callbacks.executeAction(participant, selected.candidate, context)
+		runtime.decisionCount += 1
+		local executeSuccess, executeResult = pcall(
+			self.callbacks.executeAction,
+			participant,
+			selected.candidate,
+			context
+		)
+		if executeSuccess then
+			acted = executeResult == true
+		else
+			warn(
+				string.format(
+					"[ComputerPlayerService] Action %s failed for %s: %s",
+					selected.candidate.id,
+					participantId,
+					tostring(executeResult)
+				)
+			)
+		end
 		if acted then
 			runtime.lastActionAt = now
 			runtime.lastActionId = selected.candidate.id
@@ -478,6 +676,16 @@ function ComputerPlayerService:StepNext(phase: PhaseName, roundNumber: number): 
 	end
 	self.schedulerIndex = (self.schedulerIndex % #self.runtimeOrder) + 1
 	return self:StepBot(self.runtimeOrder[self.schedulerIndex], phase, roundNumber)
+end
+
+function ComputerPlayerService:StepAll(phase: PhaseName, roundNumber: number): number
+	local acted = 0
+	for _, participantId in self.runtimeOrder do
+		if self:StepBot(participantId, phase, roundNumber) then
+			acted += 1
+		end
+	end
+	return acted
 end
 
 function ComputerPlayerService:Start(
@@ -521,6 +729,7 @@ function ComputerPlayerService:Destroy()
 	self.runtimesByParticipantId = {}
 	self.runtimeOrder = {}
 	self.schedulerIndex = 0
+	self.observationRevision = 0
 end
 
 return ComputerPlayerService

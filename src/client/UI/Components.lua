@@ -1,0 +1,167 @@
+--!strict
+
+local TweenService = game:GetService("TweenService")
+
+local Theme = require(script.Parent:WaitForChild("Theme"))
+
+local Components = {}
+
+export type ButtonOptions = {
+	name: string,
+	text: string,
+	size: UDim2?,
+	position: UDim2?,
+	color: Color3?,
+	layoutOrder: number?,
+}
+
+function Components.Corner(parent: GuiObject, radius: number?): UICorner
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or Theme.CornerRadius)
+	corner.Parent = parent
+	return corner
+end
+
+function Components.Stroke(parent: GuiObject, color: Color3?, thickness: number?): UIStroke
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color or Theme.Colors.Border
+	stroke.Thickness = thickness or 1
+	stroke.Transparency = Theme.StrokeTransparency
+	stroke.Parent = parent
+	return stroke
+end
+
+function Components.Padding(parent: GuiObject, horizontal: number, vertical: number?): UIPadding
+	local y = vertical or horizontal
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, horizontal)
+	padding.PaddingRight = UDim.new(0, horizontal)
+	padding.PaddingTop = UDim.new(0, y)
+	padding.PaddingBottom = UDim.new(0, y)
+	padding.Parent = parent
+	return padding
+end
+
+function Components.Panel(parent: Instance, name: string): Frame
+	local panel = Instance.new("Frame")
+	panel.Name = name
+	panel.BackgroundColor3 = Theme.Colors.Panel
+	panel.BackgroundTransparency = Theme.PanelTransparency
+	panel.BorderSizePixel = 0
+	panel.Parent = parent
+	Components.Corner(panel)
+	Components.Stroke(panel)
+	return panel
+end
+
+function Components.Label(
+	parent: Instance,
+	name: string,
+	text: string,
+	textSize: number,
+	font: Enum.Font?
+): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Font = font or Enum.Font.GothamMedium
+	label.Text = text
+	label.TextColor3 = Theme.Colors.Text
+	label.TextSize = textSize
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.Parent = parent
+	return label
+end
+
+function Components.Button(parent: Instance, options: ButtonOptions): TextButton
+	local button = Instance.new("TextButton")
+	button.Name = options.name
+	button.Size = options.size or UDim2.fromOffset(160, 42)
+	button.Position = options.position or UDim2.fromOffset(0, 0)
+	button.BackgroundColor3 = options.color or Theme.Colors.PanelSoft
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	button.Font = Enum.Font.GothamBold
+	button.Text = options.text
+	button.TextColor3 = Theme.Colors.Text
+	button.TextSize = 15
+	button.TextWrapped = true
+	button.LayoutOrder = options.layoutOrder or 0
+	button.Parent = parent
+	Components.Corner(button, Theme.SmallCornerRadius)
+	Components.Stroke(button)
+
+	local normalColor = button.BackgroundColor3
+	local hoverColor = normalColor:Lerp(Theme.Colors.White, 0.12)
+	button.MouseEnter:Connect(function()
+		if button.Active then
+			TweenService:Create(
+				button,
+				TweenInfo.new(Theme.AnimationTime),
+				{ BackgroundColor3 = hoverColor }
+			):Play()
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		TweenService:Create(
+			button,
+			TweenInfo.new(Theme.AnimationTime),
+			{ BackgroundColor3 = normalColor }
+		):Play()
+	end)
+	return button
+end
+
+function Components.SetButtonEnabled(button: TextButton, enabled: boolean)
+	button.Active = enabled
+	button.Selectable = enabled
+	button.AutoButtonColor = enabled
+	button.BackgroundTransparency = if enabled then 0 else 0.45
+	button.TextTransparency = if enabled then 0 else 0.32
+end
+
+function Components.List(parent: GuiObject, padding: number?): UIListLayout
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, padding or 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = parent
+	return layout
+end
+
+function Components.ProgressBar(parent: Instance, name: string): (Frame, Frame, TextLabel)
+	local track = Instance.new("Frame")
+	track.Name = name
+	track.BackgroundColor3 = Theme.Colors.Background
+	track.BackgroundTransparency = 0.15
+	track.BorderSizePixel = 0
+	track.ClipsDescendants = true
+	track.Parent = parent
+	Components.Corner(track, Theme.SmallCornerRadius)
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.BackgroundColor3 = Theme.Colors.Success
+	fill.BorderSizePixel = 0
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.Parent = track
+	Components.Corner(fill, Theme.SmallCornerRadius)
+
+	local text = Components.Label(track, "Value", "", 12, Enum.Font.GothamBold)
+	text.Size = UDim2.fromScale(1, 1)
+	text.TextXAlignment = Enum.TextXAlignment.Center
+	text.ZIndex = track.ZIndex + 2
+	return track, fill, text
+end
+
+function Components.ClearGenerated(parent: Instance)
+	for _, child in parent:GetChildren() do
+		if child:GetAttribute("Generated") == true then
+			child:Destroy()
+		end
+	end
+end
+
+return table.freeze(Components)

@@ -45,7 +45,7 @@ local function defaultClock(): number
 end
 
 local function participantIdForUserId(userId: number): string
-	return "player:" .. tostring(userId)
+	return "human:" .. tostring(userId)
 end
 
 function LobbyService.new(clock: Clock?): LobbyService
@@ -139,6 +139,19 @@ function LobbyService:GetReadyCount(): number
 		end
 	end
 	return count
+end
+
+function LobbyService:IsReady(player: Player): boolean
+	local state = self.players[player.UserId]
+	return state ~= nil
+		and state.ready
+		and not state.queuedForNextRound
+		and state.lockedRoundId == nil
+end
+
+function LobbyService:GetParticipantId(player: Player): string?
+	local state = self.players[player.UserId]
+	return if state then state.participantId else nil
 end
 
 function LobbyService:GetReadyHumans(): { RosterParticipant }

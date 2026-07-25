@@ -242,6 +242,25 @@ function MonsterService:BeginPlanning(roundId: number): MonsterPrivateSnapshot
 	return self:GetPrivateSnapshot()
 end
 
+function MonsterService:SelectPlanningMonster(
+	roundId: number,
+	monsterId: MonsterId
+): MonsterPrivateSnapshot
+	assert(roundId == self.roundId, "Selection roundId does not match active round")
+	assert(
+		self.lifecycle == "Selected" or self.lifecycle == "Planning",
+		"Monster choice can only change during planning"
+	)
+	local monsterRule = MonsterRules[monsterId]
+	assert(monsterRule ~= nil, "Unknown monster selection")
+	self.monsterId = monsterId
+	self.stamina = monsterRule.maxStamina
+	self.cooldownEndsAt = {}
+	self.lastRequestSequence = 0
+	self:_mutated()
+	return self:GetPrivateSnapshot()
+end
+
 function MonsterService:_activateLifecycle(roundId: number): MonsterPublicSnapshot
 	assert(roundId == self.roundId, "Activation roundId does not match selected round")
 	assert(
@@ -458,6 +477,19 @@ function MonsterService:CampfireStop(roundId: number): MonsterPublicSnapshot
 		self:_mutated()
 	end
 	return self:GetPublicSnapshot()
+end
+
+function MonsterService:TransferControl(
+	roundId: number,
+	participantId: MonsterParticipantId
+): MonsterPrivateSnapshot
+	assert(roundId == self.roundId, "Transfer roundId does not match active round")
+	assert(participantId ~= "", "Replacement participantId cannot be empty")
+	assert(self.lifecycle ~= "Inactive", "No monster lifecycle is available to transfer")
+	self.participantId = participantId
+	self.lastRequestSequence = 0
+	self:_mutated()
+	return self:GetPrivateSnapshot()
 end
 
 function MonsterService:Reset(roundId: number?)

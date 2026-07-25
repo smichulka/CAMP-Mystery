@@ -2,30 +2,34 @@
 
 A multiplayer Roblox supernatural mystery game designed by Skipper and Penelope.
 
-## Current milestone
+## Current status
 
-The repository contains the tested Milestone 2 gray-box round plus the Milestone 3
-domain foundation:
+The repository contains the integrated, code-complete gameplay alpha:
 
 - Rojo 7.7 project mapping
 - server-authoritative round phase state machine
-- private Camper/Murderer role assignment
+- all eight hidden roles and all eight monster gameplay definitions
 - three interactive daytime camp objectives
 - a generated camp and an abandoned town that materializes at night
-- three collectible evidence clues
+- generated real, fake, culprit, and monster evidence
 - campfire voting, victory conditions, and automatic reset
-- synchronized phase, role, evidence, objective, and voting HUD
-- solo Studio support through a computer-controlled culprit
+- responsive desktop, touch, and controller UI
+- solo and mixed-roster support through computer players
 - strict Luau source layout for shared, server, and client code
 - stable human and computer participant identities
 - catalog-driven definitions for all eight roles and eight monsters
 - inventory, equipment, combat, injury, ghost, and evidence domain services
 - versioned profiles, earned progression, rewards, and cosmetics
 - round-scoped lifecycle and cleanup utilities
+- 150-second production matchmaking fill and ready flow
+- 18m55s production rounds with a 3m07s Studio test cadence
+- filtered evidence notes and server-side proximity, range, line-of-sight, cooldown,
+  ownership, role, phase, and request-rate validation
 
-Milestone 3 modules are being integrated behind the existing round contract. The tested
-Milestone 2 runtime remains the default path until the corresponding integration gate
-passes.
+`GameRuntimeService` is the live production path. The legacy `RoundService` remains only
+as the previously tested gray-box reference and is not started by the server bootstrap.
+Final reference-quality monster rigs, animations, audio, and environment art remain
+swappable Roblox asset work rather than missing gameplay code.
 
 ## Local setup
 
@@ -45,7 +49,8 @@ In Roblox Studio:
 4. Allow Rojo to synchronize the project.
 5. Press **Play**.
 
-The Output panel should show the server and client foundation messages. Follow the HUD prompts to complete the gray-box round.
+The Output panel should show the production server and client startup messages. Ready up
+through the lobby UI, then follow the role, objective, investigation, and campfire HUD.
 
 ## Build without Studio
 
@@ -58,6 +63,7 @@ rojo build default.project.json --output build/CAMP-Mystery.rbxlx
 
 ```powershell
 python scripts/validate_project.py
+python scripts/test_domain_contracts.py
 ```
 
 See [docs/PLAYTEST_MILESTONE_2.md](docs/PLAYTEST_MILESTONE_2.md) for the complete Studio

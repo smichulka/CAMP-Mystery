@@ -2,17 +2,21 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local configFolder = Shared:WaitForChild("Config")
 local typesFolder = Shared:WaitForChild("Types")
 local CosmeticCatalog = require(configFolder:WaitForChild("CosmeticCatalog"))
 local ProgressionConfig = require(configFolder:WaitForChild("ProgressionConfig"))
+local RoleCatalog = require(configFolder:WaitForChild("RoleCatalog"))
+local UpgradeCatalog = require(configFolder:WaitForChild("UpgradeCatalog"))
 local Types = require(typesFolder:WaitForChild("ProfileTypes"))
 
 local serverRoot = script.Parent.Parent
 local adapters = serverRoot:WaitForChild("Adapters")
 local systems = serverRoot:WaitForChild("Systems")
+local MemoryProfileStore = require(adapters:WaitForChild("MemoryProfileStore"))
 local RobloxProfileStore = require(adapters:WaitForChild("RobloxProfileStore"))
 local RewardCalculation = require(systems:WaitForChild("RewardCalculation"))
 
@@ -21,6 +25,8 @@ type ProfileSnapshot = Types.ProfileSnapshot
 type RewardInput = Types.RewardInput
 type RewardGrant = Types.RewardGrant
 type RewardResult = Types.RewardResult
+type ProfileMutationResult = Types.ProfileMutationResult
+type ProfileMutation = (profile: PlayerProfile) -> (boolean, string?)
 
 type ProfileStore = {
 	LoadAsync: (self: any, key: string) -> (boolean, unknown?, string?),
@@ -41,6 +47,7 @@ type ProfileState = {
 
 type ProfileServiceState = {
 	store: ProfileStore,
+	storeKind: "Memory" | "Roblox" | "Injected",
 	profiles: { [number]: ProfileState },
 	running: boolean,
 	connections: { RBXScriptConnection },
@@ -99,6 +106,17 @@ local function safeIdentifier(value: unknown): string?
 		return nil
 	end
 	return value
+end
+
+local progressionRoleIds: { [string]: boolean } = {}
+for _, role in RoleCatalog.GetAll() do
+	if role.name ~= "Spectator" then
+		progressionRoleIds[role.name] = true
+	end
+end
+
+local function isProgressionRole(roleId: string): boolean
+	return progressionRoleIds[roleId] == true
 end
 
 local function defaultProfile(): PlayerProfile
@@ -178,7 +196,11 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 		local count = 0
 		for rawRoleId, rawMastery in raw.roleMastery do
 			local roleId = safeIdentifier(rawRoleId)
-			if roleId and typeof(rawMastery) == "table" and count < ProgressionConfig.maxMapEntries then
+			if roleId
+				and isProgressionRole(roleId)
+				and typeof(rawMastery) == "table"
+				and count < ProgressionConfig.maxMapEntries
+			then
 				local masteryXP = safeInteger(
 					rawMastery.xp,
 					0,
@@ -197,16 +219,24 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 		local roleCount = 0
 		for rawRoleId, rawUpgrades in raw.upgrades do
 			local roleId = safeIdentifier(rawRoleId)
-			if roleId and typeof(rawUpgrades) == "table" and roleCount < ProgressionConfig.maxMapEntries then
+			if roleId
+				and isProgressionRole(roleId)
+				and typeof(rawUpgrades) == "table"
+				and roleCount < ProgressionConfig.maxMapEntries
+			then
 				local roleUpgrades: { [string]: number } = {}
 				local upgradeCount = 0
 				for rawUpgradeId, rawRank in rawUpgrades do
 					local upgradeId = safeIdentifier(rawUpgradeId)
-					if upgradeId and upgradeCount < ProgressionConfig.maxMapEntries then
-						roleUpgrades[upgradeId] = safeInteger(
+					local definition = if upgradeId
+						then UpgradeCatalog.get(roleId, upgradeId)
+						else nil
+					if definition and upgradeCount < ProgressionConfig.maxMapEntries then
+						local resolvedUpgradeId = upgradeId :: string
+						roleUpgrades[resolvedUpgradeId] = safeInteger(
 							rawRank,
 							0,
-							ProgressionConfig.maxUpgradeRank
+							math.min(ProgressionConfig.maxUpgradeRank, definition.maxRank)
 						)
 						upgradeCount += 1
 					end
@@ -358,23 +388,45 @@ local function applyGrant(profile: PlayerProfile, grant: RewardGrant)
 	end
 end
 
+local function grantEligibleCosmetics(profile: PlayerProfile)
+	local accountLevel = ProgressionConfig.levelFromXP(profile.totalXP)
+	for _, definition in CosmeticCatalog.definitions do
+		if definition.unlockKind == "Default"
+			or (
+				definition.unlockKind == "Level"
+				and accountLevel >= definition.unlockAmount
+			)
+		then
+			profile.ownedCosmetics[definition.id] = true
+		end
+	end
+end
+
 local function keyForUserId(userId: number): string
 	return ProgressionConfig.keyPrefix .. tostring(userId)
 end
 
 function ProfileService.new(store: ProfileStore?): ProfileService
 	local configuredStore = store
+	local storeKind: "Memory" | "Roblox" | "Injected" = "Injected"
 	if not configuredStore then
-		local retry = ProgressionConfig.storeRetry
-		configuredStore = RobloxProfileStore.new(ProgressionConfig.dataStoreName, {
-			maxAttempts = retry.maxAttempts,
-			baseDelaySeconds = retry.baseDelaySeconds,
-			maxDelaySeconds = retry.maxDelaySeconds,
-		})
+		if RunService:IsStudio() then
+			configuredStore = MemoryProfileStore.new()
+			storeKind = "Memory"
+		else
+			local retry = ProgressionConfig.storeRetry
+			configuredStore = RobloxProfileStore.new(ProgressionConfig.dataStoreName, {
+				maxAttempts = retry.maxAttempts,
+				baseDelaySeconds = retry.baseDelaySeconds,
+				maxDelaySeconds = retry.maxDelaySeconds,
+			})
+			storeKind = "Roblox"
+		end
 	end
 
 	return setmetatable({
 		store = configuredStore :: ProfileStore,
+		storeKind = storeKind,
 		profiles = {},
 		running = false,
 		connections = {},
@@ -389,6 +441,10 @@ function ProfileService:_Snapshot(state: ProfileState): ProfileSnapshot
 	}
 end
 
+function ProfileService:GetStoreKind(): "Memory" | "Roblox" | "Injected"
+	return self.storeKind
+end
+
 function ProfileService:GetSnapshot(player: Player): ProfileSnapshot?
 	local state = self.profiles[player.UserId]
 	if not state then
@@ -400,6 +456,10 @@ end
 function ProfileService:IsGuest(player: Player): boolean
 	local state = self.profiles[player.UserId]
 	return state == nil or state.isGuest
+end
+
+function ProfileService:IsLoaded(player: Player): boolean
+	return self.profiles[player.UserId] ~= nil
 end
 
 function ProfileService:LoadPlayer(player: Player): ProfileSnapshot
@@ -502,6 +562,271 @@ function ProfileService:SavePlayer(player: Player): (boolean, string?)
 	return true, nil
 end
 
+function ProfileService:_MutateProfile(
+	player: Player,
+	mutation: ProfileMutation
+): ProfileMutationResult
+	local state = self.profiles[player.UserId]
+	if not state then
+		return {
+			applied = false,
+			reason = "ProfileNotLoaded",
+			snapshot = nil,
+		}
+	end
+	if state.isGuest then
+		return {
+			applied = false,
+			reason = "GuestMode",
+			snapshot = self:_Snapshot(state),
+		}
+	end
+	if not self:_WaitForAccess(state) then
+		return {
+			applied = false,
+			reason = state.saveError,
+			snapshot = self:_Snapshot(state),
+		}
+	end
+
+	local applied = false
+	local mutationReason: string? = nil
+	local success, storedValue, saveError = self.store:UpdateAsync(
+		keyForUserId(player.UserId),
+		function(currentValue: unknown?)
+			local current, validationError = sanitizeProfile(currentValue)
+			if not current then
+				error(validationError or "Stored profile could not be validated")
+			end
+			local didApply, reason = mutation(current)
+			applied = didApply
+			mutationReason = reason
+			return current
+		end
+	)
+	state.busy = false
+	if not success then
+		state.saveError = saveError or "Profile mutation failed"
+		return {
+			applied = false,
+			reason = state.saveError,
+			snapshot = self:_Snapshot(state),
+		}
+	end
+
+	local stored, validationError = sanitizeProfile(storedValue)
+	if not stored then
+		state.saveError = validationError or "Mutated profile could not be validated"
+		return {
+			applied = false,
+			reason = state.saveError,
+			snapshot = self:_Snapshot(state),
+		}
+	end
+	state.profile = stored
+	state.dirty = false
+	state.saveError = nil
+	return {
+		applied = applied,
+		reason = mutationReason,
+		snapshot = self:_Snapshot(state),
+	}
+end
+
+function ProfileService:UpdateSettings(
+	player: Player,
+	patch: { [string]: unknown }
+): ProfileMutationResult
+	return self:_MutateProfile(player, function(profile: PlayerProfile): (boolean, string?)
+		local changed = false
+		local recognized = false
+		for key, value in patch do
+			if key == "masterVolume" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeUnit(value, profile.settings.masterVolume)
+				changed = changed or resolved ~= profile.settings.masterVolume
+				profile.settings.masterVolume = resolved
+			elseif key == "musicVolume" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeUnit(value, profile.settings.musicVolume)
+				changed = changed or resolved ~= profile.settings.musicVolume
+				profile.settings.musicVolume = resolved
+			elseif key == "ambienceVolume" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeUnit(value, profile.settings.ambienceVolume)
+				changed = changed or resolved ~= profile.settings.ambienceVolume
+				profile.settings.ambienceVolume = resolved
+			elseif key == "effectsVolume" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeUnit(value, profile.settings.effectsVolume)
+				changed = changed or resolved ~= profile.settings.effectsVolume
+				profile.settings.effectsVolume = resolved
+			elseif key == "uiVolume" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeUnit(value, profile.settings.uiVolume)
+				changed = changed or resolved ~= profile.settings.uiVolume
+				profile.settings.uiVolume = resolved
+			elseif key == "mouseSensitivity" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeSensitivity(value, profile.settings.mouseSensitivity)
+				changed = changed or resolved ~= profile.settings.mouseSensitivity
+				profile.settings.mouseSensitivity = resolved
+			elseif key == "controllerSensitivity" and typeof(value) == "number" then
+				recognized = true
+				local resolved = safeSensitivity(value, profile.settings.controllerSensitivity)
+				changed = changed or resolved ~= profile.settings.controllerSensitivity
+				profile.settings.controllerSensitivity = resolved
+			elseif key == "subtitles" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.subtitles
+				profile.settings.subtitles = value
+			elseif key == "reducedMotion" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.reducedMotion
+				profile.settings.reducedMotion = value
+			elseif key == "cameraShake" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.cameraShake
+				profile.settings.cameraShake = value
+			elseif key == "highContrastEvidence" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.highContrastEvidence
+				profile.settings.highContrastEvidence = value
+			elseif key == "sprintToggle" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.sprintToggle
+				profile.settings.sprintToggle = value
+			end
+		end
+		if not recognized then
+			return false, "NoValidSettings"
+		end
+		return changed, if changed then nil else "NoChange"
+	end)
+end
+
+function ProfileService:PurchaseUpgrade(
+	player: Player,
+	roleId: string,
+	upgradeId: string
+): ProfileMutationResult
+	local safeRoleId = safeIdentifier(roleId)
+	local safeUpgradeId = safeIdentifier(upgradeId)
+	local definition = if safeRoleId and safeUpgradeId
+		then UpgradeCatalog.get(safeRoleId, safeUpgradeId)
+		else nil
+	if not definition then
+		return {
+			applied = false,
+			reason = "UnknownUpgrade",
+			snapshot = self:GetSnapshot(player),
+		}
+	end
+
+	return self:_MutateProfile(player, function(profile: PlayerProfile): (boolean, string?)
+		local roleMastery = profile.roleMastery[definition.roleId] or { xp = 0, level = 1 }
+		if roleMastery.level < definition.requiredMasteryLevel then
+			return false, "MasteryLevelRequired"
+		end
+		local roleUpgrades = profile.upgrades[definition.roleId]
+		if not roleUpgrades then
+			roleUpgrades = {}
+			profile.upgrades[definition.roleId] = roleUpgrades
+		end
+		local currentRank = roleUpgrades[definition.id] or 0
+		if currentRank >= definition.maxRank then
+			return false, "UpgradeCapped"
+		end
+		local cost = UpgradeCatalog.nextRankCost(definition, currentRank)
+		if profile.campTokens < cost then
+			return false, "NotEnoughCampTokens"
+		end
+		profile.campTokens -= cost
+		roleUpgrades[definition.id] = currentRank + 1
+		return true, nil
+	end)
+end
+
+function ProfileService:GetUpgradeRank(
+	player: Player,
+	roleId: string,
+	upgradeId: string
+): number
+	local state = self.profiles[player.UserId]
+	if not state then
+		return 0
+	end
+	local roleUpgrades = state.profile.upgrades[roleId]
+	return if roleUpgrades then roleUpgrades[upgradeId] or 0 else 0
+end
+
+function ProfileService:UnlockCosmetic(
+	player: Player,
+	cosmeticId: string
+): ProfileMutationResult
+	local id = safeIdentifier(cosmeticId)
+	local definition = if id then CosmeticCatalog.byId[id] else nil
+	if not definition then
+		return {
+			applied = false,
+			reason = "UnknownCosmetic",
+			snapshot = self:GetSnapshot(player),
+		}
+	end
+	return self:_MutateProfile(player, function(profile: PlayerProfile): (boolean, string?)
+		if profile.ownedCosmetics[definition.id] then
+			return false, "AlreadyOwned"
+		end
+		if definition.unlockKind == "Level" then
+			if ProgressionConfig.levelFromXP(profile.totalXP) < definition.unlockAmount then
+				return false, "AccountLevelRequired"
+			end
+		elseif definition.unlockKind == "CampTokens" then
+			if profile.campTokens < definition.unlockAmount then
+				return false, "NotEnoughCampTokens"
+			end
+			profile.campTokens -= definition.unlockAmount
+		end
+		profile.ownedCosmetics[definition.id] = true
+		return true, nil
+	end)
+end
+
+function ProfileService:EquipCosmetic(
+	player: Player,
+	cosmeticId: string
+): ProfileMutationResult
+	local id = safeIdentifier(cosmeticId)
+	local definition = if id then CosmeticCatalog.byId[id] else nil
+	if not definition then
+		return {
+			applied = false,
+			reason = "UnknownCosmetic",
+			snapshot = self:GetSnapshot(player),
+		}
+	end
+	return self:_MutateProfile(player, function(profile: PlayerProfile): (boolean, string?)
+		if not profile.ownedCosmetics[definition.id] then
+			return false, "CosmeticNotOwned"
+		end
+		if profile.equippedCosmetics[definition.category] == definition.id then
+			return false, "AlreadyEquipped"
+		end
+		profile.equippedCosmetics[definition.category] = definition.id
+		return true, nil
+	end)
+end
+
+function ProfileService:ReleasePlayer(player: Player): (boolean, string?)
+	local state = self.profiles[player.UserId]
+	if not state then
+		return true, nil
+	end
+	local saved, reason = self:SavePlayer(player)
+	self.profiles[player.UserId] = nil
+	return saved, reason
+end
+
 function ProfileService:ApplyReward(
 	player: Player,
 	input: RewardInput
@@ -528,7 +853,7 @@ function ProfileService:ApplyReward(
 
 	local receiptId = safeIdentifier(input.receiptId)
 	local roleId = safeIdentifier(input.roleId)
-	if not receiptId or not roleId then
+	if not receiptId or not roleId or not isProgressionRole(roleId) then
 		return {
 			applied = false,
 			duplicate = false,
@@ -581,6 +906,7 @@ function ProfileService:ApplyReward(
 				return current
 			end
 			applyGrant(current, grant)
+			grantEligibleCosmetics(current)
 			appliedByThisUpdate = true
 			return current
 		end
@@ -634,8 +960,7 @@ function ProfileService:Start()
 		end)
 	end))
 	table.insert(self.connections, Players.PlayerRemoving:Connect(function(player: Player)
-		self:SavePlayer(player)
-		self.profiles[player.UserId] = nil
+		self:ReleasePlayer(player)
 	end))
 
 	for _, player in Players:GetPlayers() do
@@ -660,21 +985,18 @@ function ProfileService:Start()
 
 	game:BindToClose(function()
 		local remaining = 0
-		local finished = Instance.new("BindableEvent")
 		for _, player in Players:GetPlayers() do
 			remaining += 1
 			task.spawn(function()
 				self:SavePlayer(player)
 				remaining -= 1
-				finished:Fire()
 			end)
 		end
 
 		local deadline = os.clock() + ProgressionConfig.shutdownSaveTimeoutSeconds
 		while remaining > 0 and os.clock() < deadline do
-			finished.Event:Wait()
+			task.wait(0.05)
 		end
-		finished:Destroy()
 	end)
 end
 

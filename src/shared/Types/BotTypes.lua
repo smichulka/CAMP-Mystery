@@ -112,11 +112,27 @@ export type BotRuntimeState = {
 	profileId: string,
 	difficulty: DifficultyName,
 	personality: Personality,
+	roundNumber: number,
 	memories: { BotMemory },
 	relationships: { [string]: Relationship },
 	nextThinkAt: number,
 	lastActionAt: number?,
 	lastActionId: string?,
+	decisionCount: number,
+	active: boolean,
+}
+
+export type BotRuntimeSnapshot = {
+	participantId: string,
+	profileId: string,
+	difficulty: DifficultyName,
+	roundNumber: number,
+	memoryCount: number,
+	relationshipCount: number,
+	nextThinkAt: number,
+	lastActionAt: number?,
+	lastActionId: string?,
+	decisionCount: number,
 	active: boolean,
 }
 

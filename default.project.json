@@ -24,6 +24,18 @@
         },
         "SubmitVote": {
           "$className": "RemoteEvent"
+        },
+        "GameStateChanged": {
+          "$className": "RemoteEvent"
+        },
+        "GetGameState": {
+          "$className": "RemoteFunction"
+        },
+        "RequestAction": {
+          "$className": "RemoteFunction"
+        },
+        "Announcement": {
+          "$className": "RemoteEvent"
         }
       }
     },
