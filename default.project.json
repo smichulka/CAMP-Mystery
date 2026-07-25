@@ -15,6 +15,15 @@
         },
         "GetRoundState": {
           "$className": "RemoteFunction"
+        },
+        "PlayerStateChanged": {
+          "$className": "RemoteEvent"
+        },
+        "GetPlayerState": {
+          "$className": "RemoteFunction"
+        },
+        "SubmitVote": {
+          "$className": "RemoteEvent"
         }
       }
     },
@@ -85,4 +94,3 @@
     }
   }
 }
-
