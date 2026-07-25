@@ -4,7 +4,8 @@ A multiplayer Roblox supernatural mystery game designed by Skipper and Penelope.
 
 ## Current milestone
 
-The repository contains the Milestone 2 gray-box round:
+The repository contains the tested Milestone 2 gray-box round plus the Milestone 3
+domain foundation:
 
 - Rojo 7.7 project mapping
 - server-authoritative round phase state machine
@@ -16,6 +17,15 @@ The repository contains the Milestone 2 gray-box round:
 - synchronized phase, role, evidence, objective, and voting HUD
 - solo Studio support through a computer-controlled culprit
 - strict Luau source layout for shared, server, and client code
+- stable human and computer participant identities
+- catalog-driven definitions for all eight roles and eight monsters
+- inventory, equipment, combat, injury, ghost, and evidence domain services
+- versioned profiles, earned progression, rewards, and cosmetics
+- round-scoped lifecycle and cleanup utilities
+
+Milestone 3 modules are being integrated behind the existing round contract. The tested
+Milestone 2 runtime remains the default path until the corresponding integration gate
+passes.
 
 ## Local setup
 
@@ -50,7 +60,10 @@ rojo build default.project.json --output build/CAMP-Mystery.rbxlx
 python scripts/validate_project.py
 ```
 
-See [docs/PLAYTEST_MILESTONE_2.md](docs/PLAYTEST_MILESTONE_2.md) for the complete Studio smoke test.
+See [docs/PLAYTEST_MILESTONE_2.md](docs/PLAYTEST_MILESTONE_2.md) for the complete Studio
+smoke test, [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) for the authoritative launch
+rules, and [docs/DELIVERY_PLAN.md](docs/DELIVERY_PLAN.md) for the autonomous milestone
+sequence.
 
 ## Architecture
 
