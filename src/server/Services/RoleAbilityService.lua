@@ -27,6 +27,7 @@ type LifecycleEmitter = {
 type Clock = () -> number
 type PhaseProvider = () -> string
 type GuardConsequence = (guardParticipantId: string, attackerParticipantId: string) -> ()
+type UpgradeRankProvider = (participantId: string, upgradeId: string) -> number
 
 export type AbilityResult = {
 	accepted: boolean,
@@ -72,6 +73,7 @@ type RoleAbilityServiceState = {
 	getPhase: PhaseProvider,
 	clock: Clock,
 	onGuardConsequence: GuardConsequence,
+	getUpgradeRank: UpgradeRankProvider,
 	wardsByTargetId: { [string]: WardState },
 	guardsByTargetId: { [string]: GuardState },
 	trapsById: { [string]: TrapState },
@@ -90,6 +92,21 @@ export type RoleAbilityService = typeof(
 local function defaultClock(): number
 	return workspace:GetServerTimeNow()
 end
+
+local ABILITY_UPGRADES: {
+	[string]: {
+		id: string,
+		cooldownReductionPerRank: number,
+	},
+} = {
+	["field-treatment"] = { id = "steady-hands", cooldownReductionPerRank = 1 },
+	["place-warning-trap"] = { id = "careful-reset", cooldownReductionPerRank = 1 },
+	["spirit-sense"] = { id = "clear-signal", cooldownReductionPerRank = 2 },
+	["guard-post"] = { id = "watchful-post", cooldownReductionPerRank = 1 },
+	["protect-participant"] = { id = "focused-ward", cooldownReductionPerRank = 2 },
+	["analyze-evidence"] = { id = "methodical-review", cooldownReductionPerRank = 2 },
+	["plant-false-evidence"] = { id = "controlled-trace", cooldownReductionPerRank = 2 },
+}
 
 local function phaseIncluded(phase: string, allowed: { string }): boolean
 	return table.find(allowed, phase) ~= nil
@@ -116,7 +133,8 @@ function RoleAbilityService.new(
 	lifecycle: LifecycleEmitter,
 	getPhase: PhaseProvider,
 	onGuardConsequence: GuardConsequence?,
-	clock: Clock?
+	clock: Clock?,
+	getUpgradeRank: UpgradeRankProvider?
 ): RoleAbilityService
 	return setmetatable({
 		roundId = 0,
@@ -126,6 +144,12 @@ function RoleAbilityService.new(
 		getPhase = getPhase,
 		clock = clock or defaultClock,
 		onGuardConsequence = onGuardConsequence or function() end,
+		getUpgradeRank = getUpgradeRank or function(
+			_participantId: string,
+			_upgradeId: string
+		): number
+			return 0
+		end,
 		wardsByTargetId = {},
 		guardsByTargetId = {},
 		trapsById = {},
@@ -196,8 +220,18 @@ function RoleAbilityService:_commit(participant: ParticipantState, abilityId: st
 		if ability.id == abilityId then
 			participant.abilityUses[abilityId] =
 				(participant.abilityUses[abilityId] or 0) + 1
+			local upgrade = ABILITY_UPGRADES[abilityId]
+			local reduction = 0
+			if upgrade then
+				local rank = math.clamp(
+					math.floor(self.getUpgradeRank(participant.participantId, upgrade.id)),
+					0,
+					5
+				)
+				reduction = rank * upgrade.cooldownReductionPerRank
+			end
 			participant.abilityCooldownEndsAt[abilityId] =
-				self.clock() + ability.cooldownSeconds
+				self.clock() + math.max(0, ability.cooldownSeconds - reduction)
 			self.revision += 1
 			return
 		end
@@ -286,7 +320,9 @@ function RoleAbilityService:SetGuard(
 	self.guardsByTargetId[targetParticipantId] = {
 		guardParticipantId = guardParticipantId,
 		targetParticipantId = targetParticipantId,
-		expiresAt = self.clock() + 45,
+		expiresAt = self.clock()
+			+ 45
+			+ self.getUpgradeRank(guardParticipantId, "watchful-post") * 3,
 	}
 	self:_commit(guard, "guard-post")
 	return accepted({ targetParticipantId = targetParticipantId })
@@ -332,7 +368,14 @@ function RoleAbilityService:TriggerTrap(
 	if not triggering or not triggering.alive or triggering.isGhost then
 		return rejected("Triggering participant is not eligible")
 	end
-	trap.active = false
+	local recoveryRank = math.clamp(
+		math.floor(self.getUpgradeRank(trap.ownerParticipantId, "careful-reset")),
+		0,
+		3
+	)
+	local recovered = recoveryRank > 0
+		and (self.roundId + #trap.trapId + recoveryRank) % 4 < recoveryRank
+	trap.active = recovered
 	self.revision += 1
 	return accepted({
 		trapId = trapId,
@@ -340,6 +383,7 @@ function RoleAbilityService:TriggerTrap(
 		triggeringParticipantId = triggeringParticipantId,
 		revealedMonster = triggering.role == "Murderer",
 		slowSeconds = if triggering.role == "Murderer" then 4 else 1,
+		recovered = recovered,
 	})
 end
 

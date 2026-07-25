@@ -13,9 +13,11 @@ local EquipmentRules = require(
 	script.Parent.Parent.Config:WaitForChild("EquipmentRules")
 )
 local CombatTypes = require(Shared.Types:WaitForChild("CombatTypes"))
+local CounselorTypes = require(Shared.Types:WaitForChild("CounselorTypes"))
 local EquipmentTypes = require(Shared.Types:WaitForChild("EquipmentTypes"))
 local GameTypes = require(Shared.Types:WaitForChild("GameTypes"))
 local MonsterTypes = require(Shared.Types:WaitForChild("MonsterTypes"))
+local MysteryTypes = require(Shared.Types:WaitForChild("MysteryTypes"))
 local ParticipantTypes = require(Shared.Types:WaitForChild("ParticipantTypes"))
 local RuntimeTypes = require(Shared.Types:WaitForChild("RuntimeTypes"))
 
@@ -23,15 +25,16 @@ local services = script.Parent
 local systems = script.Parent.Parent:WaitForChild("Systems")
 local CombatService = require(services:WaitForChild("CombatService"))
 local ComputerPlayerService = require(services:WaitForChild("ComputerPlayerService"))
+local CounselorService = require(services:WaitForChild("CounselorService"))
 local EvidenceService = require(services:WaitForChild("EvidenceService"))
-local GrayboxMapService = require(services:WaitForChild("GrayboxMapService"))
+local ProductionMapService = require(services:WaitForChild("ProductionMapService"))
 local InventoryService = require(services:WaitForChild("InventoryService"))
 local LobbyService = require(services:WaitForChild("LobbyService"))
 local MatchmakingService = require(services:WaitForChild("MatchmakingService"))
 local MonsterService = require(services:WaitForChild("MonsterService"))
+local MysteryService = require(services:WaitForChild("MysteryService"))
 local ParticipantService = require(services:WaitForChild("ParticipantService"))
-local PlaceholderCharacterService =
-	require(services:WaitForChild("PlaceholderCharacterService"))
+local CharacterAssetService = require(services:WaitForChild("CharacterAssetService"))
 local ProfileService = require(services:WaitForChild("ProfileService"))
 local RoleAbilityService = require(services:WaitForChild("RoleAbilityService"))
 local RoundLifecycle = require(services:WaitForChild("RoundLifecycle"))
@@ -53,6 +56,7 @@ type EquipmentId = EquipmentTypes.EquipmentId
 type MonsterId = MonsterTypes.MonsterId
 type AbilityRequest = MonsterTypes.AbilityRequest
 type MonsterStatusId = MonsterTypes.MonsterStatusId
+type DialogueTopic = CounselorTypes.DialogueTopic
 
 export type RuntimeOptions = {
 	autoRun: boolean?,
@@ -91,6 +95,8 @@ type GameRuntimeServiceState = {
 	evidenceByParticipantId: { [string]: number },
 	evidenceLocationById: { [string]: string },
 	evidenceAliasById: { [string]: string },
+	mysteryClueIdsByLocation: { [string]: { string } },
+	mysteryReady: boolean,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -98,12 +104,14 @@ type GameRuntimeServiceState = {
 	inventory: InventoryService.InventoryService,
 	combat: CombatService.CombatService,
 	evidence: EvidenceService.EvidenceService,
+	mystery: MysteryService.MysteryService,
+	counselors: CounselorService.CounselorService,
 	monster: MonsterService.MonsterService,
 	world: WorldService.WorldService,
 	statusEffects: StatusEffectService.StatusEffectService,
 	roleAbilities: RoleAbilityService.RoleAbilityService,
 	voting: VotingService.VotingService,
-	characters: PlaceholderCharacterService.PlaceholderCharacterService,
+	characters: CharacterAssetService.CharacterAssetService,
 	botRoster: BotRosterSystem.BotRosterSystem,
 	computerPlayers: ComputerPlayerService.ComputerPlayerService,
 	lobby: LobbyService.LobbyService,
@@ -322,7 +330,7 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		end,
 	})
 
-	local mapService = GrayboxMapService.new(
+	local mapService = ProductionMapService.new(
 		function(player: Player, objectiveId: string)
 			local runtime = runtimeRef
 			if runtime then
@@ -353,7 +361,46 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 			end
 		end,
 	})
-	local characters = PlaceholderCharacterService.new()
+	local characters = CharacterAssetService.new()
+	local counselors = CounselorService.new({
+		canInteract = function(participantId: string, _counselorId: string): boolean
+			local runtime = runtimeRef
+			local participant = participants:GetById(participantId)
+			return runtime ~= nil
+				and participant ~= nil
+				and participant.alive
+				and not participant.isGhost
+				and (
+					runtime.phase == "Day"
+					or runtime.phase == "Investigation"
+					or runtime.phase == "Campfire"
+				)
+		end,
+	})
+	local mystery = MysteryService.new({
+		canDiscover = function(participantId: string, _clueId: string, _locationId: string): boolean
+			local runtime = runtimeRef
+			local participant = participants:GetById(participantId)
+			return runtime ~= nil
+				and runtime.phase == "Investigation"
+				and participant ~= nil
+				and participant.alive
+				and not participant.isGhost
+		end,
+		canInterview = function(participantId: string, counselorId: string): boolean
+			local runtime = runtimeRef
+			if not runtime then
+				return false
+			end
+			local participant = participants:GetById(participantId)
+			local counselor = counselors:GetPrivateSnapshot(counselorId)
+			return participant ~= nil
+				and participant.alive
+				and not participant.isGhost
+				and counselor ~= nil
+				and counselor.interactionAllowed
+		end,
+	})
 
 	local combatRef: CombatService.CombatService? = nil
 	local roleAbilities = RoleAbilityService.new(
@@ -372,6 +419,19 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 					attackerParticipantId
 				)
 			end
+		end,
+		nil,
+		function(participantId: string, upgradeId: string): number
+			local participant = participants:GetById(participantId)
+			if not participant or participant.controller.kind ~= "Human" then
+				return 0
+			end
+			local player = Players:GetPlayerByUserId(participant.controller.userId)
+			local snapshot = if player then profile:GetSnapshot(player) else nil
+			local roleUpgrades = if snapshot
+				then snapshot.profile.upgrades[participant.role]
+				else nil
+			return if roleUpgrades then roleUpgrades[upgradeId] or 0 else 0
 		end
 	)
 
@@ -526,6 +586,8 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		evidenceByParticipantId = {},
 		evidenceLocationById = {},
 		evidenceAliasById = {},
+		mysteryClueIdsByLocation = {},
+		mysteryReady = false,
 		activeMatchRoundId = nil,
 		connections = {},
 		participants = participants,
@@ -533,6 +595,8 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		inventory = inventory,
 		combat = combat,
 		evidence = evidence,
+		mystery = mystery,
+		counselors = counselors,
 		monster = monster,
 		world = world,
 		statusEffects = statusEffects,
@@ -669,16 +733,92 @@ function GameRuntimeService:_assignEvidenceLocations()
 	self.evidenceAliasById = {}
 	local records = self.evidence:GetAllServer()
 	for index, record in records do
-		self.evidenceLocationById[record.evidenceId] =
-			SEARCH_LOCATIONS[((index - 1) % #SEARCH_LOCATIONS) + 1]
-		if index == 1 then
-			self.evidenceAliasById["muddy-bootprint"] = record.evidenceId
-		elseif index == 2 then
-			self.evidenceAliasById["torn-fabric"] = record.evidenceId
-		elseif index == 3 then
-			self.evidenceAliasById["dropped-token"] = record.evidenceId
+		local locationId = SEARCH_LOCATIONS[((index - 1) % #SEARCH_LOCATIONS) + 1]
+		self.evidenceLocationById[record.evidenceId] = locationId
+		self.evidenceAliasById[locationId] = record.evidenceId
+	end
+end
+
+function GameRuntimeService:_beginMystery(seed: number?)
+	if self.mysteryReady then
+		return
+	end
+	local culpritId = self.culpritParticipantId
+	local plan = self.murderPlan
+	assert(culpritId and plan, "Mystery requires a culprit and a locked murder plan")
+
+	local participantSuspects: { string } = {}
+	for _, participant in self.participants:GetAll() do
+		if participant.role ~= "Spectator" then
+			table.insert(participantSuspects, participant.participantId)
 		end
 	end
+	local counselorSnapshot = self.counselors:GetPublicSnapshot()
+	local counselorIds: { string } = {}
+	for _, counselor in counselorSnapshot.counselors do
+		table.insert(counselorIds, counselor.counselorId)
+	end
+
+	local mysterySuspects = table.clone(participantSuspects)
+	local counselorIndex = 1
+	while #mysterySuspects < 4 and counselorIds[counselorIndex] do
+		table.insert(mysterySuspects, counselorIds[counselorIndex])
+		counselorIndex += 1
+	end
+	local privateMystery = self.mystery:BeginRound({
+		roundId = self.roundId,
+		roundSeed = seed or self.roundId,
+		culpritParticipantId = culpritId,
+		monsterId = plan.monsterId,
+		suspectIds = mysterySuspects,
+		counselorIds = counselorIds,
+		frameTargetId = plan.frameParticipantId,
+	})
+
+	self.mysteryClueIdsByLocation = {}
+	for _, placement in self.mystery:GetSearchPlacements() do
+		local atLocation = self.mysteryClueIdsByLocation[placement.locationId]
+		if not atLocation then
+			atLocation = {}
+			self.mysteryClueIdsByLocation[placement.locationId] = atLocation
+		end
+		table.insert(atLocation, placement.clueId)
+	end
+	for _, account in privateMystery.witnessAccounts do
+		self.counselors:AssignWitnessAccount(
+			account.counselorId,
+			account.accountId,
+			account.templateId,
+			now()
+		)
+	end
+	self.mysteryReady = true
+end
+
+function GameRuntimeService:_discoverMysteryAtLocation(
+	participantId: string,
+	locationId: string
+): { MysteryTypes.PublicMysteryClue }
+	local revealed: { MysteryTypes.PublicMysteryClue } = {}
+	if not self.mysteryReady then
+		return revealed
+	end
+	local clueIds = self.mysteryClueIdsByLocation[locationId]
+	if not clueIds then
+		return revealed
+	end
+	for _, clueId in clueIds do
+		local discovered = self.mystery:DiscoverClue(participantId, clueId, now())
+		if discovered then
+			for _, clue in self.mystery:GetPublicSnapshot().clues do
+				if clue.clueId == clueId then
+					table.insert(revealed, clue)
+					break
+				end
+			end
+		end
+	end
+	return revealed
 end
 
 function GameRuntimeService:BeginRound(
@@ -698,6 +838,8 @@ function GameRuntimeService:BeginRound(
 	self.combat:BeginRound(roundId)
 	self.world:PrepareRound(roundId, seed)
 	self.characters:Reset()
+	self.counselors:BeginRound(roundId, seed)
+	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
 
 	self.winner = nil
 	self.resultMessage = nil
@@ -706,6 +848,8 @@ function GameRuntimeService:BeginRound(
 	self.objectivesByParticipantId = {}
 	self.evidenceByParticipantId = {}
 	self.murderPlan = nil
+	self.mysteryReady = false
+	self.mysteryClueIdsByLocation = {}
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -752,6 +896,10 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	self.phase = phase
 	self.phaseStartedAt = now()
 	self.phaseEndsAt = self.phaseStartedAt + phaseDuration(phase)
+	if self.roundId > 0 then
+		self.counselors:SetPhase(phase, self.phaseStartedAt)
+		self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
+	end
 
 	if phase == "Day" then
 		self.world:SetObjectivePromptsEnabled(true)
@@ -759,6 +907,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.world:SetObjectivePromptsEnabled(false)
 		self.monster:BeginPlanning(self.roundId)
 	elseif phase == "NightTransform" then
+		self:_beginMystery(self.world:GetPublicSnapshot().roundSeed)
 		self.world:SetNight(true)
 		local privateMonster = self.monster:GetPrivateSnapshot()
 		local monsterId = privateMonster.monsterId
@@ -787,6 +936,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 			winner = self.winner,
 			resultMessage = self.resultMessage,
 		})
+		self.counselors:EndRound(now())
 	elseif phase == "Lobby" and previousPhase ~= "Lobby" then
 		self.world:ResetRound()
 		self.characters:Reset()
@@ -851,6 +1001,9 @@ end
 
 function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 	local voteSnapshot = self.voting:GetSnapshot()
+	local mysterySnapshot = if self.mysteryReady
+		then self.mystery:GetPublicSnapshot()
+		else nil
 	return {
 		roundNumber = self.roundId,
 		phase = self.phase,
@@ -860,8 +1013,12 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		serverNow = now(),
 		objectivesCompleted = self:_objectiveCount(),
 		objectiveGoal = RoundConfig.objectiveGoal,
-		evidenceFound = #self:_evidenceSummaries(),
-		evidenceGoal = RoundConfig.evidenceGoal,
+		evidenceFound = if mysterySnapshot
+			then mysterySnapshot.discoveredClueCount
+			else #self:_evidenceSummaries(),
+		evidenceGoal = if mysterySnapshot
+			then mysterySnapshot.totalClueCount
+			else RoundConfig.evidenceGoal,
 		evidence = self:_evidenceSummaries(),
 		suspects = self:_suspects(),
 		votesCast = voteSnapshot.votesCast,
@@ -883,8 +1040,10 @@ function GameRuntimeService:_availableActions(
 	local actions: { RuntimeTypes.AvailableAction } = {}
 	local names: { ActionName } = {
 		"Ready",
+		"SetMurderPlan",
 		"CompleteObjective",
 		"DiscoverEvidence",
+		"InterviewCounselor",
 		"Vote",
 		"EquipItem",
 		"UseItem",
@@ -903,10 +1062,24 @@ function GameRuntimeService:_availableActions(
 		local enabled = active
 		if name == "Ready" then
 			enabled = self.phase == "Lobby"
+		elseif name == "SetMurderPlan" then
+			enabled = active
+				and self.phase == "MurderPlanning"
+				and participant ~= nil
+				and participant.role == "Murderer"
+				and (participant.abilityUses["monster-transformation"] or 0) < 1
 		elseif name == "CompleteObjective" then
 			enabled = active and self.phase == "Day"
 		elseif name == "DiscoverEvidence" then
 			enabled = active and self.phase == "Investigation"
+		elseif name == "InterviewCounselor" then
+			enabled = active
+				and self.mysteryReady
+				and (
+					self.phase == "Day"
+					or self.phase == "Investigation"
+					or self.phase == "Campfire"
+				)
 		elseif name == "Vote" then
 			enabled = active and self.phase == "Campfire"
 		elseif name == "UseMonsterAbility" then
@@ -914,6 +1087,27 @@ function GameRuntimeService:_availableActions(
 				and self.phase == "Investigation"
 				and participant ~= nil
 				and participant.role == "Murderer"
+		elseif name == "UseRoleAbility" then
+			if participant == nil then
+				enabled = false
+			elseif participant.role == "Murderer" then
+				enabled = active and self.phase == "MurderPlanning"
+			elseif participant.role == "Medium" then
+				enabled = active
+					and (self.phase == "Investigation" or self.phase == "Campfire")
+			elseif participant.role == "Protector" and participant.isGhost then
+				enabled = self.phase == "Investigation"
+			elseif
+				participant.role == "Medic"
+				or participant.role == "Trapper"
+				or participant.role == "Guard"
+				or participant.role == "Protector"
+				or participant.role == "Detective"
+			then
+				enabled = active and (self.phase == "Day" or self.phase == "Investigation")
+			else
+				enabled = false
+			end
 		elseif name == "VerifyEvidence" then
 			enabled = active and participant ~= nil and participant.role == "Detective"
 		elseif name == "BuyUpgrade" or name == "UnlockCosmetic" or name == "EquipCosmetic" then
@@ -944,8 +1138,13 @@ function GameRuntimeService:GetGameState(player: Player): GameState
 		inventory = if participantId then self.inventory:GetSnapshot(participantId) else nil,
 		combat = if participantId then self.combat:GetSnapshot(participantId) else nil,
 		evidence = self.evidence:GetBoardSnapshot(),
+		mystery = if self.mysteryReady then self.mystery:GetPublicSnapshot() else nil,
+		counselors = if self.roundId > 0 then self.counselors:GetPublicSnapshot() else nil,
 		monster = self.monster:GetPublicSnapshot(),
 		privateMonster = privateMonster,
+		murderPlan = if participant and participant.role == "Murderer"
+			then self.murderPlan
+			else nil,
 		world = self.world:GetPublicSnapshot(),
 		profile = self.profile:GetSnapshot(player),
 		availableActions = self:_availableActions(participant),
@@ -1101,6 +1300,35 @@ function GameRuntimeService:_discoverEvidence(
 		self.evidenceAliasById[requestedEvidenceId] or requestedEvidenceId
 	local record = self.evidence:GetRecordServer(resolvedEvidenceId)
 	if not record then
+		local mysteryAtLocation = self.mysteryClueIdsByLocation[requestedEvidenceId]
+		if self.mysteryReady and mysteryAtLocation and #mysteryAtLocation > 0 then
+			if
+				enforceSpatial ~= false
+				and not self:_isNearPart(
+					participant,
+					self:_evidencePart(requestedEvidenceId),
+					14
+				)
+			then
+				return actionRejected("Move closer to the evidence")
+			end
+			local mysteryClues = self:_discoverMysteryAtLocation(
+				participant.participantId,
+				requestedEvidenceId
+			)
+			if #mysteryClues == 0 then
+				return actionRejected("Evidence was already discovered")
+			end
+			return {
+				accepted = true,
+				reason = nil,
+				state = nil,
+				data = {
+					locationId = requestedEvidenceId,
+					mysteryClues = mysteryClues,
+				},
+			}
+		end
 		return actionRejected("Unknown evidence search target")
 	end
 	if enforceSpatial ~= false then
@@ -1137,14 +1365,31 @@ function GameRuntimeService:_discoverEvidence(
 	})
 	self.evidenceByParticipantId[participant.participantId] =
 		(self.evidenceByParticipantId[participant.participantId] or 0) + 1
-	if #self:_evidenceSummaries() >= RoundConfig.evidenceGoal then
+	local mysteryClues = self:_discoverMysteryAtLocation(
+		participant.participantId,
+		locationId
+	)
+	local mysterySnapshot = if self.mysteryReady
+		then self.mystery:GetPublicSnapshot()
+		else nil
+	if
+		#self:_evidenceSummaries() >= RoundConfig.evidenceGoal
+		and (
+			not mysterySnapshot
+			or mysterySnapshot.discoveredClueCount >= mysterySnapshot.totalClueCount
+		)
+	then
 		self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 2)
 	end
 	return {
 		accepted = true,
 		reason = nil,
 		state = nil,
-		data = { evidenceId = record.evidenceId, locationId = locationId },
+		data = {
+			evidenceId = record.evidenceId,
+			locationId = locationId,
+			mysteryClues = mysteryClues,
+		},
 	}
 end
 
@@ -1382,7 +1627,52 @@ function GameRuntimeService:_handleParticipantAction(
 	actionName: ActionName,
 	payload: { [string]: unknown }
 ): ActionResult
-	if actionName == "CompleteObjective" then
+	if actionName == "SetMurderPlan" then
+		if self.phase ~= "MurderPlanning" or participant.role ~= "Murderer" then
+			return actionRejected("Only the Murderer can plan during the planning phase")
+		end
+		local victimId = getString(payload, "victimParticipantId")
+			or getString(payload, "targetParticipantId")
+		local monsterId = getString(payload, "monsterId")
+		local locationId = getString(payload, "locationId")
+			or SEARCH_LOCATIONS[((self.roundId - 1) % #SEARCH_LOCATIONS) + 1]
+		if not victimId or not monsterId then
+			return actionRejected("A victim and monster transformation are required")
+		end
+		local victim = self.participants:GetById(victimId)
+		if
+			not victim
+			or not victim.alive
+			or victim.isGhost
+			or victim.team ~= "Campers"
+			or victim.participantId == participant.participantId
+		then
+			return actionRejected("The selected victim is not eligible")
+		end
+		if not table.find(MONSTER_ORDER, monsterId :: MonsterId) then
+			return actionRejected("Unknown monster transformation")
+		end
+		if not table.find(SEARCH_LOCATIONS, locationId) then
+			return actionRejected("Unknown murder location")
+		end
+		local selectedMonsterId = monsterId :: MonsterId
+		self.monster:SelectPlanningMonster(self.roundId, selectedMonsterId)
+		self.evidence:SetMonsterForRound(selectedMonsterId)
+		local current = self.murderPlan
+		self.murderPlan = {
+			victimParticipantId = victim.participantId,
+			frameParticipantId = if current then current.frameParticipantId else nil,
+			locationId = locationId,
+			monsterId = selectedMonsterId,
+		}
+		participant.abilityUses["monster-transformation"] = 1
+		return {
+			accepted = true,
+			reason = "The night plan is locked.",
+			state = nil,
+			data = self.murderPlan,
+		}
+	elseif actionName == "CompleteObjective" then
 		local objectiveId = getString(payload, "objectiveId")
 		return if objectiveId
 			then self:_completeObjective(participant, objectiveId, true)
@@ -1393,6 +1683,56 @@ function GameRuntimeService:_handleParticipantAction(
 		return if evidenceId
 			then self:_discoverEvidence(participant, evidenceId, true)
 			else actionRejected("Evidence or location ID is required")
+	elseif actionName == "InterviewCounselor" then
+		if
+			not self.mysteryReady
+			or (
+				self.phase ~= "Day"
+				and self.phase ~= "Investigation"
+				and self.phase ~= "Campfire"
+			)
+		then
+			return actionRejected("Counselor interviews are not available now")
+		end
+		local counselorId = getString(payload, "counselorId")
+		local requestedTopic = getString(payload, "topic") or "Observation"
+		if not counselorId then
+			return actionRejected("Counselor ID is required")
+		end
+		local validTopics: { [string]: boolean } = {
+			Greeting = true,
+			Schedule = true,
+			Observation = true,
+			Monster = true,
+			Safety = true,
+			Suspicion = true,
+		}
+		if not validTopics[requestedTopic] then
+			return actionRejected("Unsupported counselor dialogue topic")
+		end
+		local dialogue, dialogueReason = self.counselors:RequestDialogue(
+			participant.participantId,
+			counselorId,
+			requestedTopic :: DialogueTopic,
+			now()
+		)
+		if not dialogue then
+			return actionRejected(dialogueReason or "Counselor interview failed")
+		end
+		local witnessAccount, witnessReason = self.mystery:InterviewCounselor(
+			participant.participantId,
+			counselorId,
+			now()
+		)
+		return {
+			accepted = true,
+			reason = witnessReason,
+			state = nil,
+			data = {
+				dialogue = dialogue,
+				witnessAccount = witnessAccount,
+			},
+		}
 	elseif actionName == "Vote" then
 		if self.phase ~= "Campfire" then
 			return actionRejected("Voting is not active")
@@ -1688,6 +2028,40 @@ end
 
 function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase: PhaseName)
 	local actions = {}
+	local otherCamperId: string? = nil
+	local injuredCamperId: string? = nil
+	for _, candidate in self.participants:GetAll() do
+		if
+			candidate.participantId ~= participant.participantId
+			and candidate.team == "Campers"
+			and candidate.alive
+			and not candidate.isGhost
+		then
+			otherCamperId = otherCamperId or candidate.participantId
+			if candidate.injuryLevel == 1 then
+				injuredCamperId = injuredCamperId or candidate.participantId
+			end
+		end
+	end
+	local function addRoleAction(
+		id: string,
+		abilityId: string,
+		targetParticipantId: string?,
+		baseUtility: number
+	)
+		table.insert(actions, {
+			id = id,
+			actionType = "UseRoleAbility",
+			baseUtility = baseUtility,
+			targetParticipantId = targetParticipantId,
+			abilityId = abilityId,
+			risk = 0.1,
+			informationValue = if participant.role == "Detective" or participant.role == "Medium"
+				then 0.9
+				else 0.2,
+			teamValue = if participant.role == "Murderer" then 0 else 0.85,
+		})
+	end
 	if phase == "Day" then
 		for _, objectiveId in OBJECTIVE_IDS do
 			if not self.completedObjectives[objectiveId] then
@@ -1702,6 +2076,25 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				})
 			end
 		end
+		if participant.role == "Protector" and otherCamperId then
+			addRoleAction("role:protect", "protect-participant", otherCamperId, 24)
+		elseif participant.role == "Guard" and otherCamperId then
+			addRoleAction("role:guard", "guard-post", otherCamperId, 22)
+		elseif participant.role == "Trapper" then
+			addRoleAction("role:trap", "place-warning-trap", nil, 20)
+		elseif participant.role == "Detective" and otherCamperId then
+			addRoleAction("role:investigate", "analyze-evidence", otherCamperId, 25)
+		elseif participant.role == "Medic" and injuredCamperId then
+			addRoleAction("role:treat", "field-treatment", injuredCamperId, 30)
+		end
+	elseif phase == "MurderPlanning" and participant.role == "Murderer" then
+		local plan = self.murderPlan
+		addRoleAction(
+			"role:plan",
+			"monster-transformation",
+			if plan then plan.victimParticipantId else nil,
+			35
+		)
 	elseif phase == "Investigation" then
 		for _, record in self.evidence:GetUndiscoveredServer() do
 			table.insert(actions, {
@@ -1713,6 +2106,39 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				informationValue = 1,
 				teamValue = 0.8,
 			})
+		end
+		if self.mysteryReady then
+			local queuedLocations: { [string]: boolean } = {}
+			for _, clue in self.mystery:GetPrivateSnapshot().clues do
+				if
+					clue.discoveryState == "Hidden"
+					and not queuedLocations[clue.locationId]
+				then
+					queuedLocations[clue.locationId] = true
+					table.insert(actions, {
+						id = "mystery:" .. clue.locationId,
+						actionType = "CollectEvidence",
+						baseUtility = 24,
+						evidenceId = clue.locationId,
+						risk = 0.2,
+						informationValue = 1,
+						teamValue = 0.9,
+					})
+				end
+			end
+			for _, account in self.mystery:GetPrivateSnapshot().witnessAccounts do
+				if not account.revealed then
+					table.insert(actions, {
+						id = "interview:" .. account.counselorId,
+						actionType = "InterviewCounselor",
+						baseUtility = 23,
+						counselorId = account.counselorId,
+						risk = 0.05,
+						informationValue = 1,
+						teamValue = 0.9,
+					})
+				end
+			end
 		end
 		if participant.role == "Murderer" then
 			local plan = self.murderPlan
@@ -1730,13 +2156,54 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				})
 			end
 		end
+		if participant.role == "Protector" and otherCamperId then
+			addRoleAction("role:protect-night", "protect-participant", otherCamperId, 27)
+		elseif participant.role == "Guard" and otherCamperId then
+			addRoleAction("role:guard-night", "guard-post", otherCamperId, 26)
+		elseif participant.role == "Trapper" then
+			addRoleAction("role:trap-night", "place-warning-trap", nil, 24)
+		elseif participant.role == "Detective" and otherCamperId then
+			addRoleAction("role:investigate-night", "analyze-evidence", otherCamperId, 28)
+		elseif participant.role == "Medium" then
+			addRoleAction("role:spirit", "spirit-sense", nil, 24)
+		elseif participant.role == "Medic" and injuredCamperId then
+			addRoleAction("role:treat-night", "field-treatment", injuredCamperId, 32)
+		end
 	elseif phase == "Campfire" then
+		local publicSuspicion: { [string]: number } = {}
+		if self.mysteryReady then
+			local publicMystery = self.mystery:GetPublicSnapshot()
+			for _, clue in publicMystery.clues do
+				if clue.channel == "Culprit" then
+					for _, suspectId in clue.suspectCandidateIds do
+						publicSuspicion[suspectId] =
+							(publicSuspicion[suspectId] or 0) + 1
+					end
+				end
+			end
+			for _, account in publicMystery.witnessAccounts do
+				if account.channel == "Culprit" then
+					for _, suspectId in account.suspectCandidateIds do
+						publicSuspicion[suspectId] =
+							(publicSuspicion[suspectId] or 0) + 0.7
+					end
+				end
+			end
+		end
 		for _, suspect in self:_suspects() do
 			if suspect.key ~= participant.participantId then
+				local caseUtility = (publicSuspicion[suspect.key] or 0) * 4
+				if
+					participant.role == "Murderer"
+					and self.murderPlan
+					and self.murderPlan.frameParticipantId == suspect.key
+				then
+					caseUtility = 24
+				end
 				table.insert(actions, {
 					id = "vote:" .. suspect.key,
 					actionType = "Vote",
-					baseUtility = if participant.role == "Murderer" then 14 else 10,
+					baseUtility = 10 + caseUtility,
 					targetParticipantId = suspect.key,
 					risk = 0,
 					informationValue = 0.7,
@@ -1768,6 +2235,10 @@ function GameRuntimeService:_ExecuteBotAction(
 	elseif candidate.actionType == "CollectEvidence" then
 		actionName = "DiscoverEvidence"
 		payload.evidenceId = candidate.evidenceId
+	elseif candidate.actionType == "InterviewCounselor" then
+		actionName = "InterviewCounselor"
+		payload.counselorId = candidate.counselorId
+		payload.topic = "Observation"
 	elseif candidate.actionType == "Attack" then
 		local targetId = candidate.targetParticipantId
 		if not targetId then
@@ -1778,6 +2249,33 @@ function GameRuntimeService:_ExecuteBotAction(
 	elseif candidate.actionType == "Vote" then
 		actionName = "Vote"
 		payload.targetParticipantId = candidate.targetParticipantId
+	elseif candidate.actionType == "UseRoleAbility" then
+		if candidate.abilityId == "field-treatment" then
+			local targetId = candidate.targetParticipantId
+			if not targetId then
+				return false
+			end
+			for _, item in self.inventory:GetSnapshot(participant.participantId).items do
+				if item.equipmentId == "MedicalKit" then
+					self.inventory:Equip(participant.participantId, item.instanceId)
+					return self:_useItem(participant, {
+						instanceId = item.instanceId,
+						targetParticipantId = targetId,
+					}).accepted
+				end
+			end
+			return false
+		end
+		actionName = "UseRoleAbility"
+		payload.abilityId = candidate.abilityId
+		payload.targetParticipantId = candidate.targetParticipantId
+		payload.locationId = self.murderPlan and self.murderPlan.locationId
+			or "current-location"
+		if candidate.abilityId == "monster-transformation" then
+			local plan = self.murderPlan
+			payload.monsterId = if plan then plan.monsterId else nil
+			payload.frameParticipantId = if plan then plan.frameParticipantId else nil
+		end
 	elseif candidate.actionType == "Idle" or candidate.actionType == "Discuss" then
 		return true
 	else
@@ -1881,6 +2379,7 @@ function GameRuntimeService:Stop()
 	end
 	table.clear(self.connections)
 	self.characters:ClearMonster()
+	self.counselors:Destroy()
 end
 
 function GameRuntimeService:GetServices(): { [string]: any }
@@ -1889,6 +2388,8 @@ function GameRuntimeService:GetServices(): { [string]: any }
 		inventory = self.inventory,
 		combat = self.combat,
 		evidence = self.evidence,
+		mystery = self.mystery,
+		counselors = self.counselors,
 		monster = self.monster,
 		world = self.world,
 		statusEffects = self.statusEffects,

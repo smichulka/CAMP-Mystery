@@ -62,6 +62,7 @@ export type Relationship = {
 export type ActionType =
 	"CompleteObjective"
 	| "CollectEvidence"
+	| "InterviewCounselor"
 	| "UseRoleAbility"
 	| "Attack"
 	| "Discuss"
@@ -75,6 +76,7 @@ export type ActionCandidate = {
 	targetParticipantId: string?,
 	objectiveId: string?,
 	evidenceId: string?,
+	counselorId: string?,
 	abilityId: string?,
 	discussionText: string?,
 	isDeceptive: boolean?,

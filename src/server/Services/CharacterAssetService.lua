@@ -2,6 +2,9 @@
 
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
+local CounselorCatalog = require(
+	script.Parent.Parent.Config:WaitForChild("CounselorCatalog")
+)
 
 export type MonsterId =
 	"BabyAlien"
@@ -13,17 +16,17 @@ export type MonsterId =
 	| "Entity"
 	| "Banshee"
 
-type PlaceholderCharacterServiceState = {
+type CharacterAssetServiceState = {
 	container: Folder,
 	monsterModel: Model?,
 	counselorModels: { Model },
 }
 
-local PlaceholderCharacterService = {}
-PlaceholderCharacterService.__index = PlaceholderCharacterService
+local CharacterAssetService = {}
+CharacterAssetService.__index = CharacterAssetService
 
-export type PlaceholderCharacterService = typeof(
-	setmetatable({} :: PlaceholderCharacterServiceState, PlaceholderCharacterService)
+export type CharacterAssetService = typeof(
+	setmetatable({} :: CharacterAssetServiceState, CharacterAssetService)
 )
 
 local MONSTER_PRESENTATION: {
@@ -93,6 +96,27 @@ local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(112, 84, 62),
 }
 
+local COUNSELOR_LOCATIONS: { [string]: CFrame } = {
+	Campfire = CFrame.new(0, 3, 7),
+	CounselorLodge = CFrame.new(0, 3, 67),
+	Infirmary = CFrame.new(51, 3, 24),
+	Trailhead = CFrame.new(-88, 3, 54),
+	ActivityField = CFrame.new(65, 3, 55),
+	Supplies = CFrame.new(-70, 3, -38),
+	Generator = CFrame.new(-35, 3, -17),
+	["camp-safe-campfire"] = CFrame.new(0, 3, 7),
+	["camp-hide-cabin-a"] = CFrame.new(-48, 3, 18),
+	["main-road-safe-entry"] = CFrame.new(0, 3, -52),
+	["square-gas-station-clue"] = CFrame.new(75, 3, -185),
+	["industrial-machine-clue"] = CFrame.new(-100, 3, -275),
+	["police-safe-lobby"] = CFrame.new(92, 3, -350),
+	["police-desk-witness"] = CFrame.new(92, 3, -360),
+	["residential-safe-porch"] = CFrame.new(-100, 3, -125),
+	["outskirts-safe-road-end"] = CFrame.new(-72, 3, -420),
+	["square-store-witness"] = CFrame.new(-73, 3, -175),
+	["water-tower-witness"] = CFrame.new(110, 3, -292),
+}
+
 local function makePart(
 	parent: Instance,
 	name: string,
@@ -120,8 +144,12 @@ local function labelModel(model: Model, text: string)
 	if not root then
 		return
 	end
+	local previous = root:FindFirstChild("CharacterLabel")
+	if previous then
+		previous:Destroy()
+	end
 	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "PlaceholderLabel"
+	billboard.Name = "CharacterLabel"
 	billboard.Size = UDim2.fromOffset(220, 40)
 	billboard.StudsOffset = Vector3.new(0, root.Size.Y / 2 + 2.5, 0)
 	billboard.AlwaysOnTop = true
@@ -130,7 +158,7 @@ local function labelModel(model: Model, text: string)
 	label.BackgroundColor3 = Color3.fromRGB(12, 13, 17)
 	label.BackgroundTransparency = 0.2
 	label.Size = UDim2.fromScale(1, 1)
-	label.Text = text .. " (PLACEHOLDER)"
+	label.Text = text
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBold
@@ -144,11 +172,11 @@ local function findAsset(folderName: string, assetName: string): Model?
 	return if asset and asset:IsA("Model") then asset else nil
 end
 
-local function buildMonsterPlaceholder(monsterId: MonsterId, at: CFrame): Model
+local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	local presentation = MONSTER_PRESENTATION[monsterId]
 	local model = Instance.new("Model")
 	model.Name = "ActiveMonster_" .. monsterId
-	model:SetAttribute("Placeholder", true)
+	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("MonsterId", monsterId)
 	local torsoSize = Vector3.new(4, 5, 3) * presentation.scale
 	local root = makePart(model, "Root", torsoSize, at, presentation.color)
@@ -181,11 +209,17 @@ local function buildMonsterPlaceholder(monsterId: MonsterId, at: CFrame): Model
 	return model
 end
 
-local function buildCounselorPlaceholder(index: number, at: CFrame): Model
+local function buildProceduralCounselor(
+	index: number,
+	counselorId: string,
+	displayName: string,
+	at: CFrame
+): Model
 	local model = Instance.new("Model")
-	model.Name = "Counselor_" .. tostring(index)
-	model:SetAttribute("Placeholder", true)
+	model.Name = counselorId
+	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("CounselorIndex", index)
+	model:SetAttribute("CounselorId", counselorId)
 	local bodyScale = 1 + ((index - 1) % 3) * 0.12
 	local root = makePart(
 		model,
@@ -203,11 +237,11 @@ local function buildCounselorPlaceholder(index: number, at: CFrame): Model
 		Color3.fromRGB(196, 155 - index * 5, 125 - index * 3),
 		Enum.PartType.Ball
 	)
-	labelModel(model, "Counselor " .. tostring(index))
+	labelModel(model, displayName)
 	return model
 end
 
-function PlaceholderCharacterService.new(): PlaceholderCharacterService
+function CharacterAssetService.new(): CharacterAssetService
 	local runtime = Workspace:WaitForChild("Runtime")
 	local characters = runtime:WaitForChild("Characters")
 	assert(characters:IsA("Folder"), "Workspace.Runtime.Characters must be a Folder")
@@ -222,29 +256,69 @@ function PlaceholderCharacterService.new(): PlaceholderCharacterService
 		container = container,
 		monsterModel = nil,
 		counselorModels = {},
-	}, PlaceholderCharacterService)
+	}, CharacterAssetService)
 end
 
-function PlaceholderCharacterService:SpawnCounselors()
+function CharacterAssetService:SpawnCounselors()
 	for _, model in self.counselorModels do
 		model:Destroy()
 	end
 	self.counselorModels = {}
-	for index = 1, 6 do
-		local asset = findAsset("NPCs", "Counselor_" .. tostring(index))
+	for index, definition in CounselorCatalog.GetAll() do
+		local asset = findAsset("NPCs", definition.id)
+			or findAsset("NPCs", "Counselor_" .. tostring(index))
 		local model = if asset
 			then asset:Clone()
-			else buildCounselorPlaceholder(
+			else buildProceduralCounselor(
 				index,
+				definition.id,
+				definition.displayName,
 				CFrame.new(-55 + (index - 1) * 22, 3, 55)
 			)
-		model.Name = "Counselor_" .. tostring(index)
+		model.Name = definition.id
+		model:SetAttribute("CounselorId", definition.id)
+		model:SetAttribute("DisplayName", definition.displayName)
+		labelModel(model, definition.displayName)
 		model.Parent = self.container
 		table.insert(self.counselorModels, model)
 	end
 end
 
-function PlaceholderCharacterService:SpawnMonster(
+function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
+	if type(snapshot) ~= "table" or type(snapshot.counselors) ~= "table" then
+		return
+	end
+	for _, counselor in snapshot.counselors do
+		if type(counselor) == "table" then
+			local counselorId = counselor.counselorId
+			if type(counselorId) == "string" then
+				for _, model in self.counselorModels do
+					if model:GetAttribute("CounselorId") == counselorId then
+						local locationId = counselor.locationId
+						local displayName = counselor.displayName
+						local behavior = counselor.behavior
+						if type(locationId) == "string" then
+							model:SetAttribute("LocationId", locationId)
+							local at = COUNSELOR_LOCATIONS[locationId]
+							if at then
+								model:PivotTo(at)
+							end
+						end
+						if type(displayName) == "string" then
+							model:SetAttribute("DisplayName", displayName)
+						end
+						if type(behavior) == "string" then
+							model:SetAttribute("Behavior", behavior)
+						end
+						break
+					end
+				end
+			end
+		end
+	end
+end
+
+function CharacterAssetService:SpawnMonster(
 	monsterId: MonsterId,
 	participantId: string,
 	at: CFrame
@@ -253,7 +327,7 @@ function PlaceholderCharacterService:SpawnMonster(
 		self.monsterModel:Destroy()
 	end
 	local asset = findAsset("Monsters", monsterId)
-	local model = if asset then asset:Clone() else buildMonsterPlaceholder(monsterId, at)
+	local model = if asset then asset:Clone() else buildProceduralMonster(monsterId, at)
 	model.Name = "ActiveMonster_" .. monsterId
 	model:SetAttribute("MonsterId", monsterId)
 	model:SetAttribute("ParticipantId", participantId)
@@ -263,22 +337,22 @@ function PlaceholderCharacterService:SpawnMonster(
 	return model
 end
 
-function PlaceholderCharacterService:ClearMonster()
+function CharacterAssetService:ClearMonster()
 	if self.monsterModel then
 		self.monsterModel:Destroy()
 		self.monsterModel = nil
 	end
 end
 
-function PlaceholderCharacterService:Reset()
+function CharacterAssetService:Reset()
 	self:ClearMonster()
 	self:SpawnCounselors()
 end
 
-function PlaceholderCharacterService:Destroy()
+function CharacterAssetService:Destroy()
 	self.container:Destroy()
 	self.monsterModel = nil
 	self.counselorModels = {}
 end
 
-return PlaceholderCharacterService
+return CharacterAssetService

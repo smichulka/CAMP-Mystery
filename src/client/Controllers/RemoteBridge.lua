@@ -60,6 +60,7 @@ local ACTION_REMOTES: { [string]: { string } } = {
 	SetSettings = { "UpdateSettings", "ProfileAction" },
 	CompleteObjective = { "InteractionAction", "RequestInteraction" },
 	DiscoverEvidence = { "InteractionAction", "RequestInteraction" },
+	InterviewCounselor = { "InteractionAction", "RequestInteraction" },
 }
 
 function RemoteBridge.new(): RemoteBridge

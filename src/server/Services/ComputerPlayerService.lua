@@ -61,6 +61,10 @@ local ALLOWED_PHASES: { [ActionType]: { [PhaseName]: boolean } } = {
 	CollectEvidence = {
 		Investigation = true,
 	},
+	InterviewCounselor = {
+		Investigation = true,
+		Campfire = true,
+	},
 	UseRoleAbility = {
 		Day = true,
 		MurderPlanning = true,

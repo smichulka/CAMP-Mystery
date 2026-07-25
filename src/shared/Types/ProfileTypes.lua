@@ -28,6 +28,7 @@ export type PlayerSettings = {
 	mouseSensitivity: number,
 	controllerSensitivity: number,
 	sprintToggle: boolean,
+	tutorialCompleted: boolean,
 }
 
 export type PlayerProfile = {

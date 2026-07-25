@@ -13,6 +13,7 @@ local DEFAULT_SETTINGS = table.freeze({
 	mouseSensitivity = 1,
 	controllerSensitivity = 1,
 	sprintToggle = false,
+	tutorialCompleted = false,
 })
 
 local REWARDS = table.freeze({

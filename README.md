@@ -4,16 +4,20 @@ A multiplayer Roblox supernatural mystery game designed by Skipper and Penelope.
 
 ## Current status
 
-The repository contains the integrated, code-complete gameplay alpha:
+The repository contains the integrated, code-complete release candidate:
 
 - Rojo 7.7 project mapping
 - server-authoritative round phase state machine
 - all eight hidden roles and all eight monster gameplay definitions
 - three interactive daytime camp objectives
-- a generated camp and an abandoned town that materializes at night
-- generated real, fake, culprit, and monster evidence
+- an asset-first camp and abandoned town that materializes at night, with a procedural
+  fallback for local development
+- seeded, deducible mysteries with real, planted, culprit, and monster evidence
+- six scheduled adult counselor NPCs with fixed dialogue and witness accounts
 - campfire voting, victory conditions, and automatic reset
 - responsive desktop, touch, and controller UI
+- first-session tutorial, subtitle-capable audio controller, reduced-motion support,
+  camera-shake controls, and high-contrast evidence presentation
 - solo and mixed-roster support through computer players
 - strict Luau source layout for shared, server, and client code
 - stable human and computer participant identities
@@ -26,10 +30,12 @@ The repository contains the integrated, code-complete gameplay alpha:
 - filtered evidence notes and server-side proximity, range, line-of-sight, cooldown,
   ownership, role, phase, and request-rate validation
 
-`GameRuntimeService` is the live production path. The legacy `RoundService` remains only
-as the previously tested gray-box reference and is not started by the server bootstrap.
-Final reference-quality monster rigs, animations, audio, and environment art remain
-swappable Roblox asset work rather than missing gameplay code.
+`GameRuntimeService` is the only live round path. `ProductionMapService` and
+`CharacterAssetService` load authored models from `ServerStorage/ServerAssets` when
+present and generate safe fallbacks when an asset has not yet been installed. Final
+reference-quality rigs, animation clips, sounds, icons, and environment models remain
+Roblox-owned content inputs; the runtime, asset hooks, accessibility behavior, and
+fallback presentation are implemented.
 
 ## Local setup
 
@@ -62,14 +68,15 @@ rojo build default.project.json --output build/CAMP-Mystery.rbxlx
 ## Validate the repository
 
 ```powershell
-python scripts/validate_project.py
-python scripts/test_domain_contracts.py
+python scripts/run_all_checks.py
+
+# Release gate when Rojo is available
+python scripts/run_all_checks.py --require-rojo
 ```
 
-See [docs/PLAYTEST_MILESTONE_2.md](docs/PLAYTEST_MILESTONE_2.md) for the complete Studio
-smoke test, [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) for the authoritative launch
-rules, and [docs/DELIVERY_PLAN.md](docs/DELIVERY_PLAN.md) for the autonomous milestone
-sequence.
+See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the complete Studio and
+private-server release gate, [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) for the
+authoritative launch rules, and [docs/TESTING.md](docs/TESTING.md) for validation.
 
 ## Architecture
 

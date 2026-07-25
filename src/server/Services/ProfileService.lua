@@ -310,6 +310,8 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 		)
 		profile.settings.sprintToggle =
 			safeBoolean(raw.settings.sprintToggle, defaults.sprintToggle)
+		profile.settings.tutorialCompleted =
+			safeBoolean(raw.settings.tutorialCompleted, defaults.tutorialCompleted)
 	end
 
 	local receiptSet: { [string]: boolean } = {}
@@ -696,6 +698,10 @@ function ProfileService:UpdateSettings(
 				recognized = true
 				changed = changed or value ~= profile.settings.sprintToggle
 				profile.settings.sprintToggle = value
+			elseif key == "tutorialCompleted" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.tutorialCompleted
+				profile.settings.tutorialCompleted = value
 			end
 		end
 		if not recognized then

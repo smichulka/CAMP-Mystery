@@ -84,6 +84,17 @@ local MONSTER_ABILITIES: { [string]: { string } } = {
 	Banshee = { "MournfulWail", "DeathMark" },
 }
 
+local MONSTER_PLAN_LOCATIONS: { [string]: string } = {
+	BabyAlien = "residential-bedroom-clue",
+	Screamer = "square-gas-station-clue",
+	Wendigo = "outskirts-company-house-clue",
+	ShadowMonster = "main-road-clue-a",
+	Chupacabra = "water-tower-base-clue",
+	Dullahan = "industrial-machine-clue",
+	Entity = "police-evidence-room-clue",
+	Banshee = "square-gas-station-clue",
+}
+
 local function readString(value: any, key: string, fallback: string): string
 	if type(value) == "table" and type(value[key]) == "string" then
 		return value[key]
@@ -110,6 +121,16 @@ local function asTable(value: any): { any }
 		return value
 	end
 	return {}
+end
+
+local function joinStrings(value: any): string
+	local pieces: { string } = {}
+	for _, item in asTable(value) do
+		if type(item) == "string" then
+			table.insert(pieces, item)
+		end
+	end
+	return if #pieces > 0 then table.concat(pieces, ", ") else "Further analysis required"
 end
 
 local function setModalVisible(modal: GuiObject, visible: boolean)
@@ -1047,8 +1068,37 @@ function GameView:_chooseAbility(actionKind: "Role" | "Monster", abilityIds: { s
 	setModalVisible(self.targetModal, true)
 end
 
+function GameView:_chooseMurderPlan()
+	Components.ClearGenerated(self.targetList)
+	self.targetTitle.Text = "Choose tonight's transformation, then choose a victim."
+	for monsterId, locationId in MONSTER_PLAN_LOCATIONS do
+		local button = Components.Button(self.targetList, {
+			name = "Plan_" .. monsterId,
+			text = string.upper(monsterId:gsub("(%l)(%u)", "%1 %2")),
+			size = UDim2.new(1, -8, 0, 48),
+			color = Theme.Colors.Danger,
+		})
+		button:SetAttribute("Generated", true)
+		button.Activated:Connect(function()
+			setModalVisible(self.targetModal, false)
+			self:_chooseParticipant("SetMurderPlan", {
+				monsterId = monsterId,
+				locationId = locationId,
+			}, false)
+		end)
+	end
+	setModalVisible(self.notebook, false)
+	setModalVisible(self.settings, false)
+	setModalVisible(self.targetModal, true)
+end
+
 function GameView:_requestRoleAction()
 	local state = self.currentState
+	local planEnabled = self:_available(state, "SetMurderPlan")
+	if planEnabled then
+		self:_chooseMurderPlan()
+		return
+	end
 	local player = if type(state) == "table" then state.player else nil
 	local rawAbilities = if type(player) == "table" then asTable(player.abilityIds) else {}
 	local abilities: { string } = {}
@@ -1253,6 +1303,8 @@ end
 function GameView:_updateEvidence(state: any, round: any)
 	Components.ClearGenerated(self.evidenceList)
 	local board = if type(state) == "table" then state.evidence else nil
+	local mystery = if type(state) == "table" then state.mystery else nil
+	local counselors = if type(state) == "table" then state.counselors else nil
 	local culprit: { any } = {}
 	local monster: { any } = {}
 	if type(board) == "table" then
@@ -1262,9 +1314,12 @@ function GameView:_updateEvidence(state: any, round: any)
 		culprit = if type(round) == "table" then asTable(round.evidence) else {}
 	end
 	self.evidenceSummary.Text = string.format(
-		"CULPRIT CLUES  %d     MONSTER CLUES  %d\nVerified clues are reliable; unverified clues may be planted.",
+		"%s\nCULPRIT CLUES  %d     MONSTER CLUES  %d     MYSTERY  %d/%d",
+		readString(mystery, "title", "CURRENT CASE"),
 		#culprit,
-		#monster
+		#monster,
+		readNumber(mystery, "discoveredClueCount", 0),
+		readNumber(mystery, "totalClueCount", 0)
 	)
 	local function addEvidence(record: any, channel: string)
 		if type(record) ~= "table" then
@@ -1339,7 +1394,149 @@ function GameView:_updateEvidence(state: any, round: any)
 	for _, record in monster do
 		addEvidence(record, "MONSTER")
 	end
-	if #culprit + #monster == 0 then
+	local mysteryClues = if type(mystery) == "table" then asTable(mystery.clues) else {}
+	for _, clue in mysteryClues do
+		if type(clue) == "table" then
+			local card = Components.Panel(self.evidenceList, "MysteryClue")
+			card:SetAttribute("Generated", true)
+			card.Size = UDim2.new(1, -8, 0, 132)
+			local channel = readString(clue, "channel", "Culprit")
+			local title = Components.Label(
+				card,
+				"Title",
+				readString(clue, "title", "Recovered clue"),
+				16,
+				Enum.Font.GothamBold
+			)
+			title.Position = UDim2.fromOffset(12, 7)
+			title.Size = UDim2.new(1, -150, 0, 27)
+			title.TextColor3 = if channel == "Monster"
+				then Theme.Colors.Ghost
+				else Theme.Colors.Gold
+			local tag = Components.Label(
+				card,
+				"Channel",
+				string.upper(channel .. " lead"),
+				11,
+				Enum.Font.GothamBold
+			)
+			tag.Position = UDim2.new(1, -126, 0, 7)
+			tag.Size = UDim2.fromOffset(112, 26)
+			tag.TextXAlignment = Enum.TextXAlignment.Center
+			tag.BackgroundColor3 = Theme.Colors.PanelSoft
+			tag.BackgroundTransparency = 0
+			Components.Corner(tag, 13)
+			local description = Components.Label(
+				card,
+				"Description",
+				readString(clue, "publicDescription", "No description recorded."),
+				13
+			)
+			description.Position = UDim2.fromOffset(12, 36)
+			description.Size = UDim2.new(1, -24, 0, 52)
+			description.TextYAlignment = Enum.TextYAlignment.Top
+			local footer = Components.Label(
+				card,
+				"Candidates",
+				"NARROWS TO: "
+					.. joinStrings(
+						if channel == "Monster"
+							then clue.monsterCandidateIds
+							else clue.suspectCandidateIds
+					),
+				11,
+				Enum.Font.GothamBold
+			)
+			footer.Position = UDim2.fromOffset(12, 96)
+			footer.Size = UDim2.new(1, -24, 0, 24)
+			footer.TextColor3 = Theme.Colors.TextMuted
+		end
+	end
+	local witnessAccounts = if type(mystery) == "table"
+		then asTable(mystery.witnessAccounts)
+		else {}
+	for _, account in witnessAccounts do
+		if type(account) == "table" then
+			local card = Components.Panel(self.evidenceList, "WitnessAccount")
+			card:SetAttribute("Generated", true)
+			card.Size = UDim2.new(1, -8, 0, 112)
+			local title = Components.Label(
+				card,
+				"Title",
+				"WITNESS STATEMENT",
+				14,
+				Enum.Font.GothamBold
+			)
+			title.Position = UDim2.fromOffset(12, 7)
+			title.Size = UDim2.new(1, -24, 0, 24)
+			title.TextColor3 = Theme.Colors.Amber
+			local statement = Components.Label(
+				card,
+				"Statement",
+				readString(account, "statement", "No statement recorded."),
+				13
+			)
+			statement.Position = UDim2.fromOffset(12, 34)
+			statement.Size = UDim2.new(1, -24, 0, 66)
+			statement.TextYAlignment = Enum.TextYAlignment.Top
+		end
+	end
+	local counselorRoster = if type(counselors) == "table"
+		then asTable(counselors.counselors)
+		else {}
+	local canInterview = self:_available(state, "InterviewCounselor")
+	for _, counselor in counselorRoster do
+		if type(counselor) == "table" then
+			local card = Components.Panel(self.evidenceList, "Counselor")
+			card:SetAttribute("Generated", true)
+			card.Size = UDim2.new(1, -8, 0, 104)
+			local name = Components.Label(
+				card,
+				"Name",
+				readString(counselor, "displayName", "Camp counselor"),
+				15,
+				Enum.Font.GothamBold
+			)
+			name.Position = UDim2.fromOffset(12, 7)
+			name.Size = UDim2.new(1, -174, 0, 26)
+			name.TextColor3 = Theme.Colors.Gold
+			local activity = Components.Label(
+				card,
+				"Activity",
+				readString(counselor, "currentActivity", "No current activity")
+					.. "\nLocation: "
+					.. readString(counselor, "locationId", "unknown"),
+				12
+			)
+			activity.Position = UDim2.fromOffset(12, 36)
+			activity.Size = UDim2.new(1, -174, 0, 58)
+			activity.TextColor3 = Theme.Colors.TextMuted
+			activity.TextYAlignment = Enum.TextYAlignment.Top
+			local interview = Components.Button(card, {
+				name = "Interview",
+				text = if readBoolean(counselor, "isWitness", false)
+					then "ASK WITNESS"
+					else "INTERVIEW",
+				size = UDim2.fromOffset(148, 42),
+				position = UDim2.new(1, -160, 0.5, -21),
+				color = Theme.Colors.Info,
+			})
+			local counselorId = readString(counselor, "counselorId", "")
+			Components.SetButtonEnabled(
+				interview,
+				canInterview
+					and readBoolean(counselor, "interactionAllowed", false)
+					and counselorId ~= ""
+			)
+			interview.Activated:Connect(function()
+				self:_send("InterviewCounselor", {
+					counselorId = counselorId,
+					topic = "Observation",
+				})
+			end)
+		end
+	end
+	if #culprit + #monster + #mysteryClues + #witnessAccounts == 0 then
 		local empty = Components.Label(
 			self.evidenceList,
 			"Empty",
@@ -1513,8 +1710,11 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 
 	local roleEnabled, roleReason = self:_available(state, "UseRoleAbility")
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
-	Components.SetButtonEnabled(self.roleAction, roleEnabled or monsterEnabled)
-	self.roleAction.Text = if monsterEnabled
+	local planEnabled = self:_available(state, "SetMurderPlan")
+	Components.SetButtonEnabled(self.roleAction, roleEnabled or monsterEnabled or planEnabled)
+	self.roleAction.Text = if planEnabled
+		then "PLAN TONIGHT'S HUNT"
+		elseif monsterEnabled
 		then "USE MONSTER ABILITY"
 		elseif roleEnabled then "USE ROLE ABILITY"
 		elseif roleReason then string.upper(roleReason)

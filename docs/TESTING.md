@@ -2,14 +2,15 @@
 
 ## Automated checks
 
-Run both checks from the repository root:
+Run the unified release suite from the repository root:
 
 ```powershell
-python scripts/validate_project.py
-python scripts/test_domain_contracts.py
+python scripts/run_all_checks.py
 ```
 
-The structural validator checks the Rojo mappings, remote classes, strict-mode source
+The unified runner executes the structural validator, domain contracts, release
+readiness tests, 512 deterministic roster/mystery simulations, and a Rojo build when
+Rojo is available. The structural validator checks the Rojo mappings, remote classes, strict-mode source
 files, required catalogs, server APIs, 15-slot inventory contract, schema-v1 profiles,
 Studio memory fallback, and the launch ban on monetization APIs.
 
@@ -31,6 +32,12 @@ These checks are deliberately executable without Roblox Studio. They catch repos
 and integration defects, but they do not simulate Roblox physics, navigation, remotes,
 or DataStore behavior.
 
+For the final release-candidate repository gate, require a successful Rojo build:
+
+```powershell
+python scripts/run_all_checks.py --require-rojo
+```
+
 ## Production runtime acceptance
 
 Run a two-client Studio server test and verify:
@@ -49,9 +56,12 @@ Run a two-client Studio server test and verify:
 7. Each of the eight monsters can activate its two catalog abilities and produce the
    intended evidence/status/attack effects.
 8. Evidence notes replicate only after Roblox text filtering.
-9. The campfire accepts one living vote, resolves the correct winner, grants one
+9. Search every active evidence socket; confirm the public mystery becomes deducible,
+   planted clues remain marked only through Detective verification, and four counselor
+   witness accounts can be interviewed without exposing secret state.
+10. The campfire accepts one living vote, resolves the correct winner, grants one
    idempotent reward receipt, and returns to the lobby.
-10. Disconnecting a locked human transfers the active state to a replacement bot.
+11. Disconnecting a locked human transfers the active state to a replacement bot.
 
 ## Rojo build
 

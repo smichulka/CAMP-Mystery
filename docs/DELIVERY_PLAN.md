@@ -1,41 +1,37 @@
 # CAMP-Mystery Autonomous Delivery Plan
 
-The Milestone 2 Studio smoke test passed and PR #2 was merged. Routine design and approval
-questions are removed from the workflow. Development proceeds through reviewable,
-reversible branches and automated checks. Human testing is reserved for major Roblox
-runtime gates that cannot be executed outside Studio.
+The production code path is complete through the release-candidate milestone. Routine
+design and approval questions remain removed from the workflow. The remaining gates are
+Roblox-engine, private-server, device, moderation, and final-asset acceptance checks
+listed in `RELEASE_CHECKLIST.md`.
 
 ## Milestones
 
 | Milestone | Deliverable | Exit criteria |
 |---|---|---|
-| 3. Domain foundation | Human/bot participants, eight roles, lifecycle events, profile schema, monster catalog | Static validation and compatibility smoke pass |
-| 4. Survival systems | Inventory, equipment, combat, injuries, healing, ghosts, role abilities | Multi-client injury/death/recovery test |
-| 5. Mystery systems | Generated real/fake evidence, searchable objects, board, Detective verification, witnesses | Mystery can be solved without direct culprit disclosure |
-| 6. Computer players | Bot roster fill, navigation, objectives, abilities, deception, memory, voting | Repeated solo and mixed-roster simulation |
-| 7. Monster roster | Common framework and all eight distinct transformations | Every monster has attack, evidence, weakness, and bot policy |
-| 8. Transforming world | Authored camp/town chunks, deterministic variants, NPC counselors, navigation | Safe streamed transformation and full round traversal |
-| 9. Progression and UX | Rewards, persistence, upgrades, cosmetics, lobby, final UI, settings, audio | Leave/rejoin persistence and desktop/touch/gamepad tests |
-| 10. Release candidate | Performance, accessibility, exploit validation, soak tests, tutorial, documentation | Ten-round server soak and complete acceptance matrix |
+| 3. Domain foundation | Human/bot participants, eight roles, lifecycle events, profile schema, monster catalog | Complete |
+| 4. Survival systems | Inventory, equipment, combat, injuries, healing, ghosts, role abilities | Complete in code |
+| 5. Mystery systems | Seeded real/fake evidence, searches, board, Detective verification, witnesses | Complete; 512 deterministic simulations pass |
+| 6. Computer players | Bot roster fill, objectives, abilities, attacks, evidence, voting | Complete in code |
+| 7. Monster roster | Common framework and all eight distinct transformations | Complete in code |
+| 8. Transforming world | Asset-first camp/town, fallback world, counselors, safe relocation | Complete in code |
+| 9. Progression and UX | Persistence, rewards, upgrades, cosmetics, responsive UI, settings, audio | Complete in code |
+| 10. Release candidate | Accessibility, tutorial, exploit controls, CI, checklist, documentation | Repository gate complete; Studio/private-server gates pending |
 
-## Schedule estimate
+## Remaining external production work
 
-- Systems-complete alpha: 4–7 weeks
-- Content-complete beta: 10–16 weeks
-- Polished public-launch candidate: 16–24 weeks
-
-Final custom monster rigs, animation, audio, Roblox asset moderation, multiplayer balance,
-and device testing are the critical path. Parallel agents shorten independent code and
-content work, but shared contracts and Roblox Studio verification remain sequential gates.
+Final custom monster rigs, animation clips, audio assets, thumbnails, and authored
+environment models must be installed through Roblox Studio and pass Roblox moderation.
+Multiplayer balance, DataStore behavior, device input, performance, memory, navigation,
+and published-server replication require the Roblox engine and are explicit release
+gates rather than missing repository systems.
 
 ## Automation policy
 
-- Preserve `main` as the last validated state.
-- Build each milestone on an `agent/...` branch.
+- Keep `master` at the latest validated autonomous checkpoint.
 - Run structural validation, Rojo build, static analysis, and available logic tests before
   opening a draft pull request.
 - Merge automatically after its documented acceptance criteria pass.
 - Do not request routine choices already resolved by `PRODUCT_SPEC.md`.
 - Stop only for account permissions, unavailable private assets, policy/moderation blocks,
   or an irreversible product decision not covered by the specification.
-
