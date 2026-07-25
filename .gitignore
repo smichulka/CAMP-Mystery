@@ -1,0 +1,15 @@
+# Rojo build output
+/build/
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Generated Rojo metadata
+/sourcemap.json
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+
