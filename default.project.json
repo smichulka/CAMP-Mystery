@@ -1,0 +1,88 @@
+{
+  "name": "CAMP-Mystery",
+  "servePort": 34872,
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "RoundStateChanged": {
+          "$className": "RemoteEvent"
+        },
+        "GetRoundState": {
+          "$className": "RemoteFunction"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "ServerAssets": {
+        "$className": "Folder",
+        "Maps": {
+          "$className": "Folder"
+        },
+        "Monsters": {
+          "$className": "Folder"
+        },
+        "NPCs": {
+          "$className": "Folder"
+        },
+        "Items": {
+          "$className": "Folder"
+        },
+        "Evidence": {
+          "$className": "Folder"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "StarterGui": {
+      "$className": "StarterGui",
+      "GameUI": {
+        "$className": "ScreenGui",
+        "$properties": {
+          "DisplayOrder": 10,
+          "IgnoreGuiInset": false,
+          "ResetOnSpawn": false
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "Runtime": {
+        "$className": "Folder",
+        "Characters": {
+          "$className": "Folder"
+        },
+        "Evidence": {
+          "$className": "Folder"
+        },
+        "Effects": {
+          "$className": "Folder"
+        },
+        "Map": {
+          "$className": "Folder"
+        }
+      }
+    }
+  }
+}
+
