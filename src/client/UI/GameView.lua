@@ -123,11 +123,11 @@ local function asTable(value: any): { any }
 	return {}
 end
 
-local function joinStrings(value: any): string
+local function joinCandidateNames(value: any, namesById: { [string]: string }): string
 	local pieces: { string } = {}
 	for _, item in asTable(value) do
 		if type(item) == "string" then
-			table.insert(pieces, item)
+			table.insert(pieces, namesById[item] or item)
 		end
 	end
 	return if #pieces > 0 then table.concat(pieces, ", ") else "Further analysis required"
@@ -1305,6 +1305,30 @@ function GameView:_updateEvidence(state: any, round: any)
 	local board = if type(state) == "table" then state.evidence else nil
 	local mystery = if type(state) == "table" then state.mystery else nil
 	local counselors = if type(state) == "table" then state.counselors else nil
+	local counselorRoster = if type(counselors) == "table"
+		then asTable(counselors.counselors)
+		else {}
+	local candidateNamesById: { [string]: string } = {}
+	if type(state) == "table" then
+		for _, participant in asTable(state.participants) do
+			if type(participant) == "table" then
+				local participantId = readString(participant, "participantId", "")
+				if participantId ~= "" then
+					candidateNamesById[participantId] =
+						readString(participant, "displayName", participantId)
+				end
+			end
+		end
+	end
+	for _, counselor in counselorRoster do
+		if type(counselor) == "table" then
+			local counselorId = readString(counselor, "counselorId", "")
+			if counselorId ~= "" then
+				candidateNamesById[counselorId] =
+					readString(counselor, "displayName", counselorId)
+			end
+		end
+	end
 	local culprit: { any } = {}
 	local monster: { any } = {}
 	if type(board) == "table" then
@@ -1435,15 +1459,14 @@ function GameView:_updateEvidence(state: any, round: any)
 			description.Position = UDim2.fromOffset(12, 36)
 			description.Size = UDim2.new(1, -24, 0, 52)
 			description.TextYAlignment = Enum.TextYAlignment.Top
+			local candidateIds = if channel == "Monster"
+				then clue.monsterCandidateIds
+				else clue.suspectCandidateIds
 			local footer = Components.Label(
 				card,
 				"Candidates",
 				"NARROWS TO: "
-					.. joinStrings(
-						if channel == "Monster"
-							then clue.monsterCandidateIds
-							else clue.suspectCandidateIds
-					),
+					.. joinCandidateNames(candidateIds, candidateNamesById),
 				11,
 				Enum.Font.GothamBold
 			)
@@ -1481,9 +1504,6 @@ function GameView:_updateEvidence(state: any, round: any)
 			statement.TextYAlignment = Enum.TextYAlignment.Top
 		end
 	end
-	local counselorRoster = if type(counselors) == "table"
-		then asTable(counselors.counselors)
-		else {}
 	local canInterview = self:_available(state, "InterviewCounselor")
 	for _, counselor in counselorRoster do
 		if type(counselor) == "table" then

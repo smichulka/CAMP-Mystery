@@ -1248,6 +1248,18 @@ function GameRuntimeService:_ApplyMonsterAttack(
 		position = nil,
 	})
 	if result.accepted then
+		local plan = self.murderPlan
+		local affectedCounselors = self.counselors:ReportThreat({
+			locationId = if plan then plan.locationId else "main-road-safe-entry",
+			sourceId = sourceParticipantId,
+			severity = 0.85,
+			occurredAt = now(),
+		})
+		if #affectedCounselors > 0 then
+			self.characters:ApplyCounselorSnapshot(
+				self.counselors:GetPublicSnapshot()
+			)
+		end
 		self:_finishIfEliminated()
 		self:Broadcast()
 	end

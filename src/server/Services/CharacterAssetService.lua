@@ -104,16 +104,30 @@ local COUNSELOR_LOCATIONS: { [string]: CFrame } = {
 	ActivityField = CFrame.new(65, 3, 55),
 	Supplies = CFrame.new(-70, 3, -38),
 	Generator = CFrame.new(-35, 3, -17),
+	CraftCabin = CFrame.new(78, 3, -38),
+	NatureLab = CFrame.new(-52, 3, 24),
+	Waterfront = CFrame.new(85, 3, 72),
+	["camp-evidence-board"] = CFrame.new(12, 3, 7),
 	["camp-safe-campfire"] = CFrame.new(0, 3, 7),
 	["camp-hide-cabin-a"] = CFrame.new(-48, 3, 18),
 	["main-road-safe-entry"] = CFrame.new(0, 3, -52),
+	["industrial-safe-loading-bay"] = CFrame.new(-75, 3, -285),
+	["industrial-locker-hide"] = CFrame.new(-110, 3, -275),
 	["square-gas-station-clue"] = CFrame.new(75, 3, -185),
 	["industrial-machine-clue"] = CFrame.new(-100, 3, -275),
 	["police-safe-lobby"] = CFrame.new(92, 3, -350),
 	["police-desk-witness"] = CFrame.new(92, 3, -360),
+	["police-evidence-room-clue"] = CFrame.new(92, 3, -360),
+	["police-cell-hide"] = CFrame.new(100, 3, -370),
 	["residential-safe-porch"] = CFrame.new(-100, 3, -125),
+	["residential-closet-hide"] = CFrame.new(-105, 3, -135),
 	["outskirts-safe-road-end"] = CFrame.new(-72, 3, -420),
+	["outskirts-house-hide"] = CFrame.new(-100, 3, -390),
+	["square-safe-bandstand"] = CFrame.new(0, 3, -190),
+	["square-store-hide"] = CFrame.new(-73, 3, -185),
 	["square-store-witness"] = CFrame.new(-73, 3, -175),
+	["water-tower-safe-platform"] = CFrame.new(110, 22, -292),
+	["water-tower-shed-hide"] = CFrame.new(120, 3, -306),
 	["water-tower-witness"] = CFrame.new(110, 3, -292),
 }
 
@@ -294,7 +308,12 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 			if type(counselorId) == "string" then
 				for _, model in self.counselorModels do
 					if model:GetAttribute("CounselorId") == counselorId then
-						local locationId = counselor.locationId
+						local destinationId = counselor.destinationId
+						local locationId = if
+								type(destinationId) == "string"
+								and destinationId ~= ""
+							then destinationId
+							else counselor.locationId
 						local displayName = counselor.displayName
 						local behavior = counselor.behavior
 						if type(locationId) == "string" then

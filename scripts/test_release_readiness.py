@@ -701,6 +701,34 @@ class ReleaseFeatureModuleTests(unittest.TestCase):
                 6,
             )
 
+        character_assets = read("src/server/Services/CharacterAssetService.lua")
+        scheduled_locations = set(
+            re.findall(r'\blocationId\s*=\s*"([^"]+)"', catalog)
+        )
+        emergency_locations: set[str] = set()
+        for body in re.findall(
+            r'\b(?:hideLocationIds|fleeLocationIds)\s*=\s*{(.*?)}',
+            catalog,
+            flags=re.DOTALL,
+        ):
+            emergency_locations.update(re.findall(r'"([^"]+)"', body))
+        for location_id in sorted(scheduled_locations | emergency_locations):
+            with self.subTest(counselor_location=location_id):
+                plain_key = f"{location_id} = CFrame"
+                quoted_key = f'["{location_id}"] = CFrame'
+                self.assertTrue(
+                    plain_key in character_assets or quoted_key in character_assets,
+                    f"Counselor location {location_id} needs a physical world position",
+                )
+        self.assertIn("counselor.destinationId", character_assets)
+
+        runtime = read("src/server/Services/GameRuntimeService.lua")
+        self.assertIn("self.counselors:ReportThreat", runtime)
+        self.assertIn("self.characters:ApplyCounselorSnapshot", runtime)
+
+        notebook = read("src/client/UI/GameView.lua")
+        self.assertIn("joinCandidateNames(candidateIds, candidateNamesById)", notebook)
+
     def test_tutorial_controller_contract(self) -> None:
         relative = "src/client/Controllers/TutorialController.lua"
         require_file(relative)
