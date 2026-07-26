@@ -68,6 +68,11 @@ type GameViewState = {
 	eliminatedBanner: Frame?,
 	eliminatedMode: boolean,
 	hotbar: ScrollingFrame,
+	monsterPanel: CanvasGroup?,
+	monsterNameLabel: TextLabel?,
+	monsterStaminaFill: Frame?,
+	monsterAbilityLabel: TextLabel?,
+	monsterPanelVisible: boolean,
 	rosterPanel: Frame?,
 	rosterScrollFrame: ScrollingFrame?,
 	lastRosterSignature: string,
@@ -711,6 +716,80 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	hotbarLayout.Padding = UDim.new(0, 7)
 	hotbarLayout.Parent = hotbar
 
+	local monsterPanel = Instance.new("CanvasGroup")
+	monsterPanel.Name = "MonsterPanel"
+	monsterPanel.AnchorPoint = Vector2.new(1, 1)
+	monsterPanel.Position = UDim2.new(1, -16, 1, -88)
+	monsterPanel.Size = UDim2.fromOffset(200, 68)
+	monsterPanel.BackgroundColor3 = Theme.Colors.Panel
+	monsterPanel.BackgroundTransparency = 0.1
+	monsterPanel.BorderSizePixel = 0
+	monsterPanel.GroupTransparency = 0
+	monsterPanel.Visible = false
+	monsterPanel.ZIndex = 22
+	monsterPanel.Parent = root
+	Components.Corner(monsterPanel, 8)
+	Components.Stroke(monsterPanel, Theme.Colors.DangerBright, 1)
+
+	local monsterNameLabel = Components.Label(
+		monsterPanel,
+		"MonsterName",
+		"▸ MONSTER",
+		13,
+		Theme.Typography.HeadingFont
+	)
+	monsterNameLabel.Position = UDim2.fromOffset(10, 6)
+	monsterNameLabel.Size = UDim2.new(1, -20, 0, 18)
+	monsterNameLabel.TextColor3 = Theme.Colors.DangerBright
+	monsterNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	monsterNameLabel.ZIndex = 23
+
+	local monsterStaminaLabel = Components.Label(
+		monsterPanel,
+		"StaminaLabel",
+		"STAMINA",
+		10,
+		Theme.Typography.CaptionFont
+	)
+	monsterStaminaLabel.Position = UDim2.fromOffset(10, 22)
+	monsterStaminaLabel.Size = UDim2.new(1, -20, 0, 10)
+	monsterStaminaLabel.TextColor3 = Theme.Colors.TextMuted
+	monsterStaminaLabel.TextXAlignment = Enum.TextXAlignment.Left
+	monsterStaminaLabel.ZIndex = 23
+
+	local monsterStaminaTrack = Instance.new("Frame")
+	monsterStaminaTrack.Name = "StaminaTrack"
+	monsterStaminaTrack.Position = UDim2.fromOffset(10, 30)
+	monsterStaminaTrack.Size = UDim2.new(1, -20, 0, 8)
+	monsterStaminaTrack.BackgroundColor3 = Theme.Colors.Ghost
+	monsterStaminaTrack.BackgroundTransparency = 0.55
+	monsterStaminaTrack.BorderSizePixel = 0
+	monsterStaminaTrack.ZIndex = 23
+	monsterStaminaTrack.Parent = monsterPanel
+	Components.Corner(monsterStaminaTrack, 4)
+
+	local monsterStaminaFill = Instance.new("Frame")
+	monsterStaminaFill.Name = "StaminaFill"
+	monsterStaminaFill.Size = UDim2.fromScale(0, 1)
+	monsterStaminaFill.BackgroundColor3 = Theme.Colors.DangerBright
+	monsterStaminaFill.BorderSizePixel = 0
+	monsterStaminaFill.ZIndex = 24
+	monsterStaminaFill.Parent = monsterStaminaTrack
+	Components.Corner(monsterStaminaFill, 4)
+
+	local monsterAbilityLabel = Components.Label(
+		monsterPanel,
+		"AbilityState",
+		"ABILITY READY",
+		11,
+		Theme.Typography.CaptionFont
+	)
+	monsterAbilityLabel.Position = UDim2.fromOffset(10, 46)
+	monsterAbilityLabel.Size = UDim2.new(1, -20, 0, 14)
+	monsterAbilityLabel.TextColor3 = Theme.Colors.Gold
+	monsterAbilityLabel.TextXAlignment = Enum.TextXAlignment.Left
+	monsterAbilityLabel.ZIndex = 23
+
 	-- Live player roster panel — right side, visible during active round phases
 	local rosterPanel = Instance.new("Frame")
 	rosterPanel.Name = "PlayerRoster"
@@ -879,6 +958,11 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		eliminatedBanner = nil,
 		eliminatedMode = false,
 		hotbar = hotbar,
+		monsterPanel = monsterPanel,
+		monsterNameLabel = monsterNameLabel,
+		monsterStaminaFill = monsterStaminaFill,
+		monsterAbilityLabel = monsterAbilityLabel,
+		monsterPanelVisible = false,
 		rosterPanel = rosterPanel,
 		rosterScrollFrame = nil,
 		lastRosterSignature = "",
@@ -3553,6 +3637,85 @@ function GameView:_updatePhaseArc(state: any)
 	end
 end
 
+function GameView:_updateMonsterPanel(state: any, phase: string?)
+	local panel = self.monsterPanel
+	if not panel or self.destroyed then
+		return
+	end
+	local privateMonster = if type(state) == "table" then state.privateMonster else nil
+	local monsterActive = type(privateMonster) == "table"
+		and readBoolean(privateMonster, "active", false)
+	local shouldShow = monsterActive and phase == "Investigation"
+	if shouldShow ~= self.monsterPanelVisible then
+		self.monsterPanelVisible = shouldShow
+		Motion.Cancel(panel)
+		if shouldShow then
+			panel.Visible = true
+			Motion.FadeIn(panel, { duration = 0.3 })
+		else
+			Motion.FadeOut(panel, {
+				duration = 0.3,
+				onComplete = function(completed: boolean)
+					if completed
+						and not self.destroyed
+						and not self.monsterPanelVisible
+						and panel.Parent
+					then
+						panel.Visible = false
+					end
+				end,
+			})
+		end
+	end
+	if not monsterActive or type(privateMonster) ~= "table" then
+		return
+	end
+	local monsterSnapshot = privateMonster :: any
+	local monsterNameLabel = self.monsterNameLabel
+	if monsterNameLabel then
+		local rawId = readString(monsterSnapshot, "monsterId", "")
+		local displayName = if rawId ~= ""
+			then string.upper(rawId:gsub("(%l)(%u)", "%1 %2"))
+			else "MONSTER"
+		monsterNameLabel.Text = "▸ " .. displayName
+	end
+	local monsterStaminaFill = self.monsterStaminaFill
+	if monsterStaminaFill then
+		local stamina = readNumber(monsterSnapshot, "stamina", 0)
+		local maxStamina = readNumber(monsterSnapshot, "maxStamina", 0)
+		local fraction = if maxStamina > 0
+			then math.clamp(stamina / maxStamina, 0, 1)
+			else 0
+		monsterStaminaFill.Size = UDim2.fromScale(fraction, 1)
+	end
+	local monsterAbilityLabel = self.monsterAbilityLabel
+	if monsterAbilityLabel then
+		local longestRemaining = 0
+		local cooldowns = monsterSnapshot.cooldownEndsAt
+		if type(cooldowns) == "table" then
+			local currentTime = Workspace:GetServerTimeNow()
+			for _, endsAt in cooldowns do
+				if type(endsAt) == "number"
+					and endsAt == endsAt
+					and math.abs(endsAt) < math.huge
+				then
+					longestRemaining = math.max(longestRemaining, endsAt - currentTime)
+				end
+			end
+		end
+		if longestRemaining > 0.5 then
+			monsterAbilityLabel.Text = string.format(
+				"ABILITY COOLING: %ds",
+				math.ceil(longestRemaining)
+			)
+			monsterAbilityLabel.TextColor3 = Theme.Colors.TextMuted
+		else
+			monsterAbilityLabel.Text = "ABILITY READY"
+			monsterAbilityLabel.TextColor3 = Theme.Colors.Gold
+		end
+	end
+end
+
 function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self:_updatePhaseArc(state)
 	self.currentState = state
@@ -3566,10 +3729,12 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		if self.eliminatedBanner then
 			self.eliminatedBanner.Visible = false
 		end
+		self:_updateMonsterPanel(state, nil)
 		return
 	end
 
 	local phase = readString(round, "phase", "Lobby")
+	self:_updateMonsterPanel(state, phase)
 	if self.voteCountLabel then
 		if phase == "Campfire" then
 			local votesCast = math.max(0, math.floor(readNumber(round, "votesCast", 0)))
@@ -3871,8 +4036,13 @@ function GameView:Tick()
 		then self.currentState.round
 		else self.legacyRound
 	if type(round) ~= "table" then
+		self:_updateMonsterPanel(self.currentState, nil)
 		return
 	end
+	self:_updateMonsterPanel(
+		self.currentState,
+		readString(round, "phase", "Lobby")
+	)
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	self.timerLabel.TextColor3 = if seconds <= 10 and seconds > 0 then Theme.Colors.DangerBright else Theme.Colors.Gold
@@ -5273,6 +5443,15 @@ function GameView:Destroy()
 	end
 	self.cooldownFill = nil
 	self.abilityBarMaxCooldown = 0
+	if self.monsterPanel then
+		Motion.Cancel(self.monsterPanel)
+		self.monsterPanel:Destroy()
+		self.monsterPanel = nil
+	end
+	self.monsterNameLabel = nil
+	self.monsterStaminaFill = nil
+	self.monsterAbilityLabel = nil
+	self.monsterPanelVisible = false
 	if self.phaseArc then
 		self.phaseArc:Destroy()
 		self.phaseArc = nil
