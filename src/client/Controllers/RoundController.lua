@@ -614,6 +614,18 @@ local function updateReleaseExperience(
 				)
 			end
 			currentView:PlayPhaseTitleCard(phaseName, reconnect)
+			if phaseName == "Campfire" and not reconnect then
+				local aliveCount = 0
+				for _, participant in participants do
+					if type(participant) == "table" and participant.alive == true then
+						aliveCount += 1
+					end
+				end
+				local voteMessage = if aliveCount == 1
+					then "One player remains. Cast your vote."
+					else string.format("%d players remain. Cast your vote.", aliveCount)
+				currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
+			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
 			if HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
