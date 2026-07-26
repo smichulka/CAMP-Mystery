@@ -88,6 +88,7 @@ local lastStaminaWasLow: boolean? = nil
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
+local lastVoteCompleteRound: number? = nil
 local lastIsGhost: boolean? = nil
 local lastHealthState: string? = nil
 local HEALTH_SEVERITY: { [string]: number } = {
@@ -497,6 +498,21 @@ local function updateReleaseExperience(
 			and type(round.roundNumber) == "number"
 		then round.roundNumber
 		else nil
+	if phaseName == "Campfire" and not reconnect and roundNumber ~= nil and currentView then
+		local votesCast = math.floor(readNumber(round, "votesCast", 0))
+		local eligibleVoters = math.floor(readNumber(round, "eligibleVoters", 0))
+		if eligibleVoters > 0
+			and votesCast >= eligibleVoters
+			and roundNumber ~= lastVoteCompleteRound
+		then
+			currentView:Notify(
+				"All votes are in",
+				"The campfire vote is sealed. The verdict is coming.",
+				"Warning"
+			)
+			lastVoteCompleteRound = roundNumber
+		end
+	end
 	if roundNumber ~= nil and roundNumber ~= lastHintRound then
 		table.clear(seenHintPhases)
 		lastHintRound = roundNumber
@@ -1033,6 +1049,17 @@ function RoundController.Start()
 				lastRevealedWitnessCount =
 					readNumber(reconnectMystery, "revealedWitnessCount", 0)
 				local reconnectRound = if type(payload) == "table" then payload.round else nil
+				local reconnectVotesCast =
+					math.floor(readNumber(reconnectRound, "votesCast", 0))
+				local reconnectEligible =
+					math.floor(readNumber(reconnectRound, "eligibleVoters", 0))
+				if reconnectEligible > 0
+					and reconnectVotesCast >= reconnectEligible
+					and type(round) == "table"
+					and type(round.roundNumber) == "number"
+				then
+					lastVoteCompleteRound = round.roundNumber
+				end
 				lastObjectivesCompleted =
 					readNumber(reconnectRound, "objectivesCompleted", 0)
 				local reconnectMonster = if type(payload) == "table"
@@ -1233,6 +1260,7 @@ function RoundController.Stop()
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
+	lastVoteCompleteRound = nil
 	lastIsGhost = nil
 	lastHealthState = nil
 	lastHealthSeverity = nil
