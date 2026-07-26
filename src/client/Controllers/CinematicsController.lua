@@ -1,6 +1,7 @@
 --!strict
 
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Motion = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Motion"))
@@ -26,6 +27,10 @@ type CinematicsControllerState = {
 	transitionToken: number,
 	ghostActive: boolean,
 	ghostSaturationOffset: number,
+	shakeToken: number,
+	shakeConn: RBXScriptConnection?,
+	shakeCamera: Camera?,
+	shakePrevOffset: Vector3,
 	setNightIntensity: ((number) -> ())?,
 	destroyed: boolean,
 }
@@ -164,10 +169,23 @@ function CinematicsController.new(
 		transitionToken = 0,
 		ghostActive = false,
 		ghostSaturationOffset = 0,
+		shakeToken = 0,
+		shakeConn = nil,
+		shakeCamera = nil,
+		shakePrevOffset = Vector3.zero,
 		setNightIntensity = setNightIntensity,
 		destroyed = false,
 	}, CinematicsController)
 	return self
+end
+
+function CinematicsController:_clearShakeOffset()
+	local camera = self.shakeCamera
+	if camera then
+		camera.CFrame = camera.CFrame * CFrame.new(-self.shakePrevOffset)
+	end
+	self.shakeCamera = nil
+	self.shakePrevOffset = Vector3.zero
 end
 
 function CinematicsController:_restoreBaseline()
@@ -394,6 +412,73 @@ function CinematicsController:PlayImpactFlash()
 	end)
 end
 
+function CinematicsController:PlayScreenShake(intensity: number?)
+	if self.destroyed then
+		return
+	end
+	local amp = math.clamp((intensity or 1.0) * 0.07, 0, 0.2)
+	local freq = 14
+	local duration = 0.4
+	local startedAt = os.clock()
+
+	self.shakeToken += 1
+	local token = self.shakeToken
+
+	-- cancel previous shake and remove its residual offset
+	if self.shakeConn then
+		self.shakeConn:Disconnect()
+		self.shakeConn = nil
+	end
+	self:_clearShakeOffset()
+
+	self.shakeConn = RunService.RenderStepped:Connect(function()
+		-- remove previous frame's offset so we don't compound
+		self:_clearShakeOffset()
+
+		if self.shakeToken ~= token or self.destroyed then
+			if self.shakeConn then
+				self.shakeConn:Disconnect()
+				self.shakeConn = nil
+			end
+			return
+		end
+
+		local elapsed = os.clock() - startedAt
+		if elapsed >= duration then
+			if self.shakeConn then
+				self.shakeConn:Disconnect()
+				self.shakeConn = nil
+			end
+			return
+		end
+
+		local decay = 1 - elapsed / duration
+		local t = elapsed * freq * math.pi * 2
+		local x = math.sin(t) * amp * decay
+		local y = math.sin(t + math.pi * 0.7) * amp * 0.5 * decay
+		local newOffset = Vector3.new(x, y, 0)
+
+		local cam = workspace.CurrentCamera
+		if cam and cam.Parent then
+			cam.CFrame = cam.CFrame * CFrame.new(newOffset)
+			self.shakeCamera = cam
+			self.shakePrevOffset = newOffset
+		end
+	end)
+end
+
+function CinematicsController:PlayPhaseFlash()
+	if self.destroyed then
+		return
+	end
+	self:_playTween(self.colorCorrection, 0.10, { Brightness = 0.14 })
+	task.delay(0.10, function()
+		if not self.destroyed then
+			self:_playTween(self.colorCorrection, 0.28, { Brightness = 0 })
+		end
+	end)
+end
+
 function CinematicsController:PlayPhaseTransition(phaseName: string)
 	self:_cancelActive()
 	if self.destroyed then
@@ -424,6 +509,11 @@ function CinematicsController:Destroy()
 	if self.destroyed then
 		return
 	end
+	if self.shakeConn then
+		self.shakeConn:Disconnect()
+		self.shakeConn = nil
+	end
+	self:_clearShakeOffset()
 	self.destroyed = true
 	self.ghostActive = false
 	self.ghostSaturationOffset = 0
