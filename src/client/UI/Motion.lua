@@ -64,7 +64,10 @@ end
 local function callback(record: TransitionRecord, completed: boolean)
 	local onComplete = record.onComplete
 	if onComplete then
-		task.spawn(onComplete, completed)
+		local succeeded, failure = pcall(onComplete, completed)
+		if not succeeded then
+			warn("[Motion] Completion callback failed:", failure)
+		end
 	end
 	record.completion:Fire(completed)
 	task.defer(function()
