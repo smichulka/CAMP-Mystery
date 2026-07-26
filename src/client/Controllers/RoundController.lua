@@ -37,6 +37,12 @@ type CameraController = CameraControllerModule.CameraController
 
 local RoundController = {}
 
+local HINT_PHASES: { [string]: boolean } = {
+	Day = true,
+	Investigation = true,
+	Campfire = true,
+}
+
 local started = false
 local state: GameState? = nil
 local legacyRound: any = nil
@@ -60,6 +66,8 @@ local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastIsGhost: boolean? = nil
+local lastHintRound: number? = nil
+local seenHintPhases: { [string]: boolean } = {}
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -259,6 +267,14 @@ local function updateReleaseExperience(
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
+	local roundNumber = if type(round) == "table"
+			and type(round.roundNumber) == "number"
+		then round.roundNumber
+		else nil
+	if roundNumber ~= nil and roundNumber ~= lastHintRound then
+		table.clear(seenHintPhases)
+		lastHintRound = roundNumber
+	end
 	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local reconnect = isReconnectSnapshot == true
 	local winner = if type(round) == "table" and type(round.winner) == "string"
@@ -290,10 +306,6 @@ local function updateReleaseExperience(
 		lastCinematicPhase = phaseName
 		currentCinematics:PlayPhaseTransition(phaseName)
 		if currentView then
-			local roundNumber = if type(round) == "table"
-					and type(round.roundNumber) == "number"
-				then round.roundNumber
-				else nil
 			local roleName = if type(player) == "table" and type(player.role) == "string"
 				then player.role
 				else "Spectator"
@@ -322,6 +334,15 @@ local function updateReleaseExperience(
 				)
 			end
 			currentView:PlayPhaseTitleCard(phaseName, reconnect)
+			-- Keybind hint on first entry to key phases (not on reconnect).
+			if HINT_PHASES[phaseName]
+				and not seenHintPhases[phaseName]
+				and not reconnect
+				and currentView
+			then
+				seenHintPhases[phaseName] = true
+				currentView:ShowKeybindHint(phaseName)
+			end
 		end
 		if phaseName == "Resolution" and currentView then
 			playVoteReveal(snapshot, currentView, revealWinner)
@@ -394,6 +415,21 @@ local function handleActionResult(payload: any)
 					)
 				then
 					HapticController.Danger()
+				end
+			end
+			-- Impact flash on injury/critical.
+			if type(result.state) == "table" then
+				local pSnap = result.state.player
+				if type(pSnap) == "table"
+					and (
+						pSnap.healthState == "Critical"
+						or pSnap.healthState == "Incapacitated"
+					)
+				then
+					local currentCinematics = cinematics
+					if currentCinematics then
+						currentCinematics:PlayImpactFlash()
+					end
 				end
 			end
 			local dialogueText: string? = nil
@@ -678,6 +714,8 @@ function RoundController.Stop()
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
 	lastIsGhost = nil
+	lastHintRound = nil
+	table.clear(seenHintPhases)
 end
 
 return table.freeze(RoundController)
