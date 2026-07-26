@@ -82,7 +82,7 @@ class LobbyReconnectTests(unittest.TestCase):
         ):
             self.assertIn(token, runtime)
 
-    def test_client_reconnect_is_quiet_and_role_specific(self) -> None:
+    def test_client_reconnect_is_quiet_and_contextual(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         view = read("src/client/UI/GameView.lua")
         for token in (
@@ -91,10 +91,14 @@ class LobbyReconnectTests(unittest.TestCase):
             'player.role ~= "Spectator"',
             "lastCinematicPhase = phaseName",
             "lastEvidenceFound = evidenceFoundCount(payload)",
-            '"Reconnected — your role is " .. roleName',
-            '"Info",\n\t\t\t\t\t4',
+            "if reconnect and currentView and not roundEnded and phaseName ~= nil then",
+            '"You are a ghost. Observe the round and witness the verdict."',
+            '"Reconnected — you\'re incapacitated"',
+            '"Reconnected — you\'re injured"',
+            'string.format("Current phase: %s.", phaseName)',
         ):
             self.assertIn(token, controller)
+        self.assertNotIn('"Reconnected — your role is " .. roleName', controller)
         self.assertIn(
             "function GameView:PrepareReconnectSnapshot(phaseName: string)",
             view,
