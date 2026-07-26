@@ -21,6 +21,7 @@ type EffectsViewState = {
 	subtitle: TextLabel,
 	vignette: ImageLabel?,
 	vignetteTween: Tween?,
+	injuryPulseTween: Tween?,
 	nightIntensity: number,
 	ghostTintActive: boolean,
 	reducedMotion: boolean,
@@ -88,6 +89,13 @@ local STATUS_COPY: { [string]: StatusPresentation } = {
 	Injured = { label = "INJURED", color = Theme.Colors.Danger },
 	Incapacitated = { label = "INCAPACITATED", color = Theme.Colors.DangerBright },
 	Ghost = { label = "SPIRIT STATE", color = Theme.Colors.Ghost },
+}
+
+local PULSE_STATUSES: { [string]: boolean } = {
+	Injured = true,
+	Incapacitated = true,
+	Bleeding = true,
+	Latched = true,
 }
 
 local function setLayer(instance: Instance, zIndex: number)
@@ -238,6 +246,7 @@ function EffectsView.new(parent: Instance): EffectsView
 		subtitle = subtitle,
 		vignette = vignette,
 		vignetteTween = nil,
+		injuryPulseTween = nil,
 		nightIntensity = 0,
 		ghostTintActive = false,
 		reducedMotion = false,
@@ -255,6 +264,12 @@ function EffectsView:SetReducedMotion(reducedMotion: boolean)
 	self.reducedMotion = reducedMotion
 	self.root:SetAttribute("ReducedMotion", reducedMotion)
 	if changed then
+		if reducedMotion then
+			self:_stopInjuryPulse()
+			self.statusStroke.Transparency = 0.32
+		elseif self.lastStatus and PULSE_STATUSES[self.lastStatus] then
+			self:_startInjuryPulse(self.lastStatus, 0)
+		end
 		self:SetNightIntensity(self.nightIntensity)
 	end
 end
@@ -433,10 +448,47 @@ function EffectsView:ShowSubtitle(text: string, duration: number?)
 	end)
 end
 
+function EffectsView:_stopInjuryPulse()
+	local tween = self.injuryPulseTween
+	if tween then
+		tween:Cancel()
+		self.injuryPulseTween = nil
+	end
+end
+
+function EffectsView:_startInjuryPulse(statusId: string, delaySeconds: number)
+	if self.destroyed or self.reducedMotion or not PULSE_STATUSES[statusId] then
+		return
+	end
+	self:_stopInjuryPulse()
+	local pulseTween = TweenService:Create(
+		self.statusStroke,
+		TweenInfo.new(
+			0.9,
+			Enum.EasingStyle.Sine,
+			Enum.EasingDirection.InOut,
+			-1,
+			true
+		),
+		{ Transparency = 0.72 }
+	)
+	self.injuryPulseTween = pulseTween
+	if delaySeconds <= 0 then
+		pulseTween:Play()
+		return
+	end
+	task.delay(delaySeconds, function()
+		if not self.destroyed and self.injuryPulseTween == pulseTween then
+			pulseTween:Play()
+		end
+	end)
+end
+
 function EffectsView:SetMonsterStatus(statusId: string?, customMessage: string?)
 	if self.destroyed or statusId == self.lastStatus then
 		return
 	end
+	self:_stopInjuryPulse()
 	self.lastStatus = statusId
 	if not statusId then
 		self.statusOverlay.Visible = false
@@ -461,6 +513,11 @@ function EffectsView:SetMonsterStatus(statusId: string?, customMessage: string?)
 			TweenInfo.new(0.45),
 			{ Transparency = 0.32 }
 		):Play()
+		if PULSE_STATUSES[statusId] then
+			self:_startInjuryPulse(statusId, 0.5)
+		end
+	else
+		self.statusStroke.Transparency = 0.32
 	end
 end
 
@@ -491,6 +548,7 @@ function EffectsView:Destroy()
 	self.destroyed = true
 	self.phaseToken += 1
 	self.subtitleToken += 1
+	self:_stopInjuryPulse()
 	if self.vignetteTween then
 		self.vignetteTween:Cancel()
 		self.vignetteTween = nil
