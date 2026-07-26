@@ -476,6 +476,12 @@ local function updateReleaseExperience(
 	end
 	lastIsGhost = isGhost
 	currentEffects:SetGhostTint(isGhost)
+	-- Role-based spectators also serialize as dead non-ghost participants.
+	local isEliminated = type(player) == "table"
+		and player.role ~= "Spectator"
+		and player.alive == false
+		and not isGhost
+	currentEffects:SetSpectatorMode(isEliminated and not roundEnded)
 	if currentView then
 		currentView:SetGhostMode(isGhost)
 	end
