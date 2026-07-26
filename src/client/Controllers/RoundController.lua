@@ -464,6 +464,7 @@ local function updateReleaseExperience(
 		lastHintRound = roundNumber
 	end
 	local player = if type(snapshot) == "table" then snapshot.player else nil
+	local localParticipantId = readString(player, "participantId", "")
 	local reconnect = isReconnectSnapshot == true
 	-- Detect participant connect/disconnect transitions.
 	local participants = if type(snapshot) == "table"
@@ -522,6 +523,12 @@ local function updateReleaseExperience(
 					"TARGET ELIMINATED",
 					displayName .. " has been eliminated.",
 					"Success"
+				)
+			elseif participantId ~= localParticipantId and currentView then
+				currentView:Notify(
+					displayName .. " has been eliminated",
+					"A player has been taken out.",
+					"Warning"
 				)
 			end
 		end
