@@ -401,6 +401,7 @@ function ParticipantService:SerializePrivate(
 		inventoryCapacity = MAX_INVENTORY_SLOTS,
 		evidenceKnowledge = sortedEvidenceKnowledge(state),
 		vote = cloneVote(state),
+		abilityCooldownEndsAt = table.clone(state.abilityCooldownEndsAt),
 	}
 end
 
