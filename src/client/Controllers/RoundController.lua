@@ -59,6 +59,7 @@ local lastMonsterEvidenceCount = 0
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
+local lastIsGhost: boolean? = nil
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -332,6 +333,15 @@ local function updateReleaseExperience(
 	end
 	local isGhost = type(player) == "table" and player.isGhost == true
 	local roundEnded = phaseName == "Rewards" or phaseName == "Lobby"
+	-- Ghost transition cinematic — fires once on the false → true crossing.
+	local ghostJustDied = isGhost == true and lastIsGhost == false and not reconnect
+	if ghostJustDied and currentView then
+		currentView:PlayDeathCinematic()
+	end
+	if isGhost ~= lastIsGhost then
+		currentCinematics:SetGhostMode(isGhost)
+	end
+	lastIsGhost = isGhost
 	currentEffects:SetGhostTint(isGhost)
 	if currentView then
 		currentView:SetGhostMode(isGhost)
@@ -667,6 +677,7 @@ function RoundController.Stop()
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
+	lastIsGhost = nil
 end
 
 return table.freeze(RoundController)
