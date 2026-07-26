@@ -237,6 +237,27 @@ local function refresh()
 	if currentView then
 		currentView:Update(state, legacyRound, legacyPlayer)
 	end
+	local currentEffects = effects
+	if currentEffects then
+		local snapshot: any = state
+		local round = if type(snapshot) == "table" and type(snapshot.round) == "table"
+			then snapshot.round
+			else nil
+		local player = if type(snapshot) == "table" and type(snapshot.player) == "table"
+			then snapshot.player
+			else nil
+		local privateMonster = if type(snapshot) == "table"
+				and type(snapshot.privateMonster) == "table"
+			then snapshot.privateMonster
+			else nil
+		local phaseName = readString(round, "phase", "")
+		local isGhost = type(player) == "table" and player.isGhost == true
+		local monsterModeActive = phaseName == "Investigation"
+			and type(privateMonster) == "table"
+			and privateMonster.active == true
+			and not isGhost
+		currentEffects:SetMonsterMode(monsterModeActive)
+	end
 	local currentNametags = nametags
 	if currentNametags then
 		local snapshot: any = state
