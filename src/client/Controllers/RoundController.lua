@@ -650,6 +650,11 @@ local function updateReleaseExperience(
 	local ghostJustDied = isGhost == true and lastIsGhost == false and not reconnect
 	if ghostJustDied and currentView then
 		currentView:PlayDeathCinematic()
+		currentView:Notify(
+			"You have been eliminated",
+			"You are now a ghost. Observe the round and witness the verdict.",
+			"Info"
+		)
 	end
 	if isGhost ~= lastIsGhost then
 		currentCinematics:SetGhostMode(isGhost)
