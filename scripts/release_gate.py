@@ -226,7 +226,7 @@ def _write_markdown(evidence: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "> Repository checks do not execute Luau or Roblox. Studio, private-server,",
+            "> Luau compilation and repository checks do not execute Roblox. Studio, private-server,",
             "> DataStore, performance, device, ownership, and moderation evidence remains",
             "> mandatory and is never inferred from a green Python run.",
             "",
@@ -351,7 +351,7 @@ def main() -> None:
         "observations": observations,
         "blockers": blockers,
         "limitations": [
-            "Python checks do not execute Luau or the Roblox engine.",
+            "Luau compilation validates syntax but does not execute Roblox engine APIs.",
             "Automated reference soak/fuzz tests do not replace Studio runtime tests.",
             "Only Roblox can prove replication, physics, navigation, DataStore, performance, device, filtering, and moderation behavior.",
         ],
