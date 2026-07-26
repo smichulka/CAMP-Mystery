@@ -16,6 +16,7 @@ local AccessibilityController = require(script.Parent:WaitForChild("Accessibilit
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
 local CameraControllerModule = require(script.Parent:WaitForChild("CameraController"))
 local CinematicsController = require(script.Parent:WaitForChild("CinematicsController"))
+local HapticController = require(script.Parent:WaitForChild("HapticController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
 local InteractionController = require(script.Parent:WaitForChild("InteractionController"))
 local ProximityControllerModule = require(
@@ -275,6 +276,7 @@ local function updateReleaseExperience(
 		and lastWinnerAnnounced ~= winner
 	local revealWinner = if shouldRevealWinner and currentView and winner
 		then function()
+			HapticController.Celebrate()
 			currentView:PlayWinReveal(winner, winner == "Campers")
 		end
 		else nil
@@ -373,6 +375,17 @@ local function handleActionResult(payload: any)
 	if accepted then
 		if currentView then
 			currentView:HandleActionResult(true)
+			if type(result.state) == "table" then
+				local pSnap = result.state.player
+				if type(pSnap) == "table"
+					and (
+						pSnap.healthState == "Critical"
+						or pSnap.healthState == "Incapacitated"
+					)
+				then
+					HapticController.Danger()
+				end
+			end
 			local dialogueText: string? = nil
 			if type(result.data) == "table" then
 				local dialogue = result.data.dialogue
