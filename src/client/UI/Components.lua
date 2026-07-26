@@ -4,8 +4,10 @@ local TweenService = game:GetService("TweenService")
 local GuiService = game:GetService("GuiService")
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Motion = require(script.Parent:WaitForChild("Motion"))
 
 local Components = {}
+local soundPlayer: ((eventName: string) -> ())? = nil
 
 export type ButtonOptions = {
 	name: string,
@@ -15,6 +17,17 @@ export type ButtonOptions = {
 	color: Color3?,
 	layoutOrder: number?,
 }
+
+function Components.SetSoundPlayer(player: ((eventName: string) -> ())?)
+	soundPlayer = player
+end
+
+function Components.PlayUISound(eventName: string)
+	local player = soundPlayer
+	if player then
+		player(eventName)
+	end
+end
 
 function Components.Corner(parent: GuiObject, radius: number?): UICorner
 	local corner = Instance.new("UICorner")
@@ -94,31 +107,115 @@ function Components.Button(parent: Instance, options: ButtonOptions): TextButton
 	button.Parent = parent
 	Components.Corner(button, Theme.SmallCornerRadius)
 	local border = Components.Stroke(button)
+	local pressScale = Instance.new("UIScale")
+	pressScale.Name = "ButtonPressScale"
+	pressScale.Scale = 1
+	pressScale.Parent = button
 
 	local normalColor = button.BackgroundColor3
 	local hoverColor = normalColor:Lerp(Theme.Colors.White, 0.12)
+	local colorTween: Tween? = nil
+	local scaleTween: Tween? = nil
+	local pressed = false
+
+	local function tweenColor(color: Color3)
+		if colorTween then
+			colorTween:Cancel()
+		end
+		colorTween = TweenService:Create(
+			button,
+			TweenInfo.new(
+				Theme.Motion.HoverDuration,
+				Theme.Motion.StandardEasingStyle,
+				Theme.Motion.StandardEasingDirection
+			),
+			{ BackgroundColor3 = color }
+		)
+		colorTween:Play()
+	end
+
+	local function tweenScale(scale: number, duration: number, style: Enum.EasingStyle)
+		if scaleTween then
+			scaleTween:Cancel()
+		end
+		if Motion.IsReducedMotion(button) then
+			pressScale.Scale = 1
+			return
+		end
+		scaleTween = TweenService:Create(
+			pressScale,
+			TweenInfo.new(duration, style, Enum.EasingDirection.Out),
+			{ Scale = scale }
+		)
+		scaleTween:Play()
+	end
+
+	local function press()
+		if not button.Active or pressed then
+			return
+		end
+		pressed = true
+		tweenScale(
+			Theme.Motion.PressScale,
+			Theme.Motion.PressDuration,
+			Theme.Motion.StandardEasingStyle
+		)
+	end
+
+	local function release()
+		if not pressed and pressScale.Scale == 1 then
+			return
+		end
+		pressed = false
+		tweenScale(1, Theme.Motion.ReleaseDuration, Theme.Motion.PopEasingStyle)
+	end
+
 	button.MouseEnter:Connect(function()
 		if button.Active then
-			TweenService:Create(
-				button,
-				TweenInfo.new(Theme.AnimationTime),
-				{ BackgroundColor3 = hoverColor }
-			):Play()
+			tweenColor(hoverColor)
+			Components.PlayUISound("hover")
 		end
 	end)
 	button.MouseLeave:Connect(function()
-		TweenService:Create(
-			button,
-			TweenInfo.new(Theme.AnimationTime),
-			{ BackgroundColor3 = normalColor }
-		):Play()
+		release()
+		tweenColor(normalColor)
+	end)
+	button.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+			or input.KeyCode == Enum.KeyCode.ButtonA
+			or input.KeyCode == Enum.KeyCode.Return
+			or input.KeyCode == Enum.KeyCode.Space
+		then
+			press()
+		end
+	end)
+	button.InputEnded:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+			or input.KeyCode == Enum.KeyCode.ButtonA
+			or input.KeyCode == Enum.KeyCode.Return
+			or input.KeyCode == Enum.KeyCode.Space
+		then
+			release()
+		end
+	end)
+	button.Activated:Connect(function()
+		release()
+		if button.Active then
+			Components.PlayUISound("click")
+		end
 	end)
 	button.SelectionGained:Connect(function()
 		border.Color = Theme.Colors.Gold
 		border.Thickness = 3
 		border.Transparency = 0
+		if button.Active then
+			Components.PlayUISound("hover")
+		end
 	end)
 	button.SelectionLost:Connect(function()
+		release()
 		border.Color = Theme.Colors.Border
 		border.Thickness = 1
 		border.Transparency = Theme.StrokeTransparency
@@ -132,6 +229,10 @@ function Components.SetButtonEnabled(button: TextButton, enabled: boolean)
 	button.AutoButtonColor = enabled
 	button.BackgroundTransparency = if enabled then 0 else 0.45
 	button.TextTransparency = if enabled then 0 else 0.32
+	local pressScale = button:FindFirstChild("ButtonPressScale")
+	if not enabled and pressScale and pressScale:IsA("UIScale") then
+		pressScale.Scale = 1
+	end
 	if not enabled and GuiService.SelectedObject == button then
 		GuiService.SelectedObject = nil
 	end
