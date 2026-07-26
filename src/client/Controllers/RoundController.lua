@@ -86,6 +86,13 @@ local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastIsGhost: boolean? = nil
 local lastHealthState: string? = nil
+local HEALTH_SEVERITY: { [string]: number } = {
+	Healthy = 0,
+	Injured = 1,
+	Incapacitated = 2,
+	Critical = 2,
+}
+local lastHealthSeverity: number? = nil
 local lastConnectedState: { [string]: boolean } = {}
 local lastHintRound: number? = nil
 local lastToastedRound: number? = nil
@@ -616,6 +623,26 @@ local function updateReleaseExperience(
 	if currentHealthState ~= lastHealthState then
 		lastHealthState = currentHealthState
 	end
+	local currentSeverity = if currentHealthState ~= nil
+		then HEALTH_SEVERITY[currentHealthState]
+		else nil
+	local severityDegraded = currentSeverity ~= nil
+		and lastHealthSeverity ~= nil
+		and currentSeverity > lastHealthSeverity
+		and not reconnect
+		and not roundEnded
+	if severityDegraded then
+		local currentCinematics = cinematics
+		if currentCinematics then
+			currentCinematics:PlayImpactFlash()
+			if currentSeverity >= 2 then
+				currentCinematics:PlayScreenShake(0.5)
+			end
+		end
+	end
+	if currentSeverity ~= lastHealthSeverity then
+		lastHealthSeverity = currentSeverity
+	end
 	currentEffects:SetGhostTint(isGhost)
 	-- Role-based spectators also serialize as dead non-ghost participants.
 	local isEliminated = type(player) == "table"
@@ -1004,6 +1031,7 @@ function RoundController.Stop()
 	lastWinnerAnnounced = nil
 	lastIsGhost = nil
 	lastHealthState = nil
+	lastHealthSeverity = nil
 	lastConnectedState = {}
 	lastHintRound = nil
 	lastToastedRound = nil
