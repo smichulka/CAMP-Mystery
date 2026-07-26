@@ -162,6 +162,7 @@ type GameViewState = {
 	legacyPlayer: any,
 	currentVoteSignature: string,
 	localVoteHasLocked: boolean,
+	dayObjectiveNotifiedRound: number?,
 	evidenceStatuses: { [string]: string },
 	selectedInventorySlot: number,
 	inventoryItems: { any },
@@ -1081,6 +1082,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		legacyPlayer = nil,
 		currentVoteSignature = "",
 		localVoteHasLocked = false,
+		dayObjectiveNotifiedRound = nil,
 		evidenceStatuses = {},
 		selectedInventorySlot = 0,
 		inventoryItems = {},
@@ -3935,6 +3937,23 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			objectiveDone, objectiveGoal, witnessFound, witnessTotal
 		)
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(objectiveDone / objectiveGoal, 0, 1), 1)
+		local roundNum = readNumber(round, "roundNumber", 0)
+		local isLivingCamper = readString(player, "team", "") == "Campers"
+			and readBoolean(player, "alive", false)
+			and not readBoolean(player, "isGhost", false)
+		if isLivingCamper
+			and objectiveDone >= objectiveGoal
+			and witnessFound >= witnessTotal
+			and roundNum > 0
+			and self.dayObjectiveNotifiedRound ~= roundNum
+		then
+			self.dayObjectiveNotifiedRound = roundNum
+			self:Notify(
+				"Day objectives complete",
+				"All camp work done and witnesses interviewed. Investigation begins soon.",
+				"Success"
+			)
+		end
 	elseif phase == "Investigation" then
 		local privateMonster = if type(state) == "table" then state.privateMonster else nil
 		local isMonsterPlayer = type(privateMonster) == "table"
@@ -6045,6 +6064,7 @@ function GameView:Destroy()
 	self.lastRosterSignature = ""
 	self.voteCountLabel = nil
 	self.localVoteHasLocked = false
+	self.dayObjectiveNotifiedRound = nil
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
