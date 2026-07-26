@@ -74,6 +74,10 @@ def main() -> None:
         [sys.executable, "scripts/test_role_reveal_phase_titles.py"],
     )
     run(
+        "Win reveal and item feedback contract tests",
+        [sys.executable, "scripts/test_win_reveal_item_feedback.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
     )
