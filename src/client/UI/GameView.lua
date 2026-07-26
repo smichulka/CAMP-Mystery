@@ -14,6 +14,7 @@ local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
+local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))
 local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
@@ -112,6 +113,8 @@ type GameViewState = {
 	winRevealOverlay: CanvasGroup?,
 	winRevealSkip: RBXScriptConnection?,
 	winRevealActive: boolean,
+	deathCinematicToken: number,
+	deathCinematicOverlay: CanvasGroup?,
 	voteRevealToken: number,
 	voteRevealOwnsResults: boolean,
 	voteConfetti: Frame?,
@@ -136,6 +139,7 @@ type GameViewState = {
 	roleActionBaseText: string,
 	lastAnimatedXP: number,
 	lastAnimatedTokens: number,
+	lastHealthForFlash: number,
 	rewardAnimationToken: number,
 	destroyed: boolean,
 }
@@ -736,6 +740,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		winRevealOverlay = nil,
 		winRevealSkip = nil,
 		winRevealActive = false,
+		deathCinematicToken = 0,
+		deathCinematicOverlay = nil,
 		voteRevealToken = 0,
 		voteRevealOwnsResults = false,
 		voteConfetti = nil,
@@ -760,6 +766,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		roleActionBaseText = "ABILITY UNAVAILABLE",
 		lastAnimatedXP = -1,
 		lastAnimatedTokens = -1,
+		lastHealthForFlash = 100,
 		rewardAnimationToken = 0,
 		destroyed = false,
 	}, GameView)
@@ -3095,6 +3102,23 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.healthFill.BackgroundColor3 = if healthState == "Injured" then Theme.Colors.Danger else Theme.Colors.Success
 	end
 	self.healthFill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
+	-- Brief damage flash when health drops
+	local currentHealth = health
+	if currentHealth < self.lastHealthForFlash and not ghost then
+		local fill = self.healthFill
+		local originalColor = fill.BackgroundColor3
+		fill.BackgroundColor3 = Theme.Colors.DangerBright
+		task.delay(0.12, function()
+			if not self.destroyed then
+				TweenService:Create(
+					fill,
+					TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ BackgroundColor3 = originalColor }
+				):Play()
+			end
+		end)
+	end
+	self.lastHealthForFlash = currentHealth
 
 	local roleEnabled, roleReason = self:_available(state, "UseRoleAbility")
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
@@ -4064,6 +4088,98 @@ function GameView:PlayWinReveal(winner: string, isHumanWin: boolean)
 	task.delay(2.3, exitReveal)
 end
 
+function GameView:PlayDeathCinematic()
+	if self.destroyed then
+		return
+	end
+	self.deathCinematicToken += 1
+	local token = self.deathCinematicToken
+	local prev = self.deathCinematicOverlay
+	if prev then
+		prev:Destroy()
+		self.deathCinematicOverlay = nil
+	end
+
+	local overlay = Instance.new("CanvasGroup")
+	overlay.Name = "DeathCinematic"
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.BackgroundColor3 = Theme.Colors.Black
+	overlay.BackgroundTransparency = 0
+	overlay.GroupTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.ZIndex = 92
+	overlay.Parent = self.root
+	self.deathCinematicOverlay = overlay
+
+	local heading = Components.Label(
+		overlay,
+		"DeathHeading",
+		"YOU HAVE FALLEN",
+		math.floor(Theme.Typography.HeadingSize * 1.6),
+		Theme.Typography.HeadingFont
+	)
+	heading.AnchorPoint = Vector2.new(0.5, 0.5)
+	heading.Position = UDim2.new(0.5, 0, 0.44, 0)
+	heading.Size = UDim2.new(0.9, 0, 0, 56)
+	heading.TextColor3 = Theme.Colors.White
+	heading.TextXAlignment = Enum.TextXAlignment.Center
+	heading.ZIndex = 93
+	Components.SetLetterspacedText(heading, "YOU HAVE FALLEN")
+
+	local sub = Components.Label(
+		overlay,
+		"DeathSub",
+		"Your spirit remains — watch over the living.",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	sub.AnchorPoint = Vector2.new(0.5, 0.5)
+	sub.Position = UDim2.new(0.5, 0, 0.56, 0)
+	sub.Size = UDim2.new(0.7, 0, 0, 28)
+	sub.TextColor3 = Theme.Colors.White
+	sub.TextTransparency = 0.3
+	sub.TextXAlignment = Enum.TextXAlignment.Center
+	sub.ZIndex = 93
+
+	local function active(): boolean
+		return not self.destroyed
+			and self.deathCinematicToken == token
+			and overlay.Parent ~= nil
+	end
+
+	if Motion.IsReducedMotion(self.root) then
+		overlay.GroupTransparency = 0
+		task.delay(2.5, function()
+			if active() then
+				overlay:Destroy()
+				if self.deathCinematicOverlay == overlay then
+					self.deathCinematicOverlay = nil
+				end
+			end
+		end)
+		return
+	end
+
+	overlay.GroupTransparency = 0
+	Motion.FadeIn(overlay, { duration = 0.4 })
+	task.delay(2.5, function()
+		if not active() then
+			return
+		end
+		Motion.FadeOut(overlay, {
+			duration = 0.5,
+			onComplete = function(_completed: boolean)
+				if active() then
+					overlay:Destroy()
+					if self.deathCinematicOverlay == overlay then
+						self.deathCinematicOverlay = nil
+					end
+				end
+			end,
+		})
+	end)
+end
+
 function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
 	local entry = PhaseTitles[phaseName]
 	if self.destroyed
@@ -4082,7 +4198,7 @@ function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
 	band.Name = "PhaseTitleBand"
 	band.AnchorPoint = Vector2.new(0.5, 0.5)
 	band.Position = UDim2.fromScale(0.5, 0.5)
-	band.Size = UDim2.new(1, 0, 0, 96)
+	band.Size = UDim2.new(1, 0, 0, 120)
 	band.BackgroundColor3 = Theme.Colors.Black
 	band.BackgroundTransparency = 0.45
 	band.BorderSizePixel = 0
@@ -4101,8 +4217,8 @@ function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
 		math.floor(Theme.Typography.HeadingSize * 1.4),
 		Theme.Typography.HeadingFont
 	)
-	title.Position = UDim2.fromOffset(16, 12)
-	title.Size = UDim2.new(1, -32, 0, 42)
+	title.Position = UDim2.fromOffset(16, 8)
+	title.Size = UDim2.new(1, -32, 0, 40)
 	title.TextColor3 = Theme.Colors.White
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.ZIndex = 81
@@ -4114,12 +4230,29 @@ function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
 		Theme.Typography.CaptionSize,
 		Theme.Typography.CaptionFont
 	)
-	subtitle.Position = UDim2.fromOffset(16, 54)
-	subtitle.Size = UDim2.new(1, -32, 0, 28)
+	subtitle.Position = UDim2.fromOffset(16, 50)
+	subtitle.Size = UDim2.new(1, -32, 0, 24)
 	subtitle.TextColor3 = Theme.Colors.White
 	subtitle.TextTransparency = 0.7
 	subtitle.TextXAlignment = Enum.TextXAlignment.Center
 	subtitle.ZIndex = 81
+
+	local tipText = PhaseTips[phaseName]
+	if tipText then
+		local tip = Components.Label(
+			band,
+			"PhaseTip",
+			tipText,
+			10,
+			Theme.Typography.CaptionFont
+		)
+		tip.Position = UDim2.fromOffset(16, 76)
+		tip.Size = UDim2.new(1, -32, 0, 20)
+		tip.TextColor3 = Theme.Colors.White
+		tip.TextTransparency = 0.55
+		tip.TextXAlignment = Enum.TextXAlignment.Center
+		tip.ZIndex = 81
+	end
 
 	local reducedMotion = Motion.IsReducedMotion(self.root)
 	local function active(): boolean
@@ -4478,6 +4611,10 @@ function GameView:Destroy()
 	self:_cancelEvidenceDiscovery()
 	self:_dismissInterviewPicker(true)
 	self:_dismissCounselorDialogue(true)
+	if self.deathCinematicOverlay then
+		self.deathCinematicOverlay:Destroy()
+		self.deathCinematicOverlay = nil
+	end
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
