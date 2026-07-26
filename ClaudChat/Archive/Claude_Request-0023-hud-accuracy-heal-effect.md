@@ -236,7 +236,6 @@ lastHealthState = nil
 - `currentEffects` is the existing `local currentEffects = effects` variable pattern already used in `refresh()`. Use the same pattern.
 - Do not call `ShowHealedEffect` on reconnect (the guard is already in `healthImproved`).
 - Do not call it on the first state snapshot (when `lastHealthState == nil` — already guarded).
-- Do not call it when health stays Healthy.
 - Place the health check AFTER the `lastIsGhost` update, not before, to keep ordering consistent with other state trackers.
 
 ---
