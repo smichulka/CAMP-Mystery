@@ -8,10 +8,12 @@ local PATCH_MARKER = "__campMysteryReleaseRetryPatchApplied"
 local PENDING_KEY = "__campMysteryPendingReleaseSaves"
 local MAX_RELEASE_RETRY_ATTEMPTS = 5
 local MAX_RETRY_DELAY_SECONDS = 30
+local MAX_PENDING_RELEASES = 128
 
 type PendingRelease = {
 	player: Player,
 	state: any,
+	queuedAt: number,
 }
 
 local ProfileServiceReliabilityPatch = {}
@@ -39,6 +41,38 @@ local function clearIfSameDeparture(
 	if currentPlayer == nil or currentPlayer == departingPlayer then
 		service.profiles[userId] = nil
 	end
+end
+
+local function makeRoomForPendingRelease(
+	service: any,
+	pending: { [number]: PendingRelease },
+	incomingUserId: number
+)
+	local count = 0
+	local oldestUserId: number? = nil
+	local oldestEntry: PendingRelease? = nil
+	for userId, entry in pending do
+		if userId ~= incomingUserId then
+			count += 1
+			if oldestEntry == nil or entry.queuedAt < oldestEntry.queuedAt then
+				oldestUserId = userId
+				oldestEntry = entry
+			end
+		end
+	end
+	if count < MAX_PENDING_RELEASES or oldestUserId == nil or oldestEntry == nil then
+		return
+	end
+
+	pending[oldestUserId] = nil
+	clearIfSameDeparture(service, oldestUserId, oldestEntry.state, oldestEntry.player)
+	warn(
+		string.format(
+			"[ProfileService] Retained release queue reached %d entries; evicted user %d after bounded retries",
+			MAX_PENDING_RELEASES,
+			oldestUserId
+		)
+	)
 end
 
 local function scheduleRetry(service: any, userId: number, entry: PendingRelease)
@@ -118,11 +152,14 @@ function ProfileServiceReliabilityPatch.Apply()
 			return saved, reason
 		end
 
+		local pending = pendingReleases(self)
+		makeRoomForPendingRelease(self, pending, userId)
 		local entry: PendingRelease = {
 			player = player,
 			state = state,
+			queuedAt = os.clock(),
 		}
-		pendingReleases(self)[userId] = entry
+		pending[userId] = entry
 		warn(
 			string.format(
 				"[ProfileService] Release save failed for user %d; retaining state for retry: %s",
