@@ -352,11 +352,11 @@ function AudioController:Update(state: any)
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[phase])
 		if not firstSnapshot then
 			if phase == "Campfire" then
-				self:PlayCue("VoteOpen")
+				self:PlayUIEvent("vote")
 			elseif phase == "Rewards" then
 				self:PlayCue("Reward")
 			else
-				self:PlayCue("PhaseChime")
+				self:PlayUIEvent("phase-sting")
 			end
 		end
 	end
