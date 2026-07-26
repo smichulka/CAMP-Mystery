@@ -3964,8 +3964,30 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		if isMonsterPlayer then
-			self.progressLabel.Text = "Hunt your targets. Don't get cornered."
-			self.objectiveText.Text = "HUNT OBJECTIVE\nEliminate your designated target. Avoid discovery. Use your ability when the time is right."
+			local huntMurderPlan = if type(state) == "table" then state.murderPlan else nil
+			local huntVictimId = if type(huntMurderPlan) == "table"
+					and type(huntMurderPlan.victimParticipantId) == "string"
+					and huntMurderPlan.victimParticipantId ~= ""
+				then huntMurderPlan.victimParticipantId
+				else nil
+			local huntVictimName = "your target"
+			if huntVictimId ~= nil then
+				local huntParticipants = if type(state) == "table"
+						and type(state.participants) == "table"
+					then state.participants
+					else {}
+				for _, p in huntParticipants do
+					if type(p) == "table" and p.participantId == huntVictimId then
+						huntVictimName = readString(p, "displayName", "your target")
+						break
+					end
+				end
+			end
+			self.progressLabel.Text = string.format("Hunt %s. Don't get cornered.", huntVictimName)
+			self.objectiveText.Text = string.format(
+				"HUNT OBJECTIVE\nEliminate %s. Avoid discovery. Use your ability when the time is right.",
+				huntVictimName
+			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
 		elseif localRole == "Spectator" then
 			self.progressLabel.Text = string.format("Observing. Evidence %d/%d collected.", evidenceFound, evidenceGoal)
