@@ -2,6 +2,7 @@
 
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -12,6 +13,7 @@ local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
+local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
@@ -116,9 +118,19 @@ type GameViewState = {
 	inventoryItems: { any },
 	requestSequence: number,
 	settingsValues: { [string]: any },
+	audioSettingCallback: ((key: string, value: any) -> ())?,
 	layoutConnections: { RBXScriptConnection },
 	announcementToken: number,
 	lastActionControl: GuiObject?,
+	interviewPickerToken: number,
+	interviewPickerSheet: Frame?,
+	counselorDialogueToken: number,
+	counselorDialoguePanel: Frame?,
+	lastCooldownText: string?,
+	roleActionBaseText: string,
+	lastAnimatedXP: number,
+	lastAnimatedTokens: number,
+	rewardAnimationToken: number,
 	destroyed: boolean,
 }
 
@@ -147,6 +159,14 @@ local MONSTER_PLAN_LOCATIONS: { [string]: string } = {
 	Dullahan = "industrial-machine-clue",
 	Entity = "police-evidence-room-clue",
 	Banshee = "square-gas-station-clue",
+}
+
+local VOLUME_SETTING_KEYS: { [string]: boolean } = {
+	masterVolume = true,
+	musicVolume = true,
+	ambienceVolume = true,
+	effectsVolume = true,
+	uiVolume = true,
 }
 
 local function readString(value: any, key: string, fallback: string): string
@@ -700,9 +720,19 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		inventoryItems = {},
 		requestSequence = 0,
 		settingsValues = {},
+		audioSettingCallback = nil,
 		layoutConnections = {},
 		announcementToken = 0,
 		lastActionControl = nil,
+		interviewPickerToken = 0,
+		interviewPickerSheet = nil,
+		counselorDialogueToken = 0,
+		counselorDialoguePanel = nil,
+		lastCooldownText = nil,
+		roleActionBaseText = "ABILITY UNAVAILABLE",
+		lastAnimatedXP = -1,
+		lastAnimatedTokens = -1,
+		rewardAnimationToken = 0,
 		destroyed = false,
 	}, GameView)
 
@@ -1846,10 +1876,20 @@ function GameView:_rebuildSettings()
 	self:_settingRow("Toggle sprint", "sprintToggle", true)
 end
 
+function GameView:SetAudioSettingCallback(
+	callback: ((key: string, value: any) -> ())?
+)
+	self.audioSettingCallback = callback
+end
+
 function GameView:_setSetting(key: string, value: any)
 	self.settingsValues[key] = value
 	if key == "reducedMotion" and type(value) == "boolean" then
 		self.root:SetAttribute("ReducedMotion", value)
+	end
+	local audioCallback = self.audioSettingCallback
+	if VOLUME_SETTING_KEYS[key] and audioCallback then
+		audioCallback(key, value)
 	end
 	self:_rebuildSettings()
 	self.lastActionControl = self.settings
@@ -2141,6 +2181,308 @@ function GameView:_activateItem(item: any, control: GuiObject?)
 	end
 end
 
+function GameView:_dismissInterviewPicker(immediate: boolean?)
+	self.interviewPickerToken += 1
+	local sheet = self.interviewPickerSheet
+	self.interviewPickerSheet = nil
+	if not sheet then
+		return
+	end
+	local backdrop = sheet.Parent
+	Motion.Cancel(sheet)
+	if immediate == true or Motion.IsReducedMotion(sheet) then
+		if backdrop and backdrop.Parent then
+			backdrop:Destroy()
+		end
+		return
+	end
+	Motion.SlideDown(sheet, {
+		duration = 0.2,
+		distance = 80,
+		onComplete = function(_completed: boolean)
+			if backdrop and backdrop.Parent then
+				backdrop:Destroy()
+			end
+		end,
+	})
+end
+
+function GameView:ShowInterviewTopicPicker(
+	counselorId: string,
+	name: string,
+	isWitness: boolean
+)
+	if self.destroyed then
+		return
+	end
+	self:_dismissInterviewPicker(true)
+	local token = self.interviewPickerToken
+
+	local backdrop = Instance.new("TextButton")
+	backdrop.Name = "InterviewTopicBackdrop"
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Theme.Colors.Black
+	backdrop.BackgroundTransparency = 0.55
+	backdrop.BorderSizePixel = 0
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Active = true
+	backdrop.Selectable = false
+	backdrop.ZIndex = 60
+	backdrop.Parent = self.root
+
+	local sheet = Components.Panel(backdrop, "InterviewTopicPicker")
+	sheet.AnchorPoint = Vector2.new(0.5, 1)
+	sheet.Position = UDim2.new(0.5, 0, 1, -80)
+	sheet.Size = UDim2.fromOffset(320, 220)
+	sheet.BackgroundTransparency = 0
+	sheet.ZIndex = 61
+	self.interviewPickerSheet = sheet
+
+	local counselorName = Components.Label(
+		sheet,
+		"CounselorName",
+		if name ~= "" then name else "Counselor",
+		Theme.Typography.HeadingSize,
+		Theme.Typography.HeadingFont
+	)
+	counselorName.Position = UDim2.fromOffset(8, 4)
+	counselorName.Size = UDim2.new(1, -16, 0, 22)
+	counselorName.TextColor3 = Theme.Colors.Gold
+	counselorName.TextXAlignment = Enum.TextXAlignment.Center
+	counselorName.ZIndex = 62
+
+	local prompt = Components.Label(
+		sheet,
+		"Prompt",
+		"What do you want to ask?",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	prompt.Position = UDim2.fromOffset(8, 25)
+	prompt.Size = UDim2.new(1, -16, 0, 17)
+	prompt.TextColor3 = Theme.Colors.TextMuted
+	prompt.TextXAlignment = Enum.TextXAlignment.Center
+	prompt.ZIndex = 62
+
+	for index, entry in InterviewTopics.definitions do
+		local topic = entry.topic
+		local button = Components.Button(sheet, {
+			name = "Topic_" .. topic,
+			text = "",
+			size = UDim2.new(1, -16, 0, 36),
+			position = UDim2.fromOffset(8, 45 + (index - 1) * 41),
+			color = if isWitness and entry.witnessHighlight
+				then Theme.Colors.Amber
+				else Theme.Colors.Panel,
+		})
+		button.ZIndex = 62
+		local label = Components.Label(
+			button,
+			"Label",
+			entry.label,
+			Theme.Typography.CaptionSize,
+			Theme.Typography.HeadingFont
+		)
+		label.Position = UDim2.fromOffset(8, 1)
+		label.Size = UDim2.new(1, -16, 0, 17)
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.ZIndex = 63
+		local hint = Components.Label(
+			button,
+			"Hint",
+			entry.hint,
+			Theme.Typography.CaptionSize,
+			Theme.Typography.CaptionFont
+		)
+		hint.Position = UDim2.fromOffset(8, 17)
+		hint.Size = UDim2.new(1, -16, 0, 16)
+		hint.TextColor3 = Theme.Colors.TextMuted
+		hint.TextXAlignment = Enum.TextXAlignment.Center
+		hint.ZIndex = 63
+		button.Activated:Connect(function()
+			if token ~= self.interviewPickerToken then
+				return
+			end
+			self:_dismissInterviewPicker()
+			self:_send("InterviewCounselor", {
+				counselorId = counselorId,
+				topic = topic,
+			}, button)
+		end)
+	end
+
+	backdrop.Activated:Connect(function()
+		if token == self.interviewPickerToken then
+			self:_dismissInterviewPicker()
+		end
+	end)
+
+	if not Motion.IsReducedMotion(sheet) then
+		Motion.SlideUp(sheet, {
+			duration = 0.25,
+			distance = 80,
+		})
+	end
+end
+
+function GameView:_dismissCounselorDialogue(immediate: boolean?)
+	self.counselorDialogueToken += 1
+	local panel = self.counselorDialoguePanel
+	self.counselorDialoguePanel = nil
+	if not panel then
+		return
+	end
+	Motion.Cancel(panel)
+	if immediate == true or Motion.IsReducedMotion(panel) then
+		if panel.Parent then
+			panel:Destroy()
+		end
+		return
+	end
+	Motion.FadeOut(panel, {
+		onComplete = function(_completed: boolean)
+			if panel.Parent then
+				panel:Destroy()
+			end
+		end,
+	})
+end
+
+function GameView:ShowCounselorDialogue(
+	counselorName: string,
+	topic: string,
+	text: string
+)
+	if self.destroyed then
+		return
+	end
+	self:_dismissCounselorDialogue(true)
+	local token = self.counselorDialogueToken
+	local bodyHeight = math.clamp(
+		TextService:GetTextSize(
+			text,
+			Theme.Typography.BodySize,
+			Theme.Typography.BodyFont,
+			Vector2.new(252, 116)
+		).Y,
+		48,
+		116
+	)
+	local panelHeight = math.clamp(28 + bodyHeight + 16, 80, 160)
+
+	local panel = Instance.new("Frame")
+	panel.Name = "CounselorDialoguePanel"
+	panel.AnchorPoint = Vector2.new(0, 1)
+	panel.Position = UDim2.new(0, 16, 1, -80)
+	panel.Size = UDim2.fromOffset(280, panelHeight)
+	panel.BackgroundColor3 = Theme.Notebook.PageColor
+	panel.BackgroundTransparency = 1
+	panel.BorderSizePixel = 0
+	panel.Active = true
+	panel.ClipsDescendants = false
+	panel.ZIndex = 70
+	panel.Parent = self.root
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "DropShadow"
+	shadow.Position = UDim2.fromOffset(2, 2)
+	shadow.Size = UDim2.new(1, -2, 1, -2)
+	shadow.BackgroundColor3 = Theme.Colors.Black
+	shadow.BackgroundTransparency = 0.78
+	shadow.BorderSizePixel = 0
+	shadow.ZIndex = panel.ZIndex
+	shadow.Parent = panel
+	Components.Corner(shadow, Theme.SmallCornerRadius)
+
+	local paper = Instance.new("Frame")
+	paper.Name = "Paper"
+	paper.Size = UDim2.new(1, -2, 1, -2)
+	paper.BackgroundColor3 = Theme.Notebook.PageColor
+	paper.BackgroundTransparency = 0
+	paper.BorderSizePixel = 0
+	paper.ZIndex = panel.ZIndex + 1
+	paper.Parent = panel
+	Components.Corner(paper, Theme.SmallCornerRadius)
+
+	local strip = Instance.new("Frame")
+	strip.Name = "AccentStrip"
+	strip.Size = UDim2.new(0, 4, 1, 0)
+	strip.BackgroundColor3 = Theme.Colors.Amber
+	strip.BorderSizePixel = 0
+	strip.ZIndex = paper.ZIndex + 1
+	strip.Parent = paper
+	Components.Corner(strip, Theme.SmallCornerRadius)
+
+	local nameLabel = Components.Label(
+		paper,
+		"CounselorName",
+		if counselorName ~= "" then counselorName else "Counselor",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.HeadingFont
+	)
+	nameLabel.Position = UDim2.fromOffset(12, 4)
+	nameLabel.Size = UDim2.new(0.58, -12, 0, 20)
+	nameLabel.TextColor3 = Theme.Notebook.InkColor
+	nameLabel.ZIndex = paper.ZIndex + 2
+
+	local topicLabel = Components.Label(
+		paper,
+		"Topic",
+		string.upper(topic),
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	topicLabel.AnchorPoint = Vector2.new(1, 0)
+	topicLabel.Position = UDim2.new(1, -10, 0, 4)
+	topicLabel.Size = UDim2.new(0.42, -6, 0, 20)
+	topicLabel.TextColor3 = Theme.Notebook.InkMuted
+	topicLabel.TextXAlignment = Enum.TextXAlignment.Right
+	topicLabel.ZIndex = paper.ZIndex + 2
+
+	local body = Components.Label(
+		paper,
+		"Dialogue",
+		text,
+		Theme.Typography.BodySize,
+		Theme.Typography.BodyFont
+	)
+	body.Position = UDim2.fromOffset(12, 28)
+	body.Size = UDim2.new(1, -24, 0, bodyHeight)
+	body.TextColor3 = Theme.Notebook.InkColor
+	body.TextWrapped = true
+	body.TextTruncate = Enum.TextTruncate.AtEnd
+	body.TextYAlignment = Enum.TextYAlignment.Top
+	body.ZIndex = paper.ZIndex + 2
+
+	self.counselorDialoguePanel = panel
+	panel.InputBegan:Connect(function(input: InputObject)
+		if token ~= self.counselorDialogueToken then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			self:_dismissCounselorDialogue()
+		end
+	end)
+
+	local reducedMotion = Motion.IsReducedMotion(panel)
+	if not reducedMotion then
+		Motion.SlideUp(panel, {
+			duration = 0.25,
+		})
+	end
+	task.delay(if reducedMotion then 3 else 5, function()
+		if not self.destroyed
+			and token == self.counselorDialogueToken
+			and panel.Parent
+		then
+			self:_dismissCounselorDialogue()
+		end
+	end)
+end
+
 function GameView:_updateEvidence(state: any, round: any)
 	Components.ClearGenerated(self.evidenceList)
 	local board = if type(state) == "table" then state.evidence else nil
@@ -2412,10 +2754,11 @@ function GameView:_updateEvidence(state: any, round: any)
 					and counselorId ~= ""
 			)
 			interview.Activated:Connect(function()
-				self:_send("InterviewCounselor", {
-					counselorId = counselorId,
-					topic = "Observation",
-				}, interview)
+				self:ShowInterviewTopicPicker(
+					counselorId,
+					readString(counselor, "displayName", "Camp counselor"),
+					readBoolean(counselor, "isWitness", false)
+				)
 			end)
 		end
 	end
@@ -2555,6 +2898,52 @@ function GameView:SetGhostMode(active: boolean)
 	end
 end
 
+function GameView:_animateRewards(targetXP: number, targetTokens: number)
+	if self.lastAnimatedXP == targetXP
+		and self.lastAnimatedTokens == targetTokens
+	then
+		return
+	end
+	self.lastAnimatedXP = targetXP
+	self.lastAnimatedTokens = targetTokens
+	self.rewardAnimationToken += 1
+	local token = self.rewardAnimationToken
+	local function setRewardText(xp: number, tokens: number)
+		self.rewardText.Text = string.format(
+			"TOTAL XP  %d     CAMP TOKENS  %d",
+			xp,
+			tokens
+		)
+	end
+	if Motion.IsReducedMotion(self.resultModal) then
+		setRewardText(targetXP, targetTokens)
+		return
+	end
+
+	setRewardText(0, 0)
+	task.spawn(function()
+		local duration = 1.2
+		local steps = 30
+		local stepInterval = duration / steps
+		for step = 1, steps do
+			task.wait(stepInterval)
+			if self.destroyed
+				or token ~= self.rewardAnimationToken
+				or not self.resultModal.Visible
+				or not modalTargetVisible(self.resultModal)
+			then
+				return
+			end
+			local progress = step / steps
+			local eased = 1 - (1 - progress) ^ 2
+			setRewardText(
+				math.floor(eased * targetXP),
+				math.floor(eased * targetTokens)
+			)
+		end
+	end)
+end
+
 function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self.currentState = state
 	self.legacyRound = legacyRound
@@ -2665,7 +3054,8 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.roleAction,
 		not ghost and (roleEnabled or monsterEnabled or planEnabled)
 	)
-	self.roleAction.Text = if ghost
+	self.roleAction.TextColor3 = Theme.Colors.Text
+	local roleActionText = if ghost
 		then "GHOST ACTIONS LOCKED"
 		elseif planEnabled
 		then "PLAN TONIGHT'S HUNT"
@@ -2674,6 +3064,8 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		elseif roleEnabled then "USE ROLE ABILITY"
 		elseif roleReason then string.upper(roleReason)
 		else "ABILITY UNAVAILABLE"
+	self.roleActionBaseText = roleActionText
+	self.roleAction.Text = roleActionText
 
 	self:_updateLobby(state, phase)
 	self:_updateInventory(state)
@@ -2685,20 +3077,29 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 
 	local winner = if type(round.winner) == "string" then round.winner else nil
 	if (phase == "Resolution" or phase == "Rewards") and not modalTargetVisible(self.progression) then
+		setModalVisible(self.resultModal, true)
 		if not self.voteRevealOwnsResults then
 			self.resultTitle.Text = if winner then string.upper(winner .. " WIN") else "MYSTERY RESOLVED"
 			self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
 		end
 		local profile = if type(state) == "table" then state.profile else nil
 		local profileData = if type(profile) == "table" then profile.profile else nil
-		self.rewardText.Text = if type(profileData) == "table"
-			then string.format(
+		if type(profileData) == "table" then
+			local totalXP = readNumber(profileData, "totalXP", 0)
+			local tokens = readNumber(profileData, "campTokens", 0)
+			if phase == "Rewards" then
+				self:_animateRewards(totalXP, tokens)
+			else
+				self.rewardText.Text = string.format(
 				"TOTAL XP  %d     CAMP TOKENS  %d",
-				readNumber(profileData, "totalXP", 0),
-				readNumber(profileData, "campTokens", 0)
-			)
-			else "Rewards are finalized by the server."
-		setModalVisible(self.resultModal, true)
+					totalXP,
+					tokens
+				)
+			end
+		else
+			self.rewardAnimationToken += 1
+			self.rewardText.Text = "Rewards are finalized by the server."
+		end
 	elseif phase ~= "Rewards" then
 		if self.voteRevealOwnsResults then
 			self:_cancelVoteReveal()
@@ -2800,6 +3201,54 @@ function GameView:Tick()
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	self.timerLabel.TextColor3 = if seconds <= 10 and seconds > 0 then Theme.Colors.DangerBright else Theme.Colors.Gold
+
+	local player = if type(self.currentState) == "table"
+			and type(self.currentState.player) == "table"
+		then self.currentState.player
+		else nil
+	local cooldownText: string? = nil
+	if not self.ghostMode and self.roleAction.Active and type(player) == "table" then
+		local cooldowns = if type(player.abilityCooldownEndsAt) == "table"
+			then player.abilityCooldownEndsAt
+			else nil
+		local minimumRemaining = math.huge
+		if cooldowns then
+			for _, abilityId in asTable(player.abilityIds) do
+				if type(abilityId) == "string" then
+					local cooldownEndsAt = cooldowns[abilityId]
+					if type(cooldownEndsAt) == "number"
+						and cooldownEndsAt > currentTime
+					then
+						minimumRemaining = math.min(
+							minimumRemaining,
+							cooldownEndsAt - currentTime
+						)
+					end
+				end
+			end
+		end
+		if minimumRemaining < math.huge then
+			cooldownText = string.format(
+				"READY IN %ds",
+				math.ceil(minimumRemaining)
+			)
+		end
+	end
+	if cooldownText then
+		if self.lastCooldownText ~= cooldownText
+			or self.roleAction.Text ~= cooldownText
+		then
+			self.roleAction.Text = cooldownText
+			self.roleAction.TextColor3 = Theme.Colors.TextMuted
+		end
+		self.lastCooldownText = cooldownText
+	else
+		if self.lastCooldownText ~= nil then
+			self.roleAction.Text = self.roleActionBaseText
+			self.roleAction.TextColor3 = Theme.Colors.Text
+		end
+		self.lastCooldownText = nil
+	end
 end
 
 function GameView:ToggleNotebook()
@@ -3933,12 +4382,16 @@ function GameView:Destroy()
 	self:_cancelWinReveal()
 	self:_cancelVoteReveal()
 	self:_cancelEvidenceDiscovery()
+	self:_dismissInterviewPicker(true)
+	self:_dismissCounselorDialogue(true)
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
 	end
 	self.destroyed = true
+	self.rewardAnimationToken += 1
 	self.announcementToken += 1
+	self.audioSettingCallback = nil
 	self.lastActionControl = nil
 	for _, connection in self.layoutConnections do
 		connection:Disconnect()
