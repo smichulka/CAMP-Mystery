@@ -7,6 +7,10 @@ local serverRoot = script.Parent
 local config = serverRoot:WaitForChild("Config")
 local services = serverRoot:WaitForChild("Services")
 local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+local ProfileServiceReliabilityPatch = require(
+	services:WaitForChild("ProfileServiceReliabilityPatch")
+)
+ProfileServiceReliabilityPatch.Apply()
 local GameRuntimeService = require(services:WaitForChild("GameRuntimeService"))
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -52,7 +56,6 @@ local profileStoreResolution = ProfileStoreConfiguration.Resolve()
 local runtime = GameRuntimeService.new({
 	autoRun = true,
 	fillWithBots = true,
-	profileStore = profileStoreResolution.store,
 	onStateChanged = function(player: Player, state)
 		gameStateChanged:FireClient(player, state)
 	end,
