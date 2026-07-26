@@ -31,7 +31,7 @@ gates rather than missing repository systems.
 
 ## Automation policy
 
-- Keep `master` at the latest validated autonomous checkpoint.
+- Keep the repository default branch (`main`) at the latest validated autonomous checkpoint.
 - Run repository static contracts, a Rojo build, and available logic tests before opening
   a draft pull request; run Roblox Studio `Script Analysis` before release.
 - Merge automatically after its documented acceptance criteria pass.
