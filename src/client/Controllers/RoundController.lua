@@ -12,6 +12,7 @@ local EffectsViewModule = require(uiFolder:WaitForChild("EffectsView"))
 local Motion = require(uiFolder:WaitForChild("Motion"))
 local AccessibilityController = require(script.Parent:WaitForChild("AccessibilityController"))
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
+local CinematicsController = require(script.Parent:WaitForChild("CinematicsController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
 local InteractionController = require(script.Parent:WaitForChild("InteractionController"))
 local RemoteBridgeModule = require(script.Parent:WaitForChild("RemoteBridge"))
@@ -35,10 +36,12 @@ local view: GameView? = nil
 local bridge: RemoteBridge? = nil
 local accessibility: any = nil
 local audio: any = nil
+local cinematics: any = nil
 local effects: any = nil
 local tutorial: any = nil
 local uiAssets: UIAssetController? = nil
 local interactionConnections: { RBXScriptConnection } = {}
+local lastCinematicPhase: string? = nil
 
 local function refresh()
 	local currentView = view
@@ -50,10 +53,16 @@ end
 local function updateReleaseExperience(snapshot: GameState)
 	local currentAccessibility = accessibility
 	local currentAudio = audio
+	local currentCinematics = cinematics
 	local currentEffects = effects
 	local currentTutorial = tutorial
 	local currentView = view
-	if not currentAccessibility or not currentAudio or not currentEffects or not currentTutorial then
+	if not currentAccessibility
+		or not currentAudio
+		or not currentCinematics
+		or not currentEffects
+		or not currentTutorial
+	then
 		return
 	end
 	currentAccessibility:ApplyGameState(snapshot)
@@ -84,6 +93,14 @@ local function updateReleaseExperience(snapshot: GameState)
 	currentTutorial:Update(snapshot)
 	currentAudio:Update(snapshot)
 	currentEffects:Update(snapshot)
+	local round = if type(snapshot) == "table" then snapshot.round else nil
+	local phaseName = if type(round) == "table" and type(round.phase) == "string"
+		then round.phase
+		else nil
+	if phaseName and phaseName ~= lastCinematicPhase then
+		lastCinematicPhase = phaseName
+		currentCinematics:PlayPhaseTransition(phaseName)
+	end
 	if currentView then
 		currentAccessibility:ScanEvidence(currentView.root)
 	end
@@ -152,6 +169,8 @@ function RoundController.Start()
 	view = gameView
 	local releaseEffects = EffectsViewModule.new(gameView.root)
 	effects = releaseEffects
+	local cinematicsController = CinematicsController.new(gameView.root)
+	cinematics = cinematicsController
 	local accessibilityController = AccessibilityController.new(gameView.root)
 	accessibility = accessibilityController
 	local tutorialController = TutorialController.new(gameView.root, {
@@ -269,6 +288,9 @@ function RoundController.Stop()
 	if audio then
 		audio:Destroy()
 	end
+	if cinematics then
+		cinematics:Destroy()
+	end
 	if accessibility then
 		accessibility:Destroy()
 	end
@@ -284,6 +306,7 @@ function RoundController.Stop()
 	bridge = nil
 	tutorial = nil
 	audio = nil
+	cinematics = nil
 	accessibility = nil
 	effects = nil
 	uiAssets = nil
@@ -291,6 +314,7 @@ function RoundController.Stop()
 	state = nil
 	legacyRound = nil
 	legacyPlayer = nil
+	lastCinematicPhase = nil
 end
 
 return table.freeze(RoundController)
