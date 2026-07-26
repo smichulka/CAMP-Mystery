@@ -33,6 +33,13 @@ export type EvidenceSummary = {
 	foundBy: string,
 }
 
+export type VoteRevealEntry = {
+	voterId: string,
+	targetId: string,
+	voterName: string,
+	targetName: string,
+}
+
 export type RoundSnapshot = {
 	roundNumber: number,
 	phase: PhaseName,
@@ -48,6 +55,9 @@ export type RoundSnapshot = {
 	suspects: { Suspect },
 	votesCast: number,
 	eligibleVoters: number,
+	votes: { VoteRevealEntry }?,
+	culpritId: string?,
+	monsterId: string?,
 	victimName: string?,
 	winner: WinnerName?,
 	resultMessage: string?,

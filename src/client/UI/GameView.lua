@@ -55,6 +55,7 @@ type GameViewState = {
 	resultTitle: TextLabel,
 	resultBody: TextLabel,
 	rewardText: TextLabel,
+	voteRevealList: ScrollingFrame,
 	progression: Frame,
 	progressionSummary: TextLabel,
 	progressionList: ScrollingFrame,
@@ -73,6 +74,9 @@ type GameViewState = {
 	evidenceCeremony: Frame?,
 	evidenceCeremonySkip: RBXScriptConnection?,
 	evidenceCeremonyToken: number,
+	voteRevealToken: number,
+	voteRevealOwnsResults: boolean,
+	voteConfetti: Frame?,
 	currentState: any,
 	legacyRound: any,
 	legacyPlayer: any,
@@ -584,6 +588,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		resultTitle = nil :: any,
 		resultBody = nil :: any,
 		rewardText = nil :: any,
+		voteRevealList = nil :: any,
 		progression = progression,
 		progressionSummary = nil :: any,
 		progressionList = nil :: any,
@@ -602,6 +607,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		evidenceCeremony = nil,
 		evidenceCeremonySkip = nil,
 		evidenceCeremonyToken = 0,
+		voteRevealToken = 0,
+		voteRevealOwnsResults = false,
+		voteConfetti = nil,
 		currentState = nil,
 		legacyRound = nil,
 		legacyPlayer = nil,
@@ -922,17 +930,32 @@ end
 
 function GameView:_buildResults()
 	local title = Components.Label(self.resultModal, "Title", "MYSTERY RESOLVED", 28, Enum.Font.GothamBold)
-	title.Position = UDim2.fromOffset(24, 26)
-	title.Size = UDim2.new(1, -48, 0, 48)
+	title.Position = UDim2.fromOffset(24, 14)
+	title.Size = UDim2.new(1, -48, 0, 42)
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.TextColor3 = Theme.Colors.Gold
+
+	local voteRevealList = Instance.new("ScrollingFrame")
+	voteRevealList.Name = "VoteRevealList"
+	voteRevealList.Position = UDim2.fromOffset(24, 60)
+	voteRevealList.Size = UDim2.new(1, -48, 0, 112)
+	voteRevealList.BackgroundTransparency = 1
+	voteRevealList.BorderSizePixel = 0
+	voteRevealList.CanvasSize = UDim2.fromOffset(0, 0)
+	voteRevealList.ScrollBarThickness = 3
+	voteRevealList.Visible = false
+	voteRevealList.Parent = self.resultModal
+	local voteRevealLayout = Components.List(voteRevealList, 4)
+	voteRevealLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	addCanvasSizing(voteRevealList, voteRevealLayout)
+
 	local body = Components.Label(self.resultModal, "Body", "", 17)
-	body.Position = UDim2.fromOffset(28, 88)
-	body.Size = UDim2.new(1, -56, 0, 92)
+	body.Position = UDim2.fromOffset(28, 176)
+	body.Size = UDim2.new(1, -56, 0, 46)
 	body.TextXAlignment = Enum.TextXAlignment.Center
 	local rewards = Components.Label(self.resultModal, "Rewards", "", 15, Enum.Font.GothamBold)
-	rewards.Position = UDim2.fromOffset(28, 184)
-	rewards.Size = UDim2.new(1, -56, 0, 58)
+	rewards.Position = UDim2.fromOffset(28, 222)
+	rewards.Size = UDim2.new(1, -56, 0, 38)
 	rewards.TextColor3 = Theme.Colors.Success
 	rewards.TextXAlignment = Enum.TextXAlignment.Center
 	local continue = Components.Button(self.resultModal, {
@@ -960,6 +983,7 @@ function GameView:_buildResults()
 	self.resultTitle = title
 	self.resultBody = body
 	self.rewardText = rewards
+	self.voteRevealList = voteRevealList
 end
 
 function GameView:_buildProgression()
@@ -2290,8 +2314,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 
 	local winner = if type(round.winner) == "string" then round.winner else nil
 	if (phase == "Resolution" or phase == "Rewards") and not modalTargetVisible(self.progression) then
-		self.resultTitle.Text = if winner then string.upper(winner .. " WIN") else "MYSTERY RESOLVED"
-		self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
+		if not self.voteRevealOwnsResults then
+			self.resultTitle.Text = if winner then string.upper(winner .. " WIN") else "MYSTERY RESOLVED"
+			self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
+		end
 		local profile = if type(state) == "table" then state.profile else nil
 		local profileData = if type(profile) == "table" then profile.profile else nil
 		self.rewardText.Text = if type(profileData) == "table"
@@ -2303,6 +2329,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			else "Rewards are finalized by the server."
 		setModalVisible(self.resultModal, true)
 	elseif phase ~= "Rewards" then
+		if self.voteRevealOwnsResults then
+			self:_cancelVoteReveal()
+		end
 		setModalVisible(self.resultModal, false)
 	end
 
@@ -2404,6 +2433,223 @@ end
 
 function GameView:HideInteraction()
 	self.interaction.Visible = false
+end
+
+function GameView:_cancelVoteReveal()
+	self.voteRevealToken += 1
+	self.voteRevealOwnsResults = false
+	Motion.Cancel(self.voteRevealList)
+	for _, child in self.voteRevealList:GetChildren() do
+		if child:IsA("GuiObject") then
+			Motion.Cancel(child)
+		end
+	end
+	Components.ClearGenerated(self.voteRevealList)
+	self.voteRevealList.Visible = false
+	local confetti = self.voteConfetti
+	self.voteConfetti = nil
+	if confetti and confetti.Parent then
+		confetti:Destroy()
+	end
+end
+
+function GameView:_playVoteConfetti(token: number)
+	if self.destroyed or token ~= self.voteRevealToken then
+		return
+	end
+	local previous = self.voteConfetti
+	if previous and previous.Parent then
+		previous:Destroy()
+	end
+	local container = Instance.new("Frame")
+	container.Name = "VoteConfetti"
+	container.Size = UDim2.fromScale(1, 1)
+	container.BackgroundTransparency = 1
+	container.BorderSizePixel = 0
+	container.ZIndex = 40
+	container.Parent = self.root
+	self.voteConfetti = container
+
+	local random = Random.new(token)
+	local tweenInfo = TweenInfo.new(
+		0.8,
+		Enum.EasingStyle.Quint,
+		Enum.EasingDirection.Out
+	)
+	for index = 1, 12 do
+		local square = Instance.new("Frame")
+		square.Name = "GoldSquare_" .. tostring(index)
+		square.AnchorPoint = Vector2.new(0.5, 0.5)
+		square.Position = UDim2.fromScale(0.5, 0.5)
+		square.Size = UDim2.fromOffset(8, 8)
+		square.BackgroundColor3 = Theme.Colors.Gold
+		square.BorderSizePixel = 0
+		square.Rotation = random:NextNumber(-25, 25)
+		square.ZIndex = 41
+		square.Parent = container
+		local angle = random:NextNumber(0, math.pi * 2)
+		local distance = random:NextNumber(90, 240)
+		TweenService:Create(square, tweenInfo, {
+			Position = UDim2.new(
+				0.5,
+				math.cos(angle) * distance,
+				0.5,
+				math.sin(angle) * distance
+			),
+			Rotation = square.Rotation + random:NextNumber(-150, 150),
+			BackgroundTransparency = 1,
+		}):Play()
+	end
+	task.delay(0.85, function()
+		if token == self.voteRevealToken
+			and self.voteConfetti == container
+			and container.Parent
+		then
+			self.voteConfetti = nil
+			container:Destroy()
+		end
+	end)
+end
+
+function GameView:PlayVoteReveal(
+	votes: { any },
+	culpritId: string,
+	monsterId: string,
+	namesById: { [string]: string }
+)
+	if self.destroyed then
+		return
+	end
+	self:_cancelVoteReveal()
+	self.voteRevealToken += 1
+	local token = self.voteRevealToken
+	self.voteRevealOwnsResults = true
+	setModalVisible(self.voteModal, false)
+	setModalVisible(self.resultModal, true)
+	Components.PlayUISound("vote")
+	self.resultTitle.Text = "COUNTING THE VOTES"
+	self.resultTitle.TextColor3 = Theme.Colors.Gold
+	self.resultBody.Text = ""
+
+	local voteCount = 0
+	local correctVotes = 0
+	for _, vote in votes do
+		if type(vote) == "table" and voteCount < 64 then
+			voteCount += 1
+			local voterId = readString(vote, "voterId", "")
+			local targetId = readString(vote, "targetId", "")
+			local voterName = readString(
+				vote,
+				"voterName",
+				namesById[voterId] or if voterId ~= "" then voterId else "Unknown voter"
+			)
+			local targetName = readString(
+				vote,
+				"targetName",
+				namesById[targetId] or if targetId ~= "" then targetId else "Unknown target"
+			)
+			local correct = targetId ~= "" and targetId == culpritId
+			if correct then
+				correctVotes += 1
+			end
+
+			local entry = Instance.new("Frame")
+			entry.Name = "VoteEntry"
+			entry.Size = UDim2.new(1, -8, 0, 28)
+			entry.BackgroundColor3 = Theme.Colors.PanelSoft
+			entry.BackgroundTransparency = 0.12
+			entry.BorderSizePixel = 0
+			entry.LayoutOrder = voteCount
+			entry:SetAttribute("Generated", true)
+			entry.Parent = self.voteRevealList
+			Components.Corner(entry, Theme.SmallCornerRadius)
+
+			local voterLabel = Components.Label(
+				entry,
+				"Voter",
+				voterName,
+				Theme.Typography.CaptionSize,
+				Theme.Typography.CaptionFont
+			)
+			voterLabel.Position = UDim2.fromOffset(8, 2)
+			voterLabel.Size = UDim2.new(0.45, -12, 1, -4)
+			voterLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+			local arrow = Components.Label(
+				entry,
+				"Arrow",
+				"→",
+				Theme.Typography.HeadingSize,
+				Theme.Typography.HeadingFont
+			)
+			arrow.Position = UDim2.new(0.45, 0, 0, 2)
+			arrow.Size = UDim2.new(0.1, 0, 1, -4)
+			arrow.TextColor3 = if correct
+				then Theme.Colors.Gold
+				else Theme.Colors.DangerBright
+			arrow.TextXAlignment = Enum.TextXAlignment.Center
+
+			local targetLabel = Components.Label(
+				entry,
+				"Target",
+				targetName,
+				Theme.Typography.CaptionSize,
+				Theme.Typography.CaptionFont
+			)
+			targetLabel.Position = UDim2.new(0.55, 4, 0, 2)
+			targetLabel.Size = UDim2.new(0.45, -12, 1, -4)
+		end
+	end
+
+	local correctMajority = correctVotes > voteCount / 2
+	local culpritName = namesById[culpritId]
+		or if culpritId ~= "" then culpritId else "The culprit"
+	local safeMonsterId = if monsterId ~= "" then monsterId else "unknown monster"
+	local reducedMotion = Motion.IsReducedMotion(self.resultModal)
+	local function active(): boolean
+		return not self.destroyed
+			and token == self.voteRevealToken
+			and self.resultModal.Parent ~= nil
+	end
+	local function revealVerdict()
+		if not active() then
+			return
+		end
+		if correctMajority then
+			self.resultTitle.Text = "THE CULPRIT IS FOUND"
+			self.resultTitle.TextColor3 = Theme.Colors.Gold
+			self.resultBody.Text = culpritName .. " was the " .. safeMonsterId
+			Components.PlayUISound("success")
+			if not reducedMotion then
+				self:_playVoteConfetti(token)
+			end
+		else
+			self.resultTitle.Text = "THE MONSTER ESCAPES"
+			self.resultTitle.TextColor3 = Theme.Colors.DangerBright
+			self.resultBody.Text = safeMonsterId .. " was never caught"
+			Components.PlayUISound("error")
+		end
+	end
+
+	if reducedMotion then
+		self.voteRevealList.Visible = true
+		revealVerdict()
+		return
+	end
+
+	local stagger = math.min(0.6, 8 / math.max(voteCount, 1))
+	task.delay(0.3, function()
+		if not active() then
+			return
+		end
+		self.voteRevealList.Visible = true
+		Motion.StaggerChildren(self.voteRevealList, {
+			preset = "SlideUp",
+			step = stagger,
+		})
+	end)
+	local verdictDelay = 0.3 + math.max(voteCount - 1, 0) * stagger + 0.8
+	task.delay(verdictDelay, revealVerdict)
 end
 
 function GameView:_cancelEvidenceDiscovery()
@@ -2703,6 +2949,7 @@ function GameView:Destroy()
 	if self.destroyed then
 		return
 	end
+	self:_cancelVoteReveal()
 	self:_cancelEvidenceDiscovery()
 	self.destroyed = true
 	self.announcementToken += 1

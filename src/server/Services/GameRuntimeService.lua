@@ -1141,6 +1141,7 @@ end
 
 function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 	local voteSnapshot = self.voting:GetSnapshot()
+	local revealVotes = self.phase == "Resolution" or self.phase == "Rewards"
 	local mysterySnapshot = if self.mysteryReady
 		then self.mystery:GetPublicSnapshot()
 		else nil
@@ -1163,6 +1164,11 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		suspects = self:_suspects(),
 		votesCast = voteSnapshot.votesCast,
 		eligibleVoters = voteSnapshot.eligibleVoters,
+		votes = if revealVotes then voteSnapshot.votes else nil,
+		culpritId = if revealVotes then self.culpritParticipantId else nil,
+		monsterId = if revealVotes and self.murderPlan
+			then self.murderPlan.monsterId
+			else nil,
 		victimName = self.victimName,
 		winner = self.winner,
 		resultMessage = self.resultMessage,

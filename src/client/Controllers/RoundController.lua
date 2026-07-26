@@ -15,6 +15,9 @@ local AudioController = require(script.Parent:WaitForChild("AudioController"))
 local CinematicsController = require(script.Parent:WaitForChild("CinematicsController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
 local InteractionController = require(script.Parent:WaitForChild("InteractionController"))
+local ProximityControllerModule = require(
+	script.Parent:WaitForChild("ProximityController")
+)
 local RemoteBridgeModule = require(script.Parent:WaitForChild("RemoteBridge"))
 local TutorialController = require(script.Parent:WaitForChild("TutorialController"))
 local UIAssetControllerModule = require(script.Parent:WaitForChild("UIAssetController"))
@@ -25,6 +28,7 @@ type Announcement = RuntimeTypes.Announcement
 type GameView = GameViewModule.GameView
 type RemoteBridge = RemoteBridgeModule.RemoteBridge
 type UIAssetController = UIAssetControllerModule.UIAssetController
+type ProximityController = ProximityControllerModule.ProximityController
 
 local RoundController = {}
 
@@ -40,6 +44,7 @@ local cinematics: any = nil
 local effects: any = nil
 local tutorial: any = nil
 local uiAssets: UIAssetController? = nil
+local proximity: ProximityController? = nil
 local interactionConnections: { RBXScriptConnection } = {}
 local lastCinematicPhase: string? = nil
 local lastEvidenceFound = 0
@@ -80,6 +85,29 @@ local function evidenceCopy(entry: any): (string, string)
 		then entry.description
 		elseif type(entry.publicDescription) == "string" then entry.publicDescription else ""
 	return name, description
+end
+
+local function playVoteReveal(snapshot: any, gameView: GameView)
+	local round = if type(snapshot) == "table" then snapshot.round else nil
+	if type(round) ~= "table" then
+		gameView:PlayVoteReveal({}, "", "", {})
+		return
+	end
+	local votes = if type(round.votes) == "table" then round.votes else {}
+	local culpritId = if type(round.culpritId) == "string" then round.culpritId else ""
+	local monsterId = if type(round.monsterId) == "string" then round.monsterId else ""
+	local namesById: { [string]: string } = {}
+	if type(snapshot.participants) == "table" then
+		for _, participant in snapshot.participants do
+			if type(participant) == "table"
+				and type(participant.participantId) == "string"
+				and type(participant.displayName) == "string"
+			then
+				namesById[participant.participantId] = participant.displayName
+			end
+		end
+	end
+	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById)
 end
 
 local function refresh()
@@ -155,6 +183,9 @@ local function updateReleaseExperience(snapshot: GameState)
 	if phaseName and phaseName ~= lastCinematicPhase then
 		lastCinematicPhase = phaseName
 		currentCinematics:PlayPhaseTransition(phaseName)
+		if phaseName == "Resolution" and currentView then
+			playVoteReveal(snapshot, currentView)
+		end
 	end
 	if currentView then
 		currentAccessibility:ScanEvidence(currentView.root)
@@ -300,6 +331,8 @@ function RoundController.Start()
 		end,
 	})
 
+	local proximityController = ProximityControllerModule.new()
+	proximity = proximityController
 	interactionConnections = InteractionController.Start({
 		shown = function(actionText: string, objectText: string, inputText: string)
 			gameView:ShowInteraction(actionText, objectText, inputText)
@@ -310,7 +343,7 @@ function RoundController.Start()
 		triggered = function(actionText: string)
 			gameView:Notify("Interaction complete", actionText, "Success")
 		end,
-	})
+	}, proximityController)
 
 	remoteBridge:Start()
 	refresh()
@@ -332,6 +365,9 @@ function RoundController.Stop()
 		connection:Disconnect()
 	end
 	table.clear(interactionConnections)
+	if proximity then
+		proximity:Destroy()
+	end
 	Components.SetSoundPlayer(nil)
 	Motion.SetReducedMotionProvider(nil)
 	if bridge then
@@ -365,6 +401,7 @@ function RoundController.Stop()
 	accessibility = nil
 	effects = nil
 	uiAssets = nil
+	proximity = nil
 	view = nil
 	state = nil
 	legacyRound = nil

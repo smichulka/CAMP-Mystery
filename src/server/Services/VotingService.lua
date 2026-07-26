@@ -24,12 +24,20 @@ export type VoteResolution = {
 	reason: string,
 }
 
+export type VoteSnapshotEntry = {
+	voterId: string,
+	targetId: string,
+	voterName: string,
+	targetName: string,
+}
+
 export type VotingSnapshot = {
 	roundId: number,
 	revision: number,
 	votesCast: number,
 	eligibleVoters: number,
 	resolved: boolean,
+	votes: { VoteSnapshotEntry }?,
 }
 
 type VotingServiceState = {
@@ -226,12 +234,36 @@ function VotingService:GetSnapshot(): VotingSnapshot
 	for _ in self.votes do
 		votesCast += 1
 	end
+	local revealedVotes: { VoteSnapshotEntry }? = nil
+	if self.resolution then
+		revealedVotes = {}
+		for voterId, targetId in self.votes do
+			local voter = self.participants:GetById(voterId)
+			local target = self.participants:GetById(targetId)
+			table.insert(revealedVotes, {
+				voterId = voterId,
+				targetId = targetId,
+				voterName = if voter then voter.displayName else voterId,
+				targetName = if target then target.displayName else targetId,
+			})
+		end
+		table.sort(revealedVotes, function(
+			left: VoteSnapshotEntry,
+			right: VoteSnapshotEntry
+		): boolean
+			if left.voterName == right.voterName then
+				return left.voterId < right.voterId
+			end
+			return left.voterName < right.voterName
+		end)
+	end
 	return {
 		roundId = self.roundId,
 		revision = self.revision,
 		votesCast = votesCast,
 		eligibleVoters = self:GetEligibleVoterCount(),
 		resolved = self.resolution ~= nil,
+		votes = revealedVotes,
 	}
 end
 

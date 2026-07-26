@@ -226,6 +226,91 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+    def test_vote_reveal_is_staged_bounded_and_reduced_motion_safe(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "function GameView:PlayVoteReveal",
+            "function GameView:_cancelVoteReveal",
+            'setModalVisible(self.voteModal, false)',
+            'Components.PlayUISound("vote")',
+            'entry.Name = "VoteEntry"',
+            'then Theme.Colors.Gold',
+            'else Theme.Colors.DangerBright',
+            "Motion.StaggerChildren(self.voteRevealList",
+            "local stagger = math.min(0.6, 8 / math.max(voteCount, 1))",
+            '"THE CULPRIT IS FOUND"',
+            '"THE MONSTER ESCAPES"',
+            'Components.PlayUISound("success")',
+            'Components.PlayUISound("error")',
+            "for index = 1, 12 do",
+            "Size = UDim2.fromOffset(8, 8)",
+            "if reducedMotion then",
+        ):
+            self.assertIn(token, view)
+
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            'if phaseName == "Resolution" and currentView then',
+            "playVoteReveal(snapshot, currentView)",
+            "type(round.votes) == \"table\"",
+            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById)",
+        ):
+            self.assertIn(token, controller)
+
+    def test_vote_details_are_resolution_only_in_shared_snapshot(self) -> None:
+        game_types = read("src/shared/Types/GameTypes.lua")
+        for token in (
+            "export type VoteRevealEntry",
+            "votes: { VoteRevealEntry }?",
+            "culpritId: string?",
+            "monsterId: string?",
+        ):
+            self.assertIn(token, game_types)
+
+        voting = read("src/server/Services/VotingService.lua")
+        self.assertIn("if self.resolution then", voting)
+        self.assertIn("votes = revealedVotes", voting)
+        runtime = read("src/server/Services/GameRuntimeService.lua")
+        self.assertIn(
+            'local revealVotes = self.phase == "Resolution" or self.phase == "Rewards"',
+            runtime,
+        )
+        self.assertIn("votes = if revealVotes then voteSnapshot.votes else nil", runtime)
+
+    def test_world_proximity_prompts_have_radial_progress_and_lifecycle(self) -> None:
+        proximity = read("src/client/Controllers/ProximityController.lua")
+        self.assertTrue(proximity.startswith("--!strict"))
+        for token in (
+            "zones: { [BasePart]: ZoneRecord }",
+            'Instance.new("BillboardGui")',
+            "gui.Size = UDim2.fromOffset(180, 48)",
+            "gui.StudsOffset = Vector3.new(0, 3.5, 0)",
+            "Theme.Notebook.PageColor",
+            'ring.Name = "RadialProgressRing"',
+            "ring.ClipsDescendants = true",
+            'segment.Name = string.format("ArcSegment_%02d", index)',
+            "function ProximityController:RegisterZone",
+            "function ProximityController:UnregisterZone",
+            "function ProximityController:SetProgress",
+            "function ProximityController:SetVisible",
+            "function ProximityController:Destroy",
+        ):
+            self.assertIn(token, proximity)
+
+        interactions = read("src/client/Controllers/InteractionController.lua")
+        for token in (
+            "Enum.ProximityPromptStyle.Custom",
+            "proximityController:RegisterZone",
+            "proximityController:UnregisterZone",
+            "proximityController:SetProgress",
+            "ProximityPromptService.PromptButtonHoldBegan",
+            "ProximityPromptService.PromptButtonHoldEnded",
+            "RunService.RenderStepped",
+            "(currentTime - hold.startedAt) / hold.duration",
+        ):
+            self.assertIn(token, interactions)
+        self.assertNotIn("ProximityPromptService.Enabled = false", interactions)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
