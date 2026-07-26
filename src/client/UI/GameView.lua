@@ -163,6 +163,7 @@ type GameViewState = {
 	currentVoteSignature: string,
 	localVoteHasLocked: boolean,
 	dayObjectiveNotifiedRound: number?,
+	evidenceNotifiedRound: number?,
 	evidenceStatuses: { [string]: string },
 	selectedInventorySlot: number,
 	inventoryItems: { any },
@@ -1083,6 +1084,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		currentVoteSignature = "",
 		localVoteHasLocked = false,
 		dayObjectiveNotifiedRound = nil,
+		evidenceNotifiedRound = nil,
 		evidenceStatuses = {},
 		selectedInventorySlot = 0,
 		inventoryItems = {},
@@ -3973,6 +3975,22 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.progressLabel.Text = string.format("Evidence %d/%d - search the abandoned town.", evidenceFound, evidenceGoal)
 			self.objectiveText.Text = string.format("NIGHT OBJECTIVE\nCollect and post clues: %d of %d", evidenceFound, evidenceGoal)
 			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+			local roundNum = readNumber(round, "roundNumber", 0)
+			local isLivingCamper = readString(player, "team", "") == "Campers"
+				and readBoolean(player, "alive", false)
+				and not readBoolean(player, "isGhost", false)
+			if isLivingCamper
+				and evidenceFound >= evidenceGoal
+				and roundNum > 0
+				and self.evidenceNotifiedRound ~= roundNum
+			then
+				self.evidenceNotifiedRound = roundNum
+				self:Notify(
+					"Evidence complete",
+					"All clues collected. Return for the Campfire.",
+					"Success"
+				)
+			end
 		end
 	elseif phase == "Campfire" then
 		local cast = readNumber(round, "votesCast", 0)
@@ -6065,6 +6083,7 @@ function GameView:Destroy()
 	self.voteCountLabel = nil
 	self.localVoteHasLocked = false
 	self.dayObjectiveNotifiedRound = nil
+	self.evidenceNotifiedRound = nil
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
