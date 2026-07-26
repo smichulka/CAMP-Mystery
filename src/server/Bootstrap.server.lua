@@ -3,7 +3,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local services = script.Parent:WaitForChild("Services")
+local serverRoot = script.Parent
+local config = serverRoot:WaitForChild("Config")
+local services = serverRoot:WaitForChild("Services")
+local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+local ProfileServiceReliabilityPatch = require(
+	services:WaitForChild("ProfileServiceReliabilityPatch")
+)
+ProfileServiceReliabilityPatch.Apply()
 local GameRuntimeService = require(services:WaitForChild("GameRuntimeService"))
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -45,6 +52,7 @@ local function requestAllowed(player: Player): boolean
 	return true
 end
 
+local profileStoreResolution = ProfileStoreConfiguration.Resolve()
 local runtime = GameRuntimeService.new({
 	autoRun = true,
 	fillWithBots = true,
@@ -60,6 +68,23 @@ local runtime = GameRuntimeService.new({
 		})
 	end,
 })
+
+local profileStoreLabel = profileStoreResolution.mode
+if profileStoreResolution.dataStoreName then
+	profileStoreLabel ..= " (" .. profileStoreResolution.dataStoreName .. ")"
+end
+if profileStoreResolution.mode == "TestDataStore" then
+	warn(
+		string.format(
+			"[CAMP-Mystery] TEST profile store active: %s; injected load failures=%d, update failures=%d",
+			profileStoreLabel,
+			profileStoreResolution.testLoadFailures,
+			profileStoreResolution.testUpdateFailures
+		)
+	)
+else
+	print("[CAMP-Mystery] Profile store mode: " .. profileStoreLabel)
+end
 
 local function finiteNumber(value: number): boolean
 	return value == value and math.abs(value) < math.huge

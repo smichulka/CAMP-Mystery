@@ -67,6 +67,8 @@ end
 return table.freeze({
 	schemaVersion = 1,
 	dataStoreName = "CAMP_Mystery_Profile_v1",
+	testDataStorePrefix = "CAMP_Mystery_Profile_TEST_",
+	maxDataStoreNameLength = 50,
 	keyPrefix = "player:",
 	autosaveSeconds = 75,
 	shutdownSaveTimeoutSeconds = 25,

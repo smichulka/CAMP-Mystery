@@ -27,8 +27,8 @@ automation.
 The repository-side suite checks strict mode, Rojo mappings, the exact remote surface,
 server API and action contracts, role distribution for 1–12 participants, phase budgets,
 equipment/monster cross-catalog integrity, full-profile monster solvability, 512 seeded
-reference mysteries, profile migration/idempotency contracts, release controllers, NPC
-content, and the launch monetization ban.
+reference mysteries, profile migration/idempotency contracts, operational workflow
+contracts, release controllers, NPC content, and the launch monetization ban.
 
 ## 2. Studio server-authority gate
 
@@ -127,7 +127,9 @@ Record all ten seeds and outcomes in the release evidence.
 ## 7. Persistence and migration gate
 
 Use a disposable test universe/DataStore namespace; never run destructive migration
-tests against production player data.
+tests against production player data. Configure the server-only attributes documented in
+`TESTING.md`; the runtime rejects the production namespace, disables fault injection in
+production mode, and restricts test mode to Studio or a private server.
 
 - [ ] A new profile loads schema 1 defaults and default cosmetics.
 - [ ] A representative schema-0 profile migrates to schema 1, clamps invalid values,
@@ -139,6 +141,8 @@ tests against production player data.
 - [ ] Leave/rejoin preserves progress, cosmetics, upgrades, and settings.
 - [ ] Forced DataStore load/update failures produce bounded retries and guest/error
       behavior without granting duplicate rewards or overwriting newer data.
+- [ ] A failed player-leave save is retried with bounded backoff, cancelled by a genuine
+      rejoin, and attempted once more during shutdown.
 - [ ] A profile with a newer unsupported schema fails safely instead of being downgraded.
 
 ## 8. Performance, safety, and publishing gate

@@ -2,6 +2,9 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 
+local config = script.Parent.Parent:WaitForChild("Config")
+local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+
 type UpdateTransform = (storedValue: unknown?) -> unknown?
 
 export type StoreOptions = {
@@ -15,6 +18,8 @@ type RobloxProfileStoreState = {
 	maxAttempts: number,
 	baseDelaySeconds: number,
 	maxDelaySeconds: number,
+	remainingTestLoadFailures: number,
+	remainingTestUpdateFailures: number,
 }
 
 local RobloxProfileStore = {}
@@ -36,11 +41,23 @@ function RobloxProfileStore.new(
 	options: StoreOptions?
 ): RobloxProfileStore
 	local configured = options or {}
+	local resolution = ProfileStoreConfiguration.Resolve()
+	local resolvedStoreName = storeName
+	local loadFailures = 0
+	local updateFailures = 0
+	if resolution.mode == "TestDataStore" then
+		resolvedStoreName = resolution.dataStoreName :: string
+		loadFailures = resolution.testLoadFailures
+		updateFailures = resolution.testUpdateFailures
+	end
+
 	return setmetatable({
-		dataStore = DataStoreService:GetDataStore(storeName),
+		dataStore = DataStoreService:GetDataStore(resolvedStoreName),
 		maxAttempts = math.max(1, math.floor(positiveNumber(configured.maxAttempts, 4))),
 		baseDelaySeconds = positiveNumber(configured.baseDelaySeconds, 0.5),
 		maxDelaySeconds = positiveNumber(configured.maxDelaySeconds, 4),
+		remainingTestLoadFailures = loadFailures,
+		remainingTestUpdateFailures = updateFailures,
 	}, RobloxProfileStore)
 end
 
@@ -68,6 +85,10 @@ end
 
 function RobloxProfileStore:LoadAsync(key: string): (boolean, unknown?, string?)
 	return self:_RunWithRetries(function()
+		if self.remainingTestLoadFailures > 0 then
+			self.remainingTestLoadFailures -= 1
+			error("Injected test profile load failure")
+		end
 		return self.dataStore:GetAsync(key)
 	end)
 end
@@ -77,6 +98,10 @@ function RobloxProfileStore:UpdateAsync(
 	transform: UpdateTransform
 ): (boolean, unknown?, string?)
 	return self:_RunWithRetries(function()
+		if self.remainingTestUpdateFailures > 0 then
+			self.remainingTestUpdateFailures -= 1
+			error("Injected test profile update failure")
+		end
 		return self.dataStore:UpdateAsync(key, function(currentValue: unknown?)
 			return transform(currentValue)
 		end)

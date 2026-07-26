@@ -1,5 +1,12 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ProgressionConfig = require(Shared.Config:WaitForChild("ProgressionConfig"))
+local config = script.Parent.Parent:WaitForChild("Config")
+local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+
 type UpdateTransform = (storedValue: unknown?) -> unknown?
 
 type MemoryProfileStoreState = {
@@ -27,7 +34,18 @@ local function deepCopy(value: any): any
 	return result
 end
 
-function MemoryProfileStore.new(initialRecords: { [string]: any }?): MemoryProfileStore
+function MemoryProfileStore.new(initialRecords: { [string]: any }?): any
+	local resolution = ProfileStoreConfiguration.Resolve()
+	if resolution.mode == "TestDataStore" then
+		local RobloxProfileStore = require(script.Parent:WaitForChild("RobloxProfileStore"))
+		local retry = ProgressionConfig.storeRetry
+		return RobloxProfileStore.new(resolution.dataStoreName :: string, {
+			maxAttempts = retry.maxAttempts,
+			baseDelaySeconds = retry.baseDelaySeconds,
+			maxDelaySeconds = retry.maxDelaySeconds,
+		})
+	end
+
 	return setmetatable({
 		records = deepCopy(initialRecords or {}),
 		failLoads = false,

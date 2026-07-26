@@ -71,8 +71,8 @@ through the lobby UI, then follow the role, objective, investigation, and campfi
 
 ## One-command Windows workflow
 
-From PowerShell in the repository, pull `master`, install pinned tools, run the repository
-gate, build the place, and start Rojo:
+From PowerShell in the repository, resolve and fast-forward the remote default branch,
+install pinned tools, run the repository gate, build the place, and start Rojo:
 
 ```powershell
 .\scripts\CampMystery.ps1

@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - master
 
 permissions:
   contents: read
@@ -18,12 +17,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install Rokit and pinned project tools
+      - name: Install pinned Rojo 7.7.0
         shell: bash
         run: |
-          curl -sSf https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
-          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
-          "$HOME/.rokit/bin/rokit" install
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rojo" "$RUNNER_TEMP/bin"
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --retry 3 --retry-all-errors \
+            https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-linux-x86_64.zip \
+            --output "$RUNNER_TEMP/rojo.zip"
+          unzip -q "$RUNNER_TEMP/rojo.zip" -d "$RUNNER_TEMP/rojo"
+          install -m 0755 "$RUNNER_TEMP/rojo/rojo" "$RUNNER_TEMP/bin/rojo"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/rojo" --version
       - name: Run repository checks and write scoped evidence
         run: python scripts/release_gate.py --require-rojo --commit "$GITHUB_SHA"
       - name: Upload repository evidence
