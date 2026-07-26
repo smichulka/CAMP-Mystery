@@ -24,6 +24,8 @@ type CinematicsControllerState = {
 	dreadPulseHigh: boolean,
 	transitionActive: boolean,
 	transitionToken: number,
+	ghostActive: boolean,
+	ghostSaturationOffset: number,
 	setNightIntensity: ((number) -> ())?,
 	destroyed: boolean,
 }
@@ -51,6 +53,8 @@ local DESATURATED = -0.7
 local PARTIAL_RECOVERY = -0.35
 local DREAD_TWEEN_DURATION = 0.35
 local DREAD_PULSE_STEP = 1.2
+local GHOST_TINT = Color3.fromRGB(200, 220, 255)
+local DEFAULT_TINT = Color3.fromRGB(255, 255, 255)
 
 local function readNumberAttribute(instance: Instance, name: string, fallback: number): number
 	local value = instance:GetAttribute(name)
@@ -158,6 +162,8 @@ function CinematicsController.new(
 		dreadPulseHigh = false,
 		transitionActive = false,
 		transitionToken = 0,
+		ghostActive = false,
+		ghostSaturationOffset = 0,
 		setNightIntensity = setNightIntensity,
 		destroyed = false,
 	}, CinematicsController)
@@ -166,7 +172,11 @@ end
 
 function CinematicsController:_restoreBaseline()
 	Lighting.ClockTime = self.baselineClockTime
-	self.colorCorrection.Saturation = self.phaseBaselineSaturation
+	self.colorCorrection.Saturation =
+		self.phaseBaselineSaturation + self.ghostSaturationOffset
+	self.colorCorrection.TintColor = if self.ghostActive
+		then GHOST_TINT
+		else DEFAULT_TINT
 	self.atmosphere.Density = self.baselineAtmosphereDensity
 end
 
@@ -184,7 +194,11 @@ function CinematicsController:_resetDread()
 	end
 	self.dreadFraction = 0
 	self:_stopDreadPulse()
-	self.colorCorrection.Saturation = self.phaseBaselineSaturation
+	self.colorCorrection.Saturation =
+		self.phaseBaselineSaturation + self.ghostSaturationOffset
+	self.colorCorrection.TintColor = if self.ghostActive
+		then GHOST_TINT
+		else DEFAULT_TINT
 	local setNightIntensity = self.setNightIntensity
 	if setNightIntensity then
 		setNightIntensity(self.phaseNightIntensity)
@@ -339,7 +353,8 @@ function CinematicsController:SetMonsterDread(fraction: number)
 			Enum.EasingDirection.InOut
 		),
 		{
-			Saturation = self.phaseBaselineSaturation - (0.5 * resolved),
+			Saturation = self.phaseBaselineSaturation - (0.5 * resolved)
+				+ self.ghostSaturationOffset,
 		}
 	)
 	self.dreadTween = tween
@@ -350,6 +365,20 @@ function CinematicsController:SetMonsterDread(fraction: number)
 	end)
 	tween:Play()
 	self:_updateDreadVignette()
+end
+
+function CinematicsController:SetGhostMode(active: boolean)
+	if self.destroyed or self.ghostActive == active then
+		return
+	end
+	self.ghostActive = active
+	self.ghostSaturationOffset = if active then -0.28 else 0
+	local targetSaturation =
+		self.phaseBaselineSaturation + self.ghostSaturationOffset
+	self:_playTween(self.colorCorrection, if active then 1.2 else 0.6, {
+		Saturation = targetSaturation,
+		TintColor = if active then GHOST_TINT else DEFAULT_TINT,
+	})
 end
 
 function CinematicsController:PlayPhaseTransition(phaseName: string)
@@ -383,6 +412,8 @@ function CinematicsController:Destroy()
 		return
 	end
 	self.destroyed = true
+	self.ghostActive = false
+	self.ghostSaturationOffset = 0
 	self:_cancelActive()
 end
 
