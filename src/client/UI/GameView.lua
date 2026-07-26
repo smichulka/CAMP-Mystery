@@ -192,6 +192,30 @@ local MONSTER_PLAN_LOCATIONS: { [string]: string } = {
 	Banshee = "square-gas-station-clue",
 }
 
+-- Ordered monster list for consistent planning UI display
+local MONSTER_PLAN_ORDER: { string } = {
+	"BabyAlien",
+	"Screamer",
+	"Wendigo",
+	"ShadowMonster",
+	"Chupacabra",
+	"Dullahan",
+	"Entity",
+	"Banshee",
+}
+
+-- One-line tagline for each monster shown in the planning UI
+local MONSTER_TAGLINES: { [string]: string } = {
+	BabyAlien = "Burst leaps · close ambush · weak in open light",
+	Screamer = "Scream disorients · disrupts all equipment",
+	Wendigo = "Mimicry lures · forest charge to kill",
+	ShadowMonster = "Travels shadow nodes · strongest near dead lights",
+	Chupacabra = "Blood tracker · pounces over distance · latches",
+	Dullahan = "Accelerates on sustained sight · fear status",
+	Entity = "Anchor teleport · distorts victim perception",
+	Banshee = "Wail attack senses · marks vulnerable campers",
+}
+
 local VOLUME_SETTING_KEYS: { [string]: boolean } = {
 	masterVolume = true,
 	musicVolume = true,
@@ -2061,7 +2085,7 @@ function GameView:_chooseAbility(actionKind: "Role" | "Monster", abilityIds: { s
 	for _, abilityId in abilityIds do
 		local button = Components.Button(self.targetList, {
 			name = "Ability_" .. abilityId:gsub("[^%w]", "_"),
-			text = string.upper(abilityId:gsub("-", " ")),
+			text = string.upper(abilityId:gsub("(%l)(%u)", "%1 %2"):gsub("-", " ")),
 			size = UDim2.new(1, -8, 0, 48),
 			color = if actionKind == "Monster" then Theme.Colors.Danger else Theme.Colors.Info,
 		})
@@ -2084,15 +2108,57 @@ end
 
 function GameView:_chooseMurderPlan()
 	Components.ClearGenerated(self.targetList)
-	self.targetTitle.Text = "Choose tonight's transformation, then choose a victim."
-	for monsterId, locationId in MONSTER_PLAN_LOCATIONS do
+	self.targetTitle.Text = "Choose your transformation for tonight. Then choose a victim."
+	for _, monsterId in MONSTER_PLAN_ORDER do
+		local locationId = MONSTER_PLAN_LOCATIONS[monsterId]
+		if not locationId then
+			continue
+		end
+		local displayName = string.upper(monsterId:gsub("(%l)(%u)", "%1 %2"))
+		local tagline = MONSTER_TAGLINES[monsterId] or ""
+
+		-- Taller button to accommodate the tagline
 		local button = Components.Button(self.targetList, {
 			name = "Plan_" .. monsterId,
-			text = string.upper(monsterId:gsub("(%l)(%u)", "%1 %2")),
-			size = UDim2.new(1, -8, 0, 48),
+			text = "",
+			size = UDim2.new(1, -8, 0, 60),
 			color = Theme.Colors.Danger,
 		})
 		button:SetAttribute("Generated", true)
+
+		-- Monster name label (top half of button)
+		local nameLabel = Components.Label(
+			button,
+			"MonsterName",
+			displayName,
+			13,
+			Enum.Font.GothamBold
+		)
+		nameLabel.AnchorPoint = Vector2.new(0, 0)
+		nameLabel.Position = UDim2.fromOffset(10, 6)
+		nameLabel.Size = UDim2.new(1, -14, 0, 22)
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.TextColor3 = Theme.Colors.White
+		nameLabel.ZIndex = button.ZIndex + 1
+
+		-- Tagline label (bottom half of button)
+		if tagline ~= "" then
+			local tagLabel = Components.Label(
+				button,
+				"Tagline",
+				tagline,
+				10,
+				Theme.Typography.CaptionFont
+			)
+			tagLabel.AnchorPoint = Vector2.new(0, 0)
+			tagLabel.Position = UDim2.fromOffset(10, 30)
+			tagLabel.Size = UDim2.new(1, -14, 0, 22)
+			tagLabel.TextXAlignment = Enum.TextXAlignment.Left
+			tagLabel.TextColor3 = Theme.Colors.White
+			tagLabel.TextTransparency = 0.28
+			tagLabel.ZIndex = button.ZIndex + 1
+		end
+
 		button.Activated:Connect(function()
 			setModalVisible(self.targetModal, false)
 			self:_chooseParticipant("SetMurderPlan", {
