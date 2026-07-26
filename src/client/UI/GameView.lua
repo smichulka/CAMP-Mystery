@@ -3995,15 +3995,34 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	elseif phase == "Campfire" then
 		local cast = readNumber(round, "votesCast", 0)
 		local eligible = math.max(1, readNumber(round, "eligibleVoters", 1))
+		local campfireParticipants = if type(state) == "table"
+				and type(state.participants) == "table"
+			then state.participants
+			else {}
+		local aliveCount = 0
+		for _, p in campfireParticipants do
+			if type(p) == "table" and p.alive == true then
+				aliveCount += 1
+			end
+		end
+		local survivorPhrase = if aliveCount == 1
+			then "1 player remains"
+			else string.format("%d players remain", aliveCount)
 		local localRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
 			else ""
 		if localRole == "Spectator" then
 			self.progressLabel.Text = string.format("Votes locked %d/%d - observing.", cast, eligible)
-			self.objectiveText.Text = "OBSERVING\nThe campers are deliberating. The vote will reveal the verdict."
+			self.objectiveText.Text = string.format(
+				"OBSERVING\n%s. The vote will reveal the verdict.",
+				survivorPhrase
+			)
 		else
 			self.progressLabel.Text = string.format("Votes locked %d/%d - accuse carefully.", cast, eligible)
-			self.objectiveText.Text = "FINAL OBJECTIVE\nReview the notebook and identify the Murderer."
+			self.objectiveText.Text = string.format(
+				"FINAL VOTE\n%s. Review your notebook and identify the Murderer.",
+				survivorPhrase
+			)
 		end
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(cast / eligible, 0, 1), 1)
 	elseif phase == "MurderPlanning" then
