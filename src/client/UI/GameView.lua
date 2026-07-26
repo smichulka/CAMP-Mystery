@@ -4113,6 +4113,31 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.objectiveText.Text = "NIGHT BEGINS\nThe abandoned town has merged with the camp. The monster is somewhere inside."
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		end
+	elseif phase == "Rewards" then
+		local rewardsRole = readString(player, "role", "Spectator")
+		local rewardsWinner = readString(round, "winner", "")
+		local campersWon = rewardsWinner == "Campers"
+		if rewardsRole == "Murderer" then
+			if campersWon then
+				self.progressLabel.Text = "The camp unmasked you."
+				self.objectiveText.Text = "CAUGHT\nThe campers solved the mystery. Better luck next time."
+			else
+				self.progressLabel.Text = "You escaped into the night."
+				self.objectiveText.Text = "ESCAPED\nThe camp never caught you. A flawless hunt."
+			end
+		elseif rewardsRole ~= "Spectator" then
+			if campersWon then
+				self.progressLabel.Text = "Justice was served."
+				self.objectiveText.Text = "VICTORY\nYou helped catch the monster. The camp is safe."
+			else
+				self.progressLabel.Text = "The monster escaped."
+				self.objectiveText.Text = "DEFEAT\nThe mystery went unsolved. The monster walks free."
+			end
+		else
+			self.progressLabel.Text = if campersWon then "The campers prevailed." else "The monster escaped."
+			self.objectiveText.Text = "ROUND OVER\nThe mystery has been resolved."
+		end
+		self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
 	else
 		self.progressLabel.Text = readString(
 			round,
