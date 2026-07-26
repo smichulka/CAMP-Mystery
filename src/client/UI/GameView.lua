@@ -8,6 +8,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Components = require(script.Parent:WaitForChild("Components"))
+local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
@@ -78,6 +79,7 @@ type GameViewState = {
 	settingsValues: { [string]: any },
 	layoutConnections: { RBXScriptConnection },
 	announcementToken: number,
+	lastActionControl: GuiObject?,
 	destroyed: boolean,
 }
 
@@ -193,20 +195,77 @@ local function findFocusable(modal: GuiObject): GuiButton?
 end
 
 local function setModalVisible(modal: GuiObject, visible: boolean)
-	if modal.Visible == visible then
+	local requestedVisible = modal:GetAttribute("MotionTargetVisible")
+	if requestedVisible == visible then
 		return
 	end
+	modal:SetAttribute("MotionTargetVisible", visible)
 	local selected = GuiService.SelectedObject
-	modal.Visible = visible
 	if visible then
-		task.defer(function()
-			if modal.Parent and modal.Visible then
-				GuiService.SelectedObject = findFocusable(modal)
+		modal.Visible = true
+		Components.PlayUISound("open")
+		Motion.PopIn(modal, {
+			onComplete = function(completed: boolean)
+				if completed
+					and modal.Parent
+					and modal:GetAttribute("MotionTargetVisible") == true
+				then
+					GuiService.SelectedObject = findFocusable(modal)
+				end
+			end,
+		})
+		local staggerTarget: GuiObject? = nil
+		if modal.Name == "EvidenceNotebook" then
+			local evidenceList = modal:FindFirstChild("EvidenceList")
+			if evidenceList and evidenceList:IsA("GuiObject") then
+				staggerTarget = evidenceList
 			end
-		end)
+		elseif modal.Name == "CampfireVote" then
+			local voteList = modal:FindFirstChild("Suspects")
+			if voteList and voteList:IsA("GuiObject") then
+				staggerTarget = voteList
+			end
+		end
+		if staggerTarget then
+			local list = staggerTarget
+			task.defer(function()
+				if modal:GetAttribute("MotionTargetVisible") == true then
+					Motion.StaggerChildren(list, {
+						preset = "SlideUp",
+					})
+				end
+			end)
+		end
 	elseif selected and selected:IsDescendantOf(modal) then
 		GuiService.SelectedObject = nil
+		Components.PlayUISound("close")
+		Motion.PopOut(modal, {
+			onComplete = function(completed: boolean)
+				if completed
+					and modal.Parent
+					and modal:GetAttribute("MotionTargetVisible") == false
+				then
+					modal.Visible = false
+				end
+			end,
+		})
+	elseif modal.Visible then
+		Components.PlayUISound("close")
+		Motion.PopOut(modal, {
+			onComplete = function(completed: boolean)
+				if completed
+					and modal.Parent
+					and modal:GetAttribute("MotionTargetVisible") == false
+				then
+					modal.Visible = false
+				end
+			end,
+		})
 	end
+end
+
+local function modalTargetVisible(modal: GuiObject): boolean
+	return modal:GetAttribute("MotionTargetVisible") == true
 end
 
 local function makeHeader(parent: Instance, title: string, closeCallback: () -> ())
@@ -240,6 +299,7 @@ local function makeModal(parent: Instance, name: string, size: UDim2): Frame
 	shade.BackgroundTransparency = 0.03
 	shade.BorderSizePixel = 0
 	shade.Visible = false
+	shade:SetAttribute("MotionTargetVisible", false)
 	shade.ZIndex = 20
 	shade.Parent = parent
 	Components.Corner(shade, 14)
@@ -514,6 +574,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		settingsValues = {},
 		layoutConnections = {},
 		announcementToken = 0,
+		lastActionControl = nil,
 		destroyed = false,
 	}, GameView)
 
@@ -865,7 +926,7 @@ function GameView:_progressionCard(
 	statusText: string,
 	buttonText: string,
 	buttonEnabled: boolean,
-	callback: () -> ()
+	callback: (control: TextButton) -> ()
 )
 	local card = Components.Panel(self.progressionList, "ProgressionCard")
 	card:SetAttribute("Generated", true)
@@ -890,7 +951,9 @@ function GameView:_progressionCard(
 		color = Theme.Colors.Info,
 	})
 	Components.SetButtonEnabled(button, buttonEnabled)
-	button.Activated:Connect(callback)
+	button.Activated:Connect(function()
+		callback(button)
+	end)
 end
 
 function GameView:_updateProgression(state: any)
@@ -952,11 +1015,11 @@ function GameView:_updateProgression(state: any)
 			statusText,
 			if capped then "MAX RANK" else "BUY RANK " .. tostring(currentRank + 1),
 			eligible,
-			function()
+			function(control: TextButton)
 				self:_send("BuyUpgrade", {
 					roleId = definition.roleId,
 					upgradeId = definition.id,
-				})
+				}, control)
 			end
 		)
 	end
@@ -1002,11 +1065,11 @@ function GameView:_updateProgression(state: any)
 			statusText,
 			buttonText,
 			(isOwned and not isEquipped and equipEnabled) or canUnlock,
-			function()
+			function(control: TextButton)
 				if isOwned then
-					self:_send("EquipCosmetic", { cosmeticId = definition.id })
+					self:_send("EquipCosmetic", { cosmeticId = definition.id }, control)
 				elseif definition.unlockKind == "CampTokens" then
-					self:_send("UnlockCosmetic", { cosmeticId = definition.id })
+					self:_send("UnlockCosmetic", { cosmeticId = definition.id }, control)
 				end
 			end
 		)
@@ -1051,15 +1114,26 @@ function GameView:_targetPosition(): Vector3?
 	return nil
 end
 
-function GameView:_send(action: string, payload: { [string]: any })
+function GameView:_send(action: string, payload: { [string]: any }, control: GuiObject?)
 	self.requestSequence += 1
 	payload.requestSequence = self.requestSequence
 	if payload.targetPosition == nil then
 		payload.targetPosition = self:_targetPosition()
 	end
+	self.lastActionControl = control or self.roleAction
 	local sent, reason = self.actionHandler(action, payload)
 	if not sent then
+		Motion.Shake(self.lastActionControl :: GuiObject)
+		self.lastActionControl = nil
 		self:Notify("Action unavailable", reason or "The server cannot process that action.", "Warning")
+	end
+end
+
+function GameView:HandleActionResult(accepted: boolean)
+	local control = self.lastActionControl
+	self.lastActionControl = nil
+	if not accepted and control and control.Parent then
+		Motion.Shake(control)
 	end
 end
 
@@ -1096,7 +1170,7 @@ function GameView:_chooseParticipant(
 				button.Activated:Connect(function()
 					payload.targetParticipantId = participantId
 					setModalVisible(self.targetModal, false)
-					self:_send(action, payload)
+					self:_send(action, payload, button)
 				end)
 			end
 		end
@@ -1145,7 +1219,7 @@ function GameView:_chooseEvidence(action: string, payload: { [string]: any })
 				button.Activated:Connect(function()
 					payload.evidenceId = evidenceId
 					setModalVisible(self.targetModal, false)
-					self:_send(action, payload)
+					self:_send(action, payload, button)
 				end)
 			end
 		end
@@ -1200,7 +1274,7 @@ function GameView:_promptEvidenceNote(evidenceId: string)
 		self:_send("AddEvidenceNote", {
 			evidenceId = evidenceId,
 			text = text,
-		})
+		}, submit)
 	end)
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.targetModal, true)
@@ -1258,8 +1332,11 @@ function GameView:_buildLobby()
 	})
 	ready.Activated:Connect(function()
 		local nextReady = ready.Text ~= "CANCEL READY"
+		self.lastActionControl = ready
 		local sent, reason = self.actionHandler("Ready", { ready = nextReady })
 		if not sent then
+			Motion.Shake(ready)
+			self.lastActionControl = nil
 			self:Notify("Not available", reason or "Ready-up is not active.", "Warning")
 		end
 	end)
@@ -1490,11 +1567,17 @@ end
 
 function GameView:_setSetting(key: string, value: any)
 	self.settingsValues[key] = value
+	if key == "reducedMotion" and type(value) == "boolean" then
+		self.root:SetAttribute("ReducedMotion", value)
+	end
 	self:_rebuildSettings()
+	self.lastActionControl = self.settings
 	local sent, reason = self.actionHandler("SetSettings", {
 		settings = { [key] = value },
 	})
 	if not sent then
+		Motion.Shake(self.settings)
+		self.lastActionControl = nil
 		self:Notify("Saved on this device", reason or "Server profile sync is unavailable.", "Info")
 	end
 end
@@ -1584,7 +1667,7 @@ function GameView:_updateInventory(state: any)
 			button:SetAttribute("Generated", true)
 			button.Activated:Connect(function()
 				self.selectedInventorySlot = index
-				self:_activateItem(item)
+				self:_activateItem(item, button)
 			end)
 		end
 	end
@@ -1603,7 +1686,7 @@ function GameView:_updateInventory(state: any)
 	end
 end
 
-function GameView:_activateItem(item: any)
+function GameView:_activateItem(item: any, control: GuiObject?)
 	if type(item) ~= "table" then
 		return
 	end
@@ -1612,7 +1695,7 @@ function GameView:_activateItem(item: any)
 		return
 	end
 	if not readBoolean(item, "equipped", false) then
-		self:_send("EquipItem", { instanceId = instanceId })
+		self:_send("EquipItem", { instanceId = instanceId }, control)
 		return
 	end
 	local equipmentId = readString(item, "equipmentId", "")
@@ -1623,7 +1706,7 @@ function GameView:_activateItem(item: any)
 	if equipmentId == "MedicalKit" then
 		self:_chooseParticipant("UseItem", payload, false)
 	else
-		self:_send("UseItem", payload)
+		self:_send("UseItem", payload, control)
 	end
 end
 
@@ -1744,7 +1827,7 @@ function GameView:_updateEvidence(state: any, round: any)
 		Components.SetButtonEnabled(verify, verifyEnabled and evidenceId ~= "")
 		Components.SetButtonEnabled(note, noteEnabled and evidenceId ~= "")
 		verify.Activated:Connect(function()
-			self:_send("VerifyEvidence", { evidenceId = evidenceId })
+			self:_send("VerifyEvidence", { evidenceId = evidenceId }, verify)
 		end)
 		note.Activated:Connect(function()
 			self:_promptEvidenceNote(evidenceId)
@@ -1912,7 +1995,7 @@ function GameView:_updateEvidence(state: any, round: any)
 				self:_send("InterviewCounselor", {
 					counselorId = counselorId,
 					topic = "Observation",
-				})
+				}, interview)
 			end)
 		end
 	end
@@ -1971,6 +2054,7 @@ function GameView:_updateVote(round: any, player: any)
 			button:SetAttribute("Generated", true)
 			Components.SetButtonEnabled(button, not hasVoted)
 			button.Activated:Connect(function()
+				self.lastActionControl = button
 				local sent, reason = self.actionHandler("Vote", {
 					targetKey = key,
 					targetParticipantId = key,
@@ -1978,6 +2062,8 @@ function GameView:_updateVote(round: any, player: any)
 				if sent then
 					Components.SetButtonEnabled(button, false)
 				else
+					Motion.Shake(button)
+					self.lastActionControl = nil
 					self:Notify("Vote rejected", reason or "Your vote could not be recorded.", "Danger")
 				end
 			end)
@@ -2113,12 +2199,12 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self:_updateInventory(state)
 	self:_updateEvidence(state, round)
 	self:_updateVote(round, player)
-	if self.progression.Visible then
+	if modalTargetVisible(self.progression) then
 		self:_updateProgression(state)
 	end
 
 	local winner = if type(round.winner) == "string" then round.winner else nil
-	if (phase == "Resolution" or phase == "Rewards") and not self.progression.Visible then
+	if (phase == "Resolution" or phase == "Rewards") and not modalTargetVisible(self.progression) then
 		self.resultTitle.Text = if winner then string.upper(winner .. " WIN") else "MYSTERY RESOLVED"
 		self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
 		local profile = if type(state) == "table" then state.profile else nil
@@ -2167,20 +2253,20 @@ end
 function GameView:ToggleNotebook()
 	setModalVisible(self.settings, false)
 	setModalVisible(self.progression, false)
-	setModalVisible(self.notebook, not self.notebook.Visible)
+	setModalVisible(self.notebook, not modalTargetVisible(self.notebook))
 end
 
 function GameView:ToggleSettings()
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.progression, false)
-	setModalVisible(self.settings, not self.settings.Visible)
+	setModalVisible(self.settings, not modalTargetVisible(self.settings))
 end
 
 function GameView:ToggleProgression()
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.settings, false)
 	setModalVisible(self.resultModal, false)
-	local willOpen = not self.progression.Visible
+	local willOpen = not modalTargetVisible(self.progression)
 	if willOpen then
 		self:_updateProgression(self.currentState)
 	end
@@ -2192,7 +2278,7 @@ function GameView:CloseModal()
 	setModalVisible(self.settings, false)
 	setModalVisible(self.progression, false)
 	setModalVisible(self.targetModal, false)
-	if self.resultModal.Visible then
+	if modalTargetVisible(self.resultModal) then
 		setModalVisible(self.resultModal, false)
 	end
 end
@@ -2201,7 +2287,11 @@ function GameView:ActivateInventorySlot(slot: number)
 	local item = self.inventoryItems[slot]
 	if item then
 		self.selectedInventorySlot = slot
-		self:_activateItem(item)
+		local control = self.hotbar:FindFirstChild("Slot_" .. tostring(slot))
+		self:_activateItem(
+			item,
+			if control and control:IsA("GuiObject") then control else nil
+		)
 	end
 end
 
@@ -2281,6 +2371,7 @@ function GameView:Notify(titleText: string, bodyText: string, kind: string)
 		if child:IsA("GuiObject") and child.Name == "Toast" then
 			toastCount += 1
 			if toastCount > 3 then
+				Motion.Cancel(child)
 				child:Destroy()
 			end
 		end
@@ -2298,9 +2389,27 @@ function GameView:Notify(titleText: string, bodyText: string, kind: string)
 	local body = Components.Label(toast, "Body", bodyText, 12)
 	body.Position = UDim2.fromOffset(12, 31)
 	body.Size = UDim2.new(1, -24, 0, 32)
+	if kind == "Danger" or kind == "Warning" then
+		Components.PlayUISound("error")
+	elseif kind == "Success" then
+		Components.PlayUISound("success")
+	else
+		Components.PlayUISound("toast")
+	end
+	task.defer(function()
+		if toast.Parent then
+			Motion.SlideUp(toast)
+		end
+	end)
 	task.delay(4.5, function()
 		if toast.Parent then
-			toast:Destroy()
+			Motion.FadeOut(toast, {
+				onComplete = function(_completed: boolean)
+					if toast.Parent then
+						toast:Destroy()
+					end
+				end,
+			})
 		end
 	end)
 end
@@ -2311,6 +2420,7 @@ function GameView:Destroy()
 	end
 	self.destroyed = true
 	self.announcementToken += 1
+	self.lastActionControl = nil
 	for _, connection in self.layoutConnections do
 		connection:Disconnect()
 	end
