@@ -381,6 +381,19 @@ function CinematicsController:SetGhostMode(active: boolean)
 	})
 end
 
+function CinematicsController:PlayImpactFlash()
+	if self.destroyed then
+		return
+	end
+	-- Spike contrast then recover — brief "hit" screen flash
+	self:_playTween(self.colorCorrection, 0.07, { Contrast = 0.6 })
+	task.delay(0.07, function()
+		if not self.destroyed then
+			self:_playTween(self.colorCorrection, 0.30, { Contrast = 0 })
+		end
+	end)
+end
+
 function CinematicsController:PlayPhaseTransition(phaseName: string)
 	self:_cancelActive()
 	if self.destroyed then
