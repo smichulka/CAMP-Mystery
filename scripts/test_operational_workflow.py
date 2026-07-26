@@ -23,7 +23,7 @@ class OperationalWorkflowContracts(unittest.TestCase):
         self.assertNotIn("pull `master`", source("README.md"))
         self.assertNotIn("Keep `master`", source("docs/DELIVERY_PLAN.md"))
 
-    def test_ci_tool_bootstrap_uses_an_immutable_release_asset(self) -> None:
+    def test_ci_tool_bootstrap_uses_immutable_release_assets(self) -> None:
         workflow = source(".github/workflows/validate.yml")
         self.assertIn("Install pinned Rojo 7.7.0", workflow)
         self.assertIn(
@@ -31,8 +31,14 @@ class OperationalWorkflowContracts(unittest.TestCase):
             "rojo-7.7.0-linux-x86_64.zip",
             workflow,
         )
+        self.assertIn("Install pinned Luau compiler 0.726", workflow)
+        self.assertIn(
+            "luau-lang/luau/releases/download/0.726/luau-ubuntu.zip",
+            workflow,
+        )
         self.assertIn("--retry 3 --retry-all-errors", workflow)
         self.assertIn('"$RUNNER_TEMP/bin/rojo" --version', workflow)
+        self.assertIn('"$RUNNER_TEMP/bin/luau-compile" --help', workflow)
         self.assertNotIn("rokit/main/scripts/install.sh", workflow)
         self.assertNotIn("GITHUB_PAT:", workflow)
         self.assertNotIn("secrets.GITHUB_TOKEN", workflow)
