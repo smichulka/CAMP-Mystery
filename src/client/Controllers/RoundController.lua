@@ -66,6 +66,7 @@ local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastIsGhost: boolean? = nil
+local lastConnectedState: { [string]: boolean } = {}
 local lastHintRound: number? = nil
 local lastToastedRound: number? = nil
 local sentUrgencyWarning = false
@@ -315,6 +316,41 @@ local function updateReleaseExperience(
 	end
 	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local reconnect = isReconnectSnapshot == true
+	-- Detect participant connect/disconnect transitions.
+	local participants = if type(snapshot) == "table"
+			and type(snapshot.participants) == "table"
+		then snapshot.participants
+		else {}
+	for _, participant in participants do
+		if type(participant) ~= "table" or participant.isBot == true then
+			continue
+		end
+		local participantId = readString(participant, "participantId", "")
+		if participantId == "" then
+			continue
+		end
+		local displayName = readString(participant, "displayName", "?")
+		local connected = if type(participant.connected) == "boolean"
+			then participant.connected
+			else true
+		local previousConnected = lastConnectedState[participantId]
+		if previousConnected ~= nil then
+			if not connected and previousConnected then
+				if currentView then
+					currentView:Notify(
+						displayName .. " left",
+						"Player disconnected.",
+						"Warning"
+					)
+				end
+			elseif connected and not previousConnected then
+				if currentView then
+					currentView:Notify(displayName .. " reconnected", "", "Info")
+				end
+			end
+		end
+		lastConnectedState[participantId] = connected
+	end
 	local winner = if type(round) == "table" and type(round.winner) == "string"
 		then round.winner
 		else nil
@@ -357,6 +393,9 @@ local function updateReleaseExperience(
 			)
 		end
 		currentCinematics:PlayPhaseTransition(phaseName)
+		if not reconnect and phaseName ~= "Lobby" and phaseName ~= "Rewards" then
+			currentCinematics:PlayPhaseFlash()
+		end
 		if currentView then
 			local roleName = if type(player) == "table" and type(player.role) == "string"
 				then player.role
@@ -481,6 +520,7 @@ local function handleActionResult(payload: any)
 					local currentCinematics = cinematics
 					if currentCinematics then
 						currentCinematics:PlayImpactFlash()
+						currentCinematics:PlayScreenShake(1.0)
 					end
 				end
 			end
@@ -770,6 +810,7 @@ function RoundController.Stop()
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
 	lastIsGhost = nil
+	lastConnectedState = {}
 	lastHintRound = nil
 	lastToastedRound = nil
 	sentUrgencyWarning = false
