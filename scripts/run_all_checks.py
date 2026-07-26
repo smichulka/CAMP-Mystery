@@ -66,6 +66,10 @@ def main() -> None:
         [sys.executable, "scripts/test_ghost_dread.py"],
     )
     run(
+        "Lobby and reconnect contract tests",
+        [sys.executable, "scripts/test_lobby_reconnect.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
     )

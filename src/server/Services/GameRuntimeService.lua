@@ -327,6 +327,98 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 	local lobby = LobbyService.new()
 	local profile = ProfileService.new()
 	local runtimeRef: GameRuntimeService? = nil
+	local function transferParticipantState(
+		source: ParticipantState,
+		destination: ParticipantState
+	)
+		destination.role = source.role
+		destination.team = source.team
+		destination.alive = source.alive
+		destination.isGhost = source.isGhost
+		destination.healthState = source.healthState
+		destination.health = source.health
+		destination.maxHealth = source.maxHealth
+		destination.injuryLevel = source.injuryLevel
+		destination.evidenceKnowledge = table.clone(source.evidenceKnowledge)
+		destination.vote = table.clone(source.vote)
+		destination.abilityUses = table.clone(source.abilityUses)
+		destination.abilityCooldownEndsAt =
+			table.clone(source.abilityCooldownEndsAt)
+		inventory:RegisterParticipant(destination.participantId)
+		for _, instanceId in table.clone(source.inventoryIds) do
+			local transferred = inventory:Transfer(
+				source.participantId,
+				destination.participantId,
+				instanceId
+			)
+			if transferred then
+				participants:RemoveInventoryItem(source.participantId, instanceId)
+				participants:AddInventoryItem(destination.participantId, instanceId)
+			end
+		end
+		source.role = "Spectator"
+		source.team = "Observers"
+		source.alive = false
+		source.isGhost = false
+
+		local runtime = runtimeRef
+		if not runtime then
+			return
+		end
+		runtime.statusEffects:TransferParticipant(
+			source.participantId,
+			destination.participantId
+		)
+		runtime.roleAbilities:TransferParticipant(
+			source.participantId,
+			destination.participantId
+		)
+		runtime.voting:TransferParticipant(
+			source.participantId,
+			destination.participantId
+		)
+		runtime.mystery:TransferParticipant(
+			source.participantId,
+			destination.participantId
+		)
+		runtime.objectivesByParticipantId[destination.participantId] =
+			runtime.objectivesByParticipantId[source.participantId]
+		runtime.objectivesByParticipantId[source.participantId] = nil
+		runtime.evidenceByParticipantId[destination.participantId] =
+			runtime.evidenceByParticipantId[source.participantId]
+		runtime.evidenceByParticipantId[source.participantId] = nil
+		for objectiveId, ownerId in runtime.completedObjectives do
+			if ownerId == source.participantId then
+				runtime.completedObjectives[objectiveId] = destination.participantId
+			end
+		end
+		local murderPlan = runtime.murderPlan
+		if murderPlan then
+			if murderPlan.victimParticipantId == source.participantId then
+				murderPlan.victimParticipantId = destination.participantId
+			end
+			if murderPlan.frameParticipantId == source.participantId then
+				murderPlan.frameParticipantId = destination.participantId
+			end
+		end
+		if destination.controller.kind == "Bot" then
+			runtime.computerPlayers:RegisterBot(destination.participantId)
+		end
+		if source.controller.kind == "Bot" then
+			runtime.computerPlayers:DeactivateBot(source.participantId)
+		end
+		if runtime.culpritParticipantId == source.participantId then
+			runtime.culpritParticipantId = destination.participantId
+			runtime.evidence:TransferCulprit(
+				source.participantId,
+				destination.participantId
+			)
+			runtime.monster:TransferControl(
+				runtime.roundId,
+				destination.participantId
+			)
+		end
+	end
 	local matchmaking = MatchmakingService.new(lobby, botRoster, {
 		onBotReplacement = function(context, replacement, _roster)
 			local departed = participants:GetByUserId(context.userId)
@@ -334,88 +426,35 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 			if not departed or not replacementState then
 				return
 			end
-
-			replacementState.role = departed.role
-			replacementState.team = departed.team
-			replacementState.alive = departed.alive
-			replacementState.isGhost = departed.isGhost
-			replacementState.healthState = departed.healthState
-			replacementState.health = departed.health
-			replacementState.maxHealth = departed.maxHealth
-			replacementState.injuryLevel = departed.injuryLevel
-			replacementState.evidenceKnowledge = table.clone(departed.evidenceKnowledge)
-			replacementState.vote = table.clone(departed.vote)
-			replacementState.abilityUses = table.clone(departed.abilityUses)
-			replacementState.abilityCooldownEndsAt =
-				table.clone(departed.abilityCooldownEndsAt)
-			inventory:RegisterParticipant(replacementState.participantId)
-			for _, instanceId in table.clone(departed.inventoryIds) do
-				local transferred = inventory:Transfer(
-					departed.participantId,
-					replacementState.participantId,
-					instanceId
-				)
-				if transferred then
-					participants:RemoveInventoryItem(departed.participantId, instanceId)
-					participants:AddInventoryItem(replacementState.participantId, instanceId)
-				end
-			end
-			departed.role = "Spectator"
-			departed.team = "Observers"
-			departed.alive = false
-			departed.isGhost = false
+			transferParticipantState(departed, replacementState)
 			local runtime = runtimeRef
 			if runtime then
-				runtime.statusEffects:TransferParticipant(
-					departed.participantId,
-					replacementState.participantId
-				)
-				runtime.roleAbilities:TransferParticipant(
-					departed.participantId,
-					replacementState.participantId
-				)
-				runtime.voting:TransferParticipant(
-					departed.participantId,
-					replacementState.participantId
-				)
-				runtime.mystery:TransferParticipant(
-					departed.participantId,
-					replacementState.participantId
-				)
-				runtime.objectivesByParticipantId[replacementState.participantId] =
-					runtime.objectivesByParticipantId[departed.participantId]
-				runtime.objectivesByParticipantId[departed.participantId] = nil
-				runtime.evidenceByParticipantId[replacementState.participantId] =
-					runtime.evidenceByParticipantId[departed.participantId]
-				runtime.evidenceByParticipantId[departed.participantId] = nil
-				for objectiveId, ownerId in runtime.completedObjectives do
-					if ownerId == departed.participantId then
-						runtime.completedObjectives[objectiveId] =
-							replacementState.participantId
-					end
-				end
-				local murderPlan = runtime.murderPlan
-				if murderPlan then
-					if murderPlan.victimParticipantId == departed.participantId then
-						murderPlan.victimParticipantId = replacementState.participantId
-					end
-					if murderPlan.frameParticipantId == departed.participantId then
-						murderPlan.frameParticipantId = replacementState.participantId
-					end
-				end
-				runtime.computerPlayers:RegisterBot(replacementState.participantId)
-				if runtime.culpritParticipantId == departed.participantId then
-					runtime.culpritParticipantId = replacementState.participantId
-					runtime.evidence:TransferCulprit(
-						departed.participantId,
-						replacementState.participantId
-					)
-					runtime.monster:TransferControl(
-						runtime.roundId,
-						replacementState.participantId
-					)
-				end
 				runtime:Broadcast()
+			end
+		end,
+		onHumanRejoin = function(player, context, replacement, _human, _roster)
+			local rejoined = participants:GetByUserId(context.userId)
+			local replacementState = participants:GetById(replacement.participantId)
+			if not rejoined or not replacementState then
+				return
+			end
+			transferParticipantState(replacementState, rejoined)
+			participants:SetHumanConnected(context.userId, true)
+			print(string.format(
+				"[GameRuntimeService] Rejoined user %d as %s",
+				context.userId,
+				rejoined.role
+			))
+			local runtime = runtimeRef
+			if runtime then
+				task.defer(function()
+					if runtime.running and player.Parent == Players then
+						local callback = runtime.options.onStateChanged
+						if callback then
+							callback(player, runtime:GetGameState(player))
+						end
+					end
+				end)
 			end
 		end,
 	})

@@ -25,11 +25,19 @@ type LobbyPlayerState = {
 	joinedAt: number,
 }
 
+type DisconnectedLobbyPlayerState = {
+	participantId: string,
+	displayName: string,
+	lockedRoundId: string,
+	joinedAt: number,
+}
+
 type LobbyServiceState = {
 	clock: Clock,
 	revision: number,
 	status: LobbyStatus,
 	players: { [number]: LobbyPlayerState },
+	disconnectedLockedPlayers: { [number]: DisconnectedLobbyPlayerState },
 	fillStartedAt: number?,
 	fillEndsAt: number?,
 	activeRoundId: string?,
@@ -54,6 +62,7 @@ function LobbyService.new(clock: Clock?): LobbyService
 		revision = 0,
 		status = "Waiting",
 		players = {},
+		disconnectedLockedPlayers = {},
 		fillStartedAt = nil,
 		fillEndsAt = nil,
 		activeRoundId = nil,
@@ -64,9 +73,28 @@ function LobbyService:_Changed()
 	self.revision += 1
 end
 
-function LobbyService:AddPlayer(player: Player)
+function LobbyService:AddPlayer(player: Player): boolean
 	if self.players[player.UserId] then
-		return
+		return false
+	end
+
+	local disconnected = self.disconnectedLockedPlayers[player.UserId]
+	if disconnected
+		and self.activeRoundId ~= nil
+		and disconnected.lockedRoundId == self.activeRoundId
+	then
+		self.players[player.UserId] = {
+			player = player,
+			participantId = disconnected.participantId,
+			displayName = player.DisplayName,
+			ready = false,
+			queuedForNextRound = false,
+			lockedRoundId = disconnected.lockedRoundId,
+			joinedAt = disconnected.joinedAt,
+		}
+		self.disconnectedLockedPlayers[player.UserId] = nil
+		self:_Changed()
+		return true
 	end
 
 	local queueForNextRound = self.activeRoundId ~= nil
@@ -81,6 +109,7 @@ function LobbyService:AddPlayer(player: Player)
 		joinedAt = self.clock(),
 	}
 	self:_Changed()
+	return false
 end
 
 function LobbyService:RemovePlayer(player: Player): DisconnectContext?
@@ -96,6 +125,14 @@ function LobbyService:RemovePlayer(player: Player): DisconnectContext?
 		roundId = state.lockedRoundId,
 		wasQueuedForNextRound = state.queuedForNextRound,
 	}
+	if state.lockedRoundId then
+		self.disconnectedLockedPlayers[player.UserId] = {
+			participantId = state.participantId,
+			displayName = state.displayName,
+			lockedRoundId = state.lockedRoundId,
+			joinedAt = state.joinedAt,
+		}
+	end
 	self.players[player.UserId] = nil
 	self:_Changed()
 	return context
@@ -264,6 +301,11 @@ function LobbyService:ReleaseRound(roundId: string): boolean
 		state.ready = false
 		state.lockedRoundId = nil
 		state.queuedForNextRound = index > availableSlots
+	end
+	for userId, disconnected in self.disconnectedLockedPlayers do
+		if disconnected.lockedRoundId == roundId then
+			self.disconnectedLockedPlayers[userId] = nil
+		end
 	end
 	self.activeRoundId = nil
 	self.fillStartedAt = nil

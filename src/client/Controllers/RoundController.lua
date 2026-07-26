@@ -55,6 +55,7 @@ local lastCinematicPhase: string? = nil
 local lastEvidenceFound = 0
 local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
+local receivedFullState = false
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -366,9 +367,43 @@ function RoundController.Start()
 
 	remoteBridge:OnSnapshot("game", function(payload: any)
 		if type(payload) == "table" then
+			local firstFullState = not receivedFullState
+			receivedFullState = true
+			local round = if type(payload.round) == "table" then payload.round else nil
+			local player = if type(payload.player) == "table" then payload.player else nil
+			local phaseName = if type(round) == "table" and type(round.phase) == "string"
+				then round.phase
+				else nil
+			local roleName = if type(player) == "table"
+					and type(player.roleDisplayName) == "string"
+				then player.roleDisplayName
+				elseif type(player) == "table" and type(player.role) == "string"
+					then player.role
+				else "Camper"
+			local isReconnectSnapshot = firstFullState
+				and phaseName ~= nil
+				and phaseName ~= "Lobby"
+				and phaseName ~= "Rewards"
+				and type(player) == "table"
+				and player.role ~= "Spectator"
+			if isReconnectSnapshot then
+				lastCinematicPhase = phaseName
+				lastEvidenceFound = evidenceFoundCount(payload)
+				lastCulpritEvidenceCount = #evidenceList(payload, "culpritEvidence")
+				lastMonsterEvidenceCount = #evidenceList(payload, "monsterEvidence")
+				gameView:PrepareReconnectSnapshot()
+			end
 			state = payload :: GameState
 			refresh()
 			updateReleaseExperience(state :: GameState)
+			if isReconnectSnapshot then
+				gameView:Notify(
+					"Reconnected — your role is " .. roleName,
+					"Your round state has been restored.",
+					"Info",
+					4
+				)
+			end
 		end
 	end)
 	remoteBridge:OnSnapshot("round", function(payload: any)
@@ -495,6 +530,7 @@ function RoundController.Stop()
 	lastEvidenceFound = 0
 	lastCulpritEvidenceCount = 0
 	lastMonsterEvidenceCount = 0
+	receivedFullState = false
 end
 
 return table.freeze(RoundController)

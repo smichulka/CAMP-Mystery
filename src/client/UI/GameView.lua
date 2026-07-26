@@ -12,6 +12,7 @@ local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
+local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
 
 type ActionHandler = (action: string, payload: any) -> (boolean, string?)
@@ -71,6 +72,19 @@ type GameViewState = {
 	interactionText: TextLabel,
 	readyButton: TextButton,
 	lobbyText: TextLabel,
+	lobbyRoster: ScrollingFrame,
+	lobbyTip: Frame,
+	lobbyTipCategory: TextLabel,
+	lobbyTipBody: TextLabel,
+	lobbyCountdown: TextLabel,
+	lobbyCountdownScale: UIScale,
+	lobbyTipIndex: number,
+	lobbyTipChangedAt: number,
+	lobbyRosterSignature: string,
+	lobbyReadyStates: { [number]: boolean },
+	lobbyFillSignature: string,
+	lobbyCountdownSecond: number,
+	lobbyWasVisible: boolean,
 	announcement: Frame,
 	announcementTitle: TextLabel,
 	announcementBody: TextLabel,
@@ -221,10 +235,14 @@ local function setModalVisible(modal: GuiObject, visible: boolean)
 		if modal.Name == "EvidenceNotebook" then
 			local evidenceList = modal:FindFirstChild("EvidenceList")
 			if evidenceList and evidenceList:IsA("GuiObject") then
-				staggerTarget = evidenceList
-				Motion.StaggerChildren(evidenceList, {
-					preset = "SlideUp",
-				})
+				if modal:GetAttribute("SuppressNextStagger") == true then
+					modal:SetAttribute("SuppressNextStagger", false)
+				else
+					staggerTarget = evidenceList
+					Motion.StaggerChildren(evidenceList, {
+						preset = "SlideUp",
+					})
+				end
 			end
 		elseif modal.Name == "CampfireVote" then
 			local voteList = modal:FindFirstChild("Suspects")
@@ -627,6 +645,19 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		interactionText = interactionText,
 		readyButton = nil :: any,
 		lobbyText = nil :: any,
+		lobbyRoster = nil :: any,
+		lobbyTip = nil :: any,
+		lobbyTipCategory = nil :: any,
+		lobbyTipBody = nil :: any,
+		lobbyCountdown = nil :: any,
+		lobbyCountdownScale = nil :: any,
+		lobbyTipIndex = 1,
+		lobbyTipChangedAt = Workspace:GetServerTimeNow(),
+		lobbyRosterSignature = "",
+		lobbyReadyStates = {},
+		lobbyFillSignature = "",
+		lobbyCountdownSecond = -1,
+		lobbyWasVisible = false,
 		announcement = nil :: any,
 		announcementTitle = nil :: any,
 		announcementBody = nil :: any,
@@ -1459,17 +1490,64 @@ end
 
 function GameView:_buildLobby()
 	local lobby = Components.Panel(self.root, "Lobby")
-	lobby.AnchorPoint = Vector2.new(1, 1)
-	lobby.Position = UDim2.new(1, -18, 1, -18)
-	lobby.Size = UDim2.fromOffset(300, 104)
-	local text = Components.Label(lobby, "LobbyText", "Campers: waiting...", 14)
-	text.Position = UDim2.fromOffset(12, 8)
-	text.Size = UDim2.new(1, -24, 0, 40)
+	lobby.AnchorPoint = Vector2.new(0.5, 0.5)
+	lobby.Position = UDim2.fromScale(0.5, 0.56)
+	lobby.Size = UDim2.fromOffset(520, 520)
+	local text = Components.Label(
+		lobby,
+		"LobbyText",
+		"CAMPERS ARE ARRIVING",
+		Theme.Typography.HeadingSize,
+		Theme.Typography.HeadingFont
+	)
+	text.Position = UDim2.fromOffset(18, 10)
+	text.Size = UDim2.new(1, -36, 0, 34)
+	text.TextXAlignment = Enum.TextXAlignment.Center
+	text.TextColor3 = Theme.Colors.Gold
+
+	local roster = Instance.new("ScrollingFrame")
+	roster.Name = "Roster"
+	roster.Position = UDim2.fromOffset(18, 50)
+	roster.Size = UDim2.new(1, -36, 0, 254)
+	roster.BackgroundTransparency = 1
+	roster.BorderSizePixel = 0
+	roster.CanvasSize = UDim2.fromOffset(0, 0)
+	roster.ScrollBarThickness = 4
+	roster.Parent = lobby
+	local rosterLayout = Components.List(roster, 6)
+	addCanvasSizing(roster, rosterLayout)
+
+	local tip = Components.Panel(lobby, "CampTip")
+	tip.Position = UDim2.fromOffset(18, 312)
+	tip.Size = UDim2.new(1, -36, 0, 118)
+	tip.BackgroundColor3 = Theme.Colors.PanelRaised
+	local tipCategory = Components.Label(
+		tip,
+		"Category",
+		"",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	tipCategory.Position = UDim2.fromOffset(14, 9)
+	tipCategory.Size = UDim2.new(1, -28, 0, 20)
+	tipCategory.TextColor3 = Theme.Colors.Gold
+	local tipBody = Components.Label(
+		tip,
+		"Body",
+		"",
+		Theme.Typography.BodySize,
+		Theme.Typography.BodyFont
+	)
+	tipBody.Position = UDim2.fromOffset(14, 31)
+	tipBody.Size = UDim2.new(1, -28, 0, 74)
+	tipBody.TextWrapped = true
+	tipBody.TextYAlignment = Enum.TextYAlignment.Top
+
 	local ready = Components.Button(lobby, {
 		name = "Ready",
 		text = "READY UP",
-		size = UDim2.fromOffset(174, 42),
-		position = UDim2.fromOffset(12, 54),
+		size = UDim2.fromOffset(290, 54),
+		position = UDim2.fromOffset(18, 446),
 		color = Theme.Colors.Success,
 	})
 	ready.Activated:Connect(function()
@@ -1485,17 +1563,47 @@ function GameView:_buildLobby()
 	local progression = Components.Button(lobby, {
 		name = "Progression",
 		text = "PROGRESS",
-		size = UDim2.fromOffset(102, 42),
-		position = UDim2.new(1, -114, 0, 54),
+		size = UDim2.fromOffset(176, 54),
+		position = UDim2.new(1, -194, 0, 446),
 		color = Theme.Colors.Gold,
 	})
 	progression.TextColor3 = Theme.Colors.Background
 	progression.Activated:Connect(function()
 		self:ToggleProgression()
 	end)
+
+	local countdown = Components.Label(
+		self.root,
+		"LobbyCountdown",
+		"",
+		Theme.Typography.DisplaySize * 2,
+		Theme.Typography.DisplayFont
+	)
+	countdown.AnchorPoint = Vector2.new(0.5, 0.5)
+	countdown.Position = UDim2.fromScale(0.5, 0.26)
+	countdown.Size = UDim2.fromOffset(220, 90)
+	countdown.TextXAlignment = Enum.TextXAlignment.Center
+	countdown.TextColor3 = Theme.Colors.Gold
+	countdown.Visible = false
+	countdown.ZIndex = 45
+	local countdownScale = Instance.new("UIScale")
+	countdownScale.Scale = 1
+	countdownScale.Parent = countdown
+
 	self.readyButton = ready
 	self.lobbyText = text
+	self.lobbyRoster = roster
+	self.lobbyTip = tip
+	self.lobbyTipCategory = tipCategory
+	self.lobbyTipBody = tipBody
+	self.lobbyCountdown = countdown
+	self.lobbyCountdownScale = countdownScale
 	self.lobbyPanel = lobby
+	local firstTip = TipCatalog.definitions[1]
+	if firstTip then
+		tipCategory.Text = firstTip.category
+		tipBody.Text = firstTip.body
+	end
 end
 
 function GameView:_activateRoleAbility(abilityId: string)
@@ -1727,15 +1835,154 @@ function GameView:_setSetting(key: string, value: any)
 	end
 end
 
+function GameView:_rebuildLobbyRoster(lobby: any)
+	local players = asTable(lobby.players)
+	local target = math.max(#players, math.floor(readNumber(lobby, "standardTarget", 10)))
+	local signatureParts: { string } = { tostring(target) }
+	for _, entry in players do
+		if type(entry) == "table" then
+			table.insert(signatureParts, string.format(
+				"%d:%s:%s",
+				math.floor(readNumber(entry, "userId", 0)),
+				readString(entry, "displayName", ""),
+				readString(entry, "status", "Waiting")
+			))
+		end
+	end
+	local signature = table.concat(signatureParts, "|")
+	if signature == self.lobbyRosterSignature then
+		return
+	end
+	local previousSignature = self.lobbyRosterSignature
+	self.lobbyRosterSignature = signature
+	Components.ClearGenerated(self.lobbyRoster)
+	local nextReadyStates: { [number]: boolean } = {}
+	for index = 1, target do
+		local entry = players[index]
+		local card = Components.Panel(self.lobbyRoster, "RosterCard_" .. tostring(index))
+		card:SetAttribute("Generated", true)
+		card.LayoutOrder = index
+		card.Size = UDim2.new(1, -8, 0, 48)
+		card.BackgroundColor3 = Theme.Notebook.PageColor
+		card.BackgroundTransparency = 0
+		local name = Components.Label(
+			card,
+			"DisplayName",
+			"Waiting for players...",
+			Theme.Typography.BodySize,
+			Theme.Typography.BodyFont
+		)
+		name.Position = UDim2.fromOffset(16, 0)
+		name.Size = UDim2.new(1, -58, 1, 0)
+		name.TextColor3 = Theme.Notebook.InkMuted
+		local dot = Instance.new("Frame")
+		dot.Name = "ReadyDot"
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.new(1, -24, 0.5, 0)
+		dot.Size = UDim2.fromOffset(12, 12)
+		dot.BackgroundColor3 = Theme.Colors.Border
+		dot.BorderSizePixel = 0
+		dot.Parent = card
+		Components.Corner(dot, 6)
+		if type(entry) == "table" then
+			local userId = math.floor(readNumber(entry, "userId", 0))
+			local isReady = readBoolean(entry, "isReady", false)
+				or readString(entry, "status", "Waiting") == "Locked"
+			nextReadyStates[userId] = isReady
+			name.Text = readString(entry, "displayName", "Camper")
+			name.TextColor3 = Theme.Notebook.InkColor
+			dot.BackgroundColor3 = if isReady then Theme.Colors.Success else Theme.Colors.Border
+			if isReady and self.lobbyReadyStates[userId] ~= true then
+				dot.BackgroundColor3 = Theme.Colors.Gold
+				Motion.PopIn(card)
+				if self.settingsValues.reducedMotion ~= true then
+					TweenService:Create(
+						dot,
+						TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						{ BackgroundColor3 = Theme.Colors.Success, Size = UDim2.fromOffset(16, 16) }
+					):Play()
+					task.delay(0.42, function()
+						if dot.Parent then
+							TweenService:Create(
+								dot,
+								TweenInfo.new(0.16),
+								{ Size = UDim2.fromOffset(12, 12) }
+							):Play()
+						end
+					end)
+				else
+					dot.BackgroundColor3 = Theme.Colors.Success
+				end
+			end
+		end
+	end
+	self.lobbyReadyStates = nextReadyStates
+	if previousSignature ~= "" then
+		Motion.StaggerChildren(self.lobbyRoster, {
+			preset = "PopIn",
+		})
+	end
+end
+
+function GameView:_shimmerLobbyRoster()
+	local reducedMotion = self.settingsValues.reducedMotion == true
+	for _, child in self.lobbyRoster:GetChildren() do
+		if child:IsA("Frame") and child:GetAttribute("Generated") == true then
+			if reducedMotion then
+				child.BackgroundColor3 = Theme.Notebook.PageColor
+			else
+				local gold = TweenService:Create(
+					child,
+					TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ BackgroundColor3 = Theme.Colors.Gold }
+				)
+				local cream = TweenService:Create(
+					child,
+					TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+					{ BackgroundColor3 = Theme.Notebook.PageColor }
+				)
+				gold.Completed:Connect(function(playbackState: Enum.PlaybackState)
+					if playbackState == Enum.PlaybackState.Completed and child.Parent then
+						cream:Play()
+					end
+				end)
+				gold:Play()
+			end
+		end
+	end
+end
+
 function GameView:_updateLobby(state: any, phase: string)
 	local lobby = if type(state) == "table" then state.lobby else nil
 	local parent = self.readyButton.Parent
 	if not parent or not parent:IsA("GuiObject") then
 		return
 	end
-	parent.Visible = phase == "Lobby"
+	local inLobby = phase == "Lobby"
+	if inLobby then
+		Motion.Cancel(parent)
+		parent.Visible = true
+		parent.BackgroundTransparency = Theme.PanelTransparency
+	elseif self.lobbyWasVisible and parent.Visible then
+		Motion.FadeOut(parent, {
+			duration = 0.4,
+			onComplete = function(_completed: boolean)
+				if parent.Parent and not self.lobbyWasVisible then
+					parent.Visible = false
+				end
+			end,
+		})
+	else
+		parent.Visible = false
+	end
+	self.lobbyWasVisible = inLobby
 	self.healthPanel.Visible = phase ~= "Lobby"
 	self.hotbar.Visible = phase ~= "Lobby"
+	if not inLobby then
+		self.lobbyCountdown.Visible = false
+		self.lobbyCountdownSecond = -1
+		return
+	end
 	if type(lobby) ~= "table" then
 		self.lobbyText.Text = "The next mystery begins soon."
 		Components.SetButtonEnabled(self.readyButton, false)
@@ -1746,6 +1993,7 @@ function GameView:_updateLobby(state: any, phase: string)
 	local target = readNumber(lobby, "standardTarget", 10)
 	self.lobbyText.Text = string.format("CAMPERS  %d/%d     READY  %d", humans, target, readyCount)
 	local players = asTable(lobby.players)
+	self:_rebuildLobbyRoster(lobby)
 	local isReady = false
 	for _, entry in players do
 		if type(entry) == "table" and entry.userId == Players.LocalPlayer.UserId then
@@ -1755,6 +2003,12 @@ function GameView:_updateLobby(state: any, phase: string)
 	end
 	self.readyButton.Text = if isReady then "CANCEL READY" else "READY UP"
 	Components.SetButtonEnabled(self.readyButton, true)
+	local fillStartedAt = readNumber(lobby, "fillStartedAt", 0)
+	local fillSignature = if fillStartedAt > 0 then tostring(fillStartedAt) else ""
+	if fillSignature ~= "" and fillSignature ~= self.lobbyFillSignature then
+		self:_shimmerLobbyRoster()
+	end
+	self.lobbyFillSignature = fillSignature
 end
 
 function GameView:_updateInventory(state: any)
@@ -2439,13 +2693,80 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 end
 
 function GameView:Tick()
+	local currentTime = Workspace:GetServerTimeNow()
+	if self.lobbyWasVisible and currentTime - self.lobbyTipChangedAt >= 8 then
+		self.lobbyTipChangedAt = currentTime
+		self.lobbyTipIndex = (self.lobbyTipIndex % #TipCatalog.definitions) + 1
+		local tip = TipCatalog.definitions[self.lobbyTipIndex]
+		local function applyTip()
+			if tip and self.lobbyTip.Parent then
+				self.lobbyTipCategory.Text = tip.category
+				self.lobbyTipBody.Text = tip.body
+			end
+		end
+		if self.settingsValues.reducedMotion == true then
+			applyTip()
+		else
+			Motion.FadeOut(self.lobbyTip, {
+				duration = 0.4,
+				onComplete = function(completed: boolean)
+					if completed and self.lobbyTip.Parent then
+						applyTip()
+						Motion.FadeIn(self.lobbyTip, { duration = 0.4 })
+					end
+				end,
+			})
+		end
+	end
+
+	local lobby = if type(self.currentState) == "table"
+			and type(self.currentState.lobby) == "table"
+		then self.currentState.lobby
+		else nil
+	local fillEndsAt = readNumber(lobby, "fillEndsAt", 0)
+	local lobbySeconds = math.max(0, math.ceil(fillEndsAt - currentTime))
+	local showLobbyCountdown = self.lobbyWasVisible
+		and lobbySeconds > 0
+		and lobbySeconds <= 10
+	self.lobbyCountdown.Visible = showLobbyCountdown
+	if showLobbyCountdown then
+		self.lobbyCountdown.Text = tostring(lobbySeconds)
+		if lobbySeconds ~= self.lobbyCountdownSecond then
+			self.lobbyCountdownSecond = lobbySeconds
+			self.lobbyCountdownScale.Scale = 1
+			if self.settingsValues.reducedMotion ~= true then
+				local grow = TweenService:Create(
+					self.lobbyCountdownScale,
+					TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ Scale = 1.15 }
+				)
+				local settle = TweenService:Create(
+					self.lobbyCountdownScale,
+					TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Scale = 1 }
+				)
+				grow.Completed:Connect(function(playbackState: Enum.PlaybackState)
+					if playbackState == Enum.PlaybackState.Completed
+						and self.lobbyCountdownScale.Parent
+					then
+						settle:Play()
+					end
+				end)
+				grow:Play()
+			end
+		end
+	else
+		self.lobbyCountdownSecond = -1
+		self.lobbyCountdownScale.Scale = 1
+	end
+
 	local round = if type(self.currentState) == "table" and type(self.currentState.round) == "table"
 		then self.currentState.round
 		else self.legacyRound
 	if type(round) ~= "table" then
 		return
 	end
-	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - Workspace:GetServerTimeNow()))
+	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	self.timerLabel.TextColor3 = if seconds <= 10 and seconds > 0 then Theme.Colors.DangerBright else Theme.Colors.Gold
 end
@@ -2973,7 +3294,17 @@ function GameView:Announce(payload: any)
 	end)
 end
 
-function GameView:Notify(titleText: string, bodyText: string, kind: string)
+function GameView:PrepareReconnectSnapshot()
+	self.notebook:SetAttribute("SuppressNextStagger", true)
+	Motion.Cancel(self.evidenceList)
+end
+
+function GameView:Notify(
+	titleText: string,
+	bodyText: string,
+	kind: string,
+	durationSeconds: number?
+)
 	if self.destroyed then
 		return
 	end
@@ -3025,7 +3356,7 @@ function GameView:Notify(titleText: string, bodyText: string, kind: string)
 			Motion.SlideUp(toast)
 		end
 	end)
-	task.delay(4.5, function()
+	task.delay(math.clamp(durationSeconds or 4.5, 1, 12), function()
 		if toast.Parent then
 			Motion.FadeOut(toast, {
 				onComplete = function(_completed: boolean)

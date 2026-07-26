@@ -11,7 +11,7 @@ local Types = require(typesFolder:WaitForChild("MatchTypes"))
 
 type Clock = () -> number
 type LobbyService = {
-	AddPlayer: (self: any, player: Player) -> (),
+	AddPlayer: (self: any, player: Player) -> boolean,
 	RemovePlayer: (self: any, player: Player) -> Types.DisconnectContext?,
 	SetReady: (self: any, player: Player, ready: boolean) -> (boolean, string?),
 	GetReadyCount: (self: any) -> number,
@@ -38,6 +38,12 @@ type BotRosterSystem = {
 		roundId: string,
 		departedParticipantId: string
 	) -> (Types.RosterParticipant?, string?),
+	RestoreHuman: (
+		self: any,
+		roundId: string,
+		replacementParticipantId: string,
+		humanParticipantId: string
+	) -> boolean,
 	ReleaseRound: (self: any, roundId: string?) -> boolean,
 }
 type DisconnectHook = (context: Types.DisconnectContext) -> ()
@@ -47,6 +53,17 @@ type ReplacementHook = (
 	replacement: Types.RosterParticipant,
 	roster: Types.LockedRoster
 ) -> ()
+type HumanRejoinHook = (
+	player: Player,
+	context: Types.DisconnectContext,
+	replacement: Types.RosterParticipant,
+	human: Types.RosterParticipant,
+	roster: Types.LockedRoster
+) -> ()
+type ReplacementRecord = {
+	context: Types.DisconnectContext,
+	replacement: Types.RosterParticipant,
+}
 
 export type MatchmakingOptions = {
 	clock: Clock?,
@@ -56,6 +73,7 @@ export type MatchmakingOptions = {
 	onRosterLocked: RosterHook?,
 	onRosterChanged: RosterHook?,
 	onBotReplacement: ReplacementHook?,
+	onHumanRejoin: HumanRejoinHook?,
 }
 
 type MatchmakingServiceState = {
@@ -68,6 +86,8 @@ type MatchmakingServiceState = {
 	onRosterLocked: RosterHook?,
 	onRosterChanged: RosterHook?,
 	onBotReplacement: ReplacementHook?,
+	onHumanRejoin: HumanRejoinHook?,
+	disconnectedReplacementsByUserId: { [number]: ReplacementRecord },
 	roundRevision: number,
 	fillStartedAt: number?,
 	activeRoster: Types.LockedRoster?,
@@ -154,6 +174,8 @@ function MatchmakingService.new(
 		onRosterLocked = configured.onRosterLocked,
 		onRosterChanged = configured.onRosterChanged,
 		onBotReplacement = configured.onBotReplacement,
+		onHumanRejoin = configured.onHumanRejoin,
+		disconnectedReplacementsByUserId = {},
 		roundRevision = 0,
 		fillStartedAt = nil,
 		activeRoster = nil,
@@ -197,8 +219,57 @@ function MatchmakingService:SetReady(
 end
 
 function MatchmakingService:AddPlayer(player: Player)
-	self.lobbyService:AddPlayer(player)
+	local restoredLockedPlayer = self.lobbyService:AddPlayer(player)
+	if restoredLockedPlayer then
+		self:_RestoreLockedParticipant(player)
+		return
+	end
 	self:Tick()
+end
+
+function MatchmakingService:_RestoreLockedParticipant(player: Player): boolean
+	local record = self.disconnectedReplacementsByUserId[player.UserId]
+	local roster = self.activeRoster
+	if not record or not roster or record.context.roundId ~= roster.roundId then
+		return false
+	end
+	local replacementIndex: number? = nil
+	for index, participant in roster.participants do
+		if participant.participantId == record.replacement.participantId then
+			replacementIndex = index
+			break
+		end
+	end
+	if not replacementIndex
+		or not self.botRosterSystem:RestoreHuman(
+			roster.roundId,
+			record.replacement.participantId,
+			record.context.participantId
+		)
+	then
+		return false
+	end
+	local human: Types.RosterParticipant = {
+		participantId = record.context.participantId,
+		displayName = player.DisplayName,
+		controllerKind = "Human",
+		userId = player.UserId,
+		botId = nil,
+	}
+	roster.participants[replacementIndex] = human
+	roster.revision += 1
+	self.disconnectedReplacementsByUserId[player.UserId] = nil
+	local snapshot = self:GetActiveRoster()
+	assert(snapshot, "Active roster disappeared during rejoin")
+	local rejoinHook = self.onHumanRejoin
+	if rejoinHook then
+		rejoinHook(player, record.context, record.replacement, human, snapshot)
+	end
+	local changedHook = self.onRosterChanged
+	if changedHook then
+		changedHook(snapshot)
+	end
+	return true
 end
 
 function MatchmakingService:RemovePlayer(player: Player)
@@ -265,6 +336,10 @@ function MatchmakingService:_ReplaceLockedParticipant(
 	if replacementHook then
 		replacementHook(context, replacement, snapshot)
 	end
+	self.disconnectedReplacementsByUserId[context.userId] = {
+		context = context,
+		replacement = cloneRosterParticipant(replacement),
+	}
 	local changedHook = self.onRosterChanged
 	if changedHook then
 		changedHook(snapshot)
@@ -388,6 +463,11 @@ function MatchmakingService:FinishRound(roundId: string): boolean
 		return false
 	end
 	self.botRosterSystem:ReleaseRound(roundId)
+	for userId, record in self.disconnectedReplacementsByUserId do
+		if record.context.roundId == roundId then
+			self.disconnectedReplacementsByUserId[userId] = nil
+		end
+	end
 	self.activeRoster = nil
 	self.fillStartedAt = nil
 	return true

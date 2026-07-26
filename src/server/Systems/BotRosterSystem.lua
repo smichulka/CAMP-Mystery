@@ -194,6 +194,29 @@ function BotRosterSystem:FillReplacement(
 	return replacement, nil
 end
 
+function BotRosterSystem:RestoreHuman(
+	roundId: string,
+	replacementParticipantId: string,
+	humanParticipantId: string
+): boolean
+	local roster = self.lockedRoster
+	if not roster or roster.roundId ~= roundId then
+		return false
+	end
+	local replacementIndex = table.find(roster.participantIds, replacementParticipantId)
+	local botIndex = table.find(roster.botParticipantIds, replacementParticipantId)
+	if not replacementIndex or not botIndex then
+		return false
+	end
+	roster.participantIds[replacementIndex] = humanParticipantId
+	table.remove(roster.botParticipantIds, botIndex)
+	local replacement = self.participantService:GetById(replacementParticipantId)
+	if replacement and replacement.controller.kind == "Bot" then
+		replacement.controller.connected = false
+	end
+	return true
+end
+
 -- Compatibility entry point for server simulations that build the participant
 -- domain before invoking matchmaking.
 function BotRosterSystem:LockAndFill(
