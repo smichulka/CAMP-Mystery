@@ -6,10 +6,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ProgressionConfig = require(Shared.Config:WaitForChild("ProgressionConfig"))
-local serverRoot = script.Parent.Parent
-local adapters = serverRoot:WaitForChild("Adapters")
-local MemoryProfileStore = require(adapters:WaitForChild("MemoryProfileStore"))
-local RobloxProfileStore = require(adapters:WaitForChild("RobloxProfileStore"))
 
 local MODE_ATTRIBUTE = "CampMysteryProfileStoreMode"
 local TEST_NAME_ATTRIBUTE = "CampMysteryTestDataStoreName"
@@ -18,7 +14,6 @@ local TEST_UPDATE_FAILURES_ATTRIBUTE = "CampMysteryTestUpdateFailures"
 local MAX_TEST_FAILURES = 100
 
 export type Resolution = {
-	store: any?,
 	mode: "Memory" | "Production" | "TestDataStore",
 	dataStoreName: string?,
 	testLoadFailures: number,
@@ -86,7 +81,6 @@ function ProfileStoreConfiguration.Resolve(): Resolution
 	if mode == "Auto" then
 		if RunService:IsStudio() then
 			return {
-				store = nil,
 				mode = "Memory",
 				dataStoreName = nil,
 				testLoadFailures = 0,
@@ -94,7 +88,6 @@ function ProfileStoreConfiguration.Resolve(): Resolution
 			}
 		end
 		return {
-			store = nil,
 			mode = "Production",
 			dataStoreName = ProgressionConfig.dataStoreName,
 			testLoadFailures = 0,
@@ -107,7 +100,6 @@ function ProfileStoreConfiguration.Resolve(): Resolution
 			error("Memory profile mode is restricted to Roblox Studio")
 		end
 		return {
-			store = MemoryProfileStore.new(),
 			mode = "Memory",
 			dataStoreName = nil,
 			testLoadFailures = 0,
@@ -122,22 +114,11 @@ function ProfileStoreConfiguration.Resolve(): Resolution
 		error("TestDataStore mode is restricted to Roblox Studio or a private server")
 	end
 
-	local name = testDataStoreName()
-	local loadFailures = failureCount(TEST_LOAD_FAILURES_ATTRIBUTE)
-	local updateFailures = failureCount(TEST_UPDATE_FAILURES_ATTRIBUTE)
-	local retry = ProgressionConfig.storeRetry
 	return {
-		store = RobloxProfileStore.new(name, {
-			maxAttempts = retry.maxAttempts,
-			baseDelaySeconds = retry.baseDelaySeconds,
-			maxDelaySeconds = retry.maxDelaySeconds,
-			testLoadFailures = loadFailures,
-			testUpdateFailures = updateFailures,
-		}),
 		mode = "TestDataStore",
-		dataStoreName = name,
-		testLoadFailures = loadFailures,
-		testUpdateFailures = updateFailures,
+		dataStoreName = testDataStoreName(),
+		testLoadFailures = failureCount(TEST_LOAD_FAILURES_ATTRIBUTE),
+		testUpdateFailures = failureCount(TEST_UPDATE_FAILURES_ATTRIBUTE),
 	}
 end
 
