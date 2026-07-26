@@ -3913,18 +3913,43 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local evidenceFound = readNumber(round, "evidenceFound", 0)
 	local evidenceGoal = math.max(1, readNumber(round, "evidenceGoal", 1))
 	if phase == "Day" then
-		self.progressLabel.Text = string.format("Camp work %d/%d - prepare before sunset.", objectiveDone, objectiveGoal)
-		self.objectiveText.Text = string.format("DAY OBJECTIVE\nComplete camp work: %d of %d", objectiveDone, objectiveGoal)
+		local mystery = if type(state) == "table" then state.mystery else nil
+		local witnessFound = math.max(0, math.floor(readNumber(mystery, "revealedWitnessCount", 0)))
+		local witnessTotal = math.max(1, math.floor(readNumber(mystery, "totalWitnessCount", 1)))
+		self.progressLabel.Text = string.format(
+			"Camp work %d/%d · Witnesses %d/%d",
+			objectiveDone, objectiveGoal, witnessFound, witnessTotal
+		)
+		self.objectiveText.Text = string.format(
+			"DAY OBJECTIVE\nCamp work: %d of %d\nInterview witnesses: %d of %d",
+			objectiveDone, objectiveGoal, witnessFound, witnessTotal
+		)
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(objectiveDone / objectiveGoal, 0, 1), 1)
 	elseif phase == "Investigation" then
-		self.progressLabel.Text = string.format("Evidence %d/%d - search the abandoned town.", evidenceFound, evidenceGoal)
-		self.objectiveText.Text = string.format("NIGHT OBJECTIVE\nCollect and post clues: %d of %d", evidenceFound, evidenceGoal)
+		local localRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		if localRole == "Spectator" then
+			self.progressLabel.Text = string.format("Observing. Evidence %d/%d collected.", evidenceFound, evidenceGoal)
+			self.objectiveText.Text = "OBSERVING\nYou joined mid-round. Watch the investigation unfold."
+		else
+			self.progressLabel.Text = string.format("Evidence %d/%d - search the abandoned town.", evidenceFound, evidenceGoal)
+			self.objectiveText.Text = string.format("NIGHT OBJECTIVE\nCollect and post clues: %d of %d", evidenceFound, evidenceGoal)
+		end
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 	elseif phase == "Campfire" then
 		local cast = readNumber(round, "votesCast", 0)
 		local eligible = math.max(1, readNumber(round, "eligibleVoters", 1))
-		self.progressLabel.Text = string.format("Votes locked %d/%d - accuse carefully.", cast, eligible)
-		self.objectiveText.Text = "FINAL OBJECTIVE\nReview the notebook and identify the Murderer."
+		local localRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		if localRole == "Spectator" then
+			self.progressLabel.Text = string.format("Votes locked %d/%d - observing.", cast, eligible)
+			self.objectiveText.Text = "OBSERVING\nThe campers are deliberating. The vote will reveal the verdict."
+		else
+			self.progressLabel.Text = string.format("Votes locked %d/%d - accuse carefully.", cast, eligible)
+			self.objectiveText.Text = "FINAL OBJECTIVE\nReview the notebook and identify the Murderer."
+		end
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(cast / eligible, 0, 1), 1)
 	elseif phase == "MurderPlanning" then
 		local localRole = if type(player) == "table" and type(player.role) == "string"
@@ -3936,7 +3961,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
 		else
 			self.progressLabel.Text = "Night is coming. Prepare your tools."
-			self.objectiveText.Text = "MURDERER OBJECTIVE\nWait for darkness. Review your equipment."
+			self.objectiveText.Text = "PREPARATION\nSomething is coming. Secure your equipment and stay alert."
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		end
 	else
