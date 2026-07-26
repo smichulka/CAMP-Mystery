@@ -24,6 +24,24 @@ local definitions: { Tip } = {
 	{ category = "TEAMWORK", body = "Split up to search faster, but keep a safe route back to camp." },
 	{ category = "TEAMWORK", body = "Injured campers need help; a missing teammate costs everyone information." },
 	{ category = "CONTROLS", body = "Interaction prompts show the correct input for keyboard, touch, or controller." },
+
+	-- Equipment tips
+	{ category = "EQUIPMENT", body = "The Flashlight is your most reliable defense — keep it charged and pointed at threats." },
+	{ category = "EQUIPMENT", body = "The EMF Reader spikes near recent monster activity and can expose the type of threat." },
+	{ category = "EQUIPMENT", body = "Medical Kits remove serious injuries. Injured campers die from the next hit; prioritize healing them." },
+	{ category = "EQUIPMENT", body = "Monster Traps slow down a monster mid-hunt. Place them on likely approach routes before nightfall." },
+
+	-- Role ability tips
+	{ category = "ROLES", body = "Detectives can analyze a suspect for a suspicion band and verify posted evidence as real or fake." },
+	{ category = "ROLES", body = "The Medic cannot treat itself — ask a teammate to stay nearby when injured." },
+	{ category = "ROLES", body = "The Guard and Protector carry Flare Lanterns. Sustained light limits the Shadow Monster's movement." },
+	{ category = "ROLES", body = "The Medium's Spirit Box produces audio responses near haunted locations — post the evidence immediately." },
+
+	-- Monster counterplay tips
+	{ category = "COUNTERPLAY", body = "Break line of sight or change floors to disrupt the Dullahan before it reaches pursuit speed." },
+	{ category = "COUNTERPLAY", body = "UV light and direct flashlights can remove the Chupacabra's latch faster than waiting it out." },
+	{ category = "COUNTERPLAY", body = "Leave the wail radius immediately when the Banshee starts its attack — hesitation means injury." },
+	{ category = "COUNTERPLAY", body = "The Entity teleports between anchors. Watch for the arrival silhouette and move away from anchor points." },
 }
 
 return table.freeze({
