@@ -83,6 +83,7 @@ local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
 local lastRevealedWitnessCount = 0
 local lastObjectivesCompleted = 0
+local lastAbilityWasCooling: boolean? = nil
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
@@ -767,6 +768,39 @@ local function updateReleaseExperience(
 			)
 		end
 	end
+	local abilityMonster = if type(snapshot) == "table"
+		then (snapshot :: any).privateMonster
+		else nil
+	if type(abilityMonster) == "table" and readBoolean(abilityMonster, "active", false) then
+		local longestRemaining = 0
+		local cooldowns = (abilityMonster :: any).cooldownEndsAt
+		if type(cooldowns) == "table" then
+			local now = Workspace:GetServerTimeNow()
+			for _, endsAt in cooldowns do
+				if type(endsAt) == "number"
+					and endsAt == endsAt
+					and math.abs(endsAt) < math.huge
+				then
+					longestRemaining = math.max(longestRemaining, endsAt - now)
+				end
+			end
+		end
+		local abilityCooling = longestRemaining > 0.5
+		if lastAbilityWasCooling == true
+			and not abilityCooling
+			and not reconnect
+			and currentView
+		then
+			currentView:Notify(
+				"Ability ready",
+				"Your ability is charged. Strike when the moment is right.",
+				"Success"
+			)
+		end
+		lastAbilityWasCooling = abilityCooling
+	else
+		lastAbilityWasCooling = nil
+	end
 	currentEffects:SetGhostTint(isGhost)
 	-- Role-based spectators also serialize as dead non-ghost participants.
 	local isEliminated = type(player) == "table"
@@ -985,6 +1019,30 @@ function RoundController.Start()
 				local reconnectRound = if type(payload) == "table" then payload.round else nil
 				lastObjectivesCompleted =
 					readNumber(reconnectRound, "objectivesCompleted", 0)
+				local reconnectMonster = if type(payload) == "table"
+					then (payload :: any).privateMonster
+					else nil
+				if type(reconnectMonster) == "table"
+					and readBoolean(reconnectMonster, "active", false)
+				then
+					local reconnectCooldowns = (reconnectMonster :: any).cooldownEndsAt
+					local reconnectLongest = 0
+					if type(reconnectCooldowns) == "table" then
+						local now = Workspace:GetServerTimeNow()
+						for _, endsAt in reconnectCooldowns do
+							if type(endsAt) == "number"
+								and endsAt == endsAt
+								and math.abs(endsAt) < math.huge
+							then
+								reconnectLongest =
+									math.max(reconnectLongest, endsAt - now)
+							end
+						end
+					end
+					lastAbilityWasCooling = reconnectLongest > 0.5
+				else
+					lastAbilityWasCooling = nil
+				end
 				local reconnectPhase = if type(round) == "table"
 						and type(round.phase) == "string"
 					then round.phase
@@ -1144,6 +1202,7 @@ function RoundController.Stop()
 	lastMonsterEvidenceCount = 0
 	lastRevealedWitnessCount = 0
 	lastObjectivesCompleted = 0
+	lastAbilityWasCooling = nil
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
