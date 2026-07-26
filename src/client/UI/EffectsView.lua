@@ -19,6 +19,9 @@ type EffectsViewState = {
 	statusStroke: UIStroke,
 	statusLabel: TextLabel,
 	subtitle: TextLabel,
+	vignette: ImageLabel?,
+	vignetteTween: Tween?,
+	nightIntensity: number,
 	reducedMotion: boolean,
 	phaseToken: number,
 	subtitleToken: number,
@@ -218,6 +221,10 @@ function EffectsView.new(parent: Instance): EffectsView
 	subtitleConstraint.Parent = subtitle
 
 	setLayer(root, 50)
+	local vignetteInstance = parent:FindFirstChild("Vignette")
+	local vignette = if vignetteInstance and vignetteInstance:IsA("ImageLabel")
+		then vignetteInstance
+		else nil
 
 	local self: EffectsView = setmetatable({
 		root = root,
@@ -228,6 +235,9 @@ function EffectsView.new(parent: Instance): EffectsView
 		statusStroke = statusStroke,
 		statusLabel = statusLabel,
 		subtitle = subtitle,
+		vignette = vignette,
+		vignetteTween = nil,
+		nightIntensity = 0,
 		reducedMotion = false,
 		phaseToken = 0,
 		subtitleToken = 0,
@@ -239,8 +249,57 @@ function EffectsView.new(parent: Instance): EffectsView
 end
 
 function EffectsView:SetReducedMotion(reducedMotion: boolean)
+	local changed = self.reducedMotion ~= reducedMotion
 	self.reducedMotion = reducedMotion
 	self.root:SetAttribute("ReducedMotion", reducedMotion)
+	if changed then
+		self:SetNightIntensity(self.nightIntensity)
+	end
+end
+
+function EffectsView:SetNightIntensity(fraction: number)
+	if self.destroyed then
+		return
+	end
+	local resolved = if fraction == fraction and math.abs(fraction) < math.huge
+		then math.clamp(fraction, 0, 1)
+		else 0
+	local intensityChanged = self.nightIntensity ~= resolved
+	self.nightIntensity = resolved
+	local vignette = self.vignette
+	if not vignette or not vignette.Parent then
+		return
+	end
+	local targetTransparency = if vignette.Image ~= ""
+		then 1 + (0.45 - 1) * resolved
+		else 1
+	if not intensityChanged
+		and self.vignetteTween == nil
+		and math.abs(vignette.ImageTransparency - targetTransparency) < 0.001
+	then
+		return
+	end
+	local activeTween = self.vignetteTween
+	if activeTween then
+		activeTween:Cancel()
+		self.vignetteTween = nil
+	end
+	if self.reducedMotion then
+		vignette.ImageTransparency = targetTransparency
+		return
+	end
+	local tween = TweenService:Create(
+		vignette,
+		TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ ImageTransparency = targetTransparency }
+	)
+	self.vignetteTween = tween
+	tween.Completed:Connect(function()
+		if self.vignetteTween == tween then
+			self.vignetteTween = nil
+		end
+	end)
+	tween:Play()
 end
 
 function EffectsView:ShowPhase(title: string, body: string, duration: number?)
@@ -358,6 +417,11 @@ function EffectsView:Update(state: any)
 			self:ShowPhase(copy.title, copy.body)
 		end
 	end
+	local nightPhase = phase == "Night"
+		or phase == "MurderPlanning"
+		or phase == "NightTransform"
+		or phase == "Investigation"
+	self:SetNightIntensity(if nightPhase then 1 else 0)
 	self:SetMonsterStatus(readStatus(state), nil)
 end
 
@@ -368,6 +432,10 @@ function EffectsView:Destroy()
 	self.destroyed = true
 	self.phaseToken += 1
 	self.subtitleToken += 1
+	if self.vignetteTween then
+		self.vignetteTween:Cancel()
+		self.vignetteTween = nil
+	end
 	if self.root.Parent then
 		self.root:Destroy()
 	end

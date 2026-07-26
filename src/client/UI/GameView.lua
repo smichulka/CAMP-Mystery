@@ -20,6 +20,7 @@ type ImageResolver = (key: string) -> string?
 type GameViewState = {
 	screenGui: ScreenGui,
 	root: Frame,
+	vignette: ImageLabel,
 	uiScale: UIScale,
 	topStatus: Frame,
 	missionPanel: Frame,
@@ -69,6 +70,9 @@ type GameViewState = {
 	announcementTitle: TextLabel,
 	announcementBody: TextLabel,
 	toastList: Frame,
+	evidenceCeremony: Frame?,
+	evidenceCeremonySkip: RBXScriptConnection?,
+	evidenceCeremonyToken: number,
 	currentState: any,
 	legacyRound: any,
 	legacyPlayer: any,
@@ -370,6 +374,18 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	root.BackgroundTransparency = 1
 	root.Parent = screen
 
+	local vignette = Instance.new("ImageLabel")
+	vignette.Name = "Vignette"
+	vignette.AnchorPoint = Vector2.new(0.5, 0.5)
+	vignette.Position = UDim2.fromScale(0.5, 0.5)
+	vignette.Size = UDim2.fromScale(1, 1)
+	vignette.BackgroundTransparency = 1
+	vignette.BorderSizePixel = 0
+	vignette.Image = if imageResolver then imageResolver("ui_vignette") or "" else ""
+	vignette.ImageTransparency = 1
+	vignette.ScaleType = Enum.ScaleType.Stretch
+	vignette.Parent = root
+
 	local uiScale = Instance.new("UIScale")
 	uiScale.Parent = root
 
@@ -378,10 +394,17 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	top.Position = UDim2.fromScale(0.5, 0.018)
 	top.Size = UDim2.fromOffset(540, 96)
 
-	local phaseLabel = Components.Label(top, "Phase", "WAITING AT CAMP", 22, Enum.Font.GothamBold)
+	local phaseLabel = Components.Label(
+		top,
+		"Phase",
+		"",
+		Theme.Typography.DisplaySize,
+		Theme.Typography.DisplayFont
+	)
 	phaseLabel.Position = UDim2.fromOffset(18, 10)
 	phaseLabel.Size = UDim2.new(1, -106, 0, 32)
 	phaseLabel.TextXAlignment = Enum.TextXAlignment.Center
+	Components.SetLetterspacedText(phaseLabel, "WAITING AT CAMP")
 	local timerLabel = Components.Label(top, "Timer", "--:--", 19, Enum.Font.GothamBold)
 	timerLabel.Position = UDim2.new(1, -88, 0, 10)
 	timerLabel.Size = UDim2.fromOffset(72, 32)
@@ -395,7 +418,15 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	local mission = Components.Panel(root, "Mission")
 	mission.Position = UDim2.fromOffset(18, 18)
 	mission.Size = UDim2.fromOffset(310, 310)
-	local roleTitle = Components.Label(mission, "RoleTitle", "ROLE PENDING", 21, Enum.Font.GothamBold)
+	local roleTitle = Components.Label(
+		mission,
+		"RoleTitle",
+		"ROLE PENDING",
+		Theme.Typography.HeadingSize,
+		Theme.Typography.HeadingFont
+	)
+	roleTitle.Font = Theme.Typography.HeadingFont
+	roleTitle.TextSize = Theme.Typography.HeadingSize
 	roleTitle.Position = UDim2.fromOffset(16, 12)
 	roleTitle.Size = UDim2.new(1, -32, 0, 34)
 	roleTitle.TextColor3 = Theme.Colors.Gold
@@ -416,7 +447,13 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	stateBadge.BackgroundColor3 = Theme.Colors.PanelSoft
 	stateBadge.BackgroundTransparency = 0
 	Components.Corner(stateBadge, 13)
-	local roleDescription = Components.Label(mission, "RoleDescription", "Waiting for your private role.", 14)
+	local roleDescription = Components.Label(
+		mission,
+		"RoleDescription",
+		"Waiting for your private role.",
+		Theme.Typography.BodySize,
+		Theme.Typography.BodyFont
+	)
 	roleDescription.Position = UDim2.fromOffset(16, 52)
 	roleDescription.Size = UDim2.new(1, -32, 0, 68)
 	roleDescription.TextYAlignment = Enum.TextYAlignment.Top
@@ -510,6 +547,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	local self: GameView = setmetatable({
 		screenGui = screen,
 		root = root,
+		vignette = vignette,
 		uiScale = uiScale,
 		topStatus = top,
 		missionPanel = mission,
@@ -561,6 +599,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		announcementTitle = nil :: any,
 		announcementBody = nil :: any,
 		toastList = nil :: any,
+		evidenceCeremony = nil,
+		evidenceCeremonySkip = nil,
+		evidenceCeremonyToken = 0,
 		currentState = nil,
 		legacyRound = nil,
 		legacyPlayer = nil,
@@ -971,6 +1012,8 @@ function GameView:_progressionCard(
 	description.Position = UDim2.fromOffset(12, 37)
 	description.Size = UDim2.new(1, -174, 0, 54)
 	description.TextColor3 = Theme.Colors.TextMuted
+	description.Font = Theme.Typography.CaptionFont
+	description.TextSize = Theme.Typography.CaptionSize
 	description.TextYAlignment = Enum.TextYAlignment.Top
 	local status = Components.Label(card, "Status", statusText, 12, Enum.Font.GothamBold)
 	status.Position = UDim2.fromOffset(12, 92)
@@ -1122,6 +1165,8 @@ function GameView:_buildTargetSelector()
 	title.Size = UDim2.new(1, -40, 0, 44)
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.TextColor3 = Theme.Colors.TextMuted
+	title.Font = Theme.Typography.CaptionFont
+	title.TextSize = Theme.Typography.CaptionSize
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "Targets"
 	list.Position = UDim2.fromOffset(18, 108)
@@ -1321,12 +1366,26 @@ function GameView:_buildAnnouncements()
 	banner.Position = UDim2.new(0.5, 0, 0, -110)
 	banner.Size = UDim2.fromOffset(520, 82)
 	banner.ZIndex = 30
-	local title = Components.Label(banner, "Title", "", 18, Enum.Font.GothamBold)
+	local title = Components.Label(
+		banner,
+		"Title",
+		"",
+		Theme.Typography.DisplaySize,
+		Theme.Typography.DisplayFont
+	)
+	title.Font = Theme.Typography.DisplayFont
+	title.TextSize = Theme.Typography.DisplaySize
 	title.Position = UDim2.fromOffset(18, 10)
 	title.Size = UDim2.new(1, -36, 0, 28)
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.ZIndex = 31
-	local body = Components.Label(banner, "Body", "", 14)
+	local body = Components.Label(
+		banner,
+		"Body",
+		"",
+		Theme.Typography.BodySize,
+		Theme.Typography.BodyFont
+	)
 	body.Position = UDim2.fromOffset(18, 40)
 	body.Size = UDim2.new(1, -36, 0, 32)
 	body.TextXAlignment = Enum.TextXAlignment.Center
@@ -1821,7 +1880,7 @@ function GameView:_updateEvidence(state: any, round: any)
 				if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"
 			),
 		})
-		card.Size = UDim2.new(1, -8, 0, 142)
+		card.Size = UDim2.new(1, -8, 0, Theme.Notebook.CardHeight)
 		local verifyEnabled = self:_available(state, "VerifyEvidence")
 		local noteEnabled = self:_available(state, "AddEvidenceNote")
 		local verify = Components.Button(card, {
@@ -1922,6 +1981,8 @@ function GameView:_updateEvidence(state: any, round: any)
 			footer.Position = UDim2.fromOffset(12, 96)
 			footer.Size = UDim2.new(1, -24, 0, 24)
 			footer.TextColor3 = Theme.Colors.TextMuted
+			footer.Font = Theme.Typography.CaptionFont
+			footer.TextSize = Theme.Typography.CaptionSize
 		end
 	end
 	local witnessAccounts = if type(mystery) == "table"
@@ -1991,6 +2052,8 @@ function GameView:_updateEvidence(state: any, round: any)
 			activity.Position = UDim2.fromOffset(12, 36)
 			activity.Size = UDim2.new(1, -174, 0, 58)
 			activity.TextColor3 = Theme.Colors.TextMuted
+			activity.Font = Theme.Typography.CaptionFont
+			activity.TextSize = Theme.Typography.CaptionSize
 			activity.TextYAlignment = Enum.TextYAlignment.Top
 			local interview = Components.Button(card, {
 				name = "Interview",
@@ -2027,6 +2090,8 @@ function GameView:_updateEvidence(state: any, round: any)
 		empty.Size = UDim2.new(1, -8, 0, 100)
 		empty.TextXAlignment = Enum.TextXAlignment.Center
 		empty.TextColor3 = Theme.Colors.TextMuted
+		empty.Font = Theme.Typography.CaptionFont
+		empty.TextSize = Theme.Typography.CaptionSize
 	end
 end
 
@@ -2108,13 +2173,16 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local round = if type(state) == "table" and type(state.round) == "table" then state.round else legacyRound
 	local player = if type(state) == "table" and type(state.player) == "table" then state.player else legacyPlayer
 	if type(round) ~= "table" then
-		self.phaseLabel.Text = "WAITING FOR THE CAMP"
+		Components.SetLetterspacedText(self.phaseLabel, "WAITING FOR THE CAMP")
 		self.progressLabel.Text = "Connecting to the round server..."
 		return
 	end
 
 	local phase = readString(round, "phase", "Lobby")
-	self.phaseLabel.Text = string.upper(readString(round, "phaseDisplayName", phase))
+	Components.SetLetterspacedText(
+		self.phaseLabel,
+		string.upper(readString(round, "phaseDisplayName", phase))
+	)
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - Workspace:GetServerTimeNow()))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	if seconds <= 10 and seconds > 0 then
@@ -2338,6 +2406,194 @@ function GameView:HideInteraction()
 	self.interaction.Visible = false
 end
 
+function GameView:_cancelEvidenceDiscovery()
+	self.evidenceCeremonyToken += 1
+	local skipConnection = self.evidenceCeremonySkip
+	if skipConnection then
+		skipConnection:Disconnect()
+		self.evidenceCeremonySkip = nil
+	end
+	local overlay = self.evidenceCeremony
+	self.evidenceCeremony = nil
+	if not overlay then
+		return
+	end
+	Motion.Cancel(overlay)
+	for _, descendant in overlay:GetDescendants() do
+		if descendant:IsA("GuiObject") then
+			Motion.Cancel(descendant)
+		end
+	end
+	if overlay.Parent then
+		overlay:Destroy()
+	end
+end
+
+function GameView:PlayEvidenceDiscovery(evidenceName: string, evidenceDescription: string)
+	if self.destroyed then
+		return
+	end
+	self:_cancelEvidenceDiscovery()
+	local safeName = if evidenceName ~= ""
+		then string.sub(evidenceName, 1, 80)
+		else "New evidence found"
+	local safeDescription = if evidenceDescription ~= ""
+		then string.sub(evidenceDescription, 1, 240)
+		else "A new clue has been added to the evidence notebook."
+	if Motion.IsReducedMotion(self.root) then
+		self:Notify("Evidence found", safeName .. " — " .. safeDescription, "Info")
+		return
+	end
+
+	self.evidenceCeremonyToken += 1
+	local token = self.evidenceCeremonyToken
+	local overlay = Instance.new("Frame")
+	overlay.Name = "EvidenceDiscovery"
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.BackgroundColor3 = Theme.Colors.Black
+	overlay.BackgroundTransparency = 0.55
+	overlay.BorderSizePixel = 0
+	overlay.Active = true
+	overlay.ZIndex = 20
+	overlay.Parent = self.root
+	self.evidenceCeremony = overlay
+
+	local host: Frame? = nil
+	local card: Frame? = nil
+	local function active(): boolean
+		return not self.destroyed
+			and self.evidenceCeremonyToken == token
+			and overlay.Parent ~= nil
+	end
+	local function cleanup()
+		if active() then
+			self:_cancelEvidenceDiscovery()
+		end
+	end
+	self.evidenceCeremonySkip = overlay.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			cleanup()
+		end
+	end)
+
+	Motion.FadeIn(overlay, {
+		duration = 0.2,
+	})
+	task.delay(0.2, function()
+		if not active() then
+			return
+		end
+		local cardHost = Instance.new("Frame")
+		cardHost.Name = "EvidenceCardHost"
+		cardHost.AnchorPoint = Vector2.new(0.5, 0.5)
+		cardHost.Position = UDim2.fromScale(0.5, 0.5)
+		cardHost.Size = UDim2.fromOffset(
+			Theme.Notebook.CardWidth,
+			Theme.Notebook.CardHeight
+		)
+		cardHost.BackgroundTransparency = 1
+		cardHost.BorderSizePixel = 0
+		cardHost.ZIndex = 21
+		cardHost.Parent = overlay
+		host = cardHost
+
+		local evidenceCard = Components.EvidenceCard(cardHost, {
+			name = safeName,
+			description = safeDescription,
+			status = "Unconfirmed",
+			channel = "NEW CLUE",
+		})
+		evidenceCard.Size = UDim2.fromScale(1, 1)
+		evidenceCard.ZIndex = 22
+		for _, descendant in evidenceCard:GetDescendants() do
+			if descendant:IsA("GuiObject") then
+				descendant.ZIndex += 21
+			end
+		end
+		card = evidenceCard
+		Motion.SlideUp(cardHost, {
+			duration = 0.3,
+		})
+		Motion.PopIn(evidenceCard, {
+			duration = 0.3,
+		})
+	end)
+
+	task.delay(1.8, function()
+		local currentCard = card
+		if not active() or not currentCard then
+			return
+		end
+		local titleInstance = currentCard:FindFirstChild("Title", true)
+		if not titleInstance or not titleInstance:IsA("TextLabel") then
+			return
+		end
+		local originalColor = titleInstance.TextColor3
+		local brighten = TweenService:Create(
+			titleInstance,
+			TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ TextColor3 = Theme.Colors.Gold }
+		)
+		brighten.Completed:Connect(function(playbackState: Enum.PlaybackState)
+			if playbackState ~= Enum.PlaybackState.Completed
+				or not active()
+				or not titleInstance.Parent
+			then
+				return
+			end
+			TweenService:Create(
+				titleInstance,
+				TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+				{ TextColor3 = originalColor }
+			):Play()
+		end)
+		brighten:Play()
+	end)
+
+	task.delay(2.3, function()
+		local currentHost = host
+		if not active() or not currentHost then
+			return
+		end
+		Components.PlayUISound("stamp")
+		local targetPosition = UDim2.new(1, -88, 0, 44)
+		local notebookButton = self.notebookButton
+		if notebookButton and notebookButton.Parent then
+			local buttonPosition = notebookButton.AbsolutePosition
+			local buttonSize = notebookButton.AbsoluteSize
+			local overlayPosition = overlay.AbsolutePosition
+			targetPosition = UDim2.fromOffset(
+				buttonPosition.X + buttonSize.X * 0.5 - overlayPosition.X,
+				buttonPosition.Y + buttonSize.Y * 0.5 - overlayPosition.Y
+			)
+		end
+		local flyScale = Instance.new("UIScale")
+		flyScale.Name = "EvidenceFlyScale"
+		flyScale.Scale = 1
+		flyScale.Parent = currentHost
+		local flyInfo = TweenInfo.new(
+			0.4,
+			Enum.EasingStyle.Quint,
+			Enum.EasingDirection.Out
+		)
+		TweenService:Create(currentHost, flyInfo, {
+			Position = targetPosition,
+		}):Play()
+		TweenService:Create(flyScale, flyInfo, {
+			Scale = 0.1,
+		}):Play()
+		Motion.FadeOut(currentHost, {
+			duration = 0.4,
+			easingStyle = Enum.EasingStyle.Quint,
+			easingDirection = Enum.EasingDirection.Out,
+		})
+	end)
+
+	task.delay(2.7, cleanup)
+end
+
 function GameView:Announce(payload: any)
 	if self.destroyed or type(payload) ~= "table" then
 		return
@@ -2400,10 +2656,22 @@ function GameView:Notify(titleText: string, bodyText: string, kind: string)
 		elseif kind == "Warning" then Theme.Colors.Amber
 		elseif kind == "Success" then Theme.Colors.Success
 		else Theme.Colors.PanelRaised
-	local title = Components.Label(toast, "Title", titleText, 14, Enum.Font.GothamBold)
+	local title = Components.Label(
+		toast,
+		"Title",
+		titleText,
+		Theme.Typography.SubheadingSize,
+		Theme.Typography.HeadingFont
+	)
 	title.Position = UDim2.fromOffset(12, 7)
 	title.Size = UDim2.new(1, -24, 0, 24)
-	local body = Components.Label(toast, "Body", bodyText, 12)
+	local body = Components.Label(
+		toast,
+		"Body",
+		bodyText,
+		Theme.Typography.BodySize,
+		Theme.Typography.BodyFont
+	)
 	body.Position = UDim2.fromOffset(12, 31)
 	body.Size = UDim2.new(1, -24, 0, 32)
 	if kind == "Danger" or kind == "Warning" then
@@ -2435,6 +2703,7 @@ function GameView:Destroy()
 	if self.destroyed then
 		return
 	end
+	self:_cancelEvidenceDiscovery()
 	self.destroyed = true
 	self.announcementToken += 1
 	self.lastActionControl = nil

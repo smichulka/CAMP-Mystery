@@ -42,6 +42,45 @@ local tutorial: any = nil
 local uiAssets: UIAssetController? = nil
 local interactionConnections: { RBXScriptConnection } = {}
 local lastCinematicPhase: string? = nil
+local lastEvidenceFound = 0
+local lastCulpritEvidenceCount = 0
+local lastMonsterEvidenceCount = 0
+
+local function evidenceList(snapshot: any, key: string): { any }
+	if type(snapshot) ~= "table" or type(snapshot.evidence) ~= "table" then
+		return {}
+	end
+	local value = snapshot.evidence[key]
+	return if type(value) == "table" then value else {}
+end
+
+local function evidenceFoundCount(snapshot: any): number
+	if type(snapshot) == "table"
+		and type(snapshot.round) == "table"
+		and type(snapshot.round.evidenceFound) == "number"
+	then
+		local value = snapshot.round.evidenceFound
+		if value == value and math.abs(value) < math.huge then
+			return math.max(0, value)
+		end
+	end
+	return 0
+end
+
+local function evidenceCopy(entry: any): (string, string)
+	if type(entry) ~= "table" then
+		return "New evidence found", ""
+	end
+	local name = if type(entry.displayName) == "string"
+		then entry.displayName
+		elseif type(entry.name) == "string"
+		then entry.name
+		elseif type(entry.title) == "string" then entry.title else "New evidence found"
+	local description = if type(entry.description) == "string"
+		then entry.description
+		elseif type(entry.publicDescription) == "string" then entry.publicDescription else ""
+	return name, description
+end
 
 local function refresh()
 	local currentView = view
@@ -91,7 +130,23 @@ local function updateReleaseExperience(snapshot: GameState)
 		end)
 	end
 	currentTutorial:Update(snapshot)
+	local evidenceFound = evidenceFoundCount(snapshot)
+	local culpritEvidence = evidenceList(snapshot, "culpritEvidence")
+	local monsterEvidence = evidenceList(snapshot, "monsterEvidence")
+	local latestEvidence: any = nil
+	if #culpritEvidence > lastCulpritEvidenceCount then
+		latestEvidence = culpritEvidence[#culpritEvidence]
+	elseif #monsterEvidence > lastMonsterEvidenceCount then
+		latestEvidence = monsterEvidence[#monsterEvidence]
+	end
 	currentAudio:Update(snapshot)
+	if evidenceFound > lastEvidenceFound and currentView then
+		local evidenceName, evidenceDescription = evidenceCopy(latestEvidence)
+		currentView:PlayEvidenceDiscovery(evidenceName, evidenceDescription)
+	end
+	lastEvidenceFound = evidenceFound
+	lastCulpritEvidenceCount = #culpritEvidence
+	lastMonsterEvidenceCount = #monsterEvidence
 	currentEffects:Update(snapshot)
 	local round = if type(snapshot) == "table" then snapshot.round else nil
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
@@ -315,6 +370,9 @@ function RoundController.Stop()
 	legacyRound = nil
 	legacyPlayer = nil
 	lastCinematicPhase = nil
+	lastEvidenceFound = 0
+	lastCulpritEvidenceCount = 0
+	lastMonsterEvidenceCount = 0
 end
 
 return table.freeze(RoundController)

@@ -125,6 +125,107 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, view)
 
+    def test_typography_hierarchy_and_panel_depth_contract(self) -> None:
+        theme = read("src/client/UI/Theme.lua")
+        for token in (
+            "Typography = {",
+            "DisplayFont = Enum.Font.GothamBlack",
+            "HeadingFont = Enum.Font.GothamBold",
+            "BodyFont = Enum.Font.GothamMedium",
+            "CaptionFont = Enum.Font.Gotham",
+            "DisplaySize = 32",
+            "HeadingSize = 18",
+            "SubheadingSize = 15",
+            "BodySize = 13",
+            "CaptionSize = 11",
+            "LetterSpacing = 3",
+            "CardHeight = 142",
+        ):
+            self.assertIn(token, theme)
+
+        components = read("src/client/UI/Components.lua")
+        for token in (
+            'Instance.new("UIGradient")',
+            "NumberSequenceKeypoint.new(0, 0.92)",
+            "NumberSequenceKeypoint.new(1, 0.96)",
+            'string.match(name, "Title$")',
+            'string.match(name, "Header$")',
+            "function Components.SetLetterspacedText",
+        ):
+            self.assertIn(token, components)
+
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "Theme.Typography.DisplayFont",
+            "Theme.Typography.DisplaySize",
+            "Theme.Typography.HeadingFont",
+            "Theme.Typography.HeadingSize",
+            "Theme.Typography.BodyFont",
+            "Theme.Typography.BodySize",
+            "Components.SetLetterspacedText(self.phaseLabel",
+        ):
+            self.assertIn(token, view)
+
+    def test_vignette_is_optional_and_phase_driven(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            'vignette.Name = "Vignette"',
+            'imageResolver("ui_vignette")',
+            "vignette.ImageTransparency = 1",
+            "vignette.ScaleType = Enum.ScaleType.Stretch",
+        ):
+            self.assertIn(token, view)
+
+        effects = read("src/client/UI/EffectsView.lua")
+        for token in (
+            "function EffectsView:SetNightIntensity",
+            "then 1 + (0.45 - 1) * resolved",
+            'phase == "Night"',
+            'phase == "Investigation"',
+            "self:SetNightIntensity(if nightPhase then 1 else 0)",
+            "self.vignetteTween:Cancel()",
+        ):
+            self.assertIn(token, effects)
+
+    def test_evidence_discovery_is_timed_skippable_reduced_and_cancel_safe(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "function GameView:_cancelEvidenceDiscovery",
+            "function GameView:PlayEvidenceDiscovery",
+            "Motion.IsReducedMotion(self.root)",
+            'self:Notify("Evidence found"',
+            'overlay.Name = "EvidenceDiscovery"',
+            "overlay.BackgroundTransparency = 0.55",
+            "overlay.InputBegan:Connect",
+            "Enum.UserInputType.MouseButton1",
+            "Enum.UserInputType.Touch",
+            "Motion.FadeIn(overlay",
+            "task.delay(0.2",
+            "Motion.SlideUp(cardHost",
+            "Motion.PopIn(evidenceCard",
+            "task.delay(1.8",
+            "{ TextColor3 = Theme.Colors.Gold }",
+            "task.delay(2.3",
+            'Components.PlayUISound("stamp")',
+            "Scale = 0.1",
+            "task.delay(2.7, cleanup)",
+        ):
+            self.assertIn(token, view)
+
+        controller = read("src/client/Controllers/RoundController.lua")
+        audio_update = controller.index("currentAudio:Update(snapshot)")
+        ceremony = controller.index("currentView:PlayEvidenceDiscovery", audio_update)
+        effects_update = controller.index("currentEffects:Update(snapshot)", ceremony)
+        self.assertLess(audio_update, ceremony)
+        self.assertLess(ceremony, effects_update)
+        for token in (
+            "evidenceFound > lastEvidenceFound",
+            'evidenceList(snapshot, "culpritEvidence")',
+            'evidenceList(snapshot, "monsterEvidence")',
+            'return "New evidence found", ""',
+        ):
+            self.assertIn(token, controller)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

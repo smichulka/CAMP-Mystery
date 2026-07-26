@@ -78,6 +78,17 @@ function Components.Panel(parent: Instance, name: string): Frame
 	panel.Parent = parent
 	Components.Corner(panel)
 	Components.Stroke(panel)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+	})
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.92),
+		NumberSequenceKeypoint.new(1, 0.96),
+	})
+	gradient.Rotation = 90
+	gradient.Parent = panel
 	return panel
 end
 
@@ -92,15 +103,49 @@ function Components.Label(
 	label.Name = name
 	label.BackgroundTransparency = 1
 	label.BorderSizePixel = 0
-	label.Font = font or Enum.Font.GothamMedium
+	label.Font = font or Theme.Typography.BodyFont
 	label.Text = text
 	label.TextColor3 = Theme.Colors.Text
 	label.TextSize = textSize
+	if string.match(name, "Title$") or string.match(name, "Header$") then
+		label.Font = Theme.Typography.HeadingFont
+		label.TextSize = Theme.Typography.SubheadingSize
+	end
 	label.TextWrapped = true
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.Parent = parent
 	return label
+end
+
+local function escapeRichText(value: string): string
+	return string.gsub(value, "[<>&\"]", {
+		["<"] = "&lt;",
+		[">"] = "&gt;",
+		["&"] = "&amp;",
+		['"'] = "&quot;",
+	})
+end
+
+function Components.LetterspacedText(value: string, spacing: number?): string
+	local resolvedSpacing = math.max(0, math.floor(spacing or Theme.Typography.LetterSpacing))
+	if resolvedSpacing == 0 or #value < 2 then
+		return escapeRichText(value)
+	end
+	local spacer = string.format(
+		'<font size="%d" transparency="1">.</font>',
+		resolvedSpacing
+	)
+	local characters: { string } = {}
+	for index = 1, #value do
+		table.insert(characters, escapeRichText(string.sub(value, index, index)))
+	end
+	return table.concat(characters, spacer)
+end
+
+function Components.SetLetterspacedText(label: TextLabel, value: string)
+	label.RichText = true
+	label.Text = Components.LetterspacedText(value, Theme.Typography.LetterSpacing)
 end
 
 local function evidenceStatus(value: string?): "Unconfirmed" | "Confirmed" | "Contradicted"
