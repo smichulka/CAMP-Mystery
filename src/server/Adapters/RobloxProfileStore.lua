@@ -8,6 +8,8 @@ export type StoreOptions = {
 	maxAttempts: number?,
 	baseDelaySeconds: number?,
 	maxDelaySeconds: number?,
+	testLoadFailures: number?,
+	testUpdateFailures: number?,
 }
 
 type RobloxProfileStoreState = {
@@ -15,6 +17,8 @@ type RobloxProfileStoreState = {
 	maxAttempts: number,
 	baseDelaySeconds: number,
 	maxDelaySeconds: number,
+	remainingTestLoadFailures: number,
+	remainingTestUpdateFailures: number,
 }
 
 local RobloxProfileStore = {}
@@ -31,6 +35,13 @@ local function positiveNumber(value: number?, fallback: number): number
 	return value
 end
 
+local function nonNegativeInteger(value: number?): number
+	if value == nil or value ~= value or value < 0 then
+		return 0
+	end
+	return math.floor(value)
+end
+
 function RobloxProfileStore.new(
 	storeName: string,
 	options: StoreOptions?
@@ -41,6 +52,8 @@ function RobloxProfileStore.new(
 		maxAttempts = math.max(1, math.floor(positiveNumber(configured.maxAttempts, 4))),
 		baseDelaySeconds = positiveNumber(configured.baseDelaySeconds, 0.5),
 		maxDelaySeconds = positiveNumber(configured.maxDelaySeconds, 4),
+		remainingTestLoadFailures = nonNegativeInteger(configured.testLoadFailures),
+		remainingTestUpdateFailures = nonNegativeInteger(configured.testUpdateFailures),
 	}, RobloxProfileStore)
 end
 
@@ -68,6 +81,10 @@ end
 
 function RobloxProfileStore:LoadAsync(key: string): (boolean, unknown?, string?)
 	return self:_RunWithRetries(function()
+		if self.remainingTestLoadFailures > 0 then
+			self.remainingTestLoadFailures -= 1
+			error("Injected test profile load failure")
+		end
 		return self.dataStore:GetAsync(key)
 	end)
 end
@@ -77,6 +94,10 @@ function RobloxProfileStore:UpdateAsync(
 	transform: UpdateTransform
 ): (boolean, unknown?, string?)
 	return self:_RunWithRetries(function()
+		if self.remainingTestUpdateFailures > 0 then
+			self.remainingTestUpdateFailures -= 1
+			error("Injected test profile update failure")
+		end
 		return self.dataStore:UpdateAsync(key, function(currentValue: unknown?)
 			return transform(currentValue)
 		end)
