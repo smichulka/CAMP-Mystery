@@ -11,8 +11,6 @@ export type StoreOptions = {
 	maxAttempts: number?,
 	baseDelaySeconds: number?,
 	maxDelaySeconds: number?,
-	testLoadFailures: number?,
-	testUpdateFailures: number?,
 }
 
 type RobloxProfileStoreState = {
@@ -38,13 +36,6 @@ local function positiveNumber(value: number?, fallback: number): number
 	return value
 end
 
-local function nonNegativeInteger(value: number?): number
-	if value == nil or value ~= value or value < 0 then
-		return 0
-	end
-	return math.floor(value)
-end
-
 function RobloxProfileStore.new(
 	storeName: string,
 	options: StoreOptions?
@@ -52,8 +43,8 @@ function RobloxProfileStore.new(
 	local configured = options or {}
 	local resolution = ProfileStoreConfiguration.Resolve()
 	local resolvedStoreName = storeName
-	local loadFailures = nonNegativeInteger(configured.testLoadFailures)
-	local updateFailures = nonNegativeInteger(configured.testUpdateFailures)
+	local loadFailures = 0
+	local updateFailures = 0
 	if resolution.mode == "TestDataStore" then
 		resolvedStoreName = resolution.dataStoreName :: string
 		loadFailures = resolution.testLoadFailures
