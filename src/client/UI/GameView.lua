@@ -3527,6 +3527,10 @@ function GameView:_updateVote(round: any, player: any)
 	if type(vote) == "table" then
 		hasVoted = readBoolean(vote, "hasVoted", hasVoted)
 	end
+	local voteTargetId = ""
+	if type(vote) == "table" and type(vote.targetParticipantId) == "string" then
+		voteTargetId = vote.targetParticipantId
+	end
 	if phase ~= "Campfire" or not alive or isGhost then
 		setModalVisible(self.voteModal, false)
 		self.currentVoteSignature = ""
@@ -3534,7 +3538,7 @@ function GameView:_updateVote(round: any, player: any)
 	end
 	setModalVisible(self.voteModal, true)
 	local suspects = asTable(round.suspects)
-	local pieces = { tostring(hasVoted) }
+	local pieces = { tostring(hasVoted), voteTargetId }
 	for _, suspect in suspects do
 		if type(suspect) == "table" then
 			table.insert(pieces, readString(suspect, "key", readString(suspect, "participantId", "")))
@@ -3550,14 +3554,26 @@ function GameView:_updateVote(round: any, player: any)
 		if type(suspect) == "table" then
 			local key = readString(suspect, "key", readString(suspect, "participantId", ""))
 			local name = readString(suspect, "displayName", "Unknown camper")
+			local isMyVote = hasVoted and voteTargetId ~= "" and key == voteTargetId
+			local isOtherVote = hasVoted and not isMyVote
 			local button = Components.Button(self.voteList, {
 				name = "Vote_" .. key:gsub("[^%w]", "_"),
-				text = if hasVoted then name .. " - VOTE LOCKED" else name,
+				text = if isMyVote then name .. "  ✓ YOUR VOTE" else name,
 				size = UDim2.new(1, -8, 0, 48),
-				color = Theme.Colors.Danger,
+				color = if isMyVote
+					then Theme.Colors.Gold
+					elseif isOtherVote then Theme.Colors.Panel
+					else Theme.Colors.Danger,
 			})
 			button:SetAttribute("Generated", true)
 			Components.SetButtonEnabled(button, not hasVoted)
+			if isOtherVote then
+				button.BackgroundTransparency = 0.7
+			elseif isMyVote then
+				button.BackgroundTransparency = 0
+				button.TextTransparency = 0
+				button.TextColor3 = Theme.Colors.Background
+			end
 			button.Activated:Connect(function()
 				self.lastActionControl = button
 				local sent, reason = self.actionHandler("Vote", {
