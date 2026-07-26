@@ -137,7 +137,7 @@ class ClientReleaseContractTests(unittest.TestCase):
         )
         item_branch = re.search(
             r'if equipmentId == "MedicalKit" then(?P<body>.*?)\n\telse\n'
-            r'\t\tself:_send\("UseItem", payload\)',
+            r'\t\tself:_send\("UseItem", payload(?:, control)?\)',
             source,
             flags=re.DOTALL,
         )
