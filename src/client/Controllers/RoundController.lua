@@ -67,6 +67,8 @@ local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastIsGhost: boolean? = nil
 local lastHintRound: number? = nil
+local lastToastedRound: number? = nil
+local sentUrgencyWarning = false
 local seenHintPhases: { [string]: boolean } = {}
 
 local function playerRootPosition(): Vector3?
@@ -148,6 +150,41 @@ local function readString(value: any, key: string, fallback: string): string
 		return value[key]
 	end
 	return fallback
+end
+
+local function readNumber(value: any, key: string, fallback: number): number
+	if type(value) == "table" and type(value[key]) == "number" then
+		local numberValue = value[key]
+		if numberValue == numberValue and math.abs(numberValue) < math.huge then
+			return numberValue
+		end
+	end
+	return fallback
+end
+
+local function updateInvestigationUrgencyWarning(snapshot: any)
+	local round = if type(snapshot) == "table" then snapshot.round else nil
+	local phaseName = if type(round) == "table" and type(round.phase) == "string"
+		then round.phase
+		else nil
+	if phaseName ~= "Investigation" then
+		sentUrgencyWarning = false
+		return
+	end
+	local currentView = view
+	if not currentView or sentUrgencyWarning then
+		return
+	end
+	local phaseEndsAt = readNumber(round, "phaseEndsAt", 0)
+	local remaining = phaseEndsAt - Workspace:GetServerTimeNow()
+	if remaining > 0 and remaining < 60 then
+		sentUrgencyWarning = true
+		currentView:Notify(
+			"Investigation closing",
+			"Under a minute remaining.",
+			"Danger"
+		)
+	end
 end
 
 local function evidenceCopy(entry: any): (string, string)
@@ -267,6 +304,7 @@ local function updateReleaseExperience(
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
+	updateInvestigationUrgencyWarning(snapshot)
 	local roundNumber = if type(round) == "table"
 			and type(round.roundNumber) == "number"
 		then round.roundNumber
@@ -304,6 +342,20 @@ local function updateReleaseExperience(
 	if phaseName and phaseName ~= lastCinematicPhase then
 		local previousPhase = lastCinematicPhase
 		lastCinematicPhase = phaseName
+		-- Show the round number once when a new round leaves the lobby.
+		if roundNumber ~= nil
+			and roundNumber ~= lastToastedRound
+			and phaseName ~= "Lobby"
+			and phaseName ~= "Rewards"
+			and currentView
+		then
+			lastToastedRound = roundNumber
+			currentView:Notify(
+				string.format("ROUND %d", roundNumber),
+				"The mystery begins. Stay together.",
+				"Info"
+			)
+		end
 		currentCinematics:PlayPhaseTransition(phaseName)
 		if currentView then
 			local roleName = if type(player) == "table" and type(player.role) == "string"
@@ -645,6 +697,10 @@ function RoundController.Start()
 	task.spawn(function()
 		while started and gameView.root.Parent do
 			gameView:Tick()
+			local currentState = state
+			if currentState then
+				updateInvestigationUrgencyWarning(currentState)
+			end
 			task.wait(0.2)
 		end
 	end)
@@ -715,6 +771,8 @@ function RoundController.Stop()
 	lastWinnerAnnounced = nil
 	lastIsGhost = nil
 	lastHintRound = nil
+	lastToastedRound = nil
+	sentUrgencyWarning = false
 	table.clear(seenHintPhases)
 end
 
