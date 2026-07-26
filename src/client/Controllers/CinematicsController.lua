@@ -190,6 +190,7 @@ end
 
 function CinematicsController:_restoreBaseline()
 	Lighting.ClockTime = self.baselineClockTime
+	self.colorCorrection.Brightness = 0
 	self.colorCorrection.Saturation =
 		self.phaseBaselineSaturation + self.ghostSaturationOffset
 	self.colorCorrection.TintColor = if self.ghostActive
