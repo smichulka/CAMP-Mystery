@@ -48,6 +48,20 @@ class ClientReleaseContractTests(unittest.TestCase):
         self.assertIn("sizeConstraint.MinSize = Vector2.new(280, 280)", tutorial)
         self.assertIn('position = UDim2.new(0, 24, 1, -62)', tutorial)
 
+    def test_hud_self_heals_and_boot_failures_are_visible(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        self.assertIn('playerGui:FindFirstChild("GameUI")', view)
+        self.assertIn('screen = Instance.new("ScreenGui")', view)
+        self.assertIn("screen.Enabled = true", view)
+        self.assertNotIn('playerGui:WaitForChild("GameUI")', view)
+
+        bootstrap = read("src/client/Bootstrap.client.lua")
+        self.assertIn("xpcall(function()", bootstrap)
+        self.assertIn("showBootFailure", bootstrap)
+        self.assertIn("CampMysteryBootFailure", bootstrap)
+        self.assertIn("Production client failed", bootstrap)
+        self.assertIn('WaitForChild("Controllers", 10)', bootstrap)
+
     def test_settings_surface_matches_persisted_profile_contract(self) -> None:
         source = read("src/client/UI/GameView.lua")
         required = {
