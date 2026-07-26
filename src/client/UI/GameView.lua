@@ -46,6 +46,8 @@ type GameViewState = {
 	timerLabel: TextLabel,
 	timerBar: Frame?,
 	timerFill: Frame?,
+	phaseArc: Frame?,
+	phaseArcDots: { [string]: Frame },
 	progressLabel: TextLabel,
 	roleTitle: TextLabel,
 	roleIcon: ImageLabel,
@@ -195,6 +197,24 @@ local ROSTER_PHASES: { [string]: boolean } = {
 	Day = true,
 	Investigation = true,
 	Campfire = true,
+}
+
+local PHASE_ARC_ORDER: { string } = {
+	"MurderPlanning",
+	"NightTransform",
+	"Investigation",
+	"Day",
+	"Campfire",
+	"Resolution",
+}
+
+local PHASE_ARC_LABELS: { [string]: string } = {
+	MurderPlanning = "PLAN",
+	NightTransform = "NIGHT",
+	Investigation = "INVEST",
+	Day = "DAY",
+	Campfire = "VOTE",
+	Resolution = "REVEAL",
 }
 
 local function readString(value: any, key: string, fallback: string): string
@@ -514,6 +534,62 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	Components.Corner(timerBar, 3)
 	Components.Corner(timerFill, 3)
 
+	local arcContainer = Instance.new("Frame")
+	arcContainer.Name = "PhaseArc"
+	arcContainer.AnchorPoint = Vector2.new(0.5, 0)
+	arcContainer.Position = UDim2.new(0.5, 0, 0, 122)
+	arcContainer.Size = UDim2.fromOffset(340, 32)
+	arcContainer.BackgroundTransparency = 1
+	arcContainer.Visible = false
+	arcContainer.ZIndex = 12
+	arcContainer.Parent = root
+
+	local phaseArcDots: { [string]: Frame } = {}
+	local totalPhases = #PHASE_ARC_ORDER
+	local dotSpacing = 340 / (totalPhases - 1)
+
+	for index, phaseName in PHASE_ARC_ORDER do
+		local x = (index - 1) * dotSpacing
+
+		if index > 1 then
+			local line = Instance.new("Frame")
+			line.Name = "Line_" .. tostring(index)
+			line.AnchorPoint = Vector2.new(0, 0.5)
+			line.Position = UDim2.fromOffset(x - dotSpacing + 7, 10)
+			line.Size = UDim2.fromOffset(dotSpacing - 14, 2)
+			line.BackgroundColor3 = Theme.Colors.TextMuted
+			line.BackgroundTransparency = 0.5
+			line.BorderSizePixel = 0
+			line.ZIndex = 12
+			line.Parent = arcContainer
+		end
+
+		local dot = Instance.new("Frame")
+		dot.Name = "Dot_" .. phaseName
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.fromOffset(x, 10)
+		dot.Size = UDim2.fromOffset(10, 10)
+		dot.BackgroundColor3 = Theme.Colors.TextMuted
+		dot.BorderSizePixel = 0
+		dot.ZIndex = 13
+		dot.Parent = arcContainer
+		Components.Corner(dot, 5)
+		phaseArcDots[phaseName] = dot
+
+		local label = Components.Label(
+			arcContainer,
+			"Label_" .. phaseName,
+			PHASE_ARC_LABELS[phaseName] or phaseName,
+			8
+		)
+		label.AnchorPoint = Vector2.new(0.5, 0)
+		label.Position = UDim2.fromOffset(x, 17)
+		label.Size = UDim2.fromOffset(44, 12)
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.TextColor3 = Theme.Colors.TextMuted
+		label.ZIndex = 13
+	end
+
 	local progressLabel = Components.Label(top, "Progress", "The camp is getting ready.", 14)
 	progressLabel.Position = UDim2.fromOffset(18, 47)
 	progressLabel.Size = UDim2.new(1, -36, 0, 38)
@@ -737,6 +813,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		timerLabel = timerLabel,
 		timerBar = timerBar,
 		timerFill = timerFill,
+		phaseArc = nil,
+		phaseArcDots = {},
 		progressLabel = progressLabel,
 		roleTitle = roleTitle,
 		roleIcon = roleIcon,
@@ -846,6 +924,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		rewardAnimationToken = 0,
 		destroyed = false,
 	}, GameView)
+
+	self.phaseArc = arcContainer
+	self.phaseArcDots = phaseArcDots
 
 	self:_buildNotebook()
 	self:_buildSettings()
@@ -3366,7 +3447,52 @@ function GameView:_animateRewards(targetXP: number, targetTokens: number)
 	end)
 end
 
+function GameView:_updatePhaseArc(state: any)
+	local arc = self.phaseArc
+	if not arc or self.destroyed then
+		return
+	end
+	local round = if type(state) == "table" then state.round else nil
+	local phase = if type(round) == "table" and type(round.phase) == "string"
+		then round.phase
+		else nil
+	local visible = phase ~= nil and phase ~= "Lobby" and phase ~= "Rewards"
+	arc.Visible = visible
+	if not visible then
+		return
+	end
+
+	local currentIndex = 0
+	for index, phaseName in PHASE_ARC_ORDER do
+		if phaseName == phase then
+			currentIndex = index
+			break
+		end
+	end
+
+	for index, phaseName in PHASE_ARC_ORDER do
+		local dot = self.phaseArcDots[phaseName]
+		if not dot then
+			continue
+		end
+		if index < currentIndex then
+			dot.BackgroundColor3 = Theme.Colors.TextMuted
+			dot.BackgroundTransparency = 0
+			dot.Size = UDim2.fromOffset(8, 8)
+		elseif index == currentIndex then
+			dot.BackgroundColor3 = Theme.Colors.Gold
+			dot.BackgroundTransparency = 0
+			dot.Size = UDim2.fromOffset(12, 12)
+		else
+			dot.BackgroundColor3 = Theme.Colors.TextMuted
+			dot.BackgroundTransparency = 0.65
+			dot.Size = UDim2.fromOffset(8, 8)
+		end
+	end
+end
+
 function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
+	self:_updatePhaseArc(state)
 	self.currentState = state
 	self.legacyRound = legacyRound
 	self.legacyPlayer = legacyPlayer
@@ -5050,6 +5176,11 @@ function GameView:Destroy()
 	end
 	self.cooldownFill = nil
 	self.abilityBarMaxCooldown = 0
+	if self.phaseArc then
+		self.phaseArc:Destroy()
+		self.phaseArc = nil
+	end
+	table.clear(self.phaseArcDots)
 	if self.rosterPanel then
 		self.rosterPanel:Destroy()
 		self.rosterPanel = nil
