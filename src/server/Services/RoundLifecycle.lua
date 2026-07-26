@@ -7,6 +7,7 @@ export type LifecycleEventName =
 	| "PhaseChanged"
 	| "ParticipantInjured"
 	| "ParticipantEliminated"
+	| "ParticipantGhostTransition"
 	| "RoundEnded"
 	| "RoundReset"
 
@@ -40,6 +41,7 @@ local EVENT_NAMES: { LifecycleEventName } = {
 	"PhaseChanged",
 	"ParticipantInjured",
 	"ParticipantEliminated",
+	"ParticipantGhostTransition",
 	"RoundEnded",
 	"RoundReset",
 }
@@ -140,4 +142,3 @@ function RoundLifecycle:Destroy()
 end
 
 return RoundLifecycle
-
