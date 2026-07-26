@@ -119,7 +119,7 @@ local PHASE_AMBIENCE: { [string]: string } = {
 }
 
 local function clampVolume(value: any, fallback: number): number
-	if type(value) ~= "number" then
+	if type(value) ~= "number" or value ~= value or math.abs(value) == math.huge then
 		return fallback
 	end
 	return math.clamp(value, 0, 1)
@@ -278,7 +278,10 @@ function AudioController:ApplySettings(settings: any)
 	end
 	for key, defaultValue in DEFAULT_SETTINGS do
 		local value = settings[key]
-		if value ~= nil then
+		local valid = (type(defaultValue) == "number" and type(value) == "number"
+				and value == value and math.abs(value) < math.huge)
+			or (type(defaultValue) == "boolean" and type(value) == "boolean")
+		if valid then
 			self.settings[key] = value
 		elseif self.settings[key] == nil then
 			self.settings[key] = defaultValue

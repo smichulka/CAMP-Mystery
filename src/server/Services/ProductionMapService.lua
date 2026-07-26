@@ -308,6 +308,36 @@ local function createStreetlight(parent: Instance, position: Vector3)
 	pole:SetAttribute("ShadowNode", true)
 end
 
+local function createPineTree(
+	parent: Instance,
+	position: Vector3,
+	height: number,
+	canopyColor: Color3
+)
+	local trunk = createPart(
+		parent,
+		"PineTrunk",
+		Vector3.new(2.4, height, 2.4),
+		CFrame.new(position + Vector3.new(0, height / 2, 0)),
+		Color3.fromRGB(67, 50, 36),
+		Enum.Material.Wood
+	)
+	trunk:SetAttribute("Occluder", true)
+	for layer = 1, 3 do
+		local canopy = createPart(
+			parent,
+			"PineCanopy",
+			Vector3.new(12 - layer * 1.8, 7, 12 - layer * 1.8),
+			CFrame.new(position + Vector3.new(0, height * 0.52 + layer * 3.2, 0)),
+			canopyColor,
+			Enum.Material.Grass
+		)
+		canopy.Shape = Enum.PartType.Ball
+		canopy.CanCollide = false
+		canopy:SetAttribute("Occluder", true)
+	end
+end
+
 local function cloneAuthoredMap(folderName: string): Model?
 	local assets = ServerStorage:FindFirstChild("ServerAssets")
 	local maps = if assets then assets:FindFirstChild("Maps") else nil
@@ -375,9 +405,27 @@ function ProductionMapService:Build()
 		spawn.Position = Vector3.new(0, 0.5, 34)
 		spawn.Color = Color3.fromRGB(106, 88, 64)
 		spawn.Material = Enum.Material.WoodPlanks
-		spawn.Transparency = 0.35
-		spawn.Parent = self.dayCamp
-		createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0, 18), 24)
+			spawn.Transparency = 0.35
+			spawn.Parent = self.dayCamp
+			createPart(
+				self.dayCamp,
+				"CampPath",
+				Vector3.new(18, 0.35, 150),
+				CFrame.new(0, 0.2, 5),
+				Color3.fromRGB(117, 91, 64),
+				Enum.Material.Ground
+			)
+			local creek = createPart(
+				self.dayCamp,
+				"Creek",
+				Vector3.new(34, 0.4, 170),
+				CFrame.new(104, 0.1, 12) * CFrame.Angles(0, 0.08, 0),
+				Color3.fromRGB(69, 123, 139),
+				Enum.Material.Glass,
+				0.25
+			)
+			creek.CanCollide = false
+			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0, 18), 24)
 		createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0, 18), 24)
 		createCabin(self.dayCamp, "CounselorLodge", Vector3.new(0, 0, 74), 30)
 		createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 0, -42), 18)
@@ -391,19 +439,22 @@ function ProductionMapService:Build()
 		)
 		fire.Shape = Enum.PartType.Cylinder
 		fire:SetAttribute("SafeVolume", true)
-		for index = 1, 16 do
-			local angle = (index / 16) * math.pi * 2
-			local radius = 95 + (index % 3) * 8
-			local trunk = createPart(
-				self.dayCamp,
-				"PineTree",
-				Vector3.new(2.5, 20 + index % 4 * 3, 2.5),
-				CFrame.new(math.cos(angle) * radius, 10, 12 + math.sin(angle) * radius),
-				Color3.fromRGB(67, 50, 36),
-				Enum.Material.Wood
-			)
-			trunk:SetAttribute("Occluder", true)
-		end
+			for index = 1, 16 do
+				local angle = (index / 16) * math.pi * 2
+				local radius = 95 + (index % 3) * 8
+				createPineTree(
+					self.dayCamp,
+					Vector3.new(
+						math.cos(angle) * radius,
+						0,
+						12 + math.sin(angle) * radius
+					),
+					20 + index % 4 * 3,
+					if index % 2 == 0
+						then Color3.fromRGB(43, 85, 57)
+						else Color3.fromRGB(50, 94, 61)
+				)
+			end
 	end
 
 	for _, definition in OBJECTIVES do
@@ -428,14 +479,35 @@ function ProductionMapService:Build()
 		authoredTown.Name = "AuthoredNightTown"
 		authoredTown.Parent = self.nightTown
 	else
-		createPart(
-			self.nightTown,
+			createPart(
+				self.nightTown,
 			"MainRoad",
 			Vector3.new(50, 1, 360),
 			CFrame.new(0, 0, -225),
 			Color3.fromRGB(36, 39, 42),
-			Enum.Material.Asphalt
-		)
+				Enum.Material.Asphalt
+			)
+			for stripe = 1, 10 do
+				createPart(
+					self.nightTown,
+					"FadedRoadStripe",
+					Vector3.new(0.55, 0.08, 14),
+					CFrame.new(0, 0.55, -62 - stripe * 32),
+					Color3.fromRGB(177, 164, 111),
+					Enum.Material.Concrete,
+					0.2
+				).CanCollide = false
+			end
+			for side = -1, 1, 2 do
+				createPart(
+					self.nightTown,
+					"BrokenSidewalk",
+					Vector3.new(8, 0.6, 350),
+					CFrame.new(side * 29, 0.3, -225),
+					Color3.fromRGB(83, 83, 79),
+					Enum.Material.Concrete
+				)
+			end
 		createPart(
 			self.nightTown,
 			"CrossRoad",

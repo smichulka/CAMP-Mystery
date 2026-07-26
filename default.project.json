@@ -5,6 +5,15 @@
     "$className": "DataModel",
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
+      "Assets": {
+        "$className": "Folder",
+        "Images": {
+          "$className": "Folder",
+          "UI": {
+            "$className": "Folder"
+          }
+        }
+      },
       "Shared": {
         "$path": "src/shared"
       },

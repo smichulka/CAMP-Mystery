@@ -18,5 +18,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run repository release checks
-        run: python scripts/run_all_checks.py
+      - name: Install Rokit and pinned project tools
+        shell: bash
+        run: |
+          curl -sSf https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+          "$HOME/.rokit/bin/rokit" install
+      - name: Run repository checks and write scoped evidence
+        run: python scripts/release_gate.py --require-rojo --commit "$GITHUB_SHA"
+      - name: Upload repository evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: camp-mystery-repository-evidence-${{ github.sha }}
+          path: build/release-evidence/
+          if-no-files-found: error
+          retention-days: 30

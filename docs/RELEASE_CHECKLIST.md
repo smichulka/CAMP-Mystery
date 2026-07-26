@@ -4,9 +4,18 @@ This is the release-candidate exit gate. A checked box means the named result wa
 observed on the exact commit being released; it does not mean that a similar result
 passed on an earlier branch.
 
+Use [RELEASE_EVIDENCE.md](RELEASE_EVIDENCE.md) to create commit-scoped evidence and
+[RELEASE_OPERATIONS.md](RELEASE_OPERATIONS.md) for the rollback/DataStore incident
+drill. `tools/release-observations.template.json` maps the human/Roblox-only sections
+into the machine-readable release gate. No Studio-only box is pre-checked by repository
+automation.
+
 ## 1. Repository gate
 
 - [ ] `python scripts/run_all_checks.py --require-rojo` exits successfully.
+- [ ] `python scripts/validate_content_manifest.py --require-ready` exits successfully.
+- [ ] `python scripts/release_gate.py --release-candidate --commit <sha>
+      --observations <file>` exits successfully and records the exact candidate.
 - [ ] GitHub Actions `Validate CAMP-Mystery` passes on the release commit.
 - [ ] The generated `.rbxlx` opens in the current production Roblox Studio version.
 - [ ] Studio `Script Analysis` has no errors.
@@ -162,4 +171,3 @@ physics, collision, streaming, navigation/pathfinding, UI focus, input devices, 
 mixing, animation, rendering, text filtering, DataStore concurrency/retries, memory
 leaks, moderation, and actual performance. A green CI run is necessary, but it is not a
 release approval by itself.
-

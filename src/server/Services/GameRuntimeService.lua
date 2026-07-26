@@ -175,13 +175,38 @@ local function playerRootPosition(player: Player): Vector3?
 	return if root and root:IsA("BasePart") then root.Position else nil
 end
 
-local function unobstructed(fromPosition: Vector3, toPosition: Vector3): boolean
+local function unobstructed(
+	fromPosition: Vector3,
+	toPosition: Vector3,
+	sourceInstance: Instance?,
+	targetInstance: Instance?
+): boolean
 	local direction = toPosition - fromPosition
 	if direction.Magnitude <= 0.01 then
 		return true
 	end
-	local result = Workspace:Raycast(fromPosition, direction)
-	return result == nil or (result.Position - toPosition).Magnitude <= 4
+	local parameters = RaycastParams.new()
+	parameters.FilterType = Enum.RaycastFilterType.Exclude
+	parameters.IgnoreWater = true
+	local exclusions: { Instance } = {}
+	if sourceInstance then
+		table.insert(exclusions, sourceInstance)
+	end
+	parameters.FilterDescendantsInstances = exclusions
+	local result = Workspace:Raycast(fromPosition, direction, parameters)
+	if not result then
+		return true
+	end
+	if
+		targetInstance
+		and (
+			result.Instance == targetInstance
+			or result.Instance:IsDescendantOf(targetInstance)
+		)
+	then
+		return true
+	end
+	return (result.Position - toPosition).Magnitude <= 1.5
 end
 
 local function phaseDuration(phase: PhaseName): number
@@ -220,6 +245,11 @@ local function findPlayerForParticipant(participant: ParticipantState): Player?
 		return nil
 	end
 	return Players:GetPlayerByUserId(participant.controller.userId)
+end
+
+local function characterForParticipant(participant: ParticipantState): Model?
+	local player = findPlayerForParticipant(participant)
+	return if player then player.Character else nil
 end
 
 local function participantPosition(participant: ParticipantState): Vector3?
@@ -266,13 +296,15 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				table.clone(departed.abilityCooldownEndsAt)
 			inventory:RegisterParticipant(replacementState.participantId)
 			for _, instanceId in table.clone(departed.inventoryIds) do
-				inventory:Transfer(
+				local transferred = inventory:Transfer(
 					departed.participantId,
 					replacementState.participantId,
 					instanceId
 				)
-				participants:RemoveInventoryItem(departed.participantId, instanceId)
-				participants:AddInventoryItem(replacementState.participantId, instanceId)
+				if transferred then
+					participants:RemoveInventoryItem(departed.participantId, instanceId)
+					participants:AddInventoryItem(replacementState.participantId, instanceId)
+				end
 			end
 			departed.role = "Spectator"
 			departed.team = "Observers"
@@ -289,6 +321,10 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 					replacementState.participantId
 				)
 				runtime.voting:TransferParticipant(
+					departed.participantId,
+					replacementState.participantId
+				)
+				runtime.mystery:TransferParticipant(
 					departed.participantId,
 					replacementState.participantId
 				)
@@ -363,10 +399,10 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 	})
 	local characters = CharacterAssetService.new()
 	local counselors = CounselorService.new({
-		canInteract = function(participantId: string, _counselorId: string): boolean
+		canInteract = function(participantId: string, counselorId: string): boolean
 			local runtime = runtimeRef
 			local participant = participants:GetById(participantId)
-			return runtime ~= nil
+			local active = runtime ~= nil
 				and participant ~= nil
 				and participant.alive
 				and not participant.isGhost
@@ -375,6 +411,25 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 					or runtime.phase == "Investigation"
 					or runtime.phase == "Campfire"
 				)
+			if not active or not participant then
+				return false
+			end
+			if participant.controller.kind == "Bot" then
+				return true
+			end
+				local participantAt = participantPosition(participant)
+				local counselorAt = characters:GetCounselorPosition(counselorId)
+				local sourceCharacter = characterForParticipant(participant)
+				local counselorModel = characters:GetCounselorModel(counselorId)
+				return participantAt ~= nil
+					and counselorAt ~= nil
+					and (counselorAt - participantAt).Magnitude <= 18
+					and unobstructed(
+						participantAt,
+						counselorAt,
+						sourceCharacter,
+						counselorModel
+					)
 		end,
 	})
 	local mystery = MysteryService.new({
@@ -488,9 +543,23 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				and not participant.isGhost
 				and participant.team == "Campers"
 		end,
-		hasLineOfSight = function(fromPosition: Vector3, toPosition: Vector3): boolean
-			return unobstructed(fromPosition, toPosition)
-		end,
+			hasLineOfSight = function(
+				fromPosition: Vector3,
+				toPosition: Vector3,
+				sourceParticipantId: string,
+				targetParticipantId: string?
+			): boolean
+				local source = participants:GetById(sourceParticipantId)
+				local target = if targetParticipantId
+					then participants:GetById(targetParticipantId)
+					else nil
+				return unobstructed(
+					fromPosition,
+					toPosition,
+					if source then characterForParticipant(source) else nil,
+					if target then characterForParticipant(target) else nil
+				)
+			end,
 		applyAttack = function(
 			sourceParticipantId: string,
 			targetParticipantId: string,
@@ -922,6 +991,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	elseif phase == "Investigation" then
 		self.world:SpawnEvidence()
 		self.monster:Activate(self.roundId)
+		self.characters:PlayMonsterState("Hunt", true)
 	elseif phase == "Campfire" then
 		self.world:ClearEvidence()
 		self.monster:CampfireStop(self.roundId)
@@ -1457,7 +1527,14 @@ function GameRuntimeService:_useItem(
 		if (targetPosition - sourcePosition).Magnitude > rule.maxRange then
 			return actionRejected("Item target is out of range")
 		end
-		if not unobstructed(sourcePosition, targetPosition) then
+		if
+			not unobstructed(
+				sourcePosition,
+				targetPosition,
+				characterForParticipant(participant),
+				characterForParticipant(target)
+			)
+		then
 			return actionRejected("Item target is not in line of sight")
 		end
 	end
@@ -1798,11 +1875,16 @@ function GameRuntimeService:_handleParticipantAction(
 		local sourcePosition = participantPosition(participant)
 		local targetPosition = participantPosition(target)
 		if
-			not sourcePosition
-			or not targetPosition
-			or (targetPosition - sourcePosition).Magnitude > 12
-			or not unobstructed(sourcePosition, targetPosition)
-		then
+				not sourcePosition
+				or not targetPosition
+				or (targetPosition - sourcePosition).Magnitude > 12
+				or not unobstructed(
+					sourcePosition,
+					targetPosition,
+					characterForParticipant(participant),
+					characterForParticipant(target)
+				)
+			then
 			return actionRejected("Move closer to the transfer target")
 		end
 		local transferred, reason =
@@ -2311,35 +2393,88 @@ function GameRuntimeService:_waitUntilPhaseEnds()
 	end
 end
 
-function GameRuntimeService:_runRound()
-	local ids = self:_participantIdsForRound()
-	if #ids < 2 then
-		task.wait(1)
+function GameRuntimeService:_continueRound(generation: number, nextPhase: PhaseName): boolean
+	if not self.running or self.generation ~= generation then
+		return false
+	end
+	self:EnterPhase(nextPhase)
+	self:_waitUntilPhaseEnds()
+	return self.running and self.generation == generation
+end
+
+function GameRuntimeService:_recoverRoundFailure(generation: number, failure: unknown)
+	if not self.running or self.generation ~= generation then
 		return
 	end
-	self:BeginRound(ids)
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("Day")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("MurderPlanning")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("NightTransform")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("Investigation")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("Campfire")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("Resolution")
-	self:_waitUntilPhaseEnds()
-	self:EnterPhase("Rewards")
-	self:_waitUntilPhaseEnds()
+	warn("[GameRuntimeService] Round aborted safely:", failure)
+	self.computerPlayers:Stop()
 	local matchRoundId = self.activeMatchRoundId
 	if matchRoundId then
 		self.matchmaking:FinishRound(matchRoundId)
 		self.activeMatchRoundId = nil
 	end
-	self:EnterPhase("Lobby")
+	pcall(function()
+		self.world:ResetRound()
+	end)
+	pcall(function()
+		self.characters:Reset()
+	end)
+	pcall(function()
+		self.monster:Reset(self.roundId)
+	end)
+	pcall(function()
+		self.lifecycle:Emit("RoundReset", {
+			reason = "RuntimeFailure",
+		})
+	end)
+	self.winner = nil
+	self.resultMessage = nil
+	self.phase = "Lobby"
+	self.phaseStartedAt = now()
+	self.phaseEndsAt = self.phaseStartedAt + phaseDuration("Lobby")
+	pcall(function()
+		self:Broadcast()
+	end)
+end
+
+function GameRuntimeService:_runRound(generation: number)
+	local ids = self:_participantIdsForRound()
+	if #ids < 2 then
+		task.wait(1)
+		return
+	end
+	if not self.running or self.generation ~= generation then
+		return
+	end
+	self:BeginRound(ids)
 	self:_waitUntilPhaseEnds()
+	if not self:_continueRound(generation, "Day") then
+		return
+	end
+	if not self:_continueRound(generation, "MurderPlanning") then
+		return
+	end
+	if not self:_continueRound(generation, "NightTransform") then
+		return
+	end
+	if not self:_continueRound(generation, "Investigation") then
+		return
+	end
+	if not self:_continueRound(generation, "Campfire") then
+		return
+	end
+	if not self:_continueRound(generation, "Resolution") then
+		return
+	end
+	if not self:_continueRound(generation, "Rewards") then
+		return
+	end
+	local matchRoundId = self.activeMatchRoundId
+	if matchRoundId then
+		self.matchmaking:FinishRound(matchRoundId)
+		self.activeMatchRoundId = nil
+	end
+	self:_continueRound(generation, "Lobby")
 end
 
 function GameRuntimeService:Start()
@@ -2373,7 +2508,13 @@ function GameRuntimeService:Start()
 					task.wait(1)
 				end
 				if self.running then
-					self:_runRound()
+					local success, failure = pcall(function()
+						self:_runRound(generation)
+					end)
+					if not success then
+						self:_recoverRoundFailure(generation, failure)
+						task.wait(1)
+					end
 				end
 			end
 		end)
@@ -2381,17 +2522,29 @@ function GameRuntimeService:Start()
 end
 
 function GameRuntimeService:Stop()
+	if not self.running then
+		return
+	end
 	self.running = false
 	self.generation += 1
-	self.computerPlayers:Stop()
+	self.computerPlayers:Destroy()
+	local matchRoundId = self.activeMatchRoundId
+	if matchRoundId then
+		self.matchmaking:FinishRound(matchRoundId)
+		self.activeMatchRoundId = nil
+	end
 	self.matchmaking:Stop()
 	self.profile:Stop()
 	for _, connection in self.connections do
 		connection:Disconnect()
 	end
 	table.clear(self.connections)
-	self.characters:ClearMonster()
+	pcall(function()
+		self.world:ResetRound()
+	end)
+	self.characters:Destroy()
 	self.counselors:Destroy()
+	self.lifecycle:Destroy()
 end
 
 function GameRuntimeService:GetServices(): { [string]: any }

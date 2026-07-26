@@ -38,8 +38,24 @@ def main() -> None:
         [sys.executable, "scripts/test_domain_contracts.py"],
     )
     run(
+        "Server release contract tests",
+        [sys.executable, "scripts/test_server_release_contracts.py"],
+    )
+    run(
+        "Client release contract tests",
+        [sys.executable, "scripts/test_client_release.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
+    )
+    run(
+        "Content manifest validation",
+        [sys.executable, "scripts/validate_content_manifest.py"],
+    )
+    run(
+        "Resilience reference simulations",
+        [sys.executable, "scripts/test_resilience_reference.py"],
     )
 
     rojo = shutil.which("rojo")
@@ -77,4 +93,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

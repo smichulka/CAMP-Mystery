@@ -34,8 +34,19 @@ The repository contains the integrated, code-complete release candidate:
 `CharacterAssetService` load authored models from `ServerStorage/ServerAssets` when
 present and generate safe fallbacks when an asset has not yet been installed. Final
 reference-quality rigs, animation clips, sounds, icons, and environment models remain
-Roblox-owned content inputs; the runtime, asset hooks, accessibility behavior, and
+authored Roblox content inputs; the runtime, asset hooks, accessibility behavior, and
 fallback presentation are implemented.
+
+The codebase is a release candidate, not a public-release approval. The final content
+inventory in `assets/content-manifest.json` deliberately records missing/pending authored
+assets, licenses, and Roblox moderation. Studio multiplayer/device testing, private
+server testing, DataStore failure/migration testing, performance profiling, the rollback
+drill, and Creator Dashboard moderation remain required.
+
+Audio has concrete `SoundService` attribute hooks. Authored monster/counselor animation
+folders and optional role, equipment, and evidence icons now have defensive runtime
+hooks with complete procedural/text fallbacks. The final files and Roblox asset IDs must
+still be installed, licensed, and moderated before the strict release gate can pass.
 
 ## Local setup
 
@@ -58,6 +69,20 @@ In Roblox Studio:
 The Output panel should show the production server and client startup messages. Ready up
 through the lobby UI, then follow the role, objective, investigation, and campfire HUD.
 
+## One-command Windows workflow
+
+From PowerShell in the repository, pull `master`, install pinned tools, run the repository
+gate, build the place, and start Rojo:
+
+```powershell
+.\scripts\CampMystery.ps1
+```
+
+Use `-NoPull` to validate local work without switching/pulling. Other actions are
+`Validate`, `Build`, `Serve`, and `Release`. `Release` requires a completed observation
+file and will fail while final content, licensing, moderation, or Roblox-only gates are
+pending.
+
 ## Build without Studio
 
 ```powershell
@@ -74,9 +99,17 @@ python scripts/run_all_checks.py
 python scripts/run_all_checks.py --require-rojo
 ```
 
+Generate honest release evidence:
+
+```powershell
+python scripts/release_gate.py --commit <40-character-commit-sha>
+```
+
 See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the complete Studio and
 private-server release gate, [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) for the
-authoritative launch rules, and [docs/TESTING.md](docs/TESTING.md) for validation.
+authoritative launch rules, [docs/RELEASE_EVIDENCE.md](docs/RELEASE_EVIDENCE.md) for
+evidence capture, [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md) for rollback
+and incidents, and [docs/TESTING.md](docs/TESTING.md) for validation.
 
 ## Architecture
 

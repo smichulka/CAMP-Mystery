@@ -26,7 +26,12 @@ export type Callbacks = {
 	getPhase: () -> string,
 	getPosition: (participantId: MonsterParticipantId) -> Vector3?,
 	isTargetable: (participantId: MonsterParticipantId) -> boolean,
-	hasLineOfSight: (fromPosition: Vector3, toPosition: Vector3) -> boolean,
+	hasLineOfSight: (
+		fromPosition: Vector3,
+		toPosition: Vector3,
+		sourceParticipantId: MonsterParticipantId,
+		targetParticipantId: MonsterParticipantId?
+	) -> boolean,
 	applyAttack: (
 		sourceParticipantId: MonsterParticipantId,
 		targetParticipantId: MonsterParticipantId,
@@ -352,7 +357,12 @@ function MonsterService:_validateActivation(
 	end
 	if
 		rule.requiresLineOfSight
-		and not self.callbacks.hasLineOfSight(sourcePosition, resolvedTargetPosition)
+		and not self.callbacks.hasLineOfSight(
+			sourcePosition,
+			resolvedTargetPosition,
+			request.participantId,
+			targetParticipantId
+		)
 	then
 		return { allowed = false, reason = "Line of sight is blocked", serverNow = now }, nil
 	end

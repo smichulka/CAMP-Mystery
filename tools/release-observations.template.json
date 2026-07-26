@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "releaseCommit": "REPLACE_WITH_FULL_GIT_COMMIT_SHA",
+  "testedPlaceVersion": "REPLACE_WITH_PRIVATE_ROBLOX_PLACE_VERSION",
+  "tester": "REPLACE_WITH_TESTER_NAME",
+  "startedAtUtc": "YYYY-MM-DDTHH:MM:SSZ",
+  "completedAtUtc": "YYYY-MM-DDTHH:MM:SSZ",
+  "gates": [
+    {"id": "studio-place-analysis", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "studio-server-authority", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "studio-round-and-soak", "status": "not_run", "evidence": [], "notes": "Record all ten mystery seeds and outcomes."},
+    {"id": "studio-roles-inventory-monsters", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "studio-counselors", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "studio-controls-accessibility", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "datastore-migration-failures", "status": "not_run", "evidence": [], "notes": "Use only a disposable test namespace."},
+    {"id": "remote-fuzz-runtime", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "performance-ten-player-ten-reset", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "asset-license-and-moderation", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "private-server-non-owner-smoke", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "rollback-and-incident-drill", "status": "not_run", "evidence": [], "notes": ""},
+    {"id": "publish-approval", "status": "not_run", "evidence": [], "notes": "Set to pass only after every other required gate passes."}
+  ]
+}

@@ -729,6 +729,68 @@ function MysteryService:InterviewCounselor(
 	return publicAccount, nil
 end
 
+-- A disconnected human can be replaced by a bot without changing the mystery.
+-- Every server-owned participant reference must move with that control transfer;
+-- otherwise authentic clues can continue naming a suspect who is no longer votable.
+function MysteryService:TransferParticipant(
+	previousParticipantId: string,
+	replacementParticipantId: string
+): boolean
+	if
+		not self.initialized
+		or previousParticipantId == ""
+		or replacementParticipantId == ""
+		or previousParticipantId == replacementParticipantId
+	then
+		return false
+	end
+
+	local changed = false
+	if self.culpritParticipantId == previousParticipantId then
+		self.culpritParticipantId = replacementParticipantId
+		changed = true
+	end
+	if self.frameTargetId == previousParticipantId then
+		self.frameTargetId = replacementParticipantId
+		changed = true
+	end
+	for index, suspectId in self.suspectIds do
+		if suspectId == previousParticipantId then
+			self.suspectIds[index] = replacementParticipantId
+			changed = true
+		end
+	end
+	for _, clue in self.clues do
+		for index, suspectId in clue.suspectCandidateIds do
+			if suspectId == previousParticipantId then
+				clue.suspectCandidateIds[index] = replacementParticipantId
+				changed = true
+			end
+		end
+		if clue.discoveredByParticipantId == previousParticipantId then
+			clue.discoveredByParticipantId = replacementParticipantId
+			changed = true
+		end
+	end
+	for _, account in self.witnessAccounts do
+		for index, suspectId in account.suspectCandidateIds do
+			if suspectId == previousParticipantId then
+				account.suspectCandidateIds[index] = replacementParticipantId
+				changed = true
+			end
+		end
+		if account.interviewedByParticipantId == previousParticipantId then
+			account.interviewedByParticipantId = replacementParticipantId
+			changed = true
+		end
+	end
+
+	if changed then
+		self:_mutated()
+	end
+	return changed
+end
+
 function MysteryService:AuditDeduction(): DeductionAudit
 	assert(self.initialized, "BeginRound must be called before deduction audit")
 	local culpritLists: { { string } } = {}

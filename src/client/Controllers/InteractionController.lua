@@ -10,13 +10,18 @@ type InteractionCallbacks = {
 
 local InteractionController = {}
 
-local function inputLabel(prompt: ProximityPrompt): string
-	if prompt.ClickablePrompt then
+local function inputLabel(
+	prompt: ProximityPrompt,
+	inputType: Enum.ProximityPromptInputType
+): string
+	if inputType == Enum.ProximityPromptInputType.Touch then
 		return "TAP"
 	end
-	local key = prompt.KeyboardKeyCode
+	local key = if inputType == Enum.ProximityPromptInputType.Gamepad
+		then prompt.GamepadKeyCode
+		else prompt.KeyboardKeyCode
 	if key ~= Enum.KeyCode.Unknown then
-		return key.Name
+		return string.upper(key.Name:gsub("^Button", ""))
 	end
 	return "USE"
 end
@@ -25,9 +30,9 @@ function InteractionController.Start(callbacks: InteractionCallbacks): { RBXScri
 	local connections: { RBXScriptConnection } = {}
 	table.insert(connections, ProximityPromptService.PromptShown:Connect(function(
 		prompt: ProximityPrompt,
-		_inputType: Enum.ProximityPromptInputType
+		inputType: Enum.ProximityPromptInputType
 	)
-		callbacks.shown(prompt.ActionText, prompt.ObjectText, inputLabel(prompt))
+		callbacks.shown(prompt.ActionText, prompt.ObjectText, inputLabel(prompt, inputType))
 	end))
 	table.insert(connections, ProximityPromptService.PromptHidden:Connect(function(
 		_prompt: ProximityPrompt

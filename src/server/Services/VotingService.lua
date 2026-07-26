@@ -192,11 +192,30 @@ function VotingService:TransferParticipant(
 	local previousVote = self.votes[previousParticipantId]
 	if previousVote then
 		self.votes[previousParticipantId] = nil
-		self.votes[replacementParticipantId] = previousVote
+		self.votes[replacementParticipantId] = if previousVote == previousParticipantId
+			then replacementParticipantId
+			else previousVote
 	end
 	for voterId, targetId in self.votes do
 		if targetId == previousParticipantId then
 			self.votes[voterId] = replacementParticipantId
+		end
+	end
+	for _, participant in self.participants:GetAll() do
+		if participant.participantId == replacementParticipantId then
+			local transferredTarget = previousVote
+			if transferredTarget == previousParticipantId then
+				transferredTarget = replacementParticipantId
+			end
+			participant.vote = {
+				hasVoted = transferredTarget ~= nil,
+				targetParticipantId = transferredTarget,
+			}
+		elseif participant.vote.targetParticipantId == previousParticipantId then
+			participant.vote = {
+				hasVoted = participant.vote.hasVoted,
+				targetParticipantId = replacementParticipantId,
+			}
 		end
 	end
 	self.revision += 1

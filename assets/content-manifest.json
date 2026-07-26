@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "experience": "CAMP-Mystery",
+  "policy": {
+    "releaseRequiresInstalledSource": true,
+    "releaseRequiresLicenseProof": true,
+    "releaseRequiresRobloxModeration": true,
+    "allowGeneratedFallbacksInDevelopment": true
+  },
+  "assets": [
+    {
+      "id": "monster-baby-alien",
+      "kind": "MonsterRig",
+      "displayName": "Baby Alien",
+      "target": "ServerStorage/ServerAssets/Monsters/BabyAlien",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-screamer",
+      "kind": "MonsterRig",
+      "displayName": "Screamer",
+      "target": "ServerStorage/ServerAssets/Monsters/Screamer",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-wendigo",
+      "kind": "MonsterRig",
+      "displayName": "Wendigo",
+      "target": "ServerStorage/ServerAssets/Monsters/Wendigo",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-shadow",
+      "kind": "MonsterRig",
+      "displayName": "Shadow Monster",
+      "target": "ServerStorage/ServerAssets/Monsters/ShadowMonster",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-chupacabra",
+      "kind": "MonsterRig",
+      "displayName": "Chupacabra",
+      "target": "ServerStorage/ServerAssets/Monsters/Chupacabra",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-dullahan",
+      "kind": "MonsterRig",
+      "displayName": "Dullahan",
+      "target": "ServerStorage/ServerAssets/Monsters/Dullahan",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-entity",
+      "kind": "MonsterRig",
+      "displayName": "Entity",
+      "target": "ServerStorage/ServerAssets/Monsters/Entity",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "monster-banshee",
+      "kind": "MonsterRig",
+      "displayName": "Banshee",
+      "target": "ServerStorage/ServerAssets/Monsters/Banshee",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "One-to-one monster design; do not combine with another monster."
+    },
+    {
+      "id": "counselor-holloway",
+      "kind": "CounselorRig",
+      "displayName": "Director Mara Holloway",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-holloway",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "counselor-ortiz",
+      "kind": "CounselorRig",
+      "displayName": "Counselor Lena Ortiz",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-ortiz",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "counselor-reed",
+      "kind": "CounselorRig",
+      "displayName": "Counselor Miles Reed",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-reed",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "counselor-brooks",
+      "kind": "CounselorRig",
+      "displayName": "Counselor Tessa Brooks",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-brooks",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "counselor-chen",
+      "kind": "CounselorRig",
+      "displayName": "Counselor Ivy Chen",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-chen",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "counselor-finch",
+      "kind": "CounselorRig",
+      "displayName": "Counselor Noah Finch",
+      "target": "ServerStorage/ServerAssets/NPCs/counselor-finch",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Distinct adult counselor rig."
+    },
+    {
+      "id": "world-day-camp",
+      "kind": "EnvironmentModel",
+      "displayName": "Day Camp",
+      "target": "ServerStorage/ServerAssets/Maps/Camp",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Weathered Appalachian summer-camp environment."
+    },
+    {
+      "id": "world-town-main-road",
+      "kind": "EnvironmentModel",
+      "displayName": "Town Main Road",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/MainRoad",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-residential",
+      "kind": "EnvironmentModel",
+      "displayName": "Residential Quarter",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/ResidentialQuarter",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-square",
+      "kind": "EnvironmentModel",
+      "displayName": "Town Square",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/TownSquare",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-general-store",
+      "kind": "EnvironmentModel",
+      "displayName": "General Store",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/GeneralStore",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-gas-station",
+      "kind": "EnvironmentModel",
+      "displayName": "Gas Station",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/GasStation",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-industrial",
+      "kind": "EnvironmentModel",
+      "displayName": "Industrial District and Tunnels",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/IndustrialDistrict",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-water-tower",
+      "kind": "EnvironmentModel",
+      "displayName": "Water-Tower Neighborhood",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/WaterTowerNeighborhood",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-police",
+      "kind": "EnvironmentModel",
+      "displayName": "Police Station and Evidence Room",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/PoliceStation",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "world-town-outskirts",
+      "kind": "EnvironmentModel",
+      "displayName": "Deserted Outskirts",
+      "target": "ServerStorage/ServerAssets/Maps/NightTown/DesertedOutskirts",
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": ""
+    },
+    {
+      "id": "animation-character-movement",
+      "kind": "AnimationSet",
+      "displayName": "Counselor NPC States",
+      "target": "ServerStorage/ServerAssets/NPCs/<CounselorId>/Animations",
+      "runtimeHook": {"status": "connected", "source": "src/server/Services/CharacterAssetService.lua", "keys": ["Idle", "Flee", "Hide", "Alert"]},
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Each authored counselor may supply an Animations folder with approved state-named Animation children and a descendant Animator."
+    },
+    {
+      "id": "animation-monsters",
+      "kind": "AnimationSet",
+      "displayName": "Eight Monster Animation Sets",
+      "target": "ServerStorage/ServerAssets/Monsters/<MonsterId>/Animations",
+      "runtimeHook": {"status": "connected", "source": "src/server/Services/CharacterAssetService.lua", "keys": ["Transform", "Hunt"]},
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Each authored monster may supply Transform and Hunt Animation children plus a descendant Animator; inventory every uploaded clip before release."
+    },
+    {
+      "id": "audio-music",
+      "kind": "AudioBank",
+      "displayName": "Music",
+      "target": "SoundService/CampMysteryAudio/MusicCues",
+      "runtimeHook": {
+        "status": "connected",
+        "source": "src/client/Controllers/AudioController.lua",
+        "keys": ["LobbyMusicAssetId", "CampMusicAssetId", "NightMusicAssetId", "ResultsMusicAssetId"]
+      },
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "List each uploaded track and asset ID before release."
+    },
+    {
+      "id": "audio-ambience",
+      "kind": "AudioBank",
+      "displayName": "Ambience",
+      "target": "SoundService/CampMysteryAudio/AmbienceCues",
+      "runtimeHook": {
+        "status": "connected",
+        "source": "src/client/Controllers/AudioController.lua",
+        "keys": ["CampAmbienceAssetId", "NightAmbienceAssetId"]
+      },
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "List each uploaded clip and asset ID before release."
+    },
+    {
+      "id": "audio-effects",
+      "kind": "AudioBank",
+      "displayName": "Effects and Monster Cues",
+      "target": "SoundService/CampMysteryAudio/EffectCues",
+      "runtimeHook": {
+        "status": "connected",
+        "source": "src/client/Controllers/AudioController.lua",
+        "keys": ["EvidenceFoundAssetId", "MonsterActiveAssetId"]
+      },
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Every critical cue also requires a subtitle."
+    },
+    {
+      "id": "audio-ui",
+      "kind": "AudioBank",
+      "displayName": "UI Audio",
+      "target": "SoundService/CampMysteryAudio/UICues",
+      "runtimeHook": {
+        "status": "connected",
+        "source": "src/client/Controllers/AudioController.lua",
+        "keys": ["PhaseChimeAssetId", "VoteOpenAssetId", "RewardAssetId"]
+      },
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "List each uploaded clip and asset ID before release."
+    },
+    {
+      "id": "ui-icon-set",
+      "kind": "ImageSet",
+      "displayName": "UI and Equipment Icons",
+      "target": "ReplicatedStorage/Assets/Images/UI",
+      "runtimeHook": {"status": "connected", "source": "src/client/UI/GameView.lua", "keys": ["imageKey(\"Role\"", "imageKey(\"Equipment\"", "Evidence_Culprit", "Evidence_Monster", "Evidence_Mystery", "Evidence_Witness"]},
+      "sourceStatus": "missing",
+      "license": {"status": "pending", "owner": "", "sourceUrl": "", "proofPath": "", "terms": ""},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "UIAssetController accepts positive Roblox IDs from folder attributes or child values; every icon retains a complete text fallback."
+    },
+    {
+      "id": "experience-icon",
+      "kind": "PublishingImage",
+      "displayName": "Experience Icon",
+      "target": "RobloxExperience/Icon",
+      "sourceFile": "assets/marketing/camp-mystery-icon-1024.png",
+      "sha256": "d9437434d33e4fa0eb84febb630914e0ad1a11eace3600624374bc42dd0b2e34",
+      "dimensions": {"width": 1024, "height": 1024},
+      "sourceStatus": "installed",
+      "license": {"status": "owned", "owner": "smichulka/CAMP-Mystery", "sourceUrl": "OpenAI built-in image generation", "proofPath": "assets/marketing/GENERATION.md", "terms": "Generated specifically for this project without image references."},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Original 1024x1024 candidate exists; Roblox upload and moderation are still required."
+    },
+    {
+      "id": "experience-thumbnails",
+      "kind": "PublishingImage",
+      "displayName": "Experience Thumbnails",
+      "target": "RobloxExperience/Thumbnails",
+      "sourceFile": "assets/marketing/camp-mystery-thumbnail-1920x1080.png",
+      "sha256": "ae4ecac487d789ab695614205f4c0ddeb959a3195286c914adf862b9af8f4ce2",
+      "dimensions": {"width": 1920, "height": 1080},
+      "sourceStatus": "installed",
+      "license": {"status": "owned", "owner": "smichulka/CAMP-Mystery", "sourceUrl": "OpenAI built-in image generation", "proofPath": "assets/marketing/GENERATION.md", "terms": "Generated specifically for this project without image references."},
+      "moderation": {"status": "not_submitted", "robloxAssetId": null, "reviewedAtUtc": null},
+      "notes": "Original 1920x1080 candidate exists; record the uploaded asset ID and moderation result before release."
+    }
+  ]
+}

@@ -281,8 +281,12 @@ function TutorialController:SetReducedMotion(reducedMotion: boolean)
 end
 
 function TutorialController:SetCompleted(completed: boolean)
-	if completed then
-		self:_finish(false)
+	if completed and not self.completed then
+		-- Loading an already-completed profile is synchronization, not a new
+		-- completion. Do not call onCompleted and write the setting back.
+		self.completed = true
+		self.activeStep = nil
+		self.view:Hide()
 	end
 end
 

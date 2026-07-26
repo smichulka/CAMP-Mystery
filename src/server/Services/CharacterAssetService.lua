@@ -20,6 +20,10 @@ type CharacterAssetServiceState = {
 	container: Folder,
 	monsterModel: Model?,
 	counselorModels: { Model },
+	monsterAnimationTrack: AnimationTrack?,
+	monsterAnimationState: string?,
+	counselorAnimationTracks: { [string]: AnimationTrack },
+	counselorAnimationStates: { [string]: string },
 }
 
 local CharacterAssetService = {}
@@ -87,6 +91,17 @@ local MONSTER_PRESENTATION: {
 	},
 }
 
+local MONSTER_DISPLAY_NAMES: { [MonsterId]: string } = {
+	BabyAlien = "Baby Alien",
+	Screamer = "The Screamer",
+	Wendigo = "Wendigo",
+	ShadowMonster = "Shadow Monster",
+	Chupacabra = "Chupacabra",
+	Dullahan = "Dullahan",
+	Entity = "The Entity",
+	Banshee = "Banshee",
+}
+
 local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(66, 105, 155),
 	Color3.fromRGB(126, 76, 139),
@@ -94,6 +109,25 @@ local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(69, 135, 89),
 	Color3.fromRGB(183, 120, 55),
 	Color3.fromRGB(112, 84, 62),
+}
+
+local APPROVED_ANIMATION_STATES: { [string]: boolean } = {
+	Idle = true,
+	Transform = true,
+	Hunt = true,
+	Flee = true,
+	Hide = true,
+	Alert = true,
+}
+
+local COUNSELOR_ANIMATION_BY_BEHAVIOR: { [string]: string } = {
+	Routine = "Idle",
+	Witness = "Idle",
+	Suspect = "Idle",
+	Fleeing = "Flee",
+	Hiding = "Hide",
+	Alert = "Alert",
+	Unavailable = "Idle",
 }
 
 local COUNSELOR_LOCATIONS: { [string]: CFrame } = {
@@ -186,6 +220,94 @@ local function findAsset(folderName: string, assetName: string): Model?
 	return if asset and asset:IsA("Model") then asset else nil
 end
 
+local function stopAnimationTrack(track: AnimationTrack?)
+	if not track then
+		return
+	end
+	pcall(function()
+		track:Stop(0.15)
+	end)
+	pcall(function()
+		track:Destroy()
+	end)
+end
+
+local function authoredAnimation(model: Model, stateName: string): Animation?
+	if
+		model:GetAttribute("ProceduralFallback") == true
+		or not APPROVED_ANIMATION_STATES[stateName]
+	then
+		return nil
+	end
+	local animationFolder = model:FindFirstChild("Animations", true)
+	if not animationFolder or not animationFolder:IsA("Folder") then
+		return nil
+	end
+	local animation = animationFolder:FindFirstChild(stateName)
+	if not animation or not animation:IsA("Animation") then
+		return nil
+	end
+	local numericId = string.match(animation.AnimationId, "^rbxassetid://(%d+)$")
+	if not numericId or (tonumber(numericId) or 0) <= 0 then
+		warn(
+			string.format(
+				"[CharacterAssetService] Ignoring invalid %s animation on %s",
+				stateName,
+				model.Name
+			)
+		)
+		return nil
+	end
+	return animation
+end
+
+local function loadAuthoredAnimation(
+	model: Model,
+	stateName: string,
+	looped: boolean
+): AnimationTrack?
+	local animation = authoredAnimation(model, stateName)
+	if not animation then
+		return nil
+	end
+	local animator = model:FindFirstChildWhichIsA("Animator", true)
+	if not animator then
+		return nil
+	end
+	local loaded, result = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	if not loaded then
+		warn(
+			string.format(
+				"[CharacterAssetService] Could not load %s animation on %s: %s",
+				stateName,
+				model.Name,
+				tostring(result)
+			)
+		)
+		return nil
+	end
+	local track = result :: AnimationTrack
+	track.Looped = looped
+	local played, playFailure = pcall(function()
+		track:Play(0.15)
+	end)
+	if not played then
+		warn(
+			string.format(
+				"[CharacterAssetService] Could not play %s animation on %s: %s",
+				stateName,
+				model.Name,
+				tostring(playFailure)
+			)
+		)
+		stopAnimationTrack(track)
+		return nil
+	end
+	return track
+end
+
 local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	local presentation = MONSTER_PRESENTATION[monsterId]
 	local model = Instance.new("Model")
@@ -204,22 +326,122 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		presentation.headShape
 	)
 
-	if monsterId == "Wendigo" then
+	if monsterId == "BabyAlien" then
+		for side = -1, 1, 2 do
+			makePart(
+				model,
+				if side < 0 then "LeftEye" else "RightEye",
+				Vector3.new(0.8, 1.25, 0.35),
+				at * CFrame.new(side * 0.75, 3.4, -1.25),
+				presentation.accent,
+				Enum.PartType.Ball
+			).Material = Enum.Material.Neon
+		end
+		makePart(
+			model,
+			"AcidSac",
+			Vector3.new(2.4, 1.2, 2.4),
+			at * CFrame.new(0, -1.7, 1.4),
+			presentation.accent,
+			Enum.PartType.Ball
+		).Transparency = 0.2
+	elseif monsterId == "Screamer" then
+		local mouth = makePart(
+			model,
+			"ResonantMouth",
+			Vector3.new(2.2, 1.6, 0.5),
+			at * CFrame.new(0, 3.4, -1.45),
+			Color3.fromRGB(24, 10, 14)
+		)
+		mouth.Material = Enum.Material.Neon
+		for side = -1, 1, 2 do
+			makePart(
+				model,
+				if side < 0 then "LeftSoundSpine" else "RightSoundSpine",
+				Vector3.new(0.35, 4.5, 0.35),
+				at
+					* CFrame.new(side * 2.4, 1.2, 0)
+					* CFrame.Angles(0, 0, side * 0.35),
+				presentation.accent
+			)
+		end
+	elseif monsterId == "Wendigo" then
 		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, 6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
 		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, 6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
+		for side = -1, 1, 2 do
+			makePart(
+				model,
+				if side < 0 then "LeftClaw" else "RightClaw",
+				Vector3.new(0.45, 5.5, 0.45),
+				at * CFrame.new(side * 2.1, -0.5, -0.4),
+				presentation.accent
+			)
+		end
+	elseif monsterId == "ShadowMonster" then
+		for index = 1, 4 do
+			local angle = (index / 4) * math.pi * 2
+			local tendril = makePart(
+				model,
+				"ShadowTendril" .. tostring(index),
+				Vector3.new(0.45, 5 + index * 0.45, 0.45),
+				at
+					* CFrame.new(math.cos(angle) * 2, -1.5, math.sin(angle) * 1.2)
+					* CFrame.Angles(math.sin(angle) * 0.35, 0, math.cos(angle) * 0.35),
+				presentation.accent
+			)
+			tendril.Material = Enum.Material.ForceField
+			tendril.Transparency = 0.3
+		end
+	elseif monsterId == "Chupacabra" then
+		for index = 1, 5 do
+			makePart(
+				model,
+				"BackSpine" .. tostring(index),
+				Vector3.new(0.35, 1.8, 0.7),
+				at * CFrame.new(0, 1.3, -1.5 + index * 0.7),
+				presentation.accent
+			).Material = Enum.Material.Neon
+		end
 	elseif monsterId == "Dullahan" then
 		local head = model:FindFirstChild("Head")
 		if head then
 			head:Destroy()
 		end
 		makePart(model, "SpectralFlame", Vector3.new(2, 2, 2), at * CFrame.new(0, torsoSize.Y / 2 + 1.4, 0), presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
-	elseif monsterId == "Entity" or monsterId == "Banshee" then
+		makePart(
+			model,
+			"HeadlessCollar",
+			Vector3.new(3.5, 0.7, 3),
+			at * CFrame.new(0, torsoSize.Y / 2, 0),
+			Color3.fromRGB(24, 31, 33)
+		)
+	elseif monsterId == "Entity" then
 		root.Transparency = 0.25
-	elseif monsterId == "ShadowMonster" then
-		root.Material = Enum.Material.ForceField
-		root.Transparency = 0.2
+		for index = 1, 3 do
+			local orb = makePart(
+				model,
+				"AnchorOrb" .. tostring(index),
+				Vector3.new(0.9, 0.9, 0.9),
+				at * CFrame.new((index - 2) * 2.4, 1 + index % 2, -0.8),
+				presentation.accent,
+				Enum.PartType.Ball
+			)
+			orb.Material = Enum.Material.ForceField
+			orb.Transparency = 0.15
+		end
+	elseif monsterId == "Banshee" then
+		root.Transparency = 0.25
+		local veil = makePart(
+			model,
+			"SpectralVeil",
+			Vector3.new(6, 6.5, 0.25),
+			at * CFrame.new(0, 0.3, 1.2),
+			presentation.accent
+		)
+		veil.Material = Enum.Material.ForceField
+		veil.Transparency = 0.55
 	end
-	labelModel(model, monsterId)
+	labelModel(model, MONSTER_DISPLAY_NAMES[monsterId])
 	return model
 end
 
@@ -251,6 +473,19 @@ local function buildProceduralCounselor(
 		Color3.fromRGB(196, 155 - index * 5, 125 - index * 3),
 		Enum.PartType.Ball
 	)
+	if index == 1 then
+		makePart(model, "FirstAidPack", Vector3.new(2.2, 2.6, 0.8), at * CFrame.new(0, 0.2, 1.6), Color3.fromRGB(180, 185, 171))
+	elseif index == 2 then
+		makePart(model, "RangerHat", Vector3.new(4.2, 0.35, 4.2), at * CFrame.new(0, 5.35, 0), Color3.fromRGB(72, 54, 36))
+	elseif index == 3 then
+		makePart(model, "Radio", Vector3.new(0.7, 1.4, 0.45), at * CFrame.new(1.8, 1, -1.1), Color3.fromRGB(34, 38, 42))
+	elseif index == 4 then
+		makePart(model, "Whistle", Vector3.new(0.35, 0.55, 0.35), at * CFrame.new(0.7, 1.4, -1.4), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
+	elseif index == 5 then
+		makePart(model, "ToolBelt", Vector3.new(4.1, 0.55, 2.9), at * CFrame.new(0, -1.5, 0), Color3.fromRGB(82, 61, 40))
+	else
+		makePart(model, "FieldJournal", Vector3.new(1.4, 1.8, 0.3), at * CFrame.new(-1.7, 0.5, -1.15), Color3.fromRGB(75, 97, 72))
+	end
 	labelModel(model, displayName)
 	return model
 end
@@ -270,10 +505,19 @@ function CharacterAssetService.new(): CharacterAssetService
 		container = container,
 		monsterModel = nil,
 		counselorModels = {},
+		monsterAnimationTrack = nil,
+		monsterAnimationState = nil,
+		counselorAnimationTracks = {},
+		counselorAnimationStates = {},
 	}, CharacterAssetService)
 end
 
 function CharacterAssetService:SpawnCounselors()
+	for _, track in self.counselorAnimationTracks do
+		stopAnimationTrack(track)
+	end
+	self.counselorAnimationTracks = {}
+	self.counselorAnimationStates = {}
 	for _, model in self.counselorModels do
 		model:Destroy()
 	end
@@ -310,10 +554,10 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 					if model:GetAttribute("CounselorId") == counselorId then
 						local destinationId = counselor.destinationId
 						local locationId = if
-								type(destinationId) == "string"
-								and destinationId ~= ""
-							then destinationId
-							else counselor.locationId
+							type(destinationId) == "string"
+							and destinationId ~= ""
+						then destinationId
+						else counselor.locationId
 						local displayName = counselor.displayName
 						local behavior = counselor.behavior
 						if type(locationId) == "string" then
@@ -328,6 +572,29 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 						end
 						if type(behavior) == "string" then
 							model:SetAttribute("Behavior", behavior)
+							local animationState =
+								COUNSELOR_ANIMATION_BY_BEHAVIOR[behavior]
+							if
+								animationState
+								and self.counselorAnimationStates[counselorId]
+									~= animationState
+							then
+								stopAnimationTrack(
+									self.counselorAnimationTracks[counselorId]
+								)
+								self.counselorAnimationTracks[counselorId] = nil
+								local track = loadAuthoredAnimation(
+									model,
+									animationState,
+									true
+								)
+								if track then
+									self.counselorAnimationTracks[counselorId] =
+										track
+								end
+								self.counselorAnimationStates[counselorId] =
+									animationState
+							end
 						end
 						break
 					end
@@ -337,14 +604,30 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 	end
 end
 
+function CharacterAssetService:GetCounselorPosition(counselorId: string): Vector3?
+	local model = self:GetCounselorModel(counselorId)
+	if not model then
+		return nil
+	end
+	local root = model.PrimaryPart
+	return if root then root.Position else model:GetPivot().Position
+end
+
+function CharacterAssetService:GetCounselorModel(counselorId: string): Model?
+	for _, model in self.counselorModels do
+		if model:GetAttribute("CounselorId") == counselorId then
+			return model
+		end
+	end
+	return nil
+end
+
 function CharacterAssetService:SpawnMonster(
 	monsterId: MonsterId,
 	participantId: string,
 	at: CFrame
 ): Model
-	if self.monsterModel then
-		self.monsterModel:Destroy()
-	end
+	self:ClearMonster()
 	local asset = findAsset("Monsters", monsterId)
 	local model = if asset then asset:Clone() else buildProceduralMonster(monsterId, at)
 	model.Name = "ActiveMonster_" .. monsterId
@@ -353,10 +636,36 @@ function CharacterAssetService:SpawnMonster(
 	model:PivotTo(at)
 	model.Parent = self.container
 	self.monsterModel = model
+	self:PlayMonsterState("Transform", false)
 	return model
 end
 
+function CharacterAssetService:PlayMonsterState(
+	stateName: string,
+	looped: boolean?
+): boolean
+	local model = self.monsterModel
+	if
+		not model
+		or not APPROVED_ANIMATION_STATES[stateName]
+		or self.monsterAnimationState == stateName
+	then
+		return false
+	end
+	stopAnimationTrack(self.monsterAnimationTrack)
+	self.monsterAnimationTrack = loadAuthoredAnimation(
+		model,
+		stateName,
+		looped ~= false
+	)
+	self.monsterAnimationState = stateName
+	return self.monsterAnimationTrack ~= nil
+end
+
 function CharacterAssetService:ClearMonster()
+	stopAnimationTrack(self.monsterAnimationTrack)
+	self.monsterAnimationTrack = nil
+	self.monsterAnimationState = nil
 	if self.monsterModel then
 		self.monsterModel:Destroy()
 		self.monsterModel = nil
@@ -369,8 +678,13 @@ function CharacterAssetService:Reset()
 end
 
 function CharacterAssetService:Destroy()
+	self:ClearMonster()
+	for _, track in self.counselorAnimationTracks do
+		stopAnimationTrack(track)
+	end
+	self.counselorAnimationTracks = {}
+	self.counselorAnimationStates = {}
 	self.container:Destroy()
-	self.monsterModel = nil
 	self.counselorModels = {}
 end
 

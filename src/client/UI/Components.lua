@@ -1,6 +1,7 @@
 --!strict
 
 local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
 
@@ -92,7 +93,7 @@ function Components.Button(parent: Instance, options: ButtonOptions): TextButton
 	button.LayoutOrder = options.layoutOrder or 0
 	button.Parent = parent
 	Components.Corner(button, Theme.SmallCornerRadius)
-	Components.Stroke(button)
+	local border = Components.Stroke(button)
 
 	local normalColor = button.BackgroundColor3
 	local hoverColor = normalColor:Lerp(Theme.Colors.White, 0.12)
@@ -112,6 +113,16 @@ function Components.Button(parent: Instance, options: ButtonOptions): TextButton
 			{ BackgroundColor3 = normalColor }
 		):Play()
 	end)
+	button.SelectionGained:Connect(function()
+		border.Color = Theme.Colors.Gold
+		border.Thickness = 3
+		border.Transparency = 0
+	end)
+	button.SelectionLost:Connect(function()
+		border.Color = Theme.Colors.Border
+		border.Thickness = 1
+		border.Transparency = Theme.StrokeTransparency
+	end)
 	return button
 end
 
@@ -121,6 +132,9 @@ function Components.SetButtonEnabled(button: TextButton, enabled: boolean)
 	button.AutoButtonColor = enabled
 	button.BackgroundTransparency = if enabled then 0 else 0.45
 	button.TextTransparency = if enabled then 0 else 0.32
+	if not enabled and GuiService.SelectedObject == button then
+		GuiService.SelectedObject = nil
+	end
 end
 
 function Components.List(parent: GuiObject, padding: number?): UIListLayout

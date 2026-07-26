@@ -542,8 +542,18 @@ function ProfileService:SavePlayer(player: Player): (boolean, string?)
 	local cached = deepCopy(state.profile)
 	local success, storedValue, saveError = self.store:UpdateAsync(
 		keyForUserId(player.UserId),
-		function(_currentValue: unknown?)
-			return cached
+		function(currentValue: unknown?)
+			if currentValue == nil then
+				return cached
+			end
+			-- Dirty saves are currently schema migration/default-profile flushes.
+			-- Re-sanitize the value observed by UpdateAsync instead of overwriting
+			-- progress that a newer server may already have committed.
+			local current, validationError = sanitizeProfile(currentValue)
+			if not current then
+				error(validationError or "Stored profile could not be validated")
+			end
+			return current
 		end
 	)
 	state.busy = false
@@ -989,29 +999,49 @@ function ProfileService:Start()
 		end
 	end)
 
-	game:BindToClose(function()
-		local remaining = 0
-		for _, player in Players:GetPlayers() do
-			remaining += 1
-			task.spawn(function()
-				self:SavePlayer(player)
-				remaining -= 1
-			end)
-		end
-
-		local deadline = os.clock() + ProgressionConfig.shutdownSaveTimeoutSeconds
-		while remaining > 0 and os.clock() < deadline do
-			task.wait(0.05)
-		end
-	end)
 end
 
 function ProfileService:Stop()
+	if not self.running then
+		return
+	end
 	self.running = false
 	for _, connection in self.connections do
 		connection:Disconnect()
 	end
 	table.clear(self.connections)
+
+	local remaining = 0
+	for _, player in Players:GetPlayers() do
+		if self.profiles[player.UserId] then
+			remaining += 1
+			task.spawn(function()
+				local saved, reason = self:SavePlayer(player)
+				if not saved and reason ~= "GuestMode" then
+					warn(
+						string.format(
+							"[ProfileService] Shutdown save failed for user %d: %s",
+							player.UserId,
+							reason or "UnknownFailure"
+						)
+					)
+				end
+				remaining -= 1
+			end)
+		end
+	end
+	local deadline = os.clock() + ProgressionConfig.shutdownSaveTimeoutSeconds
+	while remaining > 0 and os.clock() < deadline do
+		task.wait(0.05)
+	end
+	if remaining > 0 then
+		warn(
+			string.format(
+				"[ProfileService] %d profile save(s) exceeded the shutdown deadline",
+				remaining
+			)
+		)
+	end
 end
 
 return ProfileService

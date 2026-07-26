@@ -20,8 +20,11 @@ listed in `RELEASE_CHECKLIST.md`.
 
 ## Remaining external production work
 
-Final custom monster rigs, animation clips, audio assets, thumbnails, and authored
-environment models must be installed through Roblox Studio and pass Roblox moderation.
+Final custom monster rigs, animation clips, audio assets, thumbnails, UI icons, and
+authored environment models must be installed through Roblox Studio and pass Roblox
+moderation. Audio exposes concrete `SoundService` attribute hooks; authored monster and
+counselor animation folders plus optional role, equipment, and evidence icons have
+defensive runtime hooks with procedural/text fallbacks.
 Multiplayer balance, DataStore behavior, device input, performance, memory, navigation,
 and published-server replication require the Roblox engine and are explicit release
 gates rather than missing repository systems.
@@ -29,8 +32,8 @@ gates rather than missing repository systems.
 ## Automation policy
 
 - Keep `master` at the latest validated autonomous checkpoint.
-- Run structural validation, Rojo build, static analysis, and available logic tests before
-  opening a draft pull request.
+- Run repository static contracts, a Rojo build, and available logic tests before opening
+  a draft pull request; run Roblox Studio `Script Analysis` before release.
 - Merge automatically after its documented acceptance criteria pass.
 - Do not request routine choices already resolved by `PRODUCT_SPEC.md`.
 - Stop only for account permissions, unavailable private assets, policy/moderation blocks,

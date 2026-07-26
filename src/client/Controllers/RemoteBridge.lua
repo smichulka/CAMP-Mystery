@@ -15,6 +15,8 @@ export type RemoteBridge = typeof(setmetatable({} :: {
 	connections: { RBXScriptConnection },
 	boundNames: { [string]: boolean },
 	productionReady: boolean,
+	destroyed: boolean,
+	requestGeneration: number,
 }, RemoteBridge))
 
 local SNAPSHOT_EVENTS: { [string]: string } = {
@@ -73,11 +75,16 @@ function RemoteBridge.new(): RemoteBridge
 		connections = {},
 		boundNames = {},
 		productionReady = false,
+		destroyed = false,
+		requestGeneration = 0,
 	}, RemoteBridge)
 	return self
 end
 
 function RemoteBridge:_emit(channel: string, payload: any)
+	if self.destroyed then
+		return
+	end
 	if channel == "game" and type(payload) == "table" then
 		self.productionReady = true
 	end
@@ -107,13 +114,19 @@ function RemoteBridge:_bind(instance: Instance)
 		self.boundNames[instance.Name] = true
 		table.insert(self.connections, instance.OnClientEvent:Connect(function(payload: any)
 			for _, handler in self.resultHandlers do
-				handler(payload)
+				local ok, message = pcall(handler, payload)
+				if not ok then
+					warn("[RemoteBridge] Action-result handler failed:", message)
+				end
 			end
 		end))
 	end
 end
 
 function RemoteBridge:Start()
+	if self.destroyed then
+		return
+	end
 	for _, child in self.remotes:GetChildren() do
 		self:_bind(child)
 	end
@@ -128,9 +141,9 @@ function RemoteBridge:Start()
 				local ok, payload = pcall(function()
 					return instance:InvokeServer()
 				end)
-				if ok then
+				if ok and not self.destroyed then
 					self:_emit(channel, payload)
-				else
+				elseif not ok and not self.destroyed then
 					warn("[RemoteBridge] Could not retrieve " .. channel .. " snapshot:", payload)
 				end
 			end)
@@ -139,6 +152,9 @@ function RemoteBridge:Start()
 end
 
 function RemoteBridge:OnSnapshot(channel: string, handler: SnapshotHandler)
+	if self.destroyed then
+		return
+	end
 	local handlers = self.snapshotHandlers[channel]
 	if not handlers then
 		handlers = {}
@@ -148,10 +164,16 @@ function RemoteBridge:OnSnapshot(channel: string, handler: SnapshotHandler)
 end
 
 function RemoteBridge:OnActionResult(handler: ResultHandler)
+	if self.destroyed then
+		return
+	end
 	table.insert(self.resultHandlers, handler)
 end
 
 function RemoteBridge:HasAction(action: string): boolean
+	if self.destroyed then
+		return false
+	end
 	local productionRemote = self.remotes:FindFirstChild("RequestAction")
 	if self.productionReady and productionRemote and productionRemote:IsA("RemoteFunction") then
 		return true
@@ -169,22 +191,38 @@ function RemoteBridge:HasAction(action: string): boolean
 end
 
 function RemoteBridge:Request(action: string, payload: any): (boolean, string?)
+	if self.destroyed then
+		return false, "The camp radio is disconnected."
+	end
+	if type(action) ~= "string" or action == "" or type(payload) ~= "table" then
+		return false, "Invalid action request."
+	end
 	local productionRemote = self.remotes:FindFirstChild("RequestAction")
 	if self.productionReady and productionRemote and productionRemote:IsA("RemoteFunction") then
+		local generation = self.requestGeneration
 		task.spawn(function()
 			local ok, result = pcall(function()
 				return productionRemote:InvokeServer(action, payload)
 			end)
+			if self.destroyed or generation ~= self.requestGeneration then
+				return
+			end
 			if ok then
 				for _, handler in self.resultHandlers do
-					handler(result)
+					local handled, message = pcall(handler, result)
+					if not handled then
+						warn("[RemoteBridge] Action-result handler failed:", message)
+					end
 				end
 			else
 				for _, handler in self.resultHandlers do
-					handler({
+					local handled, message = pcall(handler, {
 						accepted = false,
 						reason = "The camp radio did not answer. Try again.",
 					})
+					if not handled then
+						warn("[RemoteBridge] Action-result handler failed:", message)
+					end
 				end
 			end
 		end)
@@ -206,13 +244,17 @@ function RemoteBridge:Request(action: string, payload: any): (boolean, string?)
 			end
 			return true, nil
 		elseif remote and remote:IsA("RemoteFunction") then
+			local generation = self.requestGeneration
 			task.spawn(function()
 				local ok, result = pcall(function()
 					return remote:InvokeServer(payload)
 				end)
-				if ok then
+				if ok and not self.destroyed and generation == self.requestGeneration then
 					for _, handler in self.resultHandlers do
-						handler(result)
+						local handled, message = pcall(handler, result)
+						if not handled then
+							warn("[RemoteBridge] Action-result handler failed:", message)
+						end
 					end
 				end
 			end)
@@ -223,10 +265,18 @@ function RemoteBridge:Request(action: string, payload: any): (boolean, string?)
 end
 
 function RemoteBridge:Destroy()
+	if self.destroyed then
+		return
+	end
+	self.destroyed = true
+	self.requestGeneration += 1
 	for _, connection in self.connections do
 		connection:Disconnect()
 	end
 	table.clear(self.connections)
+	table.clear(self.snapshotHandlers)
+	table.clear(self.resultHandlers)
+	table.clear(self.boundNames)
 end
 
 return table.freeze(RemoteBridge)

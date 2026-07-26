@@ -14,16 +14,26 @@ local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
 
 type ActionHandler = (action: string, payload: any) -> (boolean, string?)
+type ImageResolver = (key: string) -> string?
 
 type GameViewState = {
 	screenGui: ScreenGui,
 	root: Frame,
 	uiScale: UIScale,
+	topStatus: Frame,
+	missionPanel: Frame,
+	healthPanel: Frame,
+	menuPanel: Frame,
+	lobbyPanel: Frame?,
+	notebookButton: TextButton?,
+	settingsButton: TextButton?,
 	actionHandler: ActionHandler,
+	resolveImage: ImageResolver,
 	phaseLabel: TextLabel,
 	timerLabel: TextLabel,
 	progressLabel: TextLabel,
 	roleTitle: TextLabel,
+	roleIcon: ImageLabel,
 	roleDescription: TextLabel,
 	roleAction: TextButton,
 	objectiveText: TextLabel,
@@ -66,6 +76,9 @@ type GameViewState = {
 	inventoryItems: { any },
 	requestSequence: number,
 	settingsValues: { [string]: any },
+	layoutConnections: { RBXScriptConnection },
+	announcementToken: number,
+	destroyed: boolean,
 }
 
 local GameView = {}
@@ -104,7 +117,10 @@ end
 
 local function readNumber(value: any, key: string, fallback: number): number
 	if type(value) == "table" and type(value[key]) == "number" then
-		return value[key]
+		local numberValue = value[key]
+		if numberValue == numberValue and math.abs(numberValue) < math.huge then
+			return numberValue
+		end
 	end
 	return fallback
 end
@@ -133,10 +149,63 @@ local function joinCandidateNames(value: any, namesById: { [string]: string }): 
 	return if #pieces > 0 then table.concat(pieces, ", ") else "Further analysis required"
 end
 
+local function imageKey(prefix: string, identifier: string): string
+	return prefix .. "_" .. string.gsub(identifier, "[^%w_%-]", "")
+end
+
+local function optionalImage(
+	parent: Instance,
+	name: string,
+	image: string?,
+	position: UDim2,
+	size: UDim2
+): ImageLabel?
+	if not image then
+		return nil
+	end
+	local icon = Instance.new("ImageLabel")
+	icon.Name = name
+	icon.BackgroundTransparency = 1
+	icon.BorderSizePixel = 0
+	icon.Image = image
+	icon.Position = position
+	icon.Size = size
+	icon.ScaleType = Enum.ScaleType.Fit
+	icon.Parent = parent
+	return icon
+end
+
+local function findFocusable(modal: GuiObject): GuiButton?
+	local closeButton: GuiButton? = nil
+	for _, descendant in modal:GetDescendants() do
+		if descendant:IsA("GuiButton")
+			and descendant.Visible
+			and descendant.Active
+			and descendant.Selectable
+		then
+			if descendant.Name ~= "Close" then
+				return descendant
+			end
+			closeButton = descendant
+		end
+	end
+	return closeButton
+end
+
 local function setModalVisible(modal: GuiObject, visible: boolean)
+	if modal.Visible == visible then
+		return
+	end
+	local selected = GuiService.SelectedObject
 	modal.Visible = visible
 	if visible then
-		GuiService.SelectedObject = modal:FindFirstChildWhichIsA("GuiButton", true)
+		task.defer(function()
+			if modal.Parent and modal.Visible then
+				GuiService.SelectedObject = findFocusable(modal)
+			end
+		end)
+	elseif selected and selected:IsDescendantOf(modal) then
+		GuiService.SelectedObject = nil
 	end
 end
 
@@ -149,13 +218,13 @@ local function makeHeader(parent: Instance, title: string, closeCallback: () -> 
 
 	local label = Components.Label(header, "Title", title, 24, Enum.Font.GothamBold)
 	label.Position = UDim2.fromOffset(20, 0)
-	label.Size = UDim2.new(1, -82, 1, 0)
+	label.Size = UDim2.new(1, -112, 1, 0)
 
 	local close = Components.Button(header, {
 		name = "Close",
-		text = "X",
-		size = UDim2.fromOffset(42, 38),
-		position = UDim2.new(1, -54, 0, 10),
+		text = "CLOSE",
+		size = UDim2.fromOffset(76, 42),
+		position = UDim2.new(1, -88, 0, 8),
 		color = Theme.Colors.Danger,
 	})
 	close.Activated:Connect(closeCallback)
@@ -177,7 +246,7 @@ local function makeModal(parent: Instance, name: string, size: UDim2): Frame
 	Components.Stroke(shade, Theme.Colors.Gold, 2)
 
 	local constraint = Instance.new("UISizeConstraint")
-	constraint.MinSize = Vector2.new(320, 300)
+	constraint.MinSize = Vector2.new(280, 260)
 	constraint.MaxSize = Vector2.new(920, 620)
 	constraint.Parent = shade
 	return shade
@@ -208,7 +277,7 @@ local function makeMenuButton(
 	return button
 end
 
-function GameView.new(actionHandler: ActionHandler): GameView
+function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver?): GameView
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local screen = playerGui:WaitForChild("GameUI")
 	assert(screen:IsA("ScreenGui"), "GameUI must be a ScreenGui")
@@ -258,6 +327,15 @@ function GameView.new(actionHandler: ActionHandler): GameView
 	roleTitle.Position = UDim2.fromOffset(16, 12)
 	roleTitle.Size = UDim2.new(1, -32, 0, 34)
 	roleTitle.TextColor3 = Theme.Colors.Gold
+	local roleIcon = Instance.new("ImageLabel")
+	roleIcon.Name = "RoleIcon"
+	roleIcon.BackgroundTransparency = 1
+	roleIcon.BorderSizePixel = 0
+	roleIcon.Position = UDim2.fromOffset(16, 10)
+	roleIcon.Size = UDim2.fromOffset(36, 36)
+	roleIcon.ScaleType = Enum.ScaleType.Fit
+	roleIcon.Visible = false
+	roleIcon.Parent = mission
 	local stateBadge = Components.Label(mission, "StateBadge", "WAITING", 12, Enum.Font.GothamBold)
 	stateBadge.AnchorPoint = Vector2.new(1, 0)
 	stateBadge.Position = UDim2.new(1, -14, 0, 16)
@@ -358,11 +436,22 @@ function GameView.new(actionHandler: ActionHandler): GameView
 		screenGui = screen,
 		root = root,
 		uiScale = uiScale,
+		topStatus = top,
+		missionPanel = mission,
+		healthPanel = healthPanel,
+		menuPanel = menu,
+		lobbyPanel = nil,
+		notebookButton = nil,
+		settingsButton = nil,
 		actionHandler = actionHandler,
+		resolveImage = imageResolver or function(_key: string): string?
+			return nil
+		end,
 		phaseLabel = phaseLabel,
 		timerLabel = timerLabel,
 		progressLabel = progressLabel,
 		roleTitle = roleTitle,
+		roleIcon = roleIcon,
 		roleDescription = roleDescription,
 		roleAction = roleAction,
 		objectiveText = objectiveText,
@@ -405,6 +494,9 @@ function GameView.new(actionHandler: ActionHandler): GameView
 		inventoryItems = {},
 		requestSequence = 0,
 		settingsValues = {},
+		layoutConnections = {},
+		announcementToken = 0,
+		destroyed = false,
 	}, GameView)
 
 	self:_buildNotebook()
@@ -416,40 +508,188 @@ function GameView.new(actionHandler: ActionHandler): GameView
 	self:_buildAnnouncements()
 	self:_buildLobby()
 
-	makeMenuButton(menu, "NotebookButton", "CLUES  [N]", UDim2.fromOffset(10, 0), function()
+	self.notebookButton = makeMenuButton(menu, "NotebookButton", "CLUES  [N]", UDim2.fromOffset(10, 0), function()
 		self:ToggleNotebook()
 	end)
-	makeMenuButton(menu, "SettingsButton", "SETTINGS", UDim2.fromOffset(10, 48), function()
+	self.settingsButton = makeMenuButton(menu, "SettingsButton", "SETTINGS", UDim2.fromOffset(10, 48), function()
 		self:ToggleSettings()
 	end)
 	roleAction.Activated:Connect(function()
 		self:_requestRoleAction()
 	end)
 
-	local camera = Workspace.CurrentCamera
-	local function updateScale()
+	local viewportConnection: RBXScriptConnection? = nil
+	local function bindCamera()
+		if viewportConnection then
+			viewportConnection:Disconnect()
+			viewportConnection = nil
+		end
 		local currentCamera = Workspace.CurrentCamera
-		if not currentCamera then
-			return
+		if currentCamera then
+			viewportConnection = currentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				self:_updateLayout()
+			end)
+			table.insert(self.layoutConnections, viewportConnection :: RBXScriptConnection)
 		end
-		local viewport = currentCamera.ViewportSize
-		if viewport.X < 650 then
-			uiScale.Scale = 0.66
-		elseif viewport.X < 900 then
-			uiScale.Scale = 0.78
-		elseif viewport.Y < 650 then
-			uiScale.Scale = 0.85
-		else
-			uiScale.Scale = 1
-		end
+		self:_updateLayout()
 	end
-	if camera then
-		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-	end
-	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(updateScale)
-	updateScale()
+	table.insert(
+		self.layoutConnections,
+		Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindCamera)
+	)
+	bindCamera()
 
 	return self
+end
+
+function GameView:_updateLayout()
+	if self.destroyed then
+		return
+	end
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local viewport = camera.ViewportSize
+	local narrow = viewport.X < 560
+	local compact = not narrow and (viewport.X < 850 or viewport.Y < 560)
+	self.uiScale.Scale = 1
+
+	if narrow then
+		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
+		self.topStatus.Position = UDim2.new(0.5, 0, 0, 8)
+		self.topStatus.Size = UDim2.new(1, -16, 0, 80)
+
+		self.menuPanel.AnchorPoint = Vector2.new(0.5, 0)
+		self.menuPanel.Position = UDim2.new(0.5, 0, 0, 94)
+		self.menuPanel.Size = UDim2.fromOffset(280, 42)
+		if self.notebookButton then
+			self.notebookButton.Position = UDim2.fromOffset(6, 0)
+		end
+		if self.settingsButton then
+			self.settingsButton.Position = UDim2.fromOffset(144, 0)
+		end
+
+		self.missionPanel.Position = UDim2.fromOffset(8, 142)
+		self.missionPanel.Size = UDim2.new(1, -16, 0, 310)
+		self.healthPanel.Position = UDim2.new(0, 8, 1, -92)
+		self.healthPanel.Size = UDim2.new(1, -16, 0, 66)
+		self.hotbar.AnchorPoint = Vector2.new(0.5, 1)
+		self.hotbar.Position = UDim2.new(0.5, 0, 1, -8)
+		self.hotbar.Size = UDim2.new(1, -16, 0, 76)
+		self.interaction.Position = UDim2.new(0.5, 0, 1, -166)
+		self.interaction.Size = UDim2.new(1, -20, 0, 60)
+		self.toastList.Position = UDim2.new(1, -8, 1, -170)
+		self.toastList.Size = UDim2.new(1, -16, 0, 210)
+		self.announcement.Size = UDim2.new(1, -16, 0, 82)
+		if self.lobbyPanel then
+			self.lobbyPanel.AnchorPoint = Vector2.new(0.5, 1)
+			self.lobbyPanel.Position = UDim2.new(0.5, 0, 1, -8)
+			self.lobbyPanel.Size = UDim2.new(1, -16, 0, 104)
+		end
+	elseif compact then
+		self.topStatus.AnchorPoint = Vector2.new(1, 0)
+		self.topStatus.Position = UDim2.new(1, -10, 0, 10)
+		self.topStatus.Size = UDim2.new(1, -310, 0, 96)
+
+		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
+		self.menuPanel.Position = UDim2.new(1, -10, 0, 114)
+		self.menuPanel.Size = UDim2.fromOffset(140, 94)
+		if self.notebookButton then
+			self.notebookButton.Position = UDim2.fromOffset(10, 0)
+		end
+		if self.settingsButton then
+			self.settingsButton.Position = UDim2.fromOffset(10, 48)
+		end
+
+		self.missionPanel.Position = UDim2.fromOffset(10, 10)
+		self.missionPanel.Size = UDim2.fromOffset(280, 310)
+		self.healthPanel.Position = UDim2.new(0, 10, 1, -10)
+		self.healthPanel.Size = UDim2.fromOffset(220, 66)
+		self.hotbar.Position = UDim2.new(1, -10, 1, -10)
+		self.hotbar.AnchorPoint = Vector2.new(1, 1)
+		self.hotbar.Size = UDim2.new(1, -250, 0, 80)
+		self.interaction.Position = UDim2.new(0.5, 0, 1, -100)
+		self.interaction.Size = UDim2.new(0.55, 0, 0, 60)
+		self.toastList.Position = UDim2.new(1, -10, 1, -100)
+		self.toastList.Size = UDim2.fromOffset(math.min(320, viewport.X - 20), 220)
+		self.announcement.Size = UDim2.new(1, -310, 0, 82)
+		if self.lobbyPanel then
+			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
+			self.lobbyPanel.Position = UDim2.new(1, -10, 1, -10)
+			self.lobbyPanel.Size = UDim2.fromOffset(300, 104)
+		end
+	else
+		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
+		self.topStatus.Position = UDim2.fromScale(0.5, 0.018)
+		self.topStatus.Size = UDim2.fromOffset(540, 96)
+		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
+		self.menuPanel.Position = UDim2.new(1, -18, 0, 18)
+		self.menuPanel.Size = UDim2.fromOffset(140, 94)
+		if self.notebookButton then
+			self.notebookButton.Position = UDim2.fromOffset(10, 0)
+		end
+		if self.settingsButton then
+			self.settingsButton.Position = UDim2.fromOffset(10, 48)
+		end
+		self.missionPanel.Position = UDim2.fromOffset(18, 18)
+		self.missionPanel.Size = UDim2.fromOffset(310, 310)
+		self.healthPanel.Position = UDim2.new(0, 18, 1, -18)
+		self.healthPanel.Size = UDim2.fromOffset(270, 66)
+		self.hotbar.AnchorPoint = Vector2.new(0.5, 1)
+		self.hotbar.Position = UDim2.new(0.5, 0, 1, -18)
+		self.hotbar.Size = UDim2.new(0.52, 0, 0, 80)
+		self.interaction.Position = UDim2.new(0.5, 0, 1, -112)
+		self.interaction.Size = UDim2.fromOffset(390, 60)
+		self.toastList.Position = UDim2.new(1, -18, 1, -122)
+		self.toastList.Size = UDim2.fromOffset(360, 250)
+		self.announcement.Size = UDim2.fromOffset(520, 82)
+		if self.lobbyPanel then
+			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
+			self.lobbyPanel.Position = UDim2.new(1, -18, 1, -18)
+			self.lobbyPanel.Size = UDim2.fromOffset(300, 104)
+		end
+	end
+
+	if narrow then
+		for _, modal in {
+			self.notebook,
+			self.settings,
+			self.voteModal,
+			self.resultModal,
+			self.targetModal,
+			self.progression,
+		} do
+			modal.Size = UDim2.new(1, -16, 1, -24)
+		end
+		local resultContinue = self.resultModal:FindFirstChild("Continue")
+		local resultProgression = self.resultModal:FindFirstChild("Progression")
+		if resultContinue and resultContinue:IsA("GuiObject") then
+			resultContinue.Size = UDim2.new(0.5, -18, 0, 44)
+			resultContinue.Position = UDim2.new(0.5, 6, 1, -64)
+		end
+		if resultProgression and resultProgression:IsA("GuiObject") then
+			resultProgression.Size = UDim2.new(0.5, -18, 0, 44)
+			resultProgression.Position = UDim2.new(0, 12, 1, -64)
+		end
+	else
+		self.notebook.Size = UDim2.new(0.72, 0, 0.72, 0)
+		self.settings.Size = UDim2.new(0.58, 0, 0.76, 0)
+		self.voteModal.Size = UDim2.new(0.46, 0, 0.64, 0)
+		self.resultModal.Size = UDim2.new(0.52, 0, 0.5, 0)
+		self.targetModal.Size = UDim2.new(0.4, 0, 0.62, 0)
+		self.progression.Size = UDim2.new(0.72, 0, 0.78, 0)
+		local resultContinue = self.resultModal:FindFirstChild("Continue")
+		local resultProgression = self.resultModal:FindFirstChild("Progression")
+		if resultContinue and resultContinue:IsA("GuiObject") then
+			resultContinue.Size = UDim2.fromOffset(170, 44)
+			resultContinue.Position = UDim2.new(0.5, 8, 1, -64)
+		end
+		if resultProgression and resultProgression:IsA("GuiObject") then
+			resultProgression.Size = UDim2.fromOffset(170, 44)
+			resultProgression.Position = UDim2.new(0.5, -178, 1, -64)
+		end
+	end
 end
 
 function GameView:_buildNotebook()
@@ -845,8 +1085,11 @@ function GameView:_chooseParticipant(
 	end
 	if added == 0 then
 		setModalVisible(self.targetModal, false)
-		self:_send(action, payload)
-		self:Notify("No selectable target", "The server will use the action's safe default.", "Info")
+		self:Notify(
+			"No selectable target",
+			"This action needs another living camper and was not sent.",
+			"Warning"
+		)
 		return
 	end
 	setModalVisible(self.notebook, false)
@@ -868,10 +1111,12 @@ function GameView:_chooseEvidence(action: string, payload: { [string]: any })
 			table.insert(records, record)
 		end
 	end
+	local added = 0
 	for _, record in records do
 		if type(record) == "table" then
 			local evidenceId = readString(record, "evidenceId", "")
 			if evidenceId ~= "" then
+				added += 1
 				local button = Components.Button(self.targetList, {
 					name = "Evidence_" .. evidenceId:gsub("[^%w]", "_"),
 					text = readString(record, "displayName", "Unknown clue"),
@@ -887,7 +1132,7 @@ function GameView:_chooseEvidence(action: string, payload: { [string]: any })
 			end
 		end
 	end
-	if #records == 0 then
+	if added == 0 then
 		setModalVisible(self.targetModal, false)
 		self:Notify("No evidence available", "Post a clue before using this ability.", "Warning")
 		return
@@ -1013,6 +1258,7 @@ function GameView:_buildLobby()
 	end)
 	self.readyButton = ready
 	self.lobbyText = text
+	self.lobbyPanel = lobby
 end
 
 function GameView:_activateRoleAbility(abilityId: string)
@@ -1130,7 +1376,13 @@ function GameView:_requestRoleAction()
 	end
 end
 
-function GameView:_settingRow(name: string, key: string, isToggle: boolean)
+function GameView:_settingRow(
+	name: string,
+	key: string,
+	isToggle: boolean,
+	minimum: number?,
+	maximum: number?
+)
 	local row = Components.Panel(self.settingsList, "Setting_" .. key)
 	row:SetAttribute("Generated", true)
 	row.Size = UDim2.new(1, -8, 0, 56)
@@ -1150,6 +1402,8 @@ function GameView:_settingRow(name: string, key: string, isToggle: boolean)
 			self:_setSetting(key, not (self.settingsValues[key] == true))
 		end)
 	else
+		local minValue = minimum or 0
+		local maxValue = maximum or 1
 		local minus = Components.Button(row, {
 			name = "Minus",
 			text = "-",
@@ -1167,10 +1421,16 @@ function GameView:_settingRow(name: string, key: string, isToggle: boolean)
 			position = UDim2.new(1, -44, 0.5, -18),
 		})
 		minus.Activated:Connect(function()
-			self:_setSetting(key, math.clamp((tonumber(self.settingsValues[key]) or 1) - 0.1, 0, 2))
+			self:_setSetting(
+				key,
+				math.clamp((tonumber(self.settingsValues[key]) or 1) - 0.1, minValue, maxValue)
+			)
 		end)
 		plus.Activated:Connect(function()
-			self:_setSetting(key, math.clamp((tonumber(self.settingsValues[key]) or 1) + 0.1, 0, 2))
+			self:_setSetting(
+				key,
+				math.clamp((tonumber(self.settingsValues[key]) or 1) + 0.1, minValue, maxValue)
+			)
 		end)
 	end
 end
@@ -1180,11 +1440,15 @@ function GameView:_rebuildSettings()
 	local defaults: { [string]: any } = {
 		masterVolume = 1,
 		musicVolume = 0.7,
+		ambienceVolume = 0.8,
 		effectsVolume = 0.9,
+		uiVolume = 0.8,
 		subtitles = true,
 		reducedMotion = false,
 		cameraShake = true,
 		highContrastEvidence = false,
+		mouseSensitivity = 1,
+		controllerSensitivity = 1,
 		sprintToggle = false,
 	}
 	for key, value in defaults do
@@ -1192,13 +1456,17 @@ function GameView:_rebuildSettings()
 			self.settingsValues[key] = value
 		end
 	end
-	self:_settingRow("Master volume", "masterVolume", false)
-	self:_settingRow("Music volume", "musicVolume", false)
-	self:_settingRow("Effects volume", "effectsVolume", false)
+	self:_settingRow("Master volume", "masterVolume", false, 0, 1)
+	self:_settingRow("Music volume", "musicVolume", false, 0, 1)
+	self:_settingRow("Ambience volume", "ambienceVolume", false, 0, 1)
+	self:_settingRow("Effects volume", "effectsVolume", false, 0, 1)
+	self:_settingRow("UI volume", "uiVolume", false, 0, 1)
 	self:_settingRow("Subtitles", "subtitles", true)
 	self:_settingRow("Reduced motion", "reducedMotion", true)
 	self:_settingRow("Camera shake", "cameraShake", true)
 	self:_settingRow("High-contrast evidence", "highContrastEvidence", true)
+	self:_settingRow("Mouse sensitivity", "mouseSensitivity", false, 0.1, 3)
+	self:_settingRow("Controller sensitivity", "controllerSensitivity", false, 0.1, 3)
 	self:_settingRow("Toggle sprint", "sprintToggle", true)
 end
 
@@ -1220,6 +1488,8 @@ function GameView:_updateLobby(state: any, phase: string)
 		return
 	end
 	parent.Visible = phase == "Lobby"
+	self.healthPanel.Visible = phase ~= "Lobby"
+	self.hotbar.Visible = phase ~= "Lobby"
 	if type(lobby) ~= "table" then
 		self.lobbyText.Text = "The next mystery begins soon."
 		Components.SetButtonEnabled(self.readyButton, false)
@@ -1242,10 +1512,15 @@ function GameView:_updateLobby(state: any, phase: string)
 end
 
 function GameView:_updateInventory(state: any)
+	local selected = GuiService.SelectedObject
+	local restoreControllerFocus = selected ~= nil and selected:IsDescendantOf(self.hotbar)
 	Components.ClearGenerated(self.hotbar)
 	local inventory = if type(state) == "table" then state.inventory else nil
 	local items = if type(inventory) == "table" then asTable(inventory.items) else {}
 	self.inventoryItems = items
+	if self.selectedInventorySlot < 1 or self.selectedInventorySlot > #items then
+		self.selectedInventorySlot = if #items > 0 then 1 else 0
+	end
 	if #items == 0 then
 		local empty = Components.Label(self.hotbar, "Empty", "Equipment will appear here.", 13)
 		empty.Size = UDim2.fromOffset(260, 68)
@@ -1255,7 +1530,6 @@ function GameView:_updateInventory(state: any)
 	end
 	for index, item in items do
 		if type(item) == "table" then
-			local instanceId = readString(item, "instanceId", "")
 			local displayName = readString(item, "displayName", readString(item, "equipmentId", "Item"))
 			local charges = readNumber(item, "charges", 0)
 			local equipped = readBoolean(item, "equipped", false)
@@ -1263,14 +1537,51 @@ function GameView:_updateInventory(state: any)
 				name = "Slot_" .. tostring(index),
 				text = string.format("%d\n%s%s", index, displayName, if charges > 0 then "  [" .. tostring(charges) .. "]" else ""),
 				size = UDim2.fromOffset(112, 68),
-				color = if equipped then Theme.Colors.Gold else Theme.Colors.Panel,
+				color = if index == self.selectedInventorySlot
+					then Theme.Colors.Info
+					elseif equipped then Theme.Colors.Gold
+					else Theme.Colors.Panel,
 			})
+			local equipmentId = readString(item, "equipmentId", "")
+			local image = self.resolveImage(imageKey("Equipment", equipmentId))
+			if image then
+				button.Text = ""
+				optionalImage(button, "Icon", image, UDim2.fromOffset(6, 16), UDim2.fromOffset(34, 34))
+				local caption = Components.Label(
+					button,
+					"Caption",
+					string.format(
+						"%d\n%s%s",
+						index,
+						displayName,
+						if charges > 0 then " [" .. tostring(charges) .. "]" else ""
+					),
+					11,
+					Enum.Font.GothamBold
+				)
+				caption.Position = UDim2.fromOffset(43, 4)
+				caption.Size = UDim2.new(1, -47, 1, -8)
+				caption.TextXAlignment = Enum.TextXAlignment.Center
+			end
 			button:SetAttribute("Generated", true)
 			button.Activated:Connect(function()
 				self.selectedInventorySlot = index
 				self:_activateItem(item)
 			end)
 		end
+	end
+	if restoreControllerFocus and self.selectedInventorySlot > 0 then
+		task.defer(function()
+			if self.destroyed then
+				return
+			end
+			local selectedButton = self.hotbar:FindFirstChild(
+				"Slot_" .. tostring(self.selectedInventorySlot)
+			)
+			if selectedButton and selectedButton:IsA("GuiButton") and selectedButton.Active then
+				GuiService.SelectedObject = selectedButton
+			end
+		end)
 	end
 end
 
@@ -1291,10 +1602,8 @@ function GameView:_activateItem(item: any)
 		instanceId = instanceId,
 		direction = if Workspace.CurrentCamera then Workspace.CurrentCamera.CFrame.LookVector else nil,
 	}
-	if equipmentId == "MedicalKit" or equipmentId == "UVLight" or equipmentId == "Flashlight" then
+	if equipmentId == "MedicalKit" then
 		self:_chooseParticipant("UseItem", payload, false)
-	elseif equipmentId == "MonsterTrap" or equipmentId == "FlareLantern" then
-		self:_send("UseItem", payload)
 	else
 		self:_send("UseItem", payload)
 	end
@@ -1356,6 +1665,17 @@ function GameView:_updateEvidence(state: any, round: any)
 		title.Position = UDim2.fromOffset(12, 7)
 		title.Size = UDim2.new(1, -150, 0, 27)
 		title.TextColor3 = if channel == "MONSTER" then Theme.Colors.Ghost else Theme.Colors.Gold
+		local icon = optionalImage(
+			card,
+			"EvidenceIcon",
+			self.resolveImage(if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"),
+			UDim2.fromOffset(12, 7),
+			UDim2.fromOffset(26, 26)
+		)
+		if icon then
+			title.Position = UDim2.fromOffset(44, 7)
+			title.Size = UDim2.new(1, -182, 0, 27)
+		end
 		local tag = Components.Label(card, "Channel", channel, 11, Enum.Font.GothamBold)
 		tag.Position = UDim2.new(1, -126, 0, 7)
 		tag.Size = UDim2.fromOffset(112, 26)
@@ -1437,6 +1757,17 @@ function GameView:_updateEvidence(state: any, round: any)
 			title.TextColor3 = if channel == "Monster"
 				then Theme.Colors.Ghost
 				else Theme.Colors.Gold
+			local icon = optionalImage(
+				card,
+				"EvidenceIcon",
+				self.resolveImage("Evidence_Mystery"),
+				UDim2.fromOffset(12, 7),
+				UDim2.fromOffset(26, 26)
+			)
+			if icon then
+				title.Position = UDim2.fromOffset(44, 7)
+				title.Size = UDim2.new(1, -182, 0, 27)
+			end
 			local tag = Components.Label(
 				card,
 				"Channel",
@@ -1493,6 +1824,17 @@ function GameView:_updateEvidence(state: any, round: any)
 			title.Position = UDim2.fromOffset(12, 7)
 			title.Size = UDim2.new(1, -24, 0, 24)
 			title.TextColor3 = Theme.Colors.Amber
+			local icon = optionalImage(
+				card,
+				"EvidenceIcon",
+				self.resolveImage("Evidence_Witness"),
+				UDim2.fromOffset(12, 7),
+				UDim2.fromOffset(24, 24)
+			)
+			if icon then
+				title.Position = UDim2.fromOffset(42, 7)
+				title.Size = UDim2.new(1, -54, 0, 24)
+			end
 			local statement = Components.Label(
 				card,
 				"Statement",
@@ -1691,6 +2033,15 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	end
 
 	local role = readString(player, "role", "Spectator")
+	local roleImage = self.resolveImage(imageKey("Role", role))
+	self.roleIcon.Image = roleImage or ""
+	self.roleIcon.Visible = roleImage ~= nil
+	self.roleTitle.Position = if roleImage
+		then UDim2.fromOffset(58, 12)
+		else UDim2.fromOffset(16, 12)
+	self.roleTitle.Size = if roleImage
+		then UDim2.new(1, -174, 0, 34)
+		else UDim2.new(1, -32, 0, 34)
 	self.roleTitle.Text = string.upper(readString(player, "roleDisplayName", role))
 	self.roleDescription.Text = readString(
 		player,
@@ -1836,6 +2187,22 @@ function GameView:ActivateInventorySlot(slot: number)
 	end
 end
 
+function GameView:SelectInventorySlot(slot: number)
+	if slot < 1 or slot > #self.inventoryItems then
+		return
+	end
+	self.selectedInventorySlot = slot
+	self:_updateInventory(self.currentState)
+	local button = self.hotbar:FindFirstChild("Slot_" .. tostring(slot))
+	if button and button:IsA("GuiButton") and button.Active then
+		GuiService.SelectedObject = button
+	end
+end
+
+function GameView:GetInventorySlotCount(): number
+	return math.min(#self.inventoryItems, 15)
+end
+
 function GameView:ShowInteraction(actionText: string, objectText: string, inputText: string)
 	self.interactionKey.Text = inputText
 	self.interactionText.Text = actionText .. if objectText ~= "" then "\n" .. objectText else ""
@@ -1847,6 +2214,11 @@ function GameView:HideInteraction()
 end
 
 function GameView:Announce(payload: any)
+	if self.destroyed or type(payload) ~= "table" then
+		return
+	end
+	self.announcementToken += 1
+	local token = self.announcementToken
 	local kind = readString(payload, "kind", "Info")
 	self.announcementTitle.Text = string.upper(readString(payload, "title", "CAMP NOTICE"))
 	self.announcementBody.Text = readString(payload, "message", "")
@@ -1867,7 +2239,7 @@ function GameView:Announce(payload: any)
 	end
 	local duration = math.clamp(readNumber(payload, "duration", 4), 1, 12)
 	task.delay(duration, function()
-		if self.announcement.Parent then
+		if not self.destroyed and token == self.announcementToken and self.announcement.Parent then
 			if reducedMotion then
 				self.announcement.Position = UDim2.new(0.5, 0, 0, -110)
 			else
@@ -1882,6 +2254,19 @@ function GameView:Announce(payload: any)
 end
 
 function GameView:Notify(titleText: string, bodyText: string, kind: string)
+	if self.destroyed then
+		return
+	end
+	local existingToasts = self.toastList:GetChildren()
+	local toastCount = 0
+	for _, child in existingToasts do
+		if child:IsA("GuiObject") and child.Name == "Toast" then
+			toastCount += 1
+			if toastCount > 3 then
+				child:Destroy()
+			end
+		end
+	end
 	local toast = Components.Panel(self.toastList, "Toast")
 	toast.Size = UDim2.new(1, 0, 0, 70)
 	toast.BackgroundColor3 = if kind == "Danger"
@@ -1900,6 +2285,25 @@ function GameView:Notify(titleText: string, bodyText: string, kind: string)
 			toast:Destroy()
 		end
 	end)
+end
+
+function GameView:Destroy()
+	if self.destroyed then
+		return
+	end
+	self.destroyed = true
+	self.announcementToken += 1
+	for _, connection in self.layoutConnections do
+		connection:Disconnect()
+	end
+	table.clear(self.layoutConnections)
+	if GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(self.root) then
+		GuiService.SelectedObject = nil
+	end
+	if self.root.Parent then
+		self.root:Destroy()
+	end
+	table.clear(self.inventoryItems)
 end
 
 return table.freeze(GameView)

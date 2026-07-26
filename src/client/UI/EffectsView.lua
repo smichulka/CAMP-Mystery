@@ -292,7 +292,11 @@ function EffectsView:ShowAnnouncement(payload: any)
 	end
 	local title = if type(payload.title) == "string" then payload.title else "CAMP NOTICE"
 	local message = if type(payload.message) == "string" then payload.message else ""
-	local duration = if type(payload.duration) == "number" then payload.duration else 4
+	local duration = if type(payload.duration) == "number"
+			and payload.duration == payload.duration
+			and math.abs(payload.duration) < math.huge
+		then payload.duration
+		else 4
 	self:ShowPhase(title, message, duration)
 end
 

@@ -8,11 +8,14 @@ Run the unified release suite from the repository root:
 python scripts/run_all_checks.py
 ```
 
-The unified runner executes the structural validator, domain contracts, release
-readiness tests, 512 deterministic roster/mystery simulations, and a Rojo build when
-Rojo is available. The structural validator checks the Rojo mappings, remote classes, strict-mode source
-files, required catalogs, server APIs, 15-slot inventory contract, schema-v1 profiles,
-Studio memory fallback, and the launch ban on monetization APIs.
+The unified runner executes the structural validator, domain contracts, focused server
+and client release contracts, release readiness tests, 512 deterministic roster/mystery
+simulations, a 1,000-round reference
+soak, 10,000 hostile reference payloads, content-manifest validation, and a Rojo build
+when Rojo is available. The structural validator checks the Rojo mappings, remote
+classes, strict-mode source files, required catalogs, server APIs, 15-slot inventory
+contract, schema-v1 profiles, Studio memory fallback, and the launch ban on monetization
+APIs.
 
 The domain contract suite additionally checks that:
 
@@ -37,6 +40,34 @@ For the final release-candidate repository gate, require a successful Rojo build
 ```powershell
 python scripts/run_all_checks.py --require-rojo
 ```
+
+The soak and fuzz cases are pure-Python reference models. They do not invoke a Roblox
+server and therefore cannot pass the Studio soak, runtime remote-fuzz, or performance
+gates.
+
+GitHub Actions installs Rokit, resolves the Rojo version pinned in `rokit.toml`, and
+requires the Rojo build. Luau engine analysis remains the explicit Roblox Studio
+`Script Analysis` gate; the workflow does not claim to replace it.
+
+## Release evidence
+
+Generate commit-scoped repository evidence:
+
+```powershell
+python scripts/release_gate.py --commit <40-character-commit-sha>
+```
+
+Evaluate a real release candidate only after completing the Roblox observation template:
+
+```powershell
+python scripts/release_gate.py `
+  --release-candidate `
+  --commit <40-character-commit-sha> `
+  --observations .\path\to\completed-observations.json
+```
+
+See [RELEASE_EVIDENCE.md](RELEASE_EVIDENCE.md) for evidence handling and
+[RELEASE_OPERATIONS.md](RELEASE_OPERATIONS.md) for rollback and incidents.
 
 ## Production runtime acceptance
 

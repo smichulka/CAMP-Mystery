@@ -65,36 +65,36 @@ function TutorialView.new(parent: Instance): TutorialView
 	local panel = Components.Panel(root, "TutorialCard")
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.68, 0, 0, 350)
+	panel.Size = UDim2.new(0.82, 0, 0.88, 0)
 	panel.BackgroundColor3 = Theme.Colors.Background
 	panel.BackgroundTransparency = 0.02
 	Components.Stroke(panel, Theme.Colors.Gold, 2)
 
 	local sizeConstraint = Instance.new("UISizeConstraint")
-	sizeConstraint.MinSize = Vector2.new(310, 330)
+	sizeConstraint.MinSize = Vector2.new(280, 280)
 	sizeConstraint.MaxSize = Vector2.new(720, 380)
 	sizeConstraint.Parent = panel
 
 	local progress = Components.Label(panel, "Progress", "NEW CAMPER BRIEFING", 12, Enum.Font.GothamBold)
-	progress.Position = UDim2.fromOffset(24, 18)
+	progress.Position = UDim2.new(0, 24, 0.04, 0)
 	progress.Size = UDim2.new(1, -48, 0, 24)
 	progress.TextColor3 = Theme.Colors.Gold
 	progress.TextXAlignment = Enum.TextXAlignment.Center
 
 	local title = Components.Label(panel, "Title", "", 27, Enum.Font.GothamBold)
-	title.Position = UDim2.fromOffset(24, 48)
+	title.Position = UDim2.new(0, 24, 0.14, 0)
 	title.Size = UDim2.new(1, -48, 0, 50)
 	title.TextXAlignment = Enum.TextXAlignment.Center
 
 	local body = Components.Label(panel, "Body", "", 16)
-	body.Position = UDim2.fromOffset(30, 103)
-	body.Size = UDim2.new(1, -60, 0, 92)
+	body.Position = UDim2.new(0, 30, 0.29, 0)
+	body.Size = UDim2.new(1, -60, 0.24, 0)
 	body.TextXAlignment = Enum.TextXAlignment.Center
 	body.TextYAlignment = Enum.TextYAlignment.Top
 
 	local objective = Components.Label(panel, "Objective", "", 15, Enum.Font.GothamBold)
-	objective.Position = UDim2.fromOffset(30, 205)
-	objective.Size = UDim2.new(1, -60, 0, 54)
+	objective.Position = UDim2.new(0, 30, 0.55, 0)
+	objective.Size = UDim2.new(1, -60, 0.17, 0)
 	objective.BackgroundColor3 = Theme.Colors.PanelSoft
 	objective.BackgroundTransparency = 0.04
 	objective.TextColor3 = Theme.Colors.Gold
@@ -105,16 +105,16 @@ function TutorialView.new(parent: Instance): TutorialView
 	local continueButton = Components.Button(panel, {
 		name = "Continue",
 		text = "CONTINUE",
-		size = UDim2.new(0.5, -34, 0, 48),
-		position = UDim2.new(0.5, 10, 1, -70),
+		size = UDim2.new(0.5, -34, 0, 44),
+		position = UDim2.new(0.5, 10, 1, -62),
 		color = Theme.Colors.Success,
 	})
 
 	local skipButton = Components.Button(panel, {
 		name = "Skip",
 		text = "SKIP BRIEFING",
-		size = UDim2.new(0.5, -34, 0, 48),
-		position = UDim2.fromOffset(24, 280),
+		size = UDim2.new(0.5, -34, 0, 44),
+		position = UDim2.new(0, 24, 1, -62),
 		color = Theme.Colors.PanelSoft,
 	})
 

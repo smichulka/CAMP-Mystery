@@ -1,6 +1,7 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local RuntimeTypes = require(Shared:WaitForChild("Types"):WaitForChild("RuntimeTypes"))
@@ -13,12 +14,14 @@ local InputController = require(script.Parent:WaitForChild("InputController"))
 local InteractionController = require(script.Parent:WaitForChild("InteractionController"))
 local RemoteBridgeModule = require(script.Parent:WaitForChild("RemoteBridge"))
 local TutorialController = require(script.Parent:WaitForChild("TutorialController"))
+local UIAssetControllerModule = require(script.Parent:WaitForChild("UIAssetController"))
 
 type GameState = RuntimeTypes.GameState
 type ActionResult = RuntimeTypes.ActionResult
 type Announcement = RuntimeTypes.Announcement
 type GameView = GameViewModule.GameView
 type RemoteBridge = RemoteBridgeModule.RemoteBridge
+type UIAssetController = UIAssetControllerModule.UIAssetController
 
 local RoundController = {}
 
@@ -32,6 +35,7 @@ local accessibility: any = nil
 local audio: any = nil
 local effects: any = nil
 local tutorial: any = nil
+local uiAssets: UIAssetController? = nil
 local interactionConnections: { RBXScriptConnection } = {}
 
 local function refresh()
@@ -54,11 +58,25 @@ local function updateReleaseExperience(snapshot: GameState)
 	local reducedMotion = currentAccessibility:IsReducedMotion()
 	currentEffects:SetReducedMotion(reducedMotion)
 	currentTutorial:SetReducedMotion(reducedMotion)
-	local profile = snapshot.profile
-	local profileData = if profile then profile.profile else nil
-	local settings = if profileData then profileData.settings else nil
-	if settings and settings.tutorialCompleted then
+	local profile = if type(snapshot) == "table" then snapshot.profile else nil
+	local profileData = if type(profile) == "table" and type(profile.profile) == "table"
+		then profile.profile
+		else nil
+	local settings = if type(profileData) == "table" and type(profileData.settings) == "table"
+		then profileData.settings
+		else nil
+	if settings and settings.tutorialCompleted == true then
 		currentTutorial:SetCompleted(true)
+	end
+	if settings and type(settings.mouseSensitivity) == "number" then
+		UserInputService.MouseDeltaSensitivity = math.clamp(settings.mouseSensitivity, 0.1, 3)
+	end
+	if settings and type(settings.controllerSensitivity) == "number" then
+		pcall(function()
+			local userGameSettings = UserSettings():GetService("UserGameSettings")
+			(userGameSettings :: any).GamepadCameraSensitivity =
+				math.clamp(settings.controllerSensitivity, 0.1, 3)
+		end)
 	end
 	currentTutorial:Update(snapshot)
 	currentAudio:Update(snapshot)
@@ -85,11 +103,14 @@ local function handleActionResult(payload: any)
 		return
 	end
 	local result = payload :: ActionResult
-	if result.state then
+	if type(result.state) == "table" then
 		state = result.state
 		refresh()
+		updateReleaseExperience(result.state)
 	end
-	if result.accepted then
+	local accepted = result.accepted == true
+	local reason = if type(result.reason) == "string" then result.reason else nil
+	if accepted then
 		if currentView then
 			local dialogueText: string? = nil
 			if type(result.data) == "table" then
@@ -100,12 +121,12 @@ local function handleActionResult(payload: any)
 			end
 			currentView:Notify(
 				if dialogueText then "Counselor interview" else "Action complete",
-				dialogueText or result.reason or "The server confirmed your action.",
+				dialogueText or reason or "The server confirmed your action.",
 				"Success"
 			)
 		end
 	elseif currentView then
-		currentView:Notify("Action rejected", result.reason or "That action is not allowed right now.", "Danger")
+		currentView:Notify("Action rejected", reason or "That action is not allowed right now.", "Danger")
 	end
 end
 
@@ -117,7 +138,11 @@ function RoundController.Start()
 
 	local remoteBridge = RemoteBridgeModule.new()
 	bridge = remoteBridge
-	local gameView = GameViewModule.new(requestAction)
+	local assetController = UIAssetControllerModule.new()
+	uiAssets = assetController
+	local gameView = GameViewModule.new(requestAction, function(key: string): string?
+		return assetController:Resolve(key)
+	end)
 	view = gameView
 	local releaseEffects = EffectsViewModule.new(gameView.root)
 	effects = releaseEffects
@@ -164,7 +189,6 @@ function RoundController.Start()
 	remoteBridge:OnSnapshot("announcement", function(payload: any)
 		if type(payload) == "table" then
 			gameView:Announce(payload :: Announcement)
-			releaseEffects:ShowAnnouncement(payload)
 		end
 	end)
 	remoteBridge:OnActionResult(handleActionResult)
@@ -178,6 +202,12 @@ function RoundController.Start()
 		end,
 		activateSlot = function(slot: number)
 			gameView:ActivateInventorySlot(slot)
+		end,
+		selectSlot = function(slot: number)
+			gameView:SelectInventorySlot(slot)
+		end,
+		getSlotCount = function()
+			return gameView:GetInventorySlotCount()
 		end,
 		closeModal = function()
 			gameView:CloseModal()
@@ -231,14 +261,18 @@ function RoundController.Stop()
 	if effects then
 		effects:Destroy()
 	end
-	if view and view.root.Parent then
-		view.root:Destroy()
+	if view then
+		view:Destroy()
+	end
+	if uiAssets then
+		uiAssets:Destroy()
 	end
 	bridge = nil
 	tutorial = nil
 	audio = nil
 	accessibility = nil
 	effects = nil
+	uiAssets = nil
 	view = nil
 	state = nil
 	legacyRound = nil

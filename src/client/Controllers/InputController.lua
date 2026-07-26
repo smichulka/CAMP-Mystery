@@ -7,6 +7,8 @@ type InputCallbacks = {
 	toggleNotebook: () -> (),
 	toggleSettings: () -> (),
 	activateSlot: (slot: number) -> (),
+	selectSlot: (slot: number) -> (),
+	getSlotCount: () -> number,
 	closeModal: () -> (),
 }
 
@@ -28,6 +30,7 @@ local SLOT_KEYS: { Enum.KeyCode } = {
 	Enum.KeyCode.Seven,
 	Enum.KeyCode.Eight,
 	Enum.KeyCode.Nine,
+	Enum.KeyCode.Zero,
 }
 
 local function activate(callback: () -> ())
@@ -45,6 +48,15 @@ end
 
 function InputController.Start(callbacks: InputCallbacks)
 	local selectedSlot = 1
+	local function selectOffset(offset: number)
+		local count = math.clamp(callbacks.getSlotCount(), 0, 15)
+		if count <= 0 then
+			return
+		end
+		selectedSlot = ((selectedSlot - 1 + offset) % count) + 1
+		callbacks.selectSlot(selectedSlot)
+	end
+
 	ContextActionService:BindAction(
 		ACTION_NOTEBOOK,
 		activate(callbacks.toggleNotebook),
@@ -71,7 +83,7 @@ function InputController.Start(callbacks: InputCallbacks)
 		Enum.KeyCode.ButtonB
 	)
 
-	for slot = 1, 9 do
+	for slot = 1, 10 do
 		local slotNumber = slot
 		local keyCode = SLOT_KEYS[slotNumber]
 		ContextActionService:BindAction(
@@ -87,18 +99,20 @@ function InputController.Start(callbacks: InputCallbacks)
 	ContextActionService:BindAction(
 		ACTION_SLOT_PREVIOUS,
 		activate(function()
-			selectedSlot = if selectedSlot <= 1 then 9 else selectedSlot - 1
+			selectOffset(-1)
 		end),
 		false,
-		Enum.KeyCode.ButtonL1
+		Enum.KeyCode.ButtonL1,
+		Enum.KeyCode.DPadLeft
 	)
 	ContextActionService:BindAction(
 		ACTION_SLOT_NEXT,
 		activate(function()
-			selectedSlot = if selectedSlot >= 9 then 1 else selectedSlot + 1
+			selectOffset(1)
 		end),
 		false,
-		Enum.KeyCode.ButtonR1
+		Enum.KeyCode.ButtonR1,
+		Enum.KeyCode.DPadRight
 	)
 	ContextActionService:BindAction(
 		ACTION_SLOT_USE,
@@ -121,7 +135,7 @@ function InputController.Stop()
 	ContextActionService:UnbindAction(ACTION_SLOT_PREVIOUS)
 	ContextActionService:UnbindAction(ACTION_SLOT_NEXT)
 	ContextActionService:UnbindAction(ACTION_SLOT_USE)
-	for slot = 1, 9 do
+	for slot = 1, 10 do
 		ContextActionService:UnbindAction("CampMysterySlot" .. tostring(slot))
 	end
 end
