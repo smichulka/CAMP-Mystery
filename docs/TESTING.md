@@ -50,9 +50,9 @@ The soak and fuzz cases are pure-Python reference models. They do not invoke a R
 server and therefore cannot pass the Studio soak, runtime remote-fuzz, or performance
 gates.
 
-GitHub Actions installs Rokit, resolves the Rojo version pinned in `rokit.toml`, and
-requires the Rojo build. Luau engine analysis remains the explicit Roblox Studio
-`Script Analysis` gate; the workflow does not claim to replace it.
+GitHub Actions downloads the exact Rojo 7.7.0 Linux release asset from its immutable
+versioned URL and requires a successful build. Luau engine analysis remains the explicit
+Roblox Studio `Script Analysis` gate; the workflow does not claim to replace it.
 
 ## Release evidence
 
