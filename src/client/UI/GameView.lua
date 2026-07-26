@@ -204,6 +204,21 @@ local function setModalVisible(modal: GuiObject, visible: boolean)
 	if visible then
 		modal.Visible = true
 		Components.PlayUISound("open")
+		local staggerTarget: GuiObject? = nil
+		if modal.Name == "EvidenceNotebook" then
+			local evidenceList = modal:FindFirstChild("EvidenceList")
+			if evidenceList and evidenceList:IsA("GuiObject") then
+				staggerTarget = evidenceList
+				Motion.StaggerChildren(evidenceList, {
+					preset = "SlideUp",
+				})
+			end
+		elseif modal.Name == "CampfireVote" then
+			local voteList = modal:FindFirstChild("Suspects")
+			if voteList and voteList:IsA("GuiObject") then
+				staggerTarget = voteList
+			end
+		end
 		Motion.PopIn(modal, {
 			onComplete = function(completed: boolean)
 				if completed
@@ -214,19 +229,7 @@ local function setModalVisible(modal: GuiObject, visible: boolean)
 				end
 			end,
 		})
-		local staggerTarget: GuiObject? = nil
-		if modal.Name == "EvidenceNotebook" then
-			local evidenceList = modal:FindFirstChild("EvidenceList")
-			if evidenceList and evidenceList:IsA("GuiObject") then
-				staggerTarget = evidenceList
-			end
-		elseif modal.Name == "CampfireVote" then
-			local voteList = modal:FindFirstChild("Suspects")
-			if voteList and voteList:IsA("GuiObject") then
-				staggerTarget = voteList
-			end
-		end
-		if staggerTarget then
+		if staggerTarget and modal.Name == "CampfireVote" then
 			local list = staggerTarget
 			task.defer(function()
 				if modal:GetAttribute("MotionTargetVisible") == true then
@@ -236,20 +239,10 @@ local function setModalVisible(modal: GuiObject, visible: boolean)
 				end
 			end)
 		end
-	elseif selected and selected:IsDescendantOf(modal) then
-		GuiService.SelectedObject = nil
-		Components.PlayUISound("close")
-		Motion.PopOut(modal, {
-			onComplete = function(completed: boolean)
-				if completed
-					and modal.Parent
-					and modal:GetAttribute("MotionTargetVisible") == false
-				then
-					modal.Visible = false
-				end
-			end,
-		})
 	elseif modal.Visible then
+		if selected and selected:IsDescendantOf(modal) then
+			GuiService.SelectedObject = nil
+		end
 		Components.PlayUISound("close")
 		Motion.PopOut(modal, {
 			onComplete = function(completed: boolean)
