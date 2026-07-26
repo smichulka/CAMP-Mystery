@@ -45,6 +45,19 @@ local Theme = {
 		StandardEasingStyle = Enum.EasingStyle.Quint,
 		StandardEasingDirection = Enum.EasingDirection.Out,
 	},
+	Notebook = {
+		PageColor = Color3.fromRGB(245, 238, 210),
+		PageLines = Color3.fromRGB(180, 190, 200),
+		InkColor = Color3.fromRGB(28, 32, 40),
+		InkMuted = Color3.fromRGB(90, 95, 105),
+		TapeColor = Color3.fromRGB(220, 200, 140),
+		StampConfirmed = Color3.fromRGB(40, 120, 60),
+		StampDenied = Color3.fromRGB(160, 40, 40),
+		CardWidth = 280,
+		CardHeight = 90,
+		CardPadding = 10,
+		LineHeight = 20,
+	},
 }
 
 return table.freeze(Theme)

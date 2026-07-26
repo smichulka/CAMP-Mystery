@@ -78,6 +78,53 @@ class PhaseCinematicsTests(unittest.TestCase):
         )
         self.assertIn("not\n-- duplicated in DEFINITIONS here.", sound_map)
 
+    def test_workflow_has_concurrency_cancellation(self) -> None:
+        workflow = read(".github/workflows/validate.yml")
+        self.assertIn("concurrency:", workflow)
+        self.assertIn("cancel-in-progress: true", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+
+    def test_notebook_theme_and_evidence_card_visual_contract(self) -> None:
+        theme = read("src/client/UI/Theme.lua")
+        self.assertIn("Notebook = {", theme)
+        for token in (
+            "PageColor = Color3.fromRGB(245, 238, 210)",
+            "PageLines = Color3.fromRGB(180, 190, 200)",
+            "InkColor = Color3.fromRGB(28, 32, 40)",
+            "StampConfirmed = Color3.fromRGB(40, 120, 60)",
+            "StampDenied = Color3.fromRGB(160, 40, 40)",
+        ):
+            self.assertIn(token, theme)
+
+        components = read("src/client/UI/Components.lua")
+        for token in (
+            "function Components.EvidenceCard",
+            "Theme.Notebook.PageColor",
+            'shadow.Name = "DropShadow"',
+            'strip.Name = "StatusStrip"',
+            'stamp.Rotation = -8',
+            "stamp.TextTransparency = 0.55",
+            'Components.PlayUISound("stamp")',
+            'previousStatus == "Unconfirmed"',
+        ):
+            self.assertIn(token, components)
+
+    def test_notebook_uses_cards_ruled_paper_and_verification_status(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "notebook.BackgroundColor3 = Theme.Notebook.PageColor",
+            "notebook.BackgroundTransparency = 0",
+            'rules.Name = "NotebookRules"',
+            "index * Theme.Notebook.LineHeight",
+            "Components.EvidenceCard(self.evidenceList",
+            'verification == "VerifiedReal"',
+            'verification == "VerifiedFake"',
+            "self.evidenceStatuses[evidenceKey]",
+            "self.evidenceStatuses = nextEvidenceStatuses",
+            "Motion.StaggerChildren(evidenceList",
+        ):
+            self.assertIn(token, view)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

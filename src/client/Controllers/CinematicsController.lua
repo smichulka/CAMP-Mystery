@@ -174,10 +174,6 @@ end
 
 function CinematicsController:_completeAfter(token: number, duration: number)
 	self:_delay(token, duration, function()
-		for _, tween in self.activeTweens do
-			tween:Cancel()
-		end
-		table.clear(self.activeTweens)
 		self:_restoreBaseline()
 	end)
 end

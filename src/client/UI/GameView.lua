@@ -73,6 +73,7 @@ type GameViewState = {
 	legacyRound: any,
 	legacyPlayer: any,
 	currentVoteSignature: string,
+	evidenceStatuses: { [string]: string },
 	selectedInventorySlot: number,
 	inventoryItems: { any },
 	requestSequence: number,
@@ -497,6 +498,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	interactionText.Size = UDim2.new(1, -72, 1, -14)
 
 	local notebook = makeModal(root, "EvidenceNotebook", UDim2.new(0.72, 0, 0.72, 0))
+	notebook.BackgroundColor3 = Theme.Notebook.PageColor
+	notebook.BackgroundTransparency = 0
+	notebook.ClipsDescendants = true
 	local settings = makeModal(root, "Settings", UDim2.new(0.58, 0, 0.76, 0))
 	local voteModal = makeModal(root, "CampfireVote", UDim2.new(0.46, 0, 0.64, 0))
 	local resultModal = makeModal(root, "RoundResults", UDim2.new(0.52, 0, 0.5, 0))
@@ -561,6 +565,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		legacyRound = nil,
 		legacyPlayer = nil,
 		currentVoteSignature = "",
+		evidenceStatuses = {},
 		selectedInventorySlot = 0,
 		inventoryItems = {},
 		requestSequence = 0,
@@ -768,6 +773,37 @@ function GameView:_buildNotebook()
 	makeHeader(self.notebook, "EVIDENCE NOTEBOOK", function()
 		setModalVisible(self.notebook, false)
 	end)
+	local rules = Instance.new("Frame")
+	rules.Name = "NotebookRules"
+	rules.Position = UDim2.fromOffset(0, 58)
+	rules.Size = UDim2.new(1, 0, 1, -58)
+	rules.BackgroundTransparency = 1
+	rules.BorderSizePixel = 0
+	rules.ClipsDescendants = true
+	rules.ZIndex = 0
+	rules.Parent = self.notebook
+	for index = 0, 32 do
+		local line = Instance.new("Frame")
+		line.Name = "Rule_" .. tostring(index + 1)
+		line.Position = UDim2.fromOffset(
+			14,
+			index * Theme.Notebook.LineHeight
+		)
+		line.Size = UDim2.new(1, -28, 0, 1)
+		line.BackgroundColor3 = Theme.Notebook.PageLines
+		line.BackgroundTransparency = 0.58
+		line.BorderSizePixel = 0
+		line.ZIndex = 0
+		line.Parent = rules
+	end
+	local header = self.notebook:FindFirstChild("Header")
+	if header and header:IsA("GuiObject") then
+		header.ZIndex = 3
+		local headerTitle = header:FindFirstChild("Title")
+		if headerTitle and headerTitle:IsA("TextLabel") then
+			headerTitle.TextColor3 = Theme.Notebook.InkColor
+		end
+	end
 	local summary = Components.Label(
 		self.notebook,
 		"Summary",
@@ -776,7 +812,8 @@ function GameView:_buildNotebook()
 	)
 	summary.Position = UDim2.fromOffset(20, 58)
 	summary.Size = UDim2.new(1, -40, 0, 48)
-	summary.TextColor3 = Theme.Colors.TextMuted
+	summary.TextColor3 = Theme.Notebook.InkMuted
+	summary.ZIndex = 2
 	self.evidenceSummary = summary
 
 	local list = Instance.new("ScrollingFrame")
@@ -786,7 +823,9 @@ function GameView:_buildNotebook()
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
 	list.ScrollBarThickness = 5
+	list.ScrollBarImageColor3 = Theme.Notebook.InkMuted
 	list.CanvasSize = UDim2.fromOffset(0, 0)
+	list.ZIndex = 2
 	list.Parent = self.notebook
 	local layout = Components.List(list, 9)
 	addCanvasSizing(list, layout)
@@ -1748,59 +1787,41 @@ function GameView:_updateEvidence(state: any, round: any)
 		readNumber(mystery, "discoveredClueCount", 0),
 		readNumber(mystery, "totalClueCount", 0)
 	)
+	local nextEvidenceStatuses: { [string]: string } = {}
 	local function addEvidence(record: any, channel: string)
 		if type(record) ~= "table" then
 			return
 		end
-		local card = Components.Panel(self.evidenceList, "EvidenceCard")
-		card:SetAttribute("Generated", true)
-		card.Size = UDim2.new(1, -8, 0, 142)
-		local title = Components.Label(card, "Title", readString(record, "displayName", "Unknown clue"), 16, Enum.Font.GothamBold)
-		title.Position = UDim2.fromOffset(12, 7)
-		title.Size = UDim2.new(1, -150, 0, 27)
-		title.TextColor3 = if channel == "MONSTER" then Theme.Colors.Ghost else Theme.Colors.Gold
-		local icon = optionalImage(
-			card,
-			"EvidenceIcon",
-			self.resolveImage(if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"),
-			UDim2.fromOffset(12, 7),
-			UDim2.fromOffset(26, 26)
-		)
-		if icon then
-			title.Position = UDim2.fromOffset(44, 7)
-			title.Size = UDim2.new(1, -182, 0, 27)
-		end
-		local tag = Components.Label(card, "Channel", channel, 11, Enum.Font.GothamBold)
-		tag.Position = UDim2.new(1, -126, 0, 7)
-		tag.Size = UDim2.fromOffset(112, 26)
-		tag.TextXAlignment = Enum.TextXAlignment.Center
-		tag.BackgroundColor3 = Theme.Colors.PanelSoft
-		tag.BackgroundTransparency = 0
-		Components.Corner(tag, 13)
-		local description = Components.Label(card, "Description", readString(record, "description", "No description recorded."), 13)
-		description.Position = UDim2.fromOffset(12, 36)
-		description.Size = UDim2.new(1, -24, 0, 42)
-		description.TextYAlignment = Enum.TextYAlignment.Top
+		local evidenceId = readString(record, "evidenceId", readString(record, "id", ""))
+		local displayName = readString(record, "displayName", "Unknown clue")
 		local verification = readString(record, "verificationState", "Unverified")
+		local status = if verification == "VerifiedReal"
+			then "Confirmed"
+			elseif verification == "VerifiedFake" then "Contradicted"
+			else "Unconfirmed"
+		local evidenceKey = if evidenceId ~= ""
+			then evidenceId
+			else channel .. ":" .. displayName
+		local previousStatus = self.evidenceStatuses[evidenceKey]
+		nextEvidenceStatuses[evidenceKey] = status
 		local finder = readString(record, "foundBy", "")
 		local discovery = record.discovery
 		if type(discovery) == "table" then
 			finder = readString(discovery, "discoveredByDisplayName", finder)
 		end
-		local footer = Components.Label(
-			card,
-			"Footer",
-			(if finder ~= "" then "Found by " .. finder .. "  |  " else "") .. verification,
-			11,
-			Enum.Font.GothamBold
-		)
-		footer.Position = UDim2.fromOffset(12, 80)
-		footer.Size = UDim2.new(1, -24, 0, 20)
-		footer.TextColor3 = if verification == "VerifiedReal"
-			then Theme.Colors.Success
-			elseif verification == "VerifiedFake" then Theme.Colors.DangerBright
-			else Theme.Colors.TextMuted
-		local evidenceId = readString(record, "evidenceId", readString(record, "id", ""))
+		local card = Components.EvidenceCard(self.evidenceList, {
+			name = displayName,
+			description = readString(record, "description", "No description recorded."),
+			status = status,
+			previousStatus = previousStatus,
+			channel = channel,
+			footer = (if finder ~= "" then "Found by " .. finder .. "  |  " else "")
+				.. string.upper(status),
+			iconAsset = self.resolveImage(
+				if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"
+			),
+		})
+		card.Size = UDim2.new(1, -8, 0, 142)
 		local verifyEnabled = self:_available(state, "VerifyEvidence")
 		local noteEnabled = self:_available(state, "AddEvidenceNote")
 		local verify = Components.Button(card, {
@@ -1810,6 +1831,7 @@ function GameView:_updateEvidence(state: any, round: any)
 			position = UDim2.new(1, -220, 1, -36),
 			color = Theme.Colors.Success,
 		})
+		verify.ZIndex = card.ZIndex + 5
 		local note = Components.Button(card, {
 			name = "Note",
 			text = "ADD NOTE",
@@ -1817,6 +1839,7 @@ function GameView:_updateEvidence(state: any, round: any)
 			position = UDim2.new(1, -110, 1, -36),
 			color = Theme.Colors.Info,
 		})
+		note.ZIndex = card.ZIndex + 5
 		Components.SetButtonEnabled(verify, verifyEnabled and evidenceId ~= "")
 		Components.SetButtonEnabled(note, noteEnabled and evidenceId ~= "")
 		verify.Activated:Connect(function()
@@ -1832,6 +1855,7 @@ function GameView:_updateEvidence(state: any, round: any)
 	for _, record in monster do
 		addEvidence(record, "MONSTER")
 	end
+	self.evidenceStatuses = nextEvidenceStatuses
 	local mysteryClues = if type(mystery) == "table" then asTable(mystery.clues) else {}
 	for _, clue in mysteryClues do
 		if type(clue) == "table" then

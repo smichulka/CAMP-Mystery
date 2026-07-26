@@ -18,6 +18,19 @@ export type ButtonOptions = {
 	layoutOrder: number?,
 }
 
+export type EvidenceCardEntry = {
+	name: string?,
+	displayName: string?,
+	description: string?,
+	status: string?,
+	verificationState: string?,
+	previousStatus: string?,
+	channel: string?,
+	footer: string?,
+	iconAsset: string?,
+	layoutOrder: number?,
+}
+
 function Components.SetSoundPlayer(player: ((eventName: string) -> ())?)
 	soundPlayer = player
 end
@@ -88,6 +101,187 @@ function Components.Label(
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.Parent = parent
 	return label
+end
+
+local function evidenceStatus(value: string?): "Unconfirmed" | "Confirmed" | "Contradicted"
+	local normalized = if value then string.lower(value) else ""
+	if normalized == "confirmed" or normalized == "verifiedreal" then
+		return "Confirmed"
+	end
+	if normalized == "contradicted" or normalized == "verifiedfake" then
+		return "Contradicted"
+	end
+	return "Unconfirmed"
+end
+
+function Components.EvidenceCard(parent: Instance, entry: EvidenceCardEntry): Frame
+	local status = evidenceStatus(entry.status or entry.verificationState)
+	local previousStatus = if entry.previousStatus
+		then evidenceStatus(entry.previousStatus)
+		else nil
+	local stampColor = if status == "Confirmed"
+		then Theme.Notebook.StampConfirmed
+		elseif status == "Contradicted" then Theme.Notebook.StampDenied
+		else Theme.Colors.Gold
+	if previousStatus == "Unconfirmed" and status ~= "Unconfirmed" then
+		Components.PlayUISound("stamp")
+	end
+
+	local card = Instance.new("Frame")
+	card.Name = "EvidenceCard"
+	card.Size = UDim2.new(
+		1,
+		-Theme.Notebook.CardPadding,
+		0,
+		Theme.Notebook.CardHeight
+	)
+	card.BackgroundTransparency = 1
+	card.BorderSizePixel = 0
+	card.LayoutOrder = entry.layoutOrder or 0
+	card:SetAttribute("Generated", true)
+	card:SetAttribute("IsEvidence", true)
+	card:SetAttribute("EvidenceStatus", status)
+	card:SetAttribute("PreferredWidth", Theme.Notebook.CardWidth)
+	card.Parent = parent
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "DropShadow"
+	shadow.Position = UDim2.fromOffset(2, 2)
+	shadow.Size = UDim2.new(1, -2, 1, -2)
+	shadow.BackgroundColor3 = Theme.Colors.Black
+	shadow.BackgroundTransparency = 0.78
+	shadow.BorderSizePixel = 0
+	shadow.ZIndex = card.ZIndex
+	shadow.Parent = card
+	Components.Corner(shadow, Theme.SmallCornerRadius)
+
+	local paper = Instance.new("Frame")
+	paper.Name = "Paper"
+	paper.Size = UDim2.new(1, -2, 1, -2)
+	paper.BackgroundColor3 = Theme.Notebook.PageColor
+	paper.BackgroundTransparency = 0
+	paper.BorderSizePixel = 0
+	paper.ClipsDescendants = false
+	paper.ZIndex = card.ZIndex + 1
+	paper.Parent = card
+	Components.Corner(paper, Theme.SmallCornerRadius)
+
+	local strip = Instance.new("Frame")
+	strip.Name = "StatusStrip"
+	strip.Size = UDim2.new(0, 6, 1, 0)
+	strip.BackgroundColor3 = stampColor
+	strip.BorderSizePixel = 0
+	strip.ZIndex = paper.ZIndex + 1
+	strip.Parent = paper
+	Components.Corner(strip, Theme.SmallCornerRadius)
+
+	local tape = Instance.new("Frame")
+	tape.Name = "MaskingTape"
+	tape.AnchorPoint = Vector2.new(0.5, 0)
+	tape.Position = UDim2.new(0.5, 0, 0, -5)
+	tape.Size = UDim2.fromOffset(56, 12)
+	tape.BackgroundColor3 = Theme.Notebook.TapeColor
+	tape.BackgroundTransparency = 0.2
+	tape.BorderSizePixel = 0
+	tape.Rotation = -2
+	tape.ZIndex = paper.ZIndex + 3
+	tape.Parent = paper
+
+	local titleOffset = Theme.Notebook.CardPadding + 4
+	local iconAsset = entry.iconAsset
+	if iconAsset and iconAsset ~= "" then
+		local icon = Instance.new("ImageLabel")
+		icon.Name = "EvidenceIcon"
+		icon.Position = UDim2.fromOffset(titleOffset, 10)
+		icon.Size = UDim2.fromOffset(24, 24)
+		icon.BackgroundTransparency = 1
+		icon.BorderSizePixel = 0
+		icon.Image = iconAsset
+		icon.ScaleType = Enum.ScaleType.Fit
+		icon.ZIndex = paper.ZIndex + 2
+		icon.Parent = paper
+		titleOffset += 30
+	end
+
+	local titleText = entry.name or entry.displayName or "Unknown clue"
+	local title = Components.Label(
+		paper,
+		"Title",
+		titleText,
+		14,
+		Enum.Font.GothamBold
+	)
+	title.Position = UDim2.fromOffset(titleOffset, 7)
+	title.Size = UDim2.new(1, -titleOffset - 96, 0, 28)
+	title.TextColor3 = Theme.Notebook.InkColor
+	title.TextYAlignment = Enum.TextYAlignment.Center
+	title.ZIndex = paper.ZIndex + 2
+
+	local channel = entry.channel
+	if channel and channel ~= "" then
+		local channelLabel = Components.Label(
+			paper,
+			"Channel",
+			string.upper(channel),
+			10,
+			Enum.Font.GothamBold
+		)
+		channelLabel.AnchorPoint = Vector2.new(1, 0)
+		channelLabel.Position = UDim2.new(1, -10, 0, 9)
+		channelLabel.Size = UDim2.fromOffset(82, 22)
+		channelLabel.TextColor3 = Theme.Notebook.InkMuted
+		channelLabel.TextXAlignment = Enum.TextXAlignment.Right
+		channelLabel.ZIndex = paper.ZIndex + 2
+	end
+
+	local description = Components.Label(
+		paper,
+		"Description",
+		entry.description or "No description recorded.",
+		11,
+		Enum.Font.Gotham
+	)
+	description.Position = UDim2.fromOffset(Theme.Notebook.CardPadding + 4, 35)
+	description.Size = UDim2.new(1, -Theme.Notebook.CardPadding * 2 - 8, 0, 38)
+	description.TextColor3 = Theme.Notebook.InkMuted
+	description.TextYAlignment = Enum.TextYAlignment.Top
+	description.ZIndex = paper.ZIndex + 2
+
+	local footerText = entry.footer
+	if footerText and footerText ~= "" then
+		local footer = Components.Label(
+			paper,
+			"Footer",
+			footerText,
+			10,
+			Enum.Font.GothamBold
+		)
+		footer.Position = UDim2.fromOffset(Theme.Notebook.CardPadding + 4, 70)
+		footer.Size = UDim2.new(1, -Theme.Notebook.CardPadding * 2 - 8, 0, 16)
+		footer.TextColor3 = stampColor
+		footer.ZIndex = paper.ZIndex + 2
+	end
+
+	if status ~= "Unconfirmed" then
+		local stamp = Components.Label(
+			paper,
+			"Stamp",
+			string.upper(status),
+			16,
+			Enum.Font.GothamBold
+		)
+		stamp.AnchorPoint = Vector2.new(0.5, 0.5)
+		stamp.Position = UDim2.new(0.72, 0, 0.58, 0)
+		stamp.Size = UDim2.fromOffset(144, 30)
+		stamp.TextColor3 = stampColor
+		stamp.TextTransparency = 0.55
+		stamp.TextXAlignment = Enum.TextXAlignment.Center
+		stamp.Rotation = -8
+		stamp.ZIndex = paper.ZIndex + 3
+		Components.Corner(stamp, 4)
+	end
+
+	return card
 end
 
 function Components.Button(parent: Instance, options: ButtonOptions): TextButton
