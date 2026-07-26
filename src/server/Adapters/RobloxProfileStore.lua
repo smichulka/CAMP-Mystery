@@ -2,6 +2,9 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 
+local config = script.Parent.Parent:WaitForChild("Config")
+local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+
 type UpdateTransform = (storedValue: unknown?) -> unknown?
 
 export type StoreOptions = {
@@ -47,13 +50,23 @@ function RobloxProfileStore.new(
 	options: StoreOptions?
 ): RobloxProfileStore
 	local configured = options or {}
+	local resolution = ProfileStoreConfiguration.Resolve()
+	local resolvedStoreName = storeName
+	local loadFailures = nonNegativeInteger(configured.testLoadFailures)
+	local updateFailures = nonNegativeInteger(configured.testUpdateFailures)
+	if resolution.mode == "TestDataStore" then
+		resolvedStoreName = resolution.dataStoreName :: string
+		loadFailures = resolution.testLoadFailures
+		updateFailures = resolution.testUpdateFailures
+	end
+
 	return setmetatable({
-		dataStore = DataStoreService:GetDataStore(storeName),
+		dataStore = DataStoreService:GetDataStore(resolvedStoreName),
 		maxAttempts = math.max(1, math.floor(positiveNumber(configured.maxAttempts, 4))),
 		baseDelaySeconds = positiveNumber(configured.baseDelaySeconds, 0.5),
 		maxDelaySeconds = positiveNumber(configured.maxDelaySeconds, 4),
-		remainingTestLoadFailures = nonNegativeInteger(configured.testLoadFailures),
-		remainingTestUpdateFailures = nonNegativeInteger(configured.testUpdateFailures),
+		remainingTestLoadFailures = loadFailures,
+		remainingTestUpdateFailures = updateFailures,
 	}, RobloxProfileStore)
 end
 
