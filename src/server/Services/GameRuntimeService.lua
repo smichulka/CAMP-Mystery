@@ -156,6 +156,60 @@ local DEVICE_EVIDENCE: { [EquipmentId]: boolean } = {
 	EMFReader = true,
 }
 
+local PHASE_NOTICES: {
+	[PhaseName]: {
+		kind: string,
+		title: string,
+		message: string,
+	}
+} = {
+	Lobby = {
+		kind = "Info",
+		title = "Back at Camp",
+		message = "The next mystery is forming. Ready campers will leave together.",
+	},
+	RoleReveal = {
+		kind = "Warning",
+		title = "Your Role Is Ready",
+		message = "Read your private assignment. Trust is now a limited resource.",
+	},
+	Day = {
+		kind = "Success",
+		title = "Daylight Objectives",
+		message = "Explore the cabins and finish camp work before the light disappears.",
+	},
+	MurderPlanning = {
+		kind = "Warning",
+		title = "Something Is Being Planned",
+		message = "Stay alert. Someone at camp is choosing what happens tonight.",
+	},
+	NightTransform = {
+		kind = "Danger",
+		title = "The Town Is Appearing",
+		message = "Get to safety. Camp is changing around you.",
+	},
+	Investigation = {
+		kind = "Danger",
+		title = "Night Investigation",
+		message = "Search buildings, gather evidence, and survive the hunt.",
+	},
+	Campfire = {
+		kind = "Warning",
+		title = "Campfire Accusation",
+		message = "Review the clues and cast one final vote.",
+	},
+	Resolution = {
+		kind = "Info",
+		title = "Mystery Resolution",
+		message = "The truth is coming out.",
+	},
+	Rewards = {
+		kind = "Success",
+		title = "Round Complete",
+		message = "Progress and earned rewards are being recorded.",
+	},
+}
+
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
@@ -698,6 +752,17 @@ function GameRuntimeService:_createHuman(player: Player)
 	self.participants:CreateHuman(player.UserId, player.DisplayName)
 end
 
+function GameRuntimeService:_readyStudioPlayers()
+	if not RunService:IsStudio() then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		if not self.lobby:IsReady(player) then
+			self.matchmaking:SetReady(player, true)
+		end
+	end
+end
+
 function GameRuntimeService:_participantForPlayer(player: Player): ParticipantState?
 	return self.participants:GetByUserId(player.UserId)
 end
@@ -705,6 +770,7 @@ end
 function GameRuntimeService:_participantIdsForRound(): { string }
 	local roster = self.matchmaking:GetActiveRoster()
 	if not roster then
+		self:_readyStudioPlayers()
 		if RunService:IsStudio() and self.lobby:GetReadyCount() >= MatchConfig.minimumHumans then
 			roster = self.matchmaking:ForceLock()
 		else
@@ -1018,6 +1084,10 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		phase = phase,
 		phaseEndsAt = self.phaseEndsAt,
 	})
+	local notice = PHASE_NOTICES[phase]
+	if notice then
+		self:_announce(notice.kind, notice.title, notice.message, 4)
+	end
 	self:Broadcast()
 end
 
@@ -1264,7 +1334,11 @@ function GameRuntimeService:_objectivePart(objectiveId: string): Instance?
 	local map = if runtime then runtime:FindFirstChild("Map") else nil
 	local camp = if map then map:FindFirstChild("DayCamp") else nil
 	local objectives = if camp then camp:FindFirstChild("Objectives") else nil
-	return if objectives then objectives:FindFirstChild(objectiveId) else nil
+	local station = if objectives then objectives:FindFirstChild(objectiveId) else nil
+	if station and station:IsA("Model") then
+		return station.PrimaryPart or station:FindFirstChild("InteractionRoot")
+	end
+	return station
 end
 
 function GameRuntimeService:_evidencePart(aliasId: string): Instance?
@@ -2489,9 +2563,11 @@ function GameRuntimeService:Start()
 	end
 	self.profile:Start()
 	self.matchmaking:Start()
+	self:_readyStudioPlayers()
 	table.insert(self.connections, Players.PlayerAdded:Connect(function(player: Player)
 		self:_createHuman(player)
 		task.defer(function()
+			self:_readyStudioPlayers()
 			self:Broadcast()
 		end)
 	end))
