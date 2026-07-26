@@ -6,8 +6,10 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local RuntimeTypes = require(Shared:WaitForChild("Types"):WaitForChild("RuntimeTypes"))
 local uiFolder = script.Parent.Parent:WaitForChild("UI")
+local Components = require(uiFolder:WaitForChild("Components"))
 local GameViewModule = require(uiFolder:WaitForChild("GameView"))
 local EffectsViewModule = require(uiFolder:WaitForChild("EffectsView"))
+local Motion = require(uiFolder:WaitForChild("Motion"))
 local AccessibilityController = require(script.Parent:WaitForChild("AccessibilityController"))
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
@@ -99,6 +101,7 @@ local function handleActionResult(payload: any)
 	local currentView = view
 	if type(payload) ~= "table" then
 		if currentView then
+			currentView:HandleActionResult(false)
 			currentView:Notify("Action failed", "The server returned an invalid response.", "Danger")
 		end
 		return
@@ -113,6 +116,7 @@ local function handleActionResult(payload: any)
 	local reason = if type(result.reason) == "string" then result.reason else nil
 	if accepted then
 		if currentView then
+			currentView:HandleActionResult(true)
 			local dialogueText: string? = nil
 			if type(result.data) == "table" then
 				local dialogue = result.data.dialogue
@@ -127,6 +131,7 @@ local function handleActionResult(payload: any)
 			)
 		end
 	elseif currentView then
+		currentView:HandleActionResult(false)
 		currentView:Notify("Action rejected", reason or "That action is not allowed right now.", "Danger")
 	end
 end
@@ -165,6 +170,12 @@ function RoundController.Start()
 		end,
 	})
 	audio = audioController
+	Components.SetSoundPlayer(function(eventName: string)
+		audioController:PlayUIEvent(eventName)
+	end)
+	Motion.SetReducedMotionProvider(function(): boolean
+		return accessibilityController:IsReducedMotion()
+	end)
 	tutorialController:Start()
 	audioController:Start()
 
@@ -247,6 +258,8 @@ function RoundController.Stop()
 		connection:Disconnect()
 	end
 	table.clear(interactionConnections)
+	Components.SetSoundPlayer(nil)
+	Motion.SetReducedMotionProvider(nil)
 	if bridge then
 		bridge:Destroy()
 	end
