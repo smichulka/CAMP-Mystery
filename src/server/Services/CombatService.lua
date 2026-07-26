@@ -112,7 +112,6 @@ function CombatService:Eliminate(
 	end
 
 	target.alive = false
-	target.isGhost = true
 	target.healthState = "Dead"
 	target.health = 0
 	target.injuryLevel = 2
@@ -124,6 +123,30 @@ function CombatService:Eliminate(
 		reason = reason,
 		droppedItemIds = dropped,
 	})
+
+	-- Keep the eliminated state visible before ghost controls take over.
+	local participantId = target.participantId
+	local roundId = self.roundId
+	task.delay(3, function()
+		if target.alive then
+			return
+		end
+		if self.roundId ~= roundId or target.team == "Observers" then
+			return
+		end
+		if target.participantId ~= participantId or target.isGhost then
+			return
+		end
+
+		target.isGhost = true
+		self.revision += 1
+		pcall(function()
+			self.lifecycle:Emit("ParticipantGhostTransition", {
+				participantId = participantId,
+			})
+		end)
+	end)
+
 	return dropped
 end
 
