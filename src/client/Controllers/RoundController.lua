@@ -12,6 +12,7 @@ local Components = require(uiFolder:WaitForChild("Components"))
 local GameViewModule = require(uiFolder:WaitForChild("GameView"))
 local EffectsViewModule = require(uiFolder:WaitForChild("EffectsView"))
 local Motion = require(uiFolder:WaitForChild("Motion"))
+local NametagsView = require(uiFolder:WaitForChild("NametagsView"))
 local AccessibilityController = require(script.Parent:WaitForChild("AccessibilityController"))
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
 local CameraControllerModule = require(script.Parent:WaitForChild("CameraController"))
@@ -54,6 +55,7 @@ local audio: any = nil
 local camera: CameraController? = nil
 local cinematics: any = nil
 local effects: any = nil
+local nametags: any = nil
 local tutorial: any = nil
 local uiAssets: UIAssetController? = nil
 local proximity: ProximityController? = nil
@@ -234,6 +236,25 @@ local function refresh()
 	local currentView = view
 	if currentView then
 		currentView:Update(state, legacyRound, legacyPlayer)
+	end
+	local currentNametags = nametags
+	if currentNametags then
+		local snapshot: any = state
+		local round = if type(snapshot) == "table" and type(snapshot.round) == "table"
+			then snapshot.round
+			elseif type(legacyRound) == "table" then legacyRound
+			else nil
+		local player = if type(snapshot) == "table" and type(snapshot.player) == "table"
+			then snapshot.player
+			elseif type(legacyPlayer) == "table" then legacyPlayer
+			else nil
+		local participants = if type(snapshot) == "table"
+				and type(snapshot.participants) == "table"
+			then snapshot.participants
+			else {}
+		local phaseName = readString(round, "phase", "")
+		local localParticipantId = readString(player, "participantId", "")
+		currentNametags:Update(participants, localParticipantId, phaseName)
 	end
 end
 
@@ -590,6 +611,7 @@ function RoundController.Start()
 		return assetController:Resolve(key)
 	end)
 	view = gameView
+	nametags = NametagsView.new()
 	gameView:SetAudioSettingCallback(function(key: string, value: any)
 		local currentAudio = audio
 		if currentAudio then
@@ -751,6 +773,10 @@ function RoundController.Stop()
 		return
 	end
 	started = false
+	if nametags then
+		nametags:Destroy()
+		nametags = nil
+	end
 	InputController.Stop()
 	for _, connection in interactionConnections do
 		connection:Disconnect()
