@@ -63,12 +63,16 @@ type GameViewState = {
 	ghostBadgeReducedMotion: boolean,
 	ghostMode: boolean,
 	hotbar: ScrollingFrame,
+	rosterPanel: Frame?,
+	rosterScrollFrame: ScrollingFrame?,
+	lastRosterSignature: string,
 	notebook: Frame,
 	evidenceList: ScrollingFrame,
 	evidenceSummary: TextLabel,
 	settings: Frame,
 	settingsList: ScrollingFrame,
 	voteModal: Frame,
+	voteCountLabel: TextLabel?,
 	voteList: ScrollingFrame,
 	resultModal: Frame,
 	resultTitle: TextLabel,
@@ -183,6 +187,12 @@ local VOLUME_SETTING_KEYS: { [string]: boolean } = {
 	ambienceVolume = true,
 	effectsVolume = true,
 	uiVolume = true,
+}
+
+local ROSTER_PHASES: { [string]: boolean } = {
+	Day = true,
+	Investigation = true,
+	Campfire = true,
 }
 
 local function readString(value: any, key: string, fallback: string): string
@@ -621,6 +631,33 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	hotbarLayout.Padding = UDim.new(0, 7)
 	hotbarLayout.Parent = hotbar
 
+	-- Live player roster panel — right side, visible during active round phases
+	local rosterPanel = Instance.new("Frame")
+	rosterPanel.Name = "PlayerRoster"
+	rosterPanel.AnchorPoint = Vector2.new(1, 1)
+	rosterPanel.Position = UDim2.new(1, -18, 1, -96)
+	rosterPanel.Size = UDim2.fromOffset(180, 0)
+	rosterPanel.AutomaticSize = Enum.AutomaticSize.Y
+	rosterPanel.BackgroundColor3 = Theme.Colors.Panel
+	rosterPanel.BackgroundTransparency = 0.18
+	rosterPanel.BorderSizePixel = 0
+	rosterPanel.Visible = false
+	rosterPanel.ZIndex = 18
+	rosterPanel.Parent = root
+	Components.Corner(rosterPanel, 8)
+
+	local rosterLayout = Instance.new("UIListLayout")
+	rosterLayout.Padding = UDim.new(0, 0)
+	rosterLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rosterLayout.Parent = rosterPanel
+
+	local rosterPadding = Instance.new("UIPadding")
+	rosterPadding.PaddingTop = UDim.new(0, 8)
+	rosterPadding.PaddingBottom = UDim.new(0, 8)
+	rosterPadding.PaddingLeft = UDim.new(0, 10)
+	rosterPadding.PaddingRight = UDim.new(0, 10)
+	rosterPadding.Parent = rosterPanel
+
 	local menu = Instance.new("Frame")
 	menu.Name = "Menu"
 	menu.AnchorPoint = Vector2.new(1, 0)
@@ -715,12 +752,16 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		ghostBadgeReducedMotion = false,
 		ghostMode = false,
 		hotbar = hotbar,
+		rosterPanel = rosterPanel,
+		rosterScrollFrame = nil,
+		lastRosterSignature = "",
 		notebook = notebook,
 		evidenceList = nil :: any,
 		evidenceSummary = nil :: any,
 		settings = settings,
 		settingsList = nil :: any,
 		voteModal = voteModal,
+		voteCountLabel = nil,
 		voteList = nil :: any,
 		resultModal = resultModal,
 		resultTitle = nil :: any,
@@ -1100,6 +1141,27 @@ function GameView:_buildVote()
 	makeHeader(self.voteModal, "CAMPFIRE ACCUSATION", function()
 		self:Notify("Vote required", "Choose one suspect before the fire goes out.", "Warning")
 	end)
+	local voteHeader = self.voteModal:FindFirstChild("Header")
+	if voteHeader and voteHeader:IsA("Frame") then
+		local voteHeaderTitle = voteHeader:FindFirstChild("Title")
+		if voteHeaderTitle and voteHeaderTitle:IsA("TextLabel") then
+			-- Reserve 88px for the count and 8px gaps on both sides.
+			voteHeaderTitle.Size = UDim2.new(1, -212, 1, 0)
+		end
+	end
+	local voteCountLabel = Components.Label(
+		self.voteModal,
+		"VoteCountLabel",
+		"",
+		11,
+		Enum.Font.GothamBold
+	)
+	voteCountLabel.AnchorPoint = Vector2.new(1, 0)
+	voteCountLabel.Position = UDim2.new(1, -96, 0, 18)
+	voteCountLabel.Size = UDim2.fromOffset(88, 20)
+	voteCountLabel.TextXAlignment = Enum.TextXAlignment.Right
+	voteCountLabel.TextColor3 = Theme.Colors.TextMuted
+	self.voteCountLabel = voteCountLabel
 	local warning = Components.Label(
 		self.voteModal,
 		"Warning",
@@ -3019,6 +3081,121 @@ function GameView:_updateEvidence(state: any, round: any)
 	end
 end
 
+function GameView:_updateRoster(state: any)
+	local panel = self.rosterPanel
+	if not panel or self.destroyed then
+		return
+	end
+	local round = if type(state) == "table" then state.round else nil
+	local phase = if type(round) == "table" and type(round.phase) == "string"
+		then round.phase
+		else nil
+	if not phase or not ROSTER_PHASES[phase] then
+		panel.Visible = false
+		return
+	end
+	panel.Visible = true
+
+	-- Build signature to skip redraws when nothing changed
+	local participants = if type(state) == "table" then asTable(state.participants) else {}
+	local sigParts: { string } = {}
+	for _, participant in participants do
+		if type(participant) == "table"
+			and not readBoolean(participant, "isBot", true)
+		then
+			table.insert(sigParts, string.format(
+				"%s:%s:%s:%s",
+				readString(participant, "participantId", ""),
+				tostring(readBoolean(participant, "alive", false)),
+				tostring(readBoolean(participant, "isGhost", false)),
+				readString(participant, "healthState", "Healthy")
+			))
+		end
+	end
+	table.sort(sigParts)
+	local signature = table.concat(sigParts, "|")
+	if signature == self.lastRosterSignature then
+		return
+	end
+	self.lastRosterSignature = signature
+
+	Components.ClearGenerated(panel)
+
+	-- Sort: alive first, then ghost, then dead; within each group by name
+	local sorted: { any } = {}
+	for _, participant in participants do
+		if type(participant) == "table"
+			and not readBoolean(participant, "isBot", true)
+		then
+			table.insert(sorted, participant)
+		end
+	end
+	table.sort(sorted, function(left: any, right: any): boolean
+		local leftAlive = readBoolean(left, "alive", false)
+		local rightAlive = readBoolean(right, "alive", false)
+		local leftGhost = readBoolean(left, "isGhost", false)
+		local rightGhost = readBoolean(right, "isGhost", false)
+		local leftScore = if leftAlive and not leftGhost then 0 elseif leftGhost then 1 else 2
+		local rightScore = if rightAlive and not rightGhost then 0 elseif rightGhost then 1 else 2
+		if leftScore ~= rightScore then
+			return leftScore < rightScore
+		end
+		return readString(left, "displayName", "") < readString(right, "displayName", "")
+	end)
+
+	local ownId = if type(state) == "table" and type(state.player) == "table"
+		then readString(state.player, "participantId", "")
+		else ""
+
+	for index, participant in sorted do
+		local participantId = readString(participant, "participantId", "")
+		local displayName = readString(participant, "displayName", "?")
+		local alive = readBoolean(participant, "alive", false)
+		local ghost = readBoolean(participant, "isGhost", false)
+		local healthState = readString(participant, "healthState", "Healthy")
+		local isMe = participantId == ownId
+
+		local row = Instance.new("Frame")
+		row.Name = "RosterRow_" .. tostring(index)
+		row:SetAttribute("Generated", true)
+		row.Size = UDim2.new(1, 0, 0, 22)
+		row.BackgroundTransparency = 1
+		row.BorderSizePixel = 0
+		row.LayoutOrder = index
+		row.Parent = panel
+
+		local dot = Instance.new("Frame")
+		dot.Name = "Dot"
+		dot.Size = UDim2.fromOffset(8, 8)
+		dot.AnchorPoint = Vector2.new(0, 0.5)
+		dot.Position = UDim2.fromOffset(0, 11)
+		dot.BorderSizePixel = 0
+		dot.BackgroundColor3 = if ghost
+			then Theme.Colors.Ghost
+			elseif not alive then Theme.Colors.TextMuted
+			elseif healthState == "Injured" or healthState == "Critical"
+				then Theme.Colors.Danger
+			else Theme.Colors.Success
+		dot.Parent = row
+		Components.Corner(dot, 4)
+
+		local nameLabel = Components.Label(
+			row,
+			"Name",
+			if isMe then displayName .. " ●" else displayName,
+			11
+		)
+		nameLabel.Position = UDim2.fromOffset(14, 0)
+		nameLabel.Size = UDim2.new(1, -14, 1, 0)
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.TextColor3 = if ghost
+			then Theme.Colors.Ghost
+			elseif not alive then Theme.Colors.TextMuted
+			else Theme.Colors.Text
+		nameLabel.TextTransparency = if not alive and not ghost then 0.5 else 0
+	end
+end
+
 function GameView:_updateVote(round: any, player: any)
 	local phase = readString(round, "phase", "Lobby")
 	local alive = readBoolean(player, "alive", false)
@@ -3198,6 +3375,22 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	end
 
 	local phase = readString(round, "phase", "Lobby")
+	if self.voteCountLabel then
+		if phase == "Campfire" then
+			local votesCast = math.max(0, math.floor(readNumber(round, "votesCast", 0)))
+			local eligibleVoters = math.max(
+				0,
+				math.floor(readNumber(round, "eligibleVoters", 0))
+			)
+			self.voteCountLabel.Text = string.format(
+				"%d/%d VOTED",
+				votesCast,
+				eligibleVoters
+			)
+		else
+			self.voteCountLabel.Text = ""
+		end
+	end
 	Components.SetLetterspacedText(
 		self.phaseLabel,
 		string.upper(readString(round, "phaseDisplayName", phase))
@@ -3326,6 +3519,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self.roleAction.Text = roleActionText
 
 	self:_updateLobby(state, phase)
+	self:_updateRoster(state)
 	self:_updateInventory(state)
 	self:_updateEvidence(state, round)
 	self:_updateVote(round, player)
@@ -4833,6 +5027,13 @@ function GameView:Destroy()
 	end
 	self.cooldownFill = nil
 	self.abilityBarMaxCooldown = 0
+	if self.rosterPanel then
+		self.rosterPanel:Destroy()
+		self.rosterPanel = nil
+	end
+	self.rosterScrollFrame = nil
+	self.lastRosterSignature = ""
+	self.voteCountLabel = nil
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
