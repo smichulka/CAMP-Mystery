@@ -4030,8 +4030,24 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		if localRole == "Murderer" then
+			local murderPlan = if type(state) == "table" then state.murderPlan else nil
+			local victimParticipantId = readString(murderPlan, "victimParticipantId", "")
+			local victimName = "your target"
+			local planParticipants = if type(state) == "table" then asTable(state.participants) else {}
+			for _, participant in planParticipants do
+				if victimParticipantId ~= ""
+					and type(participant) == "table"
+					and readString(participant, "participantId", "") == victimParticipantId
+				then
+					victimName = readString(participant, "displayName", "your target")
+					break
+				end
+			end
 			self.progressLabel.Text = "Plan your attack before night falls."
-			self.objectiveText.Text = "MURDERER OBJECTIVE\nEliminate your target. Frame the evidence."
+			self.objectiveText.Text = string.format(
+				"MURDERER OBJECTIVE\nEliminate %s. Frame the evidence.",
+				victimName
+			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
 		else
 			self.progressLabel.Text = "Night is coming. Prepare your tools."
