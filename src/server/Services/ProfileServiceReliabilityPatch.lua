@@ -6,6 +6,7 @@ local ProfileService = require(script.Parent:WaitForChild("ProfileService"))
 
 local PATCH_MARKER = "__campMysteryReleaseRetryPatchApplied"
 local PENDING_KEY = "__campMysteryPendingReleaseSaves"
+local MAX_RELEASE_RETRY_ATTEMPTS = 5
 local MAX_RETRY_DELAY_SECONDS = 30
 
 type PendingRelease = {
@@ -25,8 +26,17 @@ local function pendingReleases(service: any): { [number]: PendingRelease }
 	return created
 end
 
-local function clearIfStillDeparted(service: any, userId: number, state: any)
-	if service.profiles[userId] == state and Players:GetPlayerByUserId(userId) == nil then
+local function clearIfSameDeparture(
+	service: any,
+	userId: number,
+	state: any,
+	departingPlayer: Player
+)
+	if service.profiles[userId] ~= state then
+		return
+	end
+	local currentPlayer = Players:GetPlayerByUserId(userId)
+	if currentPlayer == nil or currentPlayer == departingPlayer then
 		service.profiles[userId] = nil
 	end
 end
@@ -35,12 +45,16 @@ local function scheduleRetry(service: any, userId: number, entry: PendingRelease
 	task.spawn(function()
 		local delaySeconds = 1
 		local pending = pendingReleases(service)
-		while service.running and pending[userId] == entry do
+		for attempt = 1, MAX_RELEASE_RETRY_ATTEMPTS do
+			if not service.running or pending[userId] ~= entry then
+				return
+			end
 			task.wait(delaySeconds)
 			if pending[userId] ~= entry then
 				return
 			end
-			if Players:GetPlayerByUserId(userId) then
+			local currentPlayer = Players:GetPlayerByUserId(userId)
+			if currentPlayer and currentPlayer ~= entry.player then
 				pending[userId] = nil
 				return
 			end
@@ -51,19 +65,27 @@ local function scheduleRetry(service: any, userId: number, entry: PendingRelease
 
 			local saved, reason = service:SavePlayer(entry.player)
 			if saved or reason == "GuestMode" then
-				clearIfStillDeparted(service, userId, entry.state)
+				clearIfSameDeparture(service, userId, entry.state, entry.player)
 				pending[userId] = nil
 				return
 			end
 			warn(
 				string.format(
-					"[ProfileService] Release save retry failed for user %d: %s",
+					"[ProfileService] Release save retry %d/%d failed for user %d: %s",
+					attempt,
+					MAX_RELEASE_RETRY_ATTEMPTS,
 					userId,
 					reason or "UnknownFailure"
 				)
 			)
 			delaySeconds = math.min(delaySeconds * 2, MAX_RETRY_DELAY_SECONDS)
 		end
+		warn(
+			string.format(
+				"[ProfileService] Release retries exhausted for user %d; retaining state for shutdown",
+				userId
+			)
+		)
 	end)
 end
 
@@ -78,8 +100,7 @@ function ProfileServiceReliabilityPatch.Apply()
 	local originalStop = class.Stop
 
 	class.LoadPlayer = function(self: any, player: Player)
-		local pending = pendingReleases(self)
-		pending[player.UserId] = nil
+		pendingReleases(self)[player.UserId] = nil
 		return originalLoadPlayer(self, player)
 	end
 
@@ -92,7 +113,7 @@ function ProfileServiceReliabilityPatch.Apply()
 
 		local saved, reason = self:SavePlayer(player)
 		if saved or reason == "GuestMode" then
-			clearIfStillDeparted(self, userId, state)
+			clearIfSameDeparture(self, userId, state, player)
 			pendingReleases(self)[userId] = nil
 			return saved, reason
 		end
@@ -119,7 +140,7 @@ function ProfileServiceReliabilityPatch.Apply()
 			if self.profiles[userId] == entry.state then
 				local saved, reason = self:SavePlayer(entry.player)
 				if saved or reason == "GuestMode" then
-					clearIfStillDeparted(self, userId, entry.state)
+					clearIfSameDeparture(self, userId, entry.state, entry.player)
 					pending[userId] = nil
 				else
 					warn(
