@@ -36,7 +36,34 @@ function Invoke-Python {
     }
 }
 
-function Sync-Master {
+function Get-DefaultBranch {
+    Require-Command git
+
+    [string]$RemoteHead = (& git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $RemoteHead) {
+        return ($RemoteHead.Trim() -replace "^origin/", "")
+    }
+
+    foreach ($Candidate in @("main", "master")) {
+        & git show-ref --verify --quiet "refs/remotes/origin/$Candidate"
+        if ($LASTEXITCODE -eq 0) {
+            return $Candidate
+        }
+    }
+
+    $RemoteInfo = @(& git remote show origin 2>$null)
+    if ($LASTEXITCODE -eq 0) {
+        foreach ($Line in $RemoteInfo) {
+            if ($Line -match "HEAD branch:\s*(\S+)") {
+                return $Matches[1]
+            }
+        }
+    }
+
+    throw "Unable to resolve origin's default branch. Fetch origin or repair origin/HEAD."
+}
+
+function Sync-DefaultBranch {
     if ($NoPull) {
         return
     }
@@ -48,14 +75,29 @@ function Sync-Master {
     if ($Changes.Count -gt 0) {
         throw "The working tree is not clean. Commit, stash, or use -NoPull before continuing."
     }
-    & git switch master
+
+    $DefaultBranch = Get-DefaultBranch
+    & git fetch --prune origin $DefaultBranch
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not switch to master."
+        throw "Could not fetch origin/$DefaultBranch."
     }
-    & git pull --ff-only origin master
+
+    & git show-ref --verify --quiet "refs/heads/$DefaultBranch"
+    if ($LASTEXITCODE -eq 0) {
+        & git switch $DefaultBranch
+    }
+    else {
+        & git switch --track -c $DefaultBranch "origin/$DefaultBranch"
+    }
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not fast-forward master from origin/master."
+        throw "Could not switch to the default branch '$DefaultBranch'."
     }
+
+    & git merge --ff-only "origin/$DefaultBranch"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not fast-forward $DefaultBranch from origin/$DefaultBranch."
+    }
+    Write-Host "Synchronized default branch '$DefaultBranch'."
 }
 
 function Install-Tools {
@@ -103,11 +145,11 @@ function Build-Place {
 
 switch ($Action) {
     "Validate" {
-        Sync-Master
+        Sync-DefaultBranch
         Invoke-RepositoryGate
     }
     "Build" {
-        Sync-Master
+        Sync-DefaultBranch
         Invoke-RepositoryGate
         Build-Place
     }
@@ -119,7 +161,7 @@ switch ($Action) {
         }
     }
     "Dev" {
-        Sync-Master
+        Sync-DefaultBranch
         Invoke-RepositoryGate
         Build-Place
         Write-Host "Repository checks passed. Starting Rojo on localhost:34872..."
@@ -129,7 +171,7 @@ switch ($Action) {
         }
     }
     "Release" {
-        Sync-Master
+        Sync-DefaultBranch
         Install-Tools
         if (-not $Observations) {
             throw "Release requires -Observations with a completed release observation JSON file."
