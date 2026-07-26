@@ -6,6 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 type InputCallbacks = {
 	toggleNotebook: () -> (),
 	toggleSettings: () -> (),
+	togglePlayerStatus: () -> (),
 	activateSlot: (slot: number) -> (),
 	selectSlot: (slot: number) -> (),
 	getSlotCount: () -> number,
@@ -15,6 +16,7 @@ type InputCallbacks = {
 local InputController = {}
 
 local ACTION_NOTEBOOK = "CampMysteryNotebook"
+local ACTION_PLAYER_STATUS = "CampMysteryPlayerStatus"
 local ACTION_SETTINGS = "CampMysterySettings"
 local ACTION_CLOSE = "CampMysteryCloseModal"
 local ACTION_SLOT_PREVIOUS = "CampMysteryPreviousSlot"
@@ -66,6 +68,14 @@ function InputController.Start(callbacks: InputCallbacks)
 	)
 	ContextActionService:SetTitle(ACTION_NOTEBOOK, "CLUES")
 	ContextActionService:SetPosition(ACTION_NOTEBOOK, UDim2.new(1, -150, 1, -190))
+
+	ContextActionService:BindAction(
+		ACTION_PLAYER_STATUS,
+		activate(callbacks.togglePlayerStatus),
+		false,
+		Enum.KeyCode.Tab,
+		Enum.KeyCode.ButtonSelect
+	)
 
 	ContextActionService:BindAction(
 		ACTION_SETTINGS,
@@ -130,6 +140,7 @@ end
 
 function InputController.Stop()
 	ContextActionService:UnbindAction(ACTION_NOTEBOOK)
+	ContextActionService:UnbindAction(ACTION_PLAYER_STATUS)
 	ContextActionService:UnbindAction(ACTION_SETTINGS)
 	ContextActionService:UnbindAction(ACTION_CLOSE)
 	ContextActionService:UnbindAction(ACTION_SLOT_PREVIOUS)
