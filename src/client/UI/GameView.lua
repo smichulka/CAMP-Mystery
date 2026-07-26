@@ -296,6 +296,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	screen.Enabled = true
 	screen.IgnoreGuiInset = false
 	screen.ResetOnSpawn = false
+	screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	pcall(function()
 		screen.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
 	end)

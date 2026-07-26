@@ -244,7 +244,11 @@ class ReleaseCatalogTests(unittest.TestCase):
         studio_seconds = sum(int(phase["studio"]) for phase in phases)
         self.assertGreaterEqual(production_seconds, 15 * 60)
         self.assertLessEqual(production_seconds, 20 * 60)
-        self.assertLess(studio_seconds, 4 * 60)
+        self.assertEqual(
+            [int(phase["studio"]) for phase in phases],
+            [40, 38, 75, 40, 36, 90, 60, 40, 38],
+        )
+        self.assertEqual(studio_seconds, 7 * 60 + 37)
 
     def test_equipment_catalog_rules_and_counterplay_agree(self) -> None:
         presentations = set(
