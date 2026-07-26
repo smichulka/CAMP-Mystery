@@ -35,10 +35,13 @@ TutorialController.StepIds = table.freeze({
 	Lobby = "lobby",
 	Role = "role",
 	Day = "day",
+	MurderPlanning = "murderplanning",
+	NightTransform = "nighttransform",
 	Investigation = "investigation",
 	Evidence = "evidence",
 	Vote = "vote",
 	Rewards = "rewards",
+	Spectator = "spectator",
 })
 
 local STEP_COPY: { { id: string, context: string, title: string, body: string, objective: string } } = {
@@ -64,17 +67,31 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		objective = "COMPLETE CAMP OBJECTIVES AND CHOOSE YOUR GEAR",
 	},
 	{
+		id = "murderplanning",
+		context = "MurderPlanning",
+		title = "The Night Is Being Decided",
+		body = "Someone in the group is choosing a victim right now. Use this moment to prepare — equip your gear and decide where to investigate tonight.",
+		objective = "EQUIP YOUR GEAR BEFORE NIGHTFALL",
+	},
+	{
+		id = "nighttransform",
+		context = "NightTransform",
+		title = "The Town Appears",
+		body = "The camp has merged with an abandoned town. The monster is somewhere out there. Stay near teammates and watch your surroundings.",
+		objective = "MOVE CAREFULLY — ISOLATION IS DANGEROUS",
+	},
+	{
 		id = "investigation",
 		context = "Investigation",
 		title = "Investigate the Town",
-		body = "The abandoned town is dangerous. Search rooms and attack sites, stay aware of teammates, and survive the monster.",
+		body = "The abandoned town is dangerous. Search rooms for evidence, interview counselors, use your equipment, and stay in range of teammates. Isolation is how the monster wins.",
 		objective = "FIND REAL CLUES WITHOUT GETTING ISOLATED",
 	},
 	{
 		id = "evidence",
 		context = "Evidence",
 		title = "Build the Case",
-		body = "Evidence identifies both the supernatural threat and the human culprit. Some clues may be false, so compare what the group found.",
+		body = "Your notebook has two channels: culprit clues and monster clues. Real evidence points to one answer. Compare with your group — false clues and mistaken witnesses can redirect suspicion.",
 		objective = "OPEN THE NOTEBOOK AND REVIEW POSTED EVIDENCE",
 	},
 	{
@@ -90,6 +107,13 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		title = "Round Complete",
 		body = "Round rewards advance role mastery and unlock progression. The next mystery resets the world and secret roles.",
 		objective = "REVIEW YOUR REWARDS, THEN PREPARE FOR THE NEXT ROUND",
+	},
+	{
+		id = "spectator",
+		context = "Spectator",
+		title = "You Joined Late",
+		body = "This round is already underway. You can observe the current game and will join the roster at the start of the next round.",
+		objective = "WATCH THE ROUND — YOU PLAY NEXT",
 	},
 }
 
@@ -137,11 +161,22 @@ local function currentContext(state: any): string?
 	if phase == "Lobby" then
 		return "Lobby"
 	end
-	if phase == "RoleReveal" or phase == "MurderPlanning" or phase == "NightTransform" then
+	local player = state.player
+	local role = readString(player, "role", "")
+	if role == "Spectator" then
+		return "Spectator"
+	end
+	if phase == "RoleReveal" then
 		return "Role"
 	end
 	if phase == "Day" then
 		return "Day"
+	end
+	if phase == "MurderPlanning" then
+		return "MurderPlanning"
+	end
+	if phase == "NightTransform" then
+		return "NightTransform"
 	end
 	if phase == "Investigation" then
 		local evidenceFound = readNumber(round, "evidenceFound", 0)
@@ -192,6 +227,13 @@ end
 
 function TutorialController:_allSeen(): boolean
 	for _, step in self.steps do
+		if step.id == TutorialController.StepIds.Spectator then
+			local lastState = self.lastState
+			local player = if type(lastState) == "table" then lastState.player else nil
+			if readString(player, "role", "") ~= "Spectator" then
+				continue
+			end
+		end
 		if not self.seen[step.id] then
 			return false
 		end
