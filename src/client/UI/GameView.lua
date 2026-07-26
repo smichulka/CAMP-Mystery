@@ -3647,13 +3647,31 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local alive = readBoolean(player, "alive", false)
 	local ghost = readBoolean(player, "isGhost", false)
 	local eliminated = role ~= "Spectator" and not alive and not ghost
+	local observing = readString(player, "role", "") == "Spectator"
+		and not alive
+		and not ghost
 	self.eliminatedMode = eliminated
 	if eliminated then
 		self:HideInteraction()
 	end
 	if self.eliminatedBanner then
 		local inActivePhase = phase ~= "Lobby" and phase ~= "Rewards"
-		self.eliminatedBanner.Visible = eliminated and inActivePhase
+		self.eliminatedBanner.Visible = (eliminated or observing) and inActivePhase
+		if self.eliminatedBanner.Visible then
+			local titleLabel = self.eliminatedBanner:FindFirstChild("Title")
+			local subLabel = self.eliminatedBanner:FindFirstChild("Sub")
+			if titleLabel and titleLabel:IsA("TextLabel")
+				and subLabel and subLabel:IsA("TextLabel")
+			then
+				if observing then
+					titleLabel.Text = "OBSERVING"
+					subLabel.Text = "You joined during an active round. You'll play next."
+				else
+					titleLabel.Text = "ELIMINATED"
+					subLabel.Text = "You are spectating. Watch the mystery unfold."
+				end
+			end
+		end
 	end
 	self:SetGhostMode(ghost)
 	local healthState = readString(player, "healthState", if alive then "Healthy" else "Waiting")
