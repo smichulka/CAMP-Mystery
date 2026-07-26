@@ -58,6 +58,10 @@ def main() -> None:
         [sys.executable, "scripts/test_motion_sound_foundation.py"],
     )
     run(
+        "Phase cinematics contract tests",
+        [sys.executable, "scripts/test_phase_cinematics.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
     )
