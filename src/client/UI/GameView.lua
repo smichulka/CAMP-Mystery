@@ -65,6 +65,8 @@ type GameViewState = {
 	ghostBadgePulse: Tween?,
 	ghostBadgeReducedMotion: boolean,
 	ghostMode: boolean,
+	eliminatedBanner: Frame?,
+	eliminatedMode: boolean,
 	hotbar: ScrollingFrame,
 	rosterPanel: Frame?,
 	rosterScrollFrame: ScrollingFrame?,
@@ -763,6 +765,48 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	Components.Corner(ghostBadge, 15)
 	Components.Stroke(ghostBadge, Theme.Colors.Ghost, 1)
 
+	local eliminatedBanner = Instance.new("Frame")
+	eliminatedBanner.Name = "EliminatedBanner"
+	eliminatedBanner.AnchorPoint = Vector2.new(0.5, 0)
+	eliminatedBanner.Position = UDim2.new(0.5, 0, 0, 60)
+	eliminatedBanner.Size = UDim2.fromOffset(320, 48)
+	eliminatedBanner.BackgroundColor3 = Theme.Colors.Panel
+	eliminatedBanner.BackgroundTransparency = 0.12
+	eliminatedBanner.BorderSizePixel = 0
+	eliminatedBanner.Visible = false
+	eliminatedBanner.ZIndex = 30
+	eliminatedBanner.Parent = root
+	Components.Corner(eliminatedBanner, 8)
+	Components.Stroke(eliminatedBanner, Theme.Colors.TextMuted, 1)
+
+	local elimTitle = Components.Label(
+		eliminatedBanner,
+		"Title",
+		"ELIMINATED",
+		13,
+		Enum.Font.GothamBold
+	)
+	elimTitle.AnchorPoint = Vector2.new(0.5, 0)
+	elimTitle.Position = UDim2.new(0.5, 0, 0, 6)
+	elimTitle.Size = UDim2.new(1, 0, 0, 18)
+	elimTitle.TextXAlignment = Enum.TextXAlignment.Center
+	elimTitle.TextColor3 = Theme.Colors.TextMuted
+	elimTitle.ZIndex = 31
+
+	local elimSub = Components.Label(
+		eliminatedBanner,
+		"Sub",
+		"You are spectating. Watch the mystery unfold.",
+		10
+	)
+	elimSub.AnchorPoint = Vector2.new(0.5, 0)
+	elimSub.Position = UDim2.new(0.5, 0, 0, 26)
+	elimSub.Size = UDim2.new(1, -16, 0, 16)
+	elimSub.TextXAlignment = Enum.TextXAlignment.Center
+	elimSub.TextColor3 = Theme.Colors.TextMuted
+	elimSub.TextTransparency = 0.3
+	elimSub.ZIndex = 31
+
 	local interaction = Components.Panel(root, "Interaction")
 	interaction.AnchorPoint = Vector2.new(0.5, 1)
 	interaction.Position = UDim2.new(0.5, 0, 1, -112)
@@ -832,6 +876,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		ghostBadgePulse = nil,
 		ghostBadgeReducedMotion = false,
 		ghostMode = false,
+		eliminatedBanner = nil,
+		eliminatedMode = false,
 		hotbar = hotbar,
 		rosterPanel = rosterPanel,
 		rosterScrollFrame = nil,
@@ -927,6 +973,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 
 	self.phaseArc = arcContainer
 	self.phaseArcDots = phaseArcDots
+	self.eliminatedBanner = eliminatedBanner
 
 	self:_buildNotebook()
 	self:_buildSettings()
@@ -1976,7 +2023,7 @@ function GameView:_chooseMurderPlan()
 end
 
 function GameView:_requestRoleAction()
-	if self.ghostMode then
+	if self.ghostMode or self.eliminatedMode then
 		return
 	end
 	local state = self.currentState
@@ -2384,7 +2431,15 @@ end
 
 function GameView:_updateInventory(state: any)
 	local selected = GuiService.SelectedObject
-	local restoreControllerFocus = selected ~= nil and selected:IsDescendantOf(self.hotbar)
+	local restoreControllerFocus = not self.eliminatedMode
+		and selected ~= nil
+		and selected:IsDescendantOf(self.hotbar)
+	if selected
+		and selected:IsDescendantOf(self.hotbar)
+		and self.eliminatedMode
+	then
+		GuiService.SelectedObject = nil
+	end
 	Components.ClearGenerated(self.hotbar)
 	local inventory = if type(state) == "table" then state.inventory else nil
 	local items = if type(inventory) == "table" then asTable(inventory.items) else {}
@@ -2439,7 +2494,11 @@ function GameView:_updateInventory(state: any)
 				self.selectedInventorySlot = index
 				self:_activateItem(item, button)
 			end)
-			Components.SetButtonEnabled(button, not self.ghostMode)
+			if self.eliminatedMode then
+				Components.SetButtonEnabled(button, false)
+			else
+				Components.SetButtonEnabled(button, not self.ghostMode)
+			end
 		end
 	end
 	if restoreControllerFocus and self.selectedInventorySlot > 0 then
@@ -2458,6 +2517,9 @@ function GameView:_updateInventory(state: any)
 end
 
 function GameView:_activateItem(item: any, control: GuiObject?)
+	if self.eliminatedMode then
+		return
+	end
 	if self.ghostMode or type(item) ~= "table" then
 		return
 	end
@@ -3501,6 +3563,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	if type(round) ~= "table" then
 		Components.SetLetterspacedText(self.phaseLabel, "WAITING FOR THE CAMP")
 		self.progressLabel.Text = "Connecting to the round server..."
+		if self.eliminatedBanner then
+			self.eliminatedBanner.Visible = false
+		end
 		return
 	end
 
@@ -3581,6 +3646,15 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	)
 	local alive = readBoolean(player, "alive", false)
 	local ghost = readBoolean(player, "isGhost", false)
+	local eliminated = role ~= "Spectator" and not alive and not ghost
+	self.eliminatedMode = eliminated
+	if eliminated then
+		self:HideInteraction()
+	end
+	if self.eliminatedBanner then
+		local inActivePhase = phase ~= "Lobby" and phase ~= "Rewards"
+		self.eliminatedBanner.Visible = eliminated and inActivePhase
+	end
 	self:SetGhostMode(ghost)
 	local healthState = readString(player, "healthState", if alive then "Healthy" else "Waiting")
 	if ghost then
@@ -3631,9 +3705,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local roleEnabled, roleReason = self:_available(state, "UseRoleAbility")
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
 	local planEnabled = self:_available(state, "SetMurderPlan")
+	local livingRoleActionEnabled = not ghost and (roleEnabled or monsterEnabled or planEnabled)
 	Components.SetButtonEnabled(
 		self.roleAction,
-		not ghost and (roleEnabled or monsterEnabled or planEnabled)
+		livingRoleActionEnabled and not eliminated
 	)
 	self.roleAction.TextColor3 = Theme.Colors.Text
 	local roleActionText = if ghost
@@ -3952,7 +4027,7 @@ function GameView:CloseModal()
 end
 
 function GameView:ActivateInventorySlot(slot: number)
-	if self.ghostMode then
+	if self.ghostMode or self.eliminatedMode then
 		return
 	end
 	local item = self.inventoryItems[slot]
@@ -3967,7 +4042,7 @@ function GameView:ActivateInventorySlot(slot: number)
 end
 
 function GameView:SelectInventorySlot(slot: number)
-	if slot < 1 or slot > #self.inventoryItems then
+	if self.eliminatedMode or slot < 1 or slot > #self.inventoryItems then
 		return
 	end
 	self.selectedInventorySlot = slot
@@ -3983,6 +4058,10 @@ function GameView:GetInventorySlotCount(): number
 end
 
 function GameView:ShowInteraction(actionText: string, objectText: string, inputText: string)
+	if self.eliminatedMode then
+		self:HideInteraction()
+		return
+	end
 	if self.ghostMode then
 		self:HideInteraction()
 		return
@@ -5192,6 +5271,11 @@ function GameView:Destroy()
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
 	end
+	if self.eliminatedBanner then
+		self.eliminatedBanner:Destroy()
+		self.eliminatedBanner = nil
+	end
+	self.eliminatedMode = false
 	self.destroyed = true
 	self.rewardAnimationToken += 1
 	self.announcementToken += 1
