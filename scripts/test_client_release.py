@@ -53,6 +53,11 @@ class ClientReleaseContractTests(unittest.TestCase):
         self.assertIn('playerGui:FindFirstChild("GameUI")', view)
         self.assertIn('screen = Instance.new("ScreenGui")', view)
         self.assertIn("screen.Enabled = true", view)
+        self.assertIn(
+            "screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling",
+            view,
+            "Modal content must render above its panel even when Studio reuses GameUI",
+        )
         self.assertNotIn('playerGui:WaitForChild("GameUI")', view)
 
         bootstrap = read("src/client/Bootstrap.client.lua")
