@@ -279,9 +279,26 @@ end
 
 function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver?): GameView
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-	local screen = playerGui:WaitForChild("GameUI")
-	assert(screen:IsA("ScreenGui"), "GameUI must be a ScreenGui")
-	screen.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+	local existingScreen = playerGui:FindFirstChild("GameUI")
+	if existingScreen and not existingScreen:IsA("ScreenGui") then
+		existingScreen:Destroy()
+		existingScreen = nil
+	end
+	local screen: ScreenGui
+	if existingScreen then
+		screen = existingScreen :: ScreenGui
+	else
+		screen = Instance.new("ScreenGui")
+		screen.Name = "GameUI"
+		screen.Parent = playerGui
+	end
+	screen.DisplayOrder = 10
+	screen.Enabled = true
+	screen.IgnoreGuiInset = false
+	screen.ResetOnSpawn = false
+	pcall(function()
+		screen.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+	end)
 
 	local previous = screen:FindFirstChild("CampMysteryHUD")
 	if previous then

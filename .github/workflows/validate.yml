@@ -30,6 +30,18 @@ jobs:
           install -m 0755 "$RUNNER_TEMP/rojo/rojo" "$RUNNER_TEMP/bin/rojo"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/rojo" --version
+      - name: Install pinned Luau compiler 0.726
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/luau" "$RUNNER_TEMP/bin"
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --retry 3 --retry-all-errors \
+            https://github.com/luau-lang/luau/releases/download/0.726/luau-ubuntu.zip \
+            --output "$RUNNER_TEMP/luau.zip"
+          unzip -q "$RUNNER_TEMP/luau.zip" -d "$RUNNER_TEMP/luau"
+          install -m 0755 "$RUNNER_TEMP/luau/luau-compile" "$RUNNER_TEMP/bin/luau-compile"
+          "$RUNNER_TEMP/bin/luau-compile" --help >/dev/null
       - name: Run repository checks and write scoped evidence
         run: python scripts/release_gate.py --require-rojo --commit "$GITHUB_SHA"
       - name: Upload repository evidence

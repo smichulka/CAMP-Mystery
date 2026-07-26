@@ -43,6 +43,51 @@ class ServerReleaseContracts(unittest.TestCase):
         )[1].split("function GameRuntimeService:GetServices", maxsplit=1)[0]
         self.assertIn("if not self.running then", stop_body)
 
+    def test_studio_solo_round_cannot_deadlock_behind_ready_ui(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        self.assertIn("function GameRuntimeService:_readyStudioPlayers()", runtime)
+        self.assertIn("if not RunService:IsStudio() then", runtime)
+        self.assertIn("self.matchmaking:SetReady(player, true)", runtime)
+        participant_body = runtime.split(
+            "function GameRuntimeService:_participantIdsForRound", maxsplit=1
+        )[1].split(
+            "function GameRuntimeService:_grantLoadout", maxsplit=1
+        )[0]
+        self.assertIn("self:_readyStudioPlayers()", participant_body)
+        start_body = runtime.split(
+            "function GameRuntimeService:Start()", maxsplit=1
+        )[1].split("function GameRuntimeService:Stop()", maxsplit=1)[0]
+        self.assertGreaterEqual(start_body.count("self:_readyStudioPlayers()"), 2)
+        self.assertIn(
+            'station.PrimaryPart or station:FindFirstChild("InteractionRoot")',
+            runtime,
+        )
+
+    def test_procedural_world_is_navigable_interactive_and_visually_layered(self) -> None:
+        world = source("Services/ProductionMapService.lua")
+        for token in (
+            "hideDefaultBaseplate",
+            "HiddenByCampMystery",
+            "buildCampTerrain",
+            "terrain:FillBlock(",
+            "Enum.Material.Water",
+            "createInteractiveDoor",
+            'createPrompt(door, "Open"',
+            "createInspectPrompt",
+            '"InteractionFeedback"',
+            '"CabinLight"',
+            '"BunkBed"',
+            '"CabinTable"',
+            '"TownGround"',
+            '"CampAtmosphere"',
+            '"CampColor"',
+            '"CampBloom"',
+            "TweenService:Create(Lighting",
+            "interactiveDoors",
+            'createPrompt(fire, "Tend Fire"',
+        ):
+            self.assertIn(token, world)
+
     def test_disconnect_transfers_every_deduction_identity(self) -> None:
         runtime = source("Services/GameRuntimeService.lua")
         mystery = source("Services/MysteryService.lua")

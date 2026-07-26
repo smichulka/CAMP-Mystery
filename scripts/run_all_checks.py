@@ -33,6 +33,10 @@ def main() -> None:
         "Structural project validation",
         [sys.executable, "scripts/validate_project.py"],
     )
+    luau_command = [sys.executable, "scripts/compile_luau.py"]
+    if args.require_rojo:
+        luau_command.append("--require-compiler")
+    run("Luau compilation", luau_command)
     run(
         "Domain contract tests",
         [sys.executable, "scripts/test_domain_contracts.py"],

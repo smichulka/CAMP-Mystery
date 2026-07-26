@@ -74,7 +74,8 @@ local function updateReleaseExperience(snapshot: GameState)
 	if settings and type(settings.controllerSensitivity) == "number" then
 		pcall(function()
 			local userGameSettings = UserSettings():GetService("UserGameSettings")
-			(userGameSettings :: any).GamepadCameraSensitivity =
+			local writableGameSettings = userGameSettings :: any
+			writableGameSettings.GamepadCameraSensitivity =
 				math.clamp(settings.controllerSensitivity, 0.1, 3)
 		end)
 	end
