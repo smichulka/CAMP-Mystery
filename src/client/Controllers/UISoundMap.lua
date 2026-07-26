@@ -73,26 +73,26 @@ local DEFINITIONS: { UISoundDefinition } = {
 	{
 		name = "UIError",
 		attribute = "UIErrorAssetId",
-		defaultAssetId = nil,
-		sourceUrl = nil,
+		defaultAssetId = "rbxassetid://9125387654", -- verify in Studio
+		sourceUrl = "https://create.roblox.com/store/asset/9125387654/Beeps-High-Pitch-Fast-Short-Bursts-Noisy-Buz-SFX",
 	},
 	{
 		name = "UISuccess",
 		attribute = "UISuccessAssetId",
-		defaultAssetId = nil,
-		sourceUrl = nil,
+		defaultAssetId = "rbxassetid://9119802003", -- verify in Studio
+		sourceUrl = "https://create.roblox.com/store/asset/9119802003/Synth-Chime-Single-Synth-Tone-1-SFX",
 	},
 	{
 		name = "UIPageTurn",
 		attribute = "UIPageTurnAssetId",
-		defaultAssetId = nil,
-		sourceUrl = nil,
+		defaultAssetId = "rbxassetid://9113841825", -- verify in Studio
+		sourceUrl = "https://create.roblox.com/store/asset/9113841825/Cloth-Whooshes-Sharp-Whooshes-21-SFX",
 	},
 	{
 		name = "UIStamp",
 		attribute = "UIStampAssetId",
-		defaultAssetId = nil,
-		sourceUrl = nil,
+		defaultAssetId = "rbxassetid://9113964719", -- verify in Studio
+		sourceUrl = "https://create.roblox.com/store/asset/9113964719/Cracky-Punch-1-SFX",
 	},
 }
 
