@@ -95,7 +95,11 @@ class LobbyReconnectTests(unittest.TestCase):
             '"Info",\n\t\t\t\t\t4',
         ):
             self.assertIn(token, controller)
-        self.assertIn("function GameView:PrepareReconnectSnapshot()", view)
+        self.assertIn(
+            "function GameView:PrepareReconnectSnapshot(phaseName: string)",
+            view,
+        )
+        self.assertIn("gameView:PrepareReconnectSnapshot(reconnectPhase)", controller)
         self.assertIn('SetAttribute("SuppressNextStagger", true)', view)
 
 
