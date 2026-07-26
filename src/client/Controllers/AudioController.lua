@@ -45,18 +45,55 @@ AudioController.CueIds = table.freeze({
 })
 
 local DEFINITIONS: { SoundDefinition } = {
-	{ name = "LobbyMusic", channel = "Music", attribute = "LobbyMusicAssetId", looped = true },
-	{ name = "CampMusic", channel = "Music", attribute = "CampMusicAssetId", looped = true },
-	{ name = "NightMusic", channel = "Music", attribute = "NightMusicAssetId", looped = true },
-	{ name = "ResultsMusic", channel = "Music", attribute = "ResultsMusicAssetId", looped = true },
-	{ name = "CampAmbience", channel = "Ambience", attribute = "CampAmbienceAssetId", looped = true },
-	{ name = "NightAmbience", channel = "Ambience", attribute = "NightAmbienceAssetId", looped = true },
+	{
+		name = "LobbyMusic",
+		channel = "Music",
+		attribute = "LobbyMusicAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://1838974004", -- placeholder: replace with final asset
+	},
+	{
+		name = "CampMusic",
+		channel = "Music",
+		attribute = "CampMusicAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://1836688632", -- placeholder: replace with final asset
+	},
+	{
+		name = "NightMusic",
+		channel = "Music",
+		attribute = "NightMusicAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://1839908918", -- placeholder: replace with final asset
+	},
+	{
+		name = "ResultsMusic",
+		channel = "Music",
+		attribute = "ResultsMusicAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://1843322662", -- placeholder: replace with final asset
+	},
+	{
+		name = "CampAmbience",
+		channel = "Ambience",
+		attribute = "CampAmbienceAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://132897156", -- placeholder: replace with final asset
+	},
+	{
+		name = "NightAmbience",
+		channel = "Ambience",
+		attribute = "NightAmbienceAssetId",
+		looped = true,
+		defaultAssetId = "rbxassetid://9112762653", -- placeholder: replace with final asset
+	},
 	{
 		name = "PhaseChime",
 		channel = "UI",
 		attribute = "PhaseChimeAssetId",
 		looped = false,
 		subtitle = "The camp phase has changed.",
+		defaultAssetId = "rbxassetid://2909601104", -- placeholder: replace with final asset
 	},
 	{
 		name = "EvidenceFound",
@@ -64,6 +101,7 @@ local DEFINITIONS: { SoundDefinition } = {
 		attribute = "EvidenceFoundAssetId",
 		looped = false,
 		subtitle = "Evidence discovered.",
+		defaultAssetId = "rbxassetid://9039791885", -- placeholder: replace with final asset
 	},
 	{
 		name = "VoteOpen",
@@ -71,6 +109,7 @@ local DEFINITIONS: { SoundDefinition } = {
 		attribute = "VoteOpenAssetId",
 		looped = false,
 		subtitle = "The campfire vote is open.",
+		defaultAssetId = "rbxassetid://98572480937443", -- placeholder: replace with final asset
 	},
 	{
 		name = "MonsterActive",
@@ -78,6 +117,7 @@ local DEFINITIONS: { SoundDefinition } = {
 		attribute = "MonsterActiveAssetId",
 		looped = true,
 		subtitle = "A monster is nearby.",
+		defaultAssetId = "rbxassetid://1842342421", -- placeholder: replace with final asset
 	},
 	{
 		name = "Reward",
@@ -85,6 +125,7 @@ local DEFINITIONS: { SoundDefinition } = {
 		attribute = "RewardAssetId",
 		looped = false,
 		subtitle = "Round rewards received.",
+		defaultAssetId = "rbxassetid://97881181065416", -- placeholder: replace with final asset
 	},
 }
 
