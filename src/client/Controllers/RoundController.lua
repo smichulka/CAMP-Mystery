@@ -740,6 +740,33 @@ local function updateReleaseExperience(
 	if currentSeverity ~= lastHealthSeverity then
 		lastHealthSeverity = currentSeverity
 	end
+	if reconnect and currentView and not roundEnded and phaseName ~= nil then
+		if isGhost then
+			currentView:Notify(
+				"Reconnected",
+				"You are a ghost. Observe the round and witness the verdict.",
+				"Info"
+			)
+		elseif currentHealthState == "Critical" or currentHealthState == "Incapacitated" then
+			currentView:Notify(
+				"Reconnected — you're incapacitated",
+				string.format("Current phase: %s. You can barely move.", phaseName),
+				"Warning"
+			)
+		elseif currentHealthState == "Injured" then
+			currentView:Notify(
+				"Reconnected — you're injured",
+				string.format("Current phase: %s. Find help.", phaseName),
+				"Warning"
+			)
+		else
+			currentView:Notify(
+				"Reconnected",
+				string.format("Current phase: %s.", phaseName),
+				"Info"
+			)
+		end
+	end
 	currentEffects:SetGhostTint(isGhost)
 	-- Role-based spectators also serialize as dead non-ghost participants.
 	local isEliminated = type(player) == "table"
@@ -938,12 +965,6 @@ function RoundController.Start()
 			local phaseName = if type(round) == "table" and type(round.phase) == "string"
 				then round.phase
 				else nil
-			local roleName = if type(player) == "table"
-					and type(player.roleDisplayName) == "string"
-				then player.roleDisplayName
-				elseif type(player) == "table" and type(player.role) == "string"
-					then player.role
-				else "Camper"
 			local isReconnectSnapshot = firstFullState
 				and phaseName ~= nil
 				and phaseName ~= "Lobby"
@@ -973,14 +994,6 @@ function RoundController.Start()
 			state = payload :: GameState
 			refresh()
 			updateReleaseExperience(state :: GameState, isReconnectSnapshot)
-			if isReconnectSnapshot then
-				gameView:Notify(
-					"Reconnected — your role is " .. roleName,
-					"Your round state has been restored.",
-					"Info",
-					4
-				)
-			end
 		end
 	end)
 	remoteBridge:OnSnapshot("round", function(payload: any)
