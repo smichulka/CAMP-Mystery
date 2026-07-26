@@ -14,6 +14,7 @@ local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
+local KeybindHints = require(SharedConfig:WaitForChild("KeybindHints"))
 local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))
 local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
@@ -49,6 +50,9 @@ type GameViewState = {
 	roleIcon: ImageLabel,
 	roleDescription: TextLabel,
 	roleAction: TextButton,
+	cooldownBar: Frame?,
+	cooldownFill: Frame?,
+	abilityBarMaxCooldown: number,
 	objectiveText: TextLabel,
 	objectiveFill: Frame,
 	healthText: TextLabel,
@@ -135,6 +139,8 @@ type GameViewState = {
 	interviewPickerSheet: Frame?,
 	counselorDialogueToken: number,
 	counselorDialoguePanel: Frame?,
+	keybindHintToken: number,
+	keybindHintOverlay: CanvasGroup?,
 	lastCooldownText: string?,
 	roleActionBaseText: string,
 	lastAnimatedXP: number,
@@ -565,6 +571,26 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	})
 	Components.SetButtonEnabled(roleAction, false)
 
+	-- Thin cooldown bar below the role action button
+	local cooldownBar = Instance.new("Frame")
+	cooldownBar.Name = "AbilityCooldownBar"
+	cooldownBar.Size = UDim2.new(1, -32, 0, 4)
+	cooldownBar.Position = UDim2.fromOffset(16, 298)
+	cooldownBar.BackgroundColor3 = Theme.Colors.PanelSoft
+	cooldownBar.BackgroundTransparency = 0.3
+	cooldownBar.BorderSizePixel = 0
+	cooldownBar.Visible = false
+	cooldownBar.Parent = mission
+
+	local cooldownFill = Instance.new("Frame")
+	cooldownFill.Name = "CooldownFill"
+	cooldownFill.Size = UDim2.fromScale(0, 1)
+	cooldownFill.BackgroundColor3 = Theme.Colors.Gold
+	cooldownFill.BorderSizePixel = 0
+	cooldownFill.Parent = cooldownBar
+	Components.Corner(cooldownBar, 2)
+	Components.Corner(cooldownFill, 2)
+
 	local healthPanel = Components.Panel(root, "Health")
 	healthPanel.AnchorPoint = Vector2.new(0, 1)
 	healthPanel.Position = UDim2.new(0, 18, 1, -18)
@@ -676,6 +702,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		roleIcon = roleIcon,
 		roleDescription = roleDescription,
 		roleAction = roleAction,
+		cooldownBar = cooldownBar,
+		cooldownFill = cooldownFill,
+		abilityBarMaxCooldown = 0,
 		objectiveText = objectiveText,
 		objectiveFill = objectiveFill,
 		healthText = healthText,
@@ -762,6 +791,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		interviewPickerSheet = nil,
 		counselorDialogueToken = 0,
 		counselorDialoguePanel = nil,
+		keybindHintToken = 0,
+		keybindHintOverlay = nil,
 		lastCooldownText = nil,
 		roleActionBaseText = "ABILITY UNAVAILABLE",
 		lastAnimatedXP = -1,
@@ -1866,33 +1897,102 @@ function GameView:_settingRow(
 	else
 		local minValue = minimum or 0
 		local maxValue = maximum or 1
-		local minus = Components.Button(row, {
-			name = "Minus",
-			text = "-",
-			size = UDim2.fromOffset(36, 36),
-			position = UDim2.new(1, -164, 0.5, -18),
-		})
-		local display = Components.Label(row, "Value", string.format("%.1f", tonumber(value) or 1), 14, Enum.Font.GothamBold)
-		display.Position = UDim2.new(1, -124, 0, 0)
-		display.Size = UDim2.fromOffset(72, 56)
-		display.TextXAlignment = Enum.TextXAlignment.Center
-		local plus = Components.Button(row, {
-			name = "Plus",
-			text = "+",
-			size = UDim2.fromOffset(36, 36),
-			position = UDim2.new(1, -44, 0.5, -18),
-		})
-		minus.Activated:Connect(function()
-			self:_setSetting(
-				key,
-				math.clamp((tonumber(self.settingsValues[key]) or 1) - 0.1, minValue, maxValue)
-			)
+		local currentValue = math.clamp(
+			tonumber(self.settingsValues[key]) or 1,
+			minValue,
+			maxValue
+		)
+		local initialFraction = if maxValue > minValue
+			then (currentValue - minValue) / (maxValue - minValue)
+			else 0
+
+		local sliderTrack = Instance.new("Frame")
+		sliderTrack.Name = "SliderTrack"
+		sliderTrack.Size = UDim2.fromOffset(150, 8)
+		sliderTrack.Position = UDim2.new(1, -178, 0.5, -4)
+		sliderTrack.BackgroundColor3 = Theme.Colors.PanelSoft
+		sliderTrack.BorderSizePixel = 0
+		sliderTrack.Active = true
+		sliderTrack.Parent = row
+		Components.Corner(sliderTrack, 4)
+
+		local sliderFill = Instance.new("Frame")
+		sliderFill.Name = "SliderFill"
+		sliderFill.Size = UDim2.fromScale(initialFraction, 1)
+		sliderFill.BackgroundColor3 = Theme.Colors.Gold
+		sliderFill.BorderSizePixel = 0
+		sliderFill.Parent = sliderTrack
+		Components.Corner(sliderFill, 4)
+
+		local sliderThumb = Instance.new("Frame")
+		sliderThumb.Name = "SliderThumb"
+		sliderThumb.Size = UDim2.fromOffset(18, 18)
+		sliderThumb.AnchorPoint = Vector2.new(0.5, 0.5)
+		sliderThumb.Position = UDim2.new(initialFraction, 0, 0.5, 0)
+		sliderThumb.BackgroundColor3 = Theme.Colors.White
+		sliderThumb.BorderSizePixel = 0
+		sliderThumb.ZIndex = sliderTrack.ZIndex + 1
+		sliderThumb.Parent = sliderTrack
+		Components.Corner(sliderThumb, 9)
+
+		local valueLabel = Components.Label(
+			row,
+			"Value",
+			string.format("%.1f", currentValue),
+			12,
+			Enum.Font.GothamBold
+		)
+		valueLabel.AnchorPoint = Vector2.new(1, 0.5)
+		valueLabel.Position = UDim2.new(1, -12, 0.5, 0)
+		valueLabel.Size = UDim2.fromOffset(22, 20)
+		valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+		local dragging = false
+		local function fractionAt(inputX: number): number
+			local trackX = sliderTrack.AbsolutePosition.X
+			local trackWidth = sliderTrack.AbsoluteSize.X
+			return if trackWidth > 0
+				then math.clamp((inputX - trackX) / trackWidth, 0, 1)
+				else 0
+		end
+		local function applyFraction(fraction: number)
+			sliderFill.Size = UDim2.fromScale(fraction, 1)
+			sliderThumb.Position = UDim2.new(fraction, 0, 0.5, 0)
+			local sliderValue = minValue + fraction * (maxValue - minValue)
+			valueLabel.Text = string.format("%.1f", sliderValue)
+		end
+
+		sliderTrack.InputBegan:Connect(function(input: InputObject)
+			local inputType = input.UserInputType
+			if inputType == Enum.UserInputType.MouseButton1
+				or inputType == Enum.UserInputType.Touch
+			then
+				dragging = true
+				applyFraction(fractionAt(input.Position.X))
+			end
 		end)
-		plus.Activated:Connect(function()
-			self:_setSetting(
-				key,
-				math.clamp((tonumber(self.settingsValues[key]) or 1) + 0.1, minValue, maxValue)
-			)
+		sliderTrack.InputChanged:Connect(function(input: InputObject)
+			local inputType = input.UserInputType
+			if dragging
+				and (
+					inputType == Enum.UserInputType.MouseMovement
+					or inputType == Enum.UserInputType.Touch
+				)
+			then
+				applyFraction(fractionAt(input.Position.X))
+			end
+		end)
+		sliderTrack.InputEnded:Connect(function(input: InputObject)
+			local inputType = input.UserInputType
+			if inputType == Enum.UserInputType.MouseButton1
+				or inputType == Enum.UserInputType.Touch
+			then
+				dragging = false
+				local finalFraction = fractionAt(input.Position.X)
+				applyFraction(finalFraction)
+				local rawValue = minValue + finalFraction * (maxValue - minValue)
+				self:_setSetting(key, math.round(rawValue * 10) / 10)
+			end
 		end)
 	end
 end
@@ -2536,6 +2636,91 @@ function GameView:ShowCounselorDialogue(
 		then
 			self:_dismissCounselorDialogue()
 		end
+	end)
+end
+
+function GameView:ShowKeybindHint(phaseName: string)
+	if self.destroyed then
+		return
+	end
+	local entry = KeybindHints[phaseName]
+	if not entry then
+		return
+	end
+	local hints = if UserInputService:GetGamepadConnected(Enum.UserInputType.Gamepad1)
+		then entry.controller
+		else entry.keyboard
+
+	self.keybindHintToken += 1
+	local token = self.keybindHintToken
+	local previous = self.keybindHintOverlay
+	if previous then
+		Motion.Cancel(previous)
+		previous:Destroy()
+		self.keybindHintOverlay = nil
+	end
+
+	if Motion.IsReducedMotion(self.root) then
+		return
+	end
+
+	local panel = Instance.new("CanvasGroup")
+	panel.Name = "KeybindHintPanel"
+	panel.AnchorPoint = Vector2.new(0.5, 1)
+	panel.Position = UDim2.new(0.5, 0, 1, -90)
+	panel.Size = UDim2.fromOffset(320, 28 + 22 * #hints)
+	panel.BackgroundColor3 = Theme.Colors.Black
+	panel.BackgroundTransparency = 0.35
+	panel.BorderSizePixel = 0
+	panel.GroupTransparency = 0
+	panel.ZIndex = 50
+	panel.Parent = self.root
+	self.keybindHintOverlay = panel
+	Components.Corner(panel, 6)
+
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 2)
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Parent = panel
+
+	for _, hint in hints do
+		local row = Components.Label(
+			panel,
+			"HintRow_" .. hint,
+			hint,
+			12,
+			Enum.Font.Gotham
+		)
+		row.Size = UDim2.new(1, -16, 0, 20)
+		row.TextXAlignment = Enum.TextXAlignment.Center
+		row.TextColor3 = Theme.Colors.White
+		row.TextTransparency = 0.1
+		row.ZIndex = 51
+	end
+
+	local function active(): boolean
+		return not self.destroyed
+			and self.keybindHintToken == token
+			and panel.Parent ~= nil
+	end
+
+	Motion.FadeIn(panel, { duration = 0.3 })
+	task.delay(4, function()
+		if not active() then
+			return
+		end
+		Motion.FadeOut(panel, {
+			duration = 0.5,
+			onComplete = function(_completed: boolean)
+				if active() then
+					panel:Destroy()
+					if self.keybindHintOverlay == panel then
+						self.keybindHintOverlay = nil
+					end
+				end
+			end,
+		})
 	end)
 end
 
@@ -3299,11 +3484,11 @@ function GameView:Tick()
 		then self.currentState.player
 		else nil
 	local cooldownText: string? = nil
+	local minimumRemaining = math.huge
 	if not self.ghostMode and self.roleAction.Active and type(player) == "table" then
 		local cooldowns = if type(player.abilityCooldownEndsAt) == "table"
 			then player.abilityCooldownEndsAt
 			else nil
-		local minimumRemaining = math.huge
 		if cooldowns then
 			for _, abilityId in asTable(player.abilityIds) do
 				if type(abilityId) == "string" then
@@ -3340,6 +3525,27 @@ function GameView:Tick()
 			self.roleAction.TextColor3 = Theme.Colors.Text
 		end
 		self.lastCooldownText = nil
+	end
+
+	if self.cooldownBar and self.cooldownFill then
+		if minimumRemaining < math.huge then
+			if self.abilityBarMaxCooldown == 0 then
+				self.abilityBarMaxCooldown = minimumRemaining
+			end
+			local fraction = math.clamp(
+				1 - minimumRemaining / self.abilityBarMaxCooldown,
+				0,
+				1
+			)
+			self.cooldownFill.Size = UDim2.fromScale(fraction, 1)
+			self.cooldownFill.BackgroundColor3 = if minimumRemaining <= 5
+				then Theme.Colors.Success
+				else Theme.Colors.Gold
+			self.cooldownBar.Visible = true
+		else
+			self.abilityBarMaxCooldown = 0
+			self.cooldownBar.Visible = false
+		end
 	end
 
 	if self.notebookBadge then
@@ -4611,10 +4817,22 @@ function GameView:Destroy()
 	self:_cancelEvidenceDiscovery()
 	self:_dismissInterviewPicker(true)
 	self:_dismissCounselorDialogue(true)
+	self.keybindHintToken += 1
+	if self.keybindHintOverlay then
+		Motion.Cancel(self.keybindHintOverlay)
+		self.keybindHintOverlay:Destroy()
+		self.keybindHintOverlay = nil
+	end
 	if self.deathCinematicOverlay then
 		self.deathCinematicOverlay:Destroy()
 		self.deathCinematicOverlay = nil
 	end
+	if self.cooldownBar then
+		self.cooldownBar:Destroy()
+		self.cooldownBar = nil
+	end
+	self.cooldownFill = nil
+	self.abilityBarMaxCooldown = 0
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
