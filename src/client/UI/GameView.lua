@@ -161,6 +161,7 @@ type GameViewState = {
 	legacyRound: any,
 	legacyPlayer: any,
 	currentVoteSignature: string,
+	localVoteHasLocked: boolean,
 	evidenceStatuses: { [string]: string },
 	selectedInventorySlot: number,
 	inventoryItems: { any },
@@ -1079,6 +1080,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		legacyRound = nil,
 		legacyPlayer = nil,
 		currentVoteSignature = "",
+		localVoteHasLocked = false,
 		evidenceStatuses = {},
 		selectedInventorySlot = 0,
 		inventoryItems = {},
@@ -1404,7 +1406,11 @@ end
 
 function GameView:_buildVote()
 	makeHeader(self.voteModal, "CAMPFIRE ACCUSATION", function()
-		self:Notify("Vote required", "Choose one suspect before the fire goes out.", "Warning")
+		if self.localVoteHasLocked then
+			setModalVisible(self.voteModal, false)
+		else
+			self:Notify("Vote required", "Choose one suspect before the fire goes out.", "Warning")
+		end
 	end)
 	local voteHeader = self.voteModal:FindFirstChild("Header")
 	if voteHeader and voteHeader:IsA("Frame") then
@@ -3534,9 +3540,13 @@ function GameView:_updateVote(round: any, player: any)
 	if phase ~= "Campfire" or not alive or isGhost then
 		setModalVisible(self.voteModal, false)
 		self.currentVoteSignature = ""
+		self.localVoteHasLocked = false
 		return
 	end
-	setModalVisible(self.voteModal, true)
+	self.localVoteHasLocked = self.localVoteHasLocked or hasVoted
+	if not self.localVoteHasLocked then
+		setModalVisible(self.voteModal, true)
+	end
 	local suspects = asTable(round.suspects)
 	local pieces = { tostring(hasVoted), voteTargetId }
 	for _, suspect in suspects do
@@ -6034,6 +6044,7 @@ function GameView:Destroy()
 	self.rosterScrollFrame = nil
 	self.lastRosterSignature = ""
 	self.voteCountLabel = nil
+	self.localVoteHasLocked = false
 	if self.ghostBadgePulse then
 		self.ghostBadgePulse:Cancel()
 		self.ghostBadgePulse = nil
