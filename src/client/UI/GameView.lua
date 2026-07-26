@@ -17,6 +17,8 @@ local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
+local HapticController =
+	require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("HapticController"))
 
 type ActionHandler = (action: string, payload: any) -> (boolean, string?)
 type ImageResolver = (key: string) -> string?
@@ -32,11 +34,15 @@ type GameViewState = {
 	menuPanel: Frame,
 	lobbyPanel: Frame?,
 	notebookButton: TextButton?,
+	notebookBadge: TextLabel?,
+	lastSeenEvidenceCount: number,
 	settingsButton: TextButton?,
 	actionHandler: ActionHandler,
 	resolveImage: ImageResolver,
 	phaseLabel: TextLabel,
 	timerLabel: TextLabel,
+	timerBar: Frame?,
+	timerFill: Frame?,
 	progressLabel: TextLabel,
 	roleTitle: TextLabel,
 	roleIcon: ImageLabel,
@@ -468,6 +474,24 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	timerLabel.Size = UDim2.fromOffset(72, 32)
 	timerLabel.TextColor3 = Theme.Colors.Gold
 	timerLabel.TextXAlignment = Enum.TextXAlignment.Center
+	local timerBar = Instance.new("Frame")
+	timerBar.Name = "TimerBar"
+	timerBar.Size = UDim2.new(1, -36, 0, 5)
+	timerBar.Position = UDim2.fromOffset(18, 43)
+	timerBar.BackgroundColor3 = Theme.Colors.PanelSoft
+	timerBar.BackgroundTransparency = 0.3
+	timerBar.BorderSizePixel = 0
+	timerBar.Parent = top
+
+	local timerFill = Instance.new("Frame")
+	timerFill.Name = "TimerFill"
+	timerFill.Size = UDim2.fromScale(1, 1)
+	timerFill.BackgroundColor3 = Theme.Colors.Gold
+	timerFill.BorderSizePixel = 0
+	timerFill.Parent = timerBar
+	Components.Corner(timerBar, 3)
+	Components.Corner(timerFill, 3)
+
 	local progressLabel = Components.Label(top, "Progress", "The camp is getting ready.", 14)
 	progressLabel.Position = UDim2.fromOffset(18, 47)
 	progressLabel.Size = UDim2.new(1, -36, 0, 38)
@@ -632,6 +656,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		menuPanel = menu,
 		lobbyPanel = nil,
 		notebookButton = nil,
+		notebookBadge = nil,
+		lastSeenEvidenceCount = 0,
 		settingsButton = nil,
 		actionHandler = actionHandler,
 		resolveImage = imageResolver or function(_key: string): string?
@@ -639,6 +665,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		end,
 		phaseLabel = phaseLabel,
 		timerLabel = timerLabel,
+		timerBar = timerBar,
+		timerFill = timerFill,
 		progressLabel = progressLabel,
 		roleTitle = roleTitle,
 		roleIcon = roleIcon,
@@ -748,6 +776,25 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	self.notebookButton = makeMenuButton(menu, "NotebookButton", "CLUES  [N]", UDim2.fromOffset(10, 0), function()
 		self:ToggleNotebook()
 	end)
+	local notebookBadge = Components.Label(
+		self.notebookButton :: Instance,
+		"EvidenceBadge",
+		"0",
+		10,
+		Enum.Font.GothamBold
+	)
+	notebookBadge.AnchorPoint = Vector2.new(1, 0)
+	notebookBadge.Position = UDim2.new(1, 4, 0, -4)
+	notebookBadge.Size = UDim2.fromOffset(20, 20)
+	notebookBadge.BackgroundColor3 = Theme.Colors.DangerBright
+	notebookBadge.BackgroundTransparency = 0
+	notebookBadge.TextColor3 = Color3.new(1, 1, 1)
+	notebookBadge.TextXAlignment = Enum.TextXAlignment.Center
+	notebookBadge.ZIndex = (self.notebookButton :: Instance).ZIndex + 1
+	notebookBadge.Visible = false
+	Components.Corner(notebookBadge, 10)
+	self.notebookBadge = notebookBadge
+
 	self.settingsButton = makeMenuButton(menu, "SettingsButton", "SETTINGS", UDim2.fromOffset(10, 48), function()
 		self:ToggleSettings()
 	end)
@@ -1345,9 +1392,11 @@ function GameView:HandleActionResult(accepted: boolean)
 	local control = self.lastActionControl
 	if control and control.Parent then
 		if accepted then
+			HapticController.Impact()
 			Motion.PopIn(control, { duration = 0.12 })
 			Components.PlayUISound("success")
 		else
+			HapticController.Error()
 			Motion.Shake(control)
 		end
 	end
@@ -3201,6 +3250,25 @@ function GameView:Tick()
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	self.timerLabel.TextColor3 = if seconds <= 10 and seconds > 0 then Theme.Colors.DangerBright else Theme.Colors.Gold
+	if self.timerFill then
+		local phaseStartedAt = readNumber(round, "phaseStartedAt", 0)
+		local phaseEndsAt = readNumber(round, "phaseEndsAt", 0)
+		local phaseDuration = phaseEndsAt - phaseStartedAt
+		local fraction: number
+		if phaseDuration > 0 then
+			fraction = math.clamp((currentTime - phaseStartedAt) / phaseDuration, 0, 1)
+		else
+			fraction = 0
+		end
+		self.timerFill.Size = UDim2.fromScale(fraction, 1)
+		if seconds <= 10 and seconds > 0 then
+			self.timerFill.BackgroundColor3 = Theme.Colors.DangerBright
+		elseif seconds <= 30 then
+			self.timerFill.BackgroundColor3 = Theme.Colors.Amber
+		else
+			self.timerFill.BackgroundColor3 = Theme.Colors.Gold
+		end
+	end
 
 	local player = if type(self.currentState) == "table"
 			and type(self.currentState.player) == "table"
@@ -3249,12 +3317,38 @@ function GameView:Tick()
 		end
 		self.lastCooldownText = nil
 	end
+
+	if self.notebookBadge then
+		local evidence = if type(player) == "table" and type(player.evidenceKnowledge) == "table"
+			then player.evidenceKnowledge
+			else {}
+		local newCount = math.max(0, #evidence - self.lastSeenEvidenceCount)
+		if newCount > 0 and not modalTargetVisible(self.notebook) then
+			self.notebookBadge.Text = tostring(math.min(newCount, 9))
+			self.notebookBadge.Visible = true
+		else
+			self.notebookBadge.Visible = false
+		end
+	end
 end
 
 function GameView:ToggleNotebook()
 	setModalVisible(self.settings, false)
 	setModalVisible(self.progression, false)
-	setModalVisible(self.notebook, not modalTargetVisible(self.notebook))
+	local willOpen = not modalTargetVisible(self.notebook)
+	setModalVisible(self.notebook, willOpen)
+	if willOpen then
+		HapticController.Click()
+		local currentState = self.currentState
+		local player = if type(currentState) == "table" then currentState.player else nil
+		local evidence = if type(player) == "table" and type(player.evidenceKnowledge) == "table"
+			then player.evidenceKnowledge
+			else {}
+		self.lastSeenEvidenceCount = #evidence
+		if self.notebookBadge then
+			self.notebookBadge.Visible = false
+		end
+	end
 end
 
 function GameView:ToggleSettings()
