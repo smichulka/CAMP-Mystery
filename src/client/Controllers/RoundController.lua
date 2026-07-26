@@ -94,6 +94,7 @@ local HEALTH_SEVERITY: { [string]: number } = {
 }
 local lastHealthSeverity: number? = nil
 local lastConnectedState: { [string]: boolean } = {}
+local lastParticipantAliveStates: { [string]: boolean } = {}
 local lastHintRound: number? = nil
 local lastToastedRound: number? = nil
 local sentUrgencyWarning = false
@@ -469,8 +470,16 @@ local function updateReleaseExperience(
 			and type(snapshot.participants) == "table"
 		then snapshot.participants
 		else {}
+	local monsterTargetId: string? = nil
+	local murderPlan = if type(snapshot) == "table" then snapshot.murderPlan else nil
+	if type(murderPlan) == "table"
+		and type(murderPlan.victimParticipantId) == "string"
+		and murderPlan.victimParticipantId ~= ""
+	then
+		monsterTargetId = murderPlan.victimParticipantId
+	end
 	for _, participant in participants do
-		if type(participant) ~= "table" or participant.isBot == true then
+		if type(participant) ~= "table" then
 			continue
 		end
 		local participantId = readString(participant, "participantId", "")
@@ -478,26 +487,45 @@ local function updateReleaseExperience(
 			continue
 		end
 		local displayName = readString(participant, "displayName", "?")
-		local connected = if type(participant.connected) == "boolean"
-			then participant.connected
-			else true
-		local previousConnected = lastConnectedState[participantId]
-		if previousConnected ~= nil then
-			if not connected and previousConnected then
-				if currentView then
-					currentView:Notify(
-						displayName .. " left",
-						"Player disconnected.",
-						"Warning"
-					)
-				end
-			elseif connected and not previousConnected then
-				if currentView then
-					currentView:Notify(displayName .. " reconnected", "", "Info")
+		if participant.isBot ~= true then
+			local connected = if type(participant.connected) == "boolean"
+				then participant.connected
+				else true
+			local previousConnected = lastConnectedState[participantId]
+			if previousConnected ~= nil then
+				if not connected and previousConnected then
+					if currentView then
+						currentView:Notify(
+							displayName .. " left",
+							"Player disconnected.",
+							"Warning"
+						)
+					end
+				elseif connected and not previousConnected then
+					if currentView then
+						currentView:Notify(displayName .. " reconnected", "", "Info")
+					end
 				end
 			end
+			lastConnectedState[participantId] = connected
 		end
-		lastConnectedState[participantId] = connected
+		local alive = participant.alive == true
+		local previousAlive = lastParticipantAliveStates[participantId]
+		if previousAlive == true
+			and not alive
+			and not reconnect
+			and phaseName ~= "Rewards"
+			and phaseName ~= "Lobby"
+		then
+			if monsterTargetId ~= nil and monsterTargetId == participantId and currentView then
+				currentView:Notify(
+					"TARGET ELIMINATED",
+					displayName .. " has been eliminated.",
+					"Success"
+				)
+			end
+		end
+		lastParticipantAliveStates[participantId] = alive
 	end
 	local winner = if type(round) == "table" and type(round.winner) == "string"
 		then round.winner
@@ -1033,6 +1061,7 @@ function RoundController.Stop()
 	lastHealthState = nil
 	lastHealthSeverity = nil
 	lastConnectedState = {}
+	lastParticipantAliveStates = {}
 	lastHintRound = nil
 	lastToastedRound = nil
 	sentUrgencyWarning = false
