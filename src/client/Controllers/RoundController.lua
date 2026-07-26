@@ -56,6 +56,7 @@ local lastEvidenceFound = 0
 local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
 local receivedFullState = false
+local lastRoleRevealRound: number? = nil
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -176,7 +177,10 @@ local function refresh()
 	end
 end
 
-local function updateReleaseExperience(snapshot: GameState)
+local function updateReleaseExperience(
+	snapshot: GameState,
+	isReconnectSnapshot: boolean?
+)
 	local currentAccessibility = accessibility
 	local currentAudio = audio
 	local currentCamera = camera
@@ -241,14 +245,50 @@ local function updateReleaseExperience(snapshot: GameState)
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
+	local player = if type(snapshot) == "table" then snapshot.player else nil
+	local reconnect = isReconnectSnapshot == true
 	if phaseName and phaseName ~= lastCinematicPhase then
+		local previousPhase = lastCinematicPhase
 		lastCinematicPhase = phaseName
 		currentCinematics:PlayPhaseTransition(phaseName)
+		if currentView then
+			local roundNumber = if type(round) == "table"
+					and type(round.roundNumber) == "number"
+				then round.roundNumber
+				else nil
+			local roleName = if type(player) == "table" and type(player.role) == "string"
+				then player.role
+				else "Spectator"
+			if previousPhase == "Lobby"
+				and phaseName ~= "Lobby"
+				and phaseName ~= "Rewards"
+				and roleName ~= "Spectator"
+				and not reconnect
+				and roundNumber ~= nil
+				and lastRoleRevealRound ~= roundNumber
+			then
+				lastRoleRevealRound = roundNumber
+				local roleDisplayName = if type(player.roleDisplayName) == "string"
+					then player.roleDisplayName
+					else roleName
+				local roleDescription = if type(player.roleDescription) == "string"
+					then player.roleDescription
+					else "Your role has been assigned for this mystery."
+				-- PrivateParticipantSnapshot has no faction field, so the
+				-- architect-approved role fallback is the authoritative check.
+				currentView:PlayRoleReveal(
+					roleName,
+					roleDisplayName,
+					roleDescription,
+					roleName == "Murderer"
+				)
+			end
+			currentView:PlayPhaseTitleCard(phaseName, reconnect)
+		end
 		if phaseName == "Resolution" and currentView then
 			playVoteReveal(snapshot, currentView)
 		end
 	end
-	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local isGhost = type(player) == "table" and player.isGhost == true
 	local roundEnded = phaseName == "Rewards" or phaseName == "Lobby"
 	currentEffects:SetGhostTint(isGhost)
@@ -287,7 +327,7 @@ local function handleActionResult(payload: any)
 	if type(result.state) == "table" then
 		state = result.state
 		refresh()
-		updateReleaseExperience(result.state)
+		updateReleaseExperience(result.state, false)
 	end
 	local accepted = result.accepted == true
 	local reason = if type(result.reason) == "string" then result.reason else nil
@@ -388,6 +428,9 @@ function RoundController.Start()
 				and player.role ~= "Spectator"
 			if isReconnectSnapshot then
 				lastCinematicPhase = phaseName
+				if type(round) == "table" and type(round.roundNumber) == "number" then
+					lastRoleRevealRound = round.roundNumber
+				end
 				lastEvidenceFound = evidenceFoundCount(payload)
 				lastCulpritEvidenceCount = #evidenceList(payload, "culpritEvidence")
 				lastMonsterEvidenceCount = #evidenceList(payload, "monsterEvidence")
@@ -395,7 +438,7 @@ function RoundController.Start()
 			end
 			state = payload :: GameState
 			refresh()
-			updateReleaseExperience(state :: GameState)
+			updateReleaseExperience(state :: GameState, isReconnectSnapshot)
 			if isReconnectSnapshot then
 				gameView:Notify(
 					"Reconnected — your role is " .. roleName,
@@ -531,6 +574,7 @@ function RoundController.Stop()
 	lastCulpritEvidenceCount = 0
 	lastMonsterEvidenceCount = 0
 	receivedFullState = false
+	lastRoleRevealRound = nil
 end
 
 return table.freeze(RoundController)

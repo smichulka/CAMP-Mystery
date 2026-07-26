@@ -70,6 +70,10 @@ def main() -> None:
         [sys.executable, "scripts/test_lobby_reconnect.py"],
     )
     run(
+        "Role reveal and phase title contract tests",
+        [sys.executable, "scripts/test_role_reveal_phase_titles.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
     )

@@ -12,6 +12,7 @@ local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
+local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
 local UpgradeCatalog = require(SharedConfig:WaitForChild("UpgradeCatalog"))
 
@@ -92,6 +93,13 @@ type GameViewState = {
 	evidenceCeremony: Frame?,
 	evidenceCeremonySkip: RBXScriptConnection?,
 	evidenceCeremonyToken: number,
+	roleRevealToken: number,
+	roleRevealOverlay: CanvasGroup?,
+	roleRevealSkip: RBXScriptConnection?,
+	roleRevealActive: boolean,
+	phaseTitleToken: number,
+	phaseTitleBand: CanvasGroup?,
+	phaseTitleActive: boolean,
 	voteRevealToken: number,
 	voteRevealOwnsResults: boolean,
 	voteConfetti: Frame?,
@@ -665,6 +673,13 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		evidenceCeremony = nil,
 		evidenceCeremonySkip = nil,
 		evidenceCeremonyToken = 0,
+		roleRevealToken = 0,
+		roleRevealOverlay = nil,
+		roleRevealSkip = nil,
+		roleRevealActive = false,
+		phaseTitleToken = 0,
+		phaseTitleBand = nil,
+		phaseTitleActive = false,
 		voteRevealToken = 0,
 		voteRevealOwnsResults = false,
 		voteConfetti = nil,
@@ -3066,6 +3081,356 @@ function GameView:PlayVoteReveal(
 	task.delay(verdictDelay, revealVerdict)
 end
 
+function GameView:_cancelRoleReveal()
+	self.roleRevealToken += 1
+	local skipConnection = self.roleRevealSkip
+	if skipConnection then
+		skipConnection:Disconnect()
+		self.roleRevealSkip = nil
+	end
+	local overlay = self.roleRevealOverlay
+	self.roleRevealOverlay = nil
+	self.roleRevealActive = false
+	if not overlay then
+		return
+	end
+	Motion.Cancel(overlay)
+	for _, descendant in overlay:GetDescendants() do
+		if descendant:IsA("GuiObject") then
+			Motion.Cancel(descendant)
+		end
+	end
+	if overlay.Parent then
+		overlay:Destroy()
+	end
+end
+
+function GameView:PlayRoleReveal(
+	_roleName: string,
+	roleDisplayName: string,
+	roleDescription: string,
+	isMonster: boolean
+)
+	if self.destroyed then
+		return
+	end
+	self:_cancelRoleReveal()
+	self:_cancelPhaseTitle()
+	self.roleRevealToken += 1
+	local token = self.roleRevealToken
+	self.roleRevealActive = true
+
+	local overlay = Instance.new("CanvasGroup")
+	overlay.Name = "RoleRevealOverlay"
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.BackgroundColor3 = Theme.Colors.Black
+	overlay.BackgroundTransparency = 0
+	overlay.BorderSizePixel = 0
+	overlay.GroupTransparency = 1
+	overlay.Active = true
+	overlay.ZIndex = 90
+	overlay.Parent = self.root
+	self.roleRevealOverlay = overlay
+
+	local host: Frame? = nil
+	local cardShown = false
+	local exiting = false
+	local reducedMotion = Motion.IsReducedMotion(self.root)
+	local function active(): boolean
+		return not self.destroyed
+			and self.roleRevealToken == token
+			and overlay.Parent ~= nil
+	end
+	local function cleanup()
+		if active() then
+			self:_cancelRoleReveal()
+		end
+	end
+	local function exitReveal()
+		if exiting or not active() or not cardShown then
+			return
+		end
+		exiting = true
+		local skipConnection = self.roleRevealSkip
+		if skipConnection then
+			skipConnection:Disconnect()
+			self.roleRevealSkip = nil
+		end
+		local currentHost = host
+		if reducedMotion or not currentHost then
+			cleanup()
+			return
+		end
+		Motion.Cancel(currentHost)
+		local restingPosition = currentHost.Position
+		TweenService:Create(
+			currentHost,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{
+				Position = UDim2.new(
+					restingPosition.X.Scale,
+					restingPosition.X.Offset,
+					restingPosition.Y.Scale,
+					restingPosition.Y.Offset - 120
+				),
+			}
+		):Play()
+		local fade = TweenService:Create(
+			overlay,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{ GroupTransparency = 1 }
+		)
+		fade.Completed:Connect(function(_playbackState: Enum.PlaybackState)
+			cleanup()
+		end)
+		fade:Play()
+	end
+
+	self.roleRevealSkip = overlay.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			exitReveal()
+		end
+	end)
+
+	local function showCard()
+		if not active() then
+			return
+		end
+		local cardHost = Instance.new("Frame")
+		cardHost.Name = "RoleCardHost"
+		cardHost.AnchorPoint = Vector2.new(0.5, 0.5)
+		cardHost.Position = UDim2.fromScale(0.5, 0.5)
+		cardHost.Size = UDim2.fromOffset(280, 200)
+		cardHost.BackgroundTransparency = 1
+		cardHost.BorderSizePixel = 0
+		cardHost.ZIndex = 91
+		cardHost.Parent = overlay
+		host = cardHost
+
+		local shadow = Instance.new("Frame")
+		shadow.Name = "DropShadow"
+		shadow.Position = UDim2.fromOffset(5, 6)
+		shadow.Size = UDim2.fromScale(1, 1)
+		shadow.BackgroundColor3 = Theme.Colors.Black
+		shadow.BackgroundTransparency = 0.68
+		shadow.BorderSizePixel = 0
+		shadow.ZIndex = 91
+		shadow.Parent = cardHost
+		Components.Corner(shadow, Theme.CornerRadius)
+
+		local card = Instance.new("Frame")
+		card.Name = "RoleCard"
+		card.Size = UDim2.fromScale(1, 1)
+		card.BackgroundColor3 = Theme.Notebook.PageColor
+		card.BackgroundTransparency = 0
+		card.BorderSizePixel = 0
+		card.ClipsDescendants = true
+		card.ZIndex = 92
+		card.Parent = cardHost
+		Components.Corner(card, Theme.CornerRadius)
+
+		local strip = Instance.new("Frame")
+		strip.Name = "FactionStrip"
+		strip.Size = UDim2.new(1, 0, 0, 8)
+		strip.BackgroundColor3 = if isMonster
+			then Theme.Colors.DangerBright
+			else Theme.Colors.Gold
+		strip.BorderSizePixel = 0
+		strip.ZIndex = 93
+		strip.Parent = card
+
+		local category = Components.Label(
+			card,
+			"Category",
+			"YOUR ROLE",
+			Theme.Typography.CaptionSize,
+			Theme.Typography.CaptionFont
+		)
+		category.Position = UDim2.fromOffset(16, 16)
+		category.Size = UDim2.new(1, -32, 0, 20)
+		category.TextColor3 = Theme.Notebook.InkMuted
+		category.TextXAlignment = Enum.TextXAlignment.Center
+		category.ZIndex = 93
+
+		local roleName = Components.Label(
+			card,
+			"RoleName",
+			string.upper(string.sub(roleDisplayName, 1, 48)),
+			28,
+			Theme.Typography.DisplayFont
+		)
+		roleName.Position = UDim2.fromOffset(14, 38)
+		roleName.Size = UDim2.new(1, -28, 0, 48)
+		roleName.TextColor3 = if isMonster
+			then Theme.Colors.Danger
+			else Theme.Notebook.InkColor
+		roleName.TextXAlignment = Enum.TextXAlignment.Center
+		roleName.ZIndex = 93
+
+		local description = Components.Label(
+			card,
+			"Description",
+			string.sub(roleDescription, 1, 240),
+			Theme.Typography.BodySize,
+			Theme.Typography.BodyFont
+		)
+		description.Position = UDim2.fromOffset(20, 92)
+		description.Size = UDim2.new(1, -40, 0, 86)
+		description.TextColor3 = Theme.Notebook.InkColor
+		description.TextWrapped = true
+		description.TextTruncate = Enum.TextTruncate.AtEnd
+		description.TextXAlignment = Enum.TextXAlignment.Center
+		description.TextYAlignment = Enum.TextYAlignment.Top
+		description.ZIndex = 93
+
+		cardShown = true
+		Components.PlayUISound("open")
+		if not reducedMotion then
+			Motion.SlideUp(cardHost, {
+				duration = 0.35,
+				distance = 56,
+			})
+			Motion.PopIn(card, {
+				duration = 0.35,
+			})
+		end
+		task.delay(if reducedMotion then 1 else 2.35, exitReveal)
+	end
+
+	if reducedMotion then
+		overlay.GroupTransparency = 0
+		showCard()
+	else
+		TweenService:Create(
+			overlay,
+			TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ GroupTransparency = 0 }
+		):Play()
+		task.delay(0.65, showCard)
+	end
+end
+
+function GameView:_cancelPhaseTitle()
+	self.phaseTitleToken += 1
+	local band = self.phaseTitleBand
+	self.phaseTitleBand = nil
+	self.phaseTitleActive = false
+	if not band then
+		return
+	end
+	Motion.Cancel(band)
+	for _, descendant in band:GetDescendants() do
+		if descendant:IsA("GuiObject") then
+			Motion.Cancel(descendant)
+		end
+	end
+	if band.Parent then
+		band:Destroy()
+	end
+end
+
+function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
+	local entry = PhaseTitles[phaseName]
+	if self.destroyed
+		or isReconnect
+		or self.roleRevealActive
+		or type(entry) ~= "table"
+	then
+		return
+	end
+	self:_cancelPhaseTitle()
+	self.phaseTitleToken += 1
+	local token = self.phaseTitleToken
+	self.phaseTitleActive = true
+
+	local band = Instance.new("CanvasGroup")
+	band.Name = "PhaseTitleBand"
+	band.AnchorPoint = Vector2.new(0.5, 0.5)
+	band.Position = UDim2.fromScale(0.5, 0.5)
+	band.Size = UDim2.new(1, 0, 0, 96)
+	band.BackgroundColor3 = Theme.Colors.Black
+	band.BackgroundTransparency = 0.45
+	band.BorderSizePixel = 0
+	band.GroupTransparency = 1
+	band.ZIndex = 80
+	band.Parent = self.root
+	self.phaseTitleBand = band
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.97
+	scale.Parent = band
+	local title = Components.Label(
+		band,
+		"PhaseTitle",
+		"",
+		math.floor(Theme.Typography.HeadingSize * 1.4),
+		Theme.Typography.HeadingFont
+	)
+	title.Position = UDim2.fromOffset(16, 12)
+	title.Size = UDim2.new(1, -32, 0, 42)
+	title.TextColor3 = Theme.Colors.White
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.ZIndex = 81
+	Components.SetLetterspacedText(title, entry.title)
+	local subtitle = Components.Label(
+		band,
+		"Subtitle",
+		entry.subtitle,
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	subtitle.Position = UDim2.fromOffset(16, 54)
+	subtitle.Size = UDim2.new(1, -32, 0, 28)
+	subtitle.TextColor3 = Theme.Colors.White
+	subtitle.TextTransparency = 0.7
+	subtitle.TextXAlignment = Enum.TextXAlignment.Center
+	subtitle.ZIndex = 81
+
+	local reducedMotion = Motion.IsReducedMotion(self.root)
+	local function active(): boolean
+		return not self.destroyed
+			and self.phaseTitleToken == token
+			and band.Parent ~= nil
+	end
+	local function cleanup()
+		if active() then
+			self:_cancelPhaseTitle()
+		end
+	end
+	if reducedMotion then
+		band.GroupTransparency = 0
+		scale.Scale = 1
+		task.delay(0.9, cleanup)
+		return
+	end
+	TweenService:Create(
+		band,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ GroupTransparency = 0 }
+	):Play()
+	TweenService:Create(
+		scale,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ Scale = 1 }
+	):Play()
+	task.delay(2.05, function()
+		if not active() then
+			return
+		end
+		local fade = TweenService:Create(
+			band,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{ GroupTransparency = 1 }
+		)
+		fade.Completed:Connect(function(_playbackState: Enum.PlaybackState)
+			cleanup()
+		end)
+		fade:Play()
+	end)
+end
+
 function GameView:_cancelEvidenceDiscovery()
 	self.evidenceCeremonyToken += 1
 	local skipConnection = self.evidenceCeremonySkip
@@ -3373,6 +3738,8 @@ function GameView:Destroy()
 	if self.destroyed then
 		return
 	end
+	self:_cancelRoleReveal()
+	self:_cancelPhaseTitle()
 	self:_cancelVoteReveal()
 	self:_cancelEvidenceDiscovery()
 	if self.ghostBadgePulse then
