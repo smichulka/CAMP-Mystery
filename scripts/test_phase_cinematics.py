@@ -251,9 +251,9 @@ class PhaseCinematicsTests(unittest.TestCase):
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
             'if phaseName == "Resolution" and currentView then',
-            "playVoteReveal(snapshot, currentView)",
+            "playVoteReveal(snapshot, currentView, revealWinner)",
             "type(round.votes) == \"table\"",
-            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById)",
+            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete)",
         ):
             self.assertIn(token, controller)
 
