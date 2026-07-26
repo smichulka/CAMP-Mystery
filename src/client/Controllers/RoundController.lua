@@ -1,7 +1,9 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local RuntimeTypes = require(Shared:WaitForChild("Types"):WaitForChild("RuntimeTypes"))
@@ -12,6 +14,7 @@ local EffectsViewModule = require(uiFolder:WaitForChild("EffectsView"))
 local Motion = require(uiFolder:WaitForChild("Motion"))
 local AccessibilityController = require(script.Parent:WaitForChild("AccessibilityController"))
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
+local CameraControllerModule = require(script.Parent:WaitForChild("CameraController"))
 local CinematicsController = require(script.Parent:WaitForChild("CinematicsController"))
 local InputController = require(script.Parent:WaitForChild("InputController"))
 local InteractionController = require(script.Parent:WaitForChild("InteractionController"))
@@ -29,6 +32,7 @@ type GameView = GameViewModule.GameView
 type RemoteBridge = RemoteBridgeModule.RemoteBridge
 type UIAssetController = UIAssetControllerModule.UIAssetController
 type ProximityController = ProximityControllerModule.ProximityController
+type CameraController = CameraControllerModule.CameraController
 
 local RoundController = {}
 
@@ -40,6 +44,7 @@ local view: GameView? = nil
 local bridge: RemoteBridge? = nil
 local accessibility: any = nil
 local audio: any = nil
+local camera: CameraController? = nil
 local cinematics: any = nil
 local effects: any = nil
 local tutorial: any = nil
@@ -50,6 +55,59 @@ local lastCinematicPhase: string? = nil
 local lastEvidenceFound = 0
 local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
+
+local function playerRootPosition(): Vector3?
+	local character = Players.LocalPlayer.Character
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	return if root and root:IsA("BasePart") then root.Position else nil
+end
+
+local function replicatedMonsterPosition(snapshot: any): Vector3?
+	if type(snapshot) ~= "table" or type(snapshot.monster) ~= "table" then
+		return nil
+	end
+	local participantId = snapshot.monster.participantId
+	if type(participantId) ~= "string" or participantId == "" then
+		return nil
+	end
+	for _, descendant in Workspace:GetDescendants() do
+		if descendant:IsA("Model")
+			and descendant:GetAttribute("ParticipantId") == participantId
+			and type(descendant:GetAttribute("MonsterId")) == "string"
+		then
+			local root = descendant.PrimaryPart
+				or descendant:FindFirstChild("HumanoidRootPart", true)
+			if root and root:IsA("BasePart") then
+				return root.Position
+			end
+			return descendant:GetPivot().Position
+		end
+	end
+	return nil
+end
+
+local function monsterDreadFraction(snapshot: any): number
+	if type(snapshot) ~= "table" or type(snapshot.round) ~= "table" then
+		return 0
+	end
+	local phase = snapshot.round.phase
+	if phase ~= "Investigation" and phase ~= "NightTransform" then
+		return 0
+	end
+	local playerPosition = playerRootPosition()
+	local monsterPosition = replicatedMonsterPosition(snapshot)
+	if not playerPosition or not monsterPosition then
+		return 0
+	end
+	local distance = (monsterPosition - playerPosition).Magnitude
+	if distance ~= distance or math.abs(distance) == math.huge or distance > 40 then
+		return 0
+	end
+	if distance <= 8 then
+		return 1
+	end
+	return 1 - ((distance - 8) / 32)
+end
 
 local function evidenceList(snapshot: any, key: string): { any }
 	if type(snapshot) ~= "table" or type(snapshot.evidence) ~= "table" then
@@ -120,12 +178,14 @@ end
 local function updateReleaseExperience(snapshot: GameState)
 	local currentAccessibility = accessibility
 	local currentAudio = audio
+	local currentCamera = camera
 	local currentCinematics = cinematics
 	local currentEffects = effects
 	local currentTutorial = tutorial
 	local currentView = view
 	if not currentAccessibility
 		or not currentAudio
+		or not currentCamera
 		or not currentCinematics
 		or not currentEffects
 		or not currentTutorial
@@ -187,6 +247,19 @@ local function updateReleaseExperience(snapshot: GameState)
 			playVoteReveal(snapshot, currentView)
 		end
 	end
+	local player = if type(snapshot) == "table" then snapshot.player else nil
+	local isGhost = type(player) == "table" and player.isGhost == true
+	local roundEnded = phaseName == "Rewards" or phaseName == "Lobby"
+	currentEffects:SetGhostTint(isGhost)
+	if currentView then
+		currentView:SetGhostMode(isGhost)
+	end
+	currentCamera:SetGhostMode(isGhost and not roundEnded)
+	InteractionController.SetPromptsEnabled(not isGhost)
+	local dreadFraction = monsterDreadFraction(snapshot)
+	currentCinematics:SetMonsterDread(dreadFraction)
+	currentAudio:SetHeartbeatIntensity(dreadFraction)
+	currentCamera:SetMonsterDread(dreadFraction)
 	if currentView then
 		currentAccessibility:ScanEvidence(currentView.root)
 	end
@@ -255,8 +328,15 @@ function RoundController.Start()
 	view = gameView
 	local releaseEffects = EffectsViewModule.new(gameView.root)
 	effects = releaseEffects
-	local cinematicsController = CinematicsController.new(gameView.root)
+	local cinematicsController = CinematicsController.new(
+		gameView.root,
+		function(intensity: number)
+			releaseEffects:SetNightIntensity(intensity)
+		end
+	)
 	cinematics = cinematicsController
+	local releaseCamera = CameraControllerModule.new()
+	camera = releaseCamera
 	local accessibilityController = AccessibilityController.new(gameView.root)
 	accessibility = accessibilityController
 	local tutorialController = TutorialController.new(gameView.root, {
@@ -368,6 +448,7 @@ function RoundController.Stop()
 	if proximity then
 		proximity:Destroy()
 	end
+	InteractionController.SetPromptsEnabled(true)
 	Components.SetSoundPlayer(nil)
 	Motion.SetReducedMotionProvider(nil)
 	if bridge then
@@ -378,6 +459,9 @@ function RoundController.Stop()
 	end
 	if audio then
 		audio:Destroy()
+	end
+	if camera then
+		camera:Destroy()
 	end
 	if cinematics then
 		cinematics:Destroy()
@@ -397,6 +481,7 @@ function RoundController.Stop()
 	bridge = nil
 	tutorial = nil
 	audio = nil
+	camera = nil
 	cinematics = nil
 	accessibility = nil
 	effects = nil

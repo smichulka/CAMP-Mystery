@@ -43,6 +43,10 @@ type GameViewState = {
 	healthText: TextLabel,
 	healthFill: Frame,
 	stateBadge: TextLabel,
+	ghostBadge: TextLabel,
+	ghostBadgePulse: Tween?,
+	ghostBadgeReducedMotion: boolean,
+	ghostMode: boolean,
 	hotbar: ScrollingFrame,
 	notebook: Frame,
 	evidenceList: ScrollingFrame,
@@ -521,6 +525,25 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	menu.BackgroundTransparency = 1
 	menu.Parent = root
 
+	local ghostBadge = Components.Label(
+		root,
+		"GhostModeBadge",
+		"GHOST MODE",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	ghostBadge.AnchorPoint = Vector2.new(1, 0)
+	ghostBadge.Position = UDim2.new(1, -18, 0, 122)
+	ghostBadge.Size = UDim2.fromOffset(132, 30)
+	ghostBadge.BackgroundColor3 = Theme.Colors.Panel
+	ghostBadge.BackgroundTransparency = 0.08
+	ghostBadge.TextColor3 = Theme.Colors.Ghost
+	ghostBadge.TextXAlignment = Enum.TextXAlignment.Center
+	ghostBadge.Visible = false
+	ghostBadge.ZIndex = 35
+	Components.Corner(ghostBadge, 15)
+	Components.Stroke(ghostBadge, Theme.Colors.Ghost, 1)
+
 	local interaction = Components.Panel(root, "Interaction")
 	interaction.AnchorPoint = Vector2.new(0.5, 1)
 	interaction.Position = UDim2.new(0.5, 0, 1, -112)
@@ -576,6 +599,10 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		healthText = healthText,
 		healthFill = healthFill,
 		stateBadge = stateBadge,
+		ghostBadge = ghostBadge,
+		ghostBadgePulse = nil,
+		ghostBadgeReducedMotion = false,
+		ghostMode = false,
 		hotbar = hotbar,
 		notebook = notebook,
 		evidenceList = nil :: any,
@@ -1549,6 +1576,9 @@ function GameView:_chooseMurderPlan()
 end
 
 function GameView:_requestRoleAction()
+	if self.ghostMode then
+		return
+	end
 	local state = self.currentState
 	local planEnabled = self:_available(state, "SetMurderPlan")
 	if planEnabled then
@@ -1784,6 +1814,7 @@ function GameView:_updateInventory(state: any)
 				self.selectedInventorySlot = index
 				self:_activateItem(item, button)
 			end)
+			Components.SetButtonEnabled(button, not self.ghostMode)
 		end
 	end
 	if restoreControllerFocus and self.selectedInventorySlot > 0 then
@@ -1802,7 +1833,7 @@ function GameView:_updateInventory(state: any)
 end
 
 function GameView:_activateItem(item: any, control: GuiObject?)
-	if type(item) ~= "table" then
+	if self.ghostMode or type(item) ~= "table" then
 		return
 	end
 	local instanceId = readString(item, "instanceId", "")
@@ -2190,6 +2221,55 @@ function GameView:_available(state: any, actionName: string): (boolean, string?)
 	return false, nil
 end
 
+function GameView:SetGhostMode(active: boolean)
+	if self.destroyed then
+		return
+	end
+	local reducedMotion = Motion.IsReducedMotion(self.root)
+	local presentationChanged = self.ghostMode ~= active
+		or self.ghostBadgeReducedMotion ~= reducedMotion
+	self.ghostMode = active
+	self.ghostBadgeReducedMotion = reducedMotion
+	if presentationChanged then
+		local activeTween = self.ghostBadgePulse
+		if activeTween then
+			activeTween:Cancel()
+			self.ghostBadgePulse = nil
+		end
+		self.ghostBadge.Visible = active
+		self.ghostBadge.TextTransparency = 0
+		if active and not reducedMotion then
+			local tween = TweenService:Create(
+				self.ghostBadge,
+				TweenInfo.new(
+					1.5,
+					Enum.EasingStyle.Sine,
+					Enum.EasingDirection.InOut,
+					-1,
+					true
+				),
+				{ TextTransparency = 0.4 }
+			)
+			self.ghostBadgePulse = tween
+			tween:Play()
+		end
+	end
+	if active then
+		self:HideInteraction()
+	end
+	self.interaction.BackgroundTransparency = if active then 0.45 else Theme.PanelTransparency
+	self.interactionKey.TextTransparency = if active then 0.5 else 0
+	self.interactionText.TextTransparency = if active then 0.5 else 0
+	if active then
+		Components.SetButtonEnabled(self.roleAction, false)
+	end
+	for _, child in self.hotbar:GetChildren() do
+		if child:IsA("TextButton") and active then
+			Components.SetButtonEnabled(child, false)
+		end
+	end
+end
+
 function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self.currentState = state
 	self.legacyRound = legacyRound
@@ -2263,6 +2343,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	)
 	local alive = readBoolean(player, "alive", false)
 	local ghost = readBoolean(player, "isGhost", false)
+	self:SetGhostMode(ghost)
 	local healthState = readString(player, "healthState", if alive then "Healthy" else "Waiting")
 	if ghost then
 		self.stateBadge.Text = "GHOST"
@@ -2295,8 +2376,13 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local roleEnabled, roleReason = self:_available(state, "UseRoleAbility")
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
 	local planEnabled = self:_available(state, "SetMurderPlan")
-	Components.SetButtonEnabled(self.roleAction, roleEnabled or monsterEnabled or planEnabled)
-	self.roleAction.Text = if planEnabled
+	Components.SetButtonEnabled(
+		self.roleAction,
+		not ghost and (roleEnabled or monsterEnabled or planEnabled)
+	)
+	self.roleAction.Text = if ghost
+		then "GHOST ACTIONS LOCKED"
+		elseif planEnabled
 		then "PLAN TONIGHT'S HUNT"
 		elseif monsterEnabled
 		then "USE MONSTER ABILITY"
@@ -2398,6 +2484,9 @@ function GameView:CloseModal()
 end
 
 function GameView:ActivateInventorySlot(slot: number)
+	if self.ghostMode then
+		return
+	end
 	local item = self.inventoryItems[slot]
 	if item then
 		self.selectedInventorySlot = slot
@@ -2426,6 +2515,10 @@ function GameView:GetInventorySlotCount(): number
 end
 
 function GameView:ShowInteraction(actionText: string, objectText: string, inputText: string)
+	if self.ghostMode then
+		self:HideInteraction()
+		return
+	end
 	self.interactionKey.Text = inputText
 	self.interactionText.Text = actionText .. if objectText ~= "" then "\n" .. objectText else ""
 	self.interaction.Visible = true
@@ -2951,6 +3044,10 @@ function GameView:Destroy()
 	end
 	self:_cancelVoteReveal()
 	self:_cancelEvidenceDiscovery()
+	if self.ghostBadgePulse then
+		self.ghostBadgePulse:Cancel()
+		self.ghostBadgePulse = nil
+	end
 	self.destroyed = true
 	self.announcementToken += 1
 	self.lastActionControl = nil

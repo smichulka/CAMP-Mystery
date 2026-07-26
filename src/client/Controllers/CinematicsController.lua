@@ -14,8 +14,17 @@ type CinematicsControllerState = {
 	baselineClockTime: number,
 	baselineSaturation: number,
 	baselineAtmosphereDensity: number,
+	phaseBaselineSaturation: number,
+	phaseNightIntensity: number,
 	activeTweens: { Tween },
+	dreadTween: Tween?,
+	dreadFraction: number,
+	dreadPulseToken: number,
+	dreadPulseRunning: boolean,
+	dreadPulseHigh: boolean,
+	transitionActive: boolean,
 	transitionToken: number,
+	setNightIntensity: ((number) -> ())?,
 	destroyed: boolean,
 }
 
@@ -40,6 +49,8 @@ local DAY_CLOCK_TIME = 8
 local NIGHT_ATMOSPHERE_DENSITY = 0.45
 local DESATURATED = -0.7
 local PARTIAL_RECOVERY = -0.35
+local DREAD_TWEEN_DURATION = 0.35
+local DREAD_PULSE_STEP = 1.2
 
 local function readNumberAttribute(instance: Instance, name: string, fallback: number): number
 	local value = instance:GetAttribute(name)
@@ -101,10 +112,27 @@ local function transitionMode(phaseName: string): TransitionMode?
 	return nil
 end
 
-function CinematicsController.new(motionTarget: GuiObject): CinematicsController
+local function phaseNightIntensity(phaseName: string): number
+	return if phaseName == "Night"
+			or phaseName == "MurderPlanning"
+			or phaseName == "NightTransform"
+			or phaseName == "Investigation"
+		then 1
+		else 0
+end
+
+function CinematicsController.new(
+	motionTarget: GuiObject,
+	setNightIntensity: ((number) -> ())?
+): CinematicsController
 	local colorCorrection = resolveColorCorrection()
 	local atmosphere = resolveAtmosphere()
 	local attributes = CinematicsController.AttributeNames
+	local baselineSaturation = readNumberAttribute(
+		Lighting,
+		attributes.Saturation,
+		colorCorrection.Saturation
+	)
 	local self: CinematicsController = setmetatable({
 		motionTarget = motionTarget,
 		colorCorrection = colorCorrection,
@@ -114,18 +142,23 @@ function CinematicsController.new(motionTarget: GuiObject): CinematicsController
 			attributes.ClockTime,
 			Lighting.ClockTime
 		),
-		baselineSaturation = readNumberAttribute(
-			Lighting,
-			attributes.Saturation,
-			colorCorrection.Saturation
-		),
+		baselineSaturation = baselineSaturation,
 		baselineAtmosphereDensity = readNumberAttribute(
 			Lighting,
 			attributes.AtmosphereDensity,
 			atmosphere.Density
 		),
+		phaseBaselineSaturation = baselineSaturation,
+		phaseNightIntensity = 0,
 		activeTweens = {},
+		dreadTween = nil,
+		dreadFraction = 0,
+		dreadPulseToken = 0,
+		dreadPulseRunning = false,
+		dreadPulseHigh = false,
+		transitionActive = false,
 		transitionToken = 0,
+		setNightIntensity = setNightIntensity,
 		destroyed = false,
 	}, CinematicsController)
 	return self
@@ -133,8 +166,29 @@ end
 
 function CinematicsController:_restoreBaseline()
 	Lighting.ClockTime = self.baselineClockTime
-	self.colorCorrection.Saturation = self.baselineSaturation
+	self.colorCorrection.Saturation = self.phaseBaselineSaturation
 	self.atmosphere.Density = self.baselineAtmosphereDensity
+end
+
+function CinematicsController:_stopDreadPulse()
+	self.dreadPulseToken += 1
+	self.dreadPulseRunning = false
+	self.dreadPulseHigh = false
+end
+
+function CinematicsController:_resetDread()
+	local tween = self.dreadTween
+	if tween then
+		tween:Cancel()
+		self.dreadTween = nil
+	end
+	self.dreadFraction = 0
+	self:_stopDreadPulse()
+	self.colorCorrection.Saturation = self.phaseBaselineSaturation
+	local setNightIntensity = self.setNightIntensity
+	if setNightIntensity then
+		setNightIntensity(self.phaseNightIntensity)
+	end
 end
 
 function CinematicsController:_cancelActive()
@@ -143,6 +197,8 @@ function CinematicsController:_cancelActive()
 		tween:Cancel()
 	end
 	table.clear(self.activeTweens)
+	self.transitionActive = false
+	self:_resetDread()
 	self:_restoreBaseline()
 end
 
@@ -174,6 +230,8 @@ end
 
 function CinematicsController:_completeAfter(token: number, duration: number)
 	self:_delay(token, duration, function()
+		self.transitionActive = false
+		self:_resetDread()
 		self:_restoreBaseline()
 	end)
 end
@@ -214,15 +272,104 @@ function CinematicsController:_playShort(token: number)
 	self:_completeAfter(token, SHORT_TRANSITION_DURATION)
 end
 
+function CinematicsController:_scheduleDreadPulse(token: number)
+	task.delay(DREAD_PULSE_STEP, function()
+		if self.destroyed
+			or token ~= self.dreadPulseToken
+			or self.dreadFraction <= 0.5
+			or self.transitionActive
+		then
+			return
+		end
+		self.dreadPulseHigh = not self.dreadPulseHigh
+		local setNightIntensity = self.setNightIntensity
+		if setNightIntensity then
+			local base = 0.35 + 0.25 * self.dreadFraction
+			setNightIntensity(math.clamp(
+				base + (if self.dreadPulseHigh then 0.08 else 0),
+				0,
+				1
+			))
+		end
+		self:_scheduleDreadPulse(token)
+	end)
+end
+
+function CinematicsController:_updateDreadVignette()
+	local setNightIntensity = self.setNightIntensity
+	if not setNightIntensity then
+		return
+	end
+	if self.dreadFraction <= 0.5 then
+		self:_stopDreadPulse()
+		setNightIntensity(self.phaseNightIntensity)
+		return
+	end
+	local base = 0.35 + 0.25 * self.dreadFraction
+	setNightIntensity(base)
+	if Motion.IsReducedMotion(self.motionTarget) then
+		self:_stopDreadPulse()
+		return
+	end
+	if not self.dreadPulseRunning then
+		self.dreadPulseRunning = true
+		self.dreadPulseToken += 1
+		self:_scheduleDreadPulse(self.dreadPulseToken)
+	end
+end
+
+function CinematicsController:SetMonsterDread(fraction: number)
+	if self.destroyed or self.transitionActive then
+		return
+	end
+	local resolved = if fraction == fraction and math.abs(fraction) < math.huge
+		then math.clamp(fraction, 0, 1)
+		else 0
+	self.dreadFraction = resolved
+	local activeTween = self.dreadTween
+	if activeTween then
+		activeTween:Cancel()
+		self.dreadTween = nil
+	end
+	local tween = TweenService:Create(
+		self.colorCorrection,
+		TweenInfo.new(
+			DREAD_TWEEN_DURATION,
+			Enum.EasingStyle.Sine,
+			Enum.EasingDirection.InOut
+		),
+		{
+			Saturation = self.phaseBaselineSaturation - (0.5 * resolved),
+		}
+	)
+	self.dreadTween = tween
+	tween.Completed:Connect(function()
+		if self.dreadTween == tween then
+			self.dreadTween = nil
+		end
+	end)
+	tween:Play()
+	self:_updateDreadVignette()
+end
+
 function CinematicsController:PlayPhaseTransition(phaseName: string)
 	self:_cancelActive()
 	if self.destroyed then
 		return
 	end
+	self.phaseBaselineSaturation = readNumberAttribute(
+		Lighting,
+		CinematicsController.AttributeNames.Saturation,
+		self.baselineSaturation
+	)
+	self.phaseNightIntensity = phaseNightIntensity(phaseName)
 	local mode = transitionMode(phaseName)
 	if not mode or Motion.IsReducedMotion(self.motionTarget) then
+		self:_resetDread()
+		self:_restoreBaseline()
 		return
 	end
+	self.transitionActive = true
 	local token = self.transitionToken
 	if mode == "Short" then
 		self:_playShort(token)

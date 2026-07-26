@@ -62,6 +62,10 @@ def main() -> None:
         [sys.executable, "scripts/test_phase_cinematics.py"],
     )
     run(
+        "Ghost mode and monster dread contract tests",
+        [sys.executable, "scripts/test_ghost_dread.py"],
+    )
+    run(
         "Release readiness simulations",
         [sys.executable, "scripts/test_release_readiness.py"],
     )

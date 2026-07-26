@@ -23,6 +23,8 @@ type ActiveHold = {
 }
 
 local InteractionController = {}
+local promptsEnabled = true
+local ghostDisabledPrompts: { [ProximityPrompt]: boolean } = {}
 
 local function inputLabel(
 	prompt: ProximityPrompt,
@@ -50,6 +52,33 @@ local function hideDefaultPrompt(instance: Instance)
 		-- Disabling ProximityPromptService also disables prompt input. Custom style
 		-- suppresses Roblox's UI while preserving PromptShown and hold events.
 		instance.Style = Enum.ProximityPromptStyle.Custom
+		if not promptsEnabled then
+			if ghostDisabledPrompts[instance] == nil then
+				ghostDisabledPrompts[instance] = instance.Enabled
+			end
+			instance.Enabled = false
+		end
+	end
+end
+
+function InteractionController.SetPromptsEnabled(enabled: boolean)
+	promptsEnabled = enabled
+	if enabled then
+		for prompt, wasEnabled in ghostDisabledPrompts do
+			if prompt.Parent then
+				prompt.Enabled = wasEnabled
+			end
+		end
+		table.clear(ghostDisabledPrompts)
+		return
+	end
+	for _, descendant in Workspace:GetDescendants() do
+		if descendant:IsA("ProximityPrompt") then
+			if ghostDisabledPrompts[descendant] == nil then
+				ghostDisabledPrompts[descendant] = descendant.Enabled
+			end
+			descendant.Enabled = false
+		end
 	end
 end
 
@@ -59,6 +88,7 @@ function InteractionController.Start(
 ): { RBXScriptConnection }
 	local connections: { RBXScriptConnection } = {}
 	local activeHolds: { [ProximityPrompt]: ActiveHold } = {}
+	InteractionController.SetPromptsEnabled(true)
 
 	for _, descendant in Workspace:GetDescendants() do
 		hideDefaultPrompt(descendant)
@@ -73,6 +103,9 @@ function InteractionController.Start(
 		inputType: Enum.ProximityPromptInputType
 	)
 		hideDefaultPrompt(prompt)
+		if not promptsEnabled then
+			return
+		end
 		local part = promptPart(prompt)
 		local hint = inputLabel(prompt, inputType)
 		if part then
@@ -131,6 +164,9 @@ function InteractionController.Start(
 	table.insert(connections, ProximityPromptService.PromptTriggered:Connect(function(
 		prompt: ProximityPrompt
 	)
+		if not promptsEnabled then
+			return
+		end
 		local hold = activeHolds[prompt]
 		activeHolds[prompt] = nil
 		local part = if hold then hold.part else promptPart(prompt)

@@ -22,6 +22,7 @@ type EffectsViewState = {
 	vignette: ImageLabel?,
 	vignetteTween: Tween?,
 	nightIntensity: number,
+	ghostTintActive: boolean,
 	reducedMotion: boolean,
 	phaseToken: number,
 	subtitleToken: number,
@@ -238,6 +239,7 @@ function EffectsView.new(parent: Instance): EffectsView
 		vignette = vignette,
 		vignetteTween = nil,
 		nightIntensity = 0,
+		ghostTintActive = false,
 		reducedMotion = false,
 		phaseToken = 0,
 		subtitleToken = 0,
@@ -270,9 +272,9 @@ function EffectsView:SetNightIntensity(fraction: number)
 	if not vignette or not vignette.Parent then
 		return
 	end
-	local targetTransparency = if vignette.Image ~= ""
-		then 1 + (0.45 - 1) * resolved
-		else 1
+	local targetTransparency = if self.ghostTintActive
+		then 0.6
+		elseif vignette.Image ~= "" then 1 + (0.45 - 1) * resolved else 1
 	if not intensityChanged
 		and self.vignetteTween == nil
 		and math.abs(vignette.ImageTransparency - targetTransparency) < 0.001
@@ -291,7 +293,64 @@ function EffectsView:SetNightIntensity(fraction: number)
 	local tween = TweenService:Create(
 		vignette,
 		TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-		{ ImageTransparency = targetTransparency }
+		{
+			BackgroundColor3 = if self.ghostTintActive
+				then Theme.Colors.Ghost
+				else Theme.Colors.White,
+			BackgroundTransparency = if self.ghostTintActive
+					and vignette.Image == ""
+				then 0.82
+				else 1,
+			ImageColor3 = if self.ghostTintActive
+				then Theme.Colors.Ghost
+				else Theme.Colors.White,
+			ImageTransparency = targetTransparency,
+		}
+	)
+	self.vignetteTween = tween
+	tween.Completed:Connect(function()
+		if self.vignetteTween == tween then
+			self.vignetteTween = nil
+		end
+	end)
+	tween:Play()
+end
+
+function EffectsView:SetGhostTint(active: boolean)
+	if self.destroyed or self.ghostTintActive == active then
+		return
+	end
+	self.ghostTintActive = active
+	local vignette = self.vignette
+	if not vignette or not vignette.Parent then
+		return
+	end
+	local targetTransparency = if active
+		then 0.6
+		elseif vignette.Image ~= ""
+			then 1 + (0.45 - 1) * self.nightIntensity
+			else 1
+	local activeTween = self.vignetteTween
+	if activeTween then
+		activeTween:Cancel()
+		self.vignetteTween = nil
+	end
+	if self.reducedMotion then
+		vignette.BackgroundColor3 = if active then Theme.Colors.Ghost else Theme.Colors.White
+		vignette.BackgroundTransparency = if active and vignette.Image == "" then 0.82 else 1
+		vignette.ImageColor3 = if active then Theme.Colors.Ghost else Theme.Colors.White
+		vignette.ImageTransparency = targetTransparency
+		return
+	end
+	local tween = TweenService:Create(
+		vignette,
+		TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{
+			BackgroundColor3 = if active then Theme.Colors.Ghost else Theme.Colors.White,
+			BackgroundTransparency = if active and vignette.Image == "" then 0.82 else 1,
+			ImageColor3 = if active then Theme.Colors.Ghost else Theme.Colors.White,
+			ImageTransparency = targetTransparency,
+		}
 	)
 	self.vignetteTween = tween
 	tween.Completed:Connect(function()

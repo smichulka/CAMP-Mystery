@@ -26,7 +26,7 @@ type AudioControllerState = {
 	currentMusic: string?,
 	lastPhase: string?,
 	lastEvidenceFound: number,
-	lastMonsterActive: boolean,
+	heartbeatIntensity: number,
 	onSubtitle: ((text: string, duration: number) -> ())?,
 	destroyed: boolean,
 }
@@ -76,7 +76,7 @@ local DEFINITIONS: { SoundDefinition } = {
 		name = "MonsterActive",
 		channel = "Effects",
 		attribute = "MonsterActiveAssetId",
-		looped = false,
+		looped = true,
 		subtitle = "A monster is nearby.",
 	},
 	{
@@ -174,10 +174,6 @@ local function readEvidenceFound(state: any): number
 	return 0
 end
 
-local function readMonsterActive(state: any): boolean
-	return type(state) == "table" and type(state.monster) == "table" and state.monster.active == true
-end
-
 local function makeGroup(name: string): SoundGroup
 	local existing = SoundService:FindFirstChild("CampMystery" .. name)
 	if existing then
@@ -236,7 +232,7 @@ function AudioController.new(options: AudioOptions?): AudioController
 		currentMusic = nil,
 		lastPhase = nil,
 		lastEvidenceFound = 0,
-		lastMonsterActive = false,
+		heartbeatIntensity = 0,
 		onSubtitle = resolved.onSubtitle,
 		destroyed = false,
 	}, AudioController)
@@ -328,6 +324,33 @@ function AudioController:ApplySettings(settings: any)
 	self.groups.Effects.Volume = master * clampVolume(self.settings.effectsVolume, DEFAULT_SETTINGS.effectsVolume)
 	self.groups.UI.Volume = master * clampVolume(self.settings.uiVolume, DEFAULT_SETTINGS.uiVolume)
 	self.settings.subtitles = self.settings.subtitles ~= false
+	self:SetHeartbeatIntensity(self.heartbeatIntensity)
+end
+
+function AudioController:SetHeartbeatIntensity(fraction: number)
+	if self.destroyed then
+		return
+	end
+	local resolved = if fraction == fraction and math.abs(fraction) < math.huge
+		then math.clamp(fraction, 0, 1)
+		else 0
+	self.heartbeatIntensity = resolved
+	local heartbeat = self.sounds.MonsterActive
+	if not heartbeat then
+		return
+	end
+	local effectsVolume = clampVolume(
+		self.settings.effectsVolume,
+		DEFAULT_SETTINGS.effectsVolume
+	)
+	heartbeat.Volume = resolved * effectsVolume
+	if resolved > 0.3 and self:_configured(heartbeat) then
+		if not heartbeat.IsPlaying then
+			heartbeat:Play()
+		end
+	elseif heartbeat.IsPlaying then
+		heartbeat:Stop()
+	end
 end
 
 function AudioController:Update(state: any)
@@ -367,11 +390,6 @@ function AudioController:Update(state: any)
 	end
 	self.lastEvidenceFound = evidenceFound
 
-	local monsterActive = readMonsterActive(state)
-	if monsterActive and not self.lastMonsterActive then
-		self:PlayCue("MonsterActive")
-	end
-	self.lastMonsterActive = monsterActive
 end
 
 function AudioController:RefreshAssetIds()
@@ -394,6 +412,7 @@ function AudioController:RefreshAssetIds()
 		self:_switchLoop("Music", PHASE_MUSIC[self.lastPhase])
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[self.lastPhase])
 	end
+	self:SetHeartbeatIntensity(self.heartbeatIntensity)
 end
 
 function AudioController:Destroy()

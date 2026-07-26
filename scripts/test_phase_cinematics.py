@@ -56,7 +56,7 @@ class PhaseCinematicsTests(unittest.TestCase):
         round_controller = read("src/client/Controllers/RoundController.lua")
         for token in (
             'require(script.Parent:WaitForChild("CinematicsController"))',
-            "CinematicsController.new(gameView.root)",
+            "CinematicsController.new(\n\t\tgameView.root,",
             "currentEffects:Update(snapshot)",
             "currentCinematics:PlayPhaseTransition(phaseName)",
             "cinematics:Destroy()",
