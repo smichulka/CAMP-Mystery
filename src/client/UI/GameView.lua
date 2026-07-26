@@ -4083,8 +4083,30 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			else ""
 		local isMonsterPlayer = type(privateMonster) == "table" or localRole == "Murderer"
 		if isMonsterPlayer then
+			local nightMurderPlan = if type(state) == "table" then state.murderPlan else nil
+			local nightVictimId = if type(nightMurderPlan) == "table"
+					and type(nightMurderPlan.victimParticipantId) == "string"
+					and nightMurderPlan.victimParticipantId ~= ""
+				then nightMurderPlan.victimParticipantId
+				else nil
+			local nightVictimName = "your target"
+			if nightVictimId ~= nil then
+				local nightParticipants = if type(state) == "table"
+						and type(state.participants) == "table"
+					then state.participants
+					else {}
+				for _, p in nightParticipants do
+					if type(p) == "table" and p.participantId == nightVictimId then
+						nightVictimName = readString(p, "displayName", "your target")
+						break
+					end
+				end
+			end
 			self.progressLabel.Text = "The transformation is complete. The town awaits."
-			self.objectiveText.Text = "YOU ARE THE MONSTER\nThe town is yours. Hunt carefully — the campers will fight back."
+			self.objectiveText.Text = string.format(
+				"YOU ARE THE MONSTER\nThe town is yours. Hunt %s — the campers will fight back.",
+				nightVictimName
+			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
 		else
 			self.progressLabel.Text = "The town has appeared. Stay close to your group."
