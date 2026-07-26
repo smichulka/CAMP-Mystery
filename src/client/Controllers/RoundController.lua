@@ -57,6 +57,7 @@ local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
+local lastWinnerAnnounced: string? = nil
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -147,10 +148,14 @@ local function evidenceCopy(entry: any): (string, string)
 	return name, description
 end
 
-local function playVoteReveal(snapshot: any, gameView: GameView)
+local function playVoteReveal(
+	snapshot: any,
+	gameView: GameView,
+	onComplete: (() -> ())?
+)
 	local round = if type(snapshot) == "table" then snapshot.round else nil
 	if type(round) ~= "table" then
-		gameView:PlayVoteReveal({}, "", "", {})
+		gameView:PlayVoteReveal({}, "", "", {}, onComplete)
 		return
 	end
 	local votes = if type(round.votes) == "table" then round.votes else {}
@@ -167,7 +172,7 @@ local function playVoteReveal(snapshot: any, gameView: GameView)
 			end
 		end
 	end
-	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById)
+	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete)
 end
 
 local function refresh()
@@ -247,6 +252,29 @@ local function updateReleaseExperience(
 		else nil
 	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local reconnect = isReconnectSnapshot == true
+	local winner = if type(round) == "table" and type(round.winner) == "string"
+		then round.winner
+		else nil
+	if phaseName == "Lobby" then
+		lastWinnerAnnounced = nil
+	end
+	if reconnect and winner then
+		lastWinnerAnnounced = winner
+	end
+	local shouldRevealWinner = currentView ~= nil
+		and winner ~= nil
+		and (phaseName == "Resolution" or phaseName == "Rewards")
+		and not reconnect
+		and lastWinnerAnnounced ~= winner
+	local revealWinner = if shouldRevealWinner and currentView and winner
+		then function()
+			currentView:PlayWinReveal(winner, winner == "Campers")
+		end
+		else nil
+	if shouldRevealWinner then
+		lastWinnerAnnounced = winner
+	end
+	local winnerQueuedAfterVote = false
 	if phaseName and phaseName ~= lastCinematicPhase then
 		local previousPhase = lastCinematicPhase
 		lastCinematicPhase = phaseName
@@ -286,8 +314,12 @@ local function updateReleaseExperience(
 			currentView:PlayPhaseTitleCard(phaseName, reconnect)
 		end
 		if phaseName == "Resolution" and currentView then
-			playVoteReveal(snapshot, currentView)
+			playVoteReveal(snapshot, currentView, revealWinner)
+			winnerQueuedAfterVote = revealWinner ~= nil
 		end
+	end
+	if revealWinner and not winnerQueuedAfterVote then
+		revealWinner()
 	end
 	local isGhost = type(player) == "table" and player.isGhost == true
 	local roundEnded = phaseName == "Rewards" or phaseName == "Lobby"
@@ -575,6 +607,7 @@ function RoundController.Stop()
 	lastMonsterEvidenceCount = 0
 	receivedFullState = false
 	lastRoleRevealRound = nil
+	lastWinnerAnnounced = nil
 end
 
 return table.freeze(RoundController)
