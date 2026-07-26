@@ -2,6 +2,7 @@
 
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -25,6 +26,22 @@ local HapticController =
 type ActionHandler = (action: string, payload: any) -> (boolean, string?)
 type ImageResolver = (key: string) -> string?
 
+type RoundSummaryStats = {
+	roundNumber: number,
+	winner: string,
+	isHumanWin: boolean,
+	evidenceFound: number,
+	evidenceGoal: number,
+	objectivesCompleted: number,
+	objectiveGoal: number,
+	survivorCount: number,
+	totalParticipants: number,
+	monsterId: string?,
+	victimName: string?,
+	personalEvidence: number,
+	playerRole: string,
+}
+
 type GameViewState = {
 	screenGui: ScreenGui,
 	root: Frame,
@@ -44,6 +61,8 @@ type GameViewState = {
 	resolveImage: ImageResolver,
 	phaseLabel: TextLabel,
 	timerLabel: TextLabel,
+	timerPulseConn: RBXScriptConnection?,
+	timerPulsing: boolean,
 	timerBar: Frame?,
 	timerFill: Frame?,
 	phaseArc: Frame?,
@@ -131,6 +150,8 @@ type GameViewState = {
 	winRevealOverlay: CanvasGroup?,
 	winRevealSkip: RBXScriptConnection?,
 	winRevealActive: boolean,
+	roundSummaryOverlay: CanvasGroup?,
+	roundSummaryToken: number,
 	deathCinematicToken: number,
 	deathCinematicOverlay: CanvasGroup?,
 	voteRevealToken: number,
@@ -958,6 +979,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		end,
 		phaseLabel = phaseLabel,
 		timerLabel = timerLabel,
+		timerPulseConn = nil,
+		timerPulsing = false,
 		timerBar = timerBar,
 		timerFill = timerFill,
 		phaseArc = nil,
@@ -1045,6 +1068,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		winRevealOverlay = nil,
 		winRevealSkip = nil,
 		winRevealActive = false,
+		roundSummaryOverlay = nil,
+		roundSummaryToken = 0,
 		deathCinematicToken = 0,
 		deathCinematicOverlay = nil,
 		voteRevealToken = 0,
@@ -3782,6 +3807,41 @@ function GameView:_updateMonsterPanel(state: any, phase: string?)
 	end
 end
 
+function GameView:_stopTimerPulse()
+	if not self.timerPulsing and not self.timerPulseConn then
+		return
+	end
+	self.timerPulsing = false
+	local connection = self.timerPulseConn
+	self.timerPulseConn = nil
+	if connection then
+		connection:Disconnect()
+	end
+	if not self.destroyed and self.timerLabel.Parent then
+		self.timerLabel.TextSize = 19
+	end
+end
+
+function GameView:_startTimerPulse()
+	if Motion.IsReducedMotion(self.root) then
+		self:_stopTimerPulse()
+		return
+	end
+	if self.timerPulsing then
+		return
+	end
+	self.timerPulsing = true
+	self.timerPulseConn = RunService.Heartbeat:Connect(function()
+		if self.destroyed then
+			self:_stopTimerPulse()
+			return
+		end
+		-- Three complete cycles per second, ranging from 19 to 22 points.
+		local size = math.round(20.5 + math.sin(os.clock() * math.pi * 6) * 1.5)
+		self.timerLabel.TextSize = size
+	end)
+end
+
 function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self:_updatePhaseArc(state)
 	self.currentState = state
@@ -3790,6 +3850,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local round = if type(state) == "table" and type(state.round) == "table" then state.round else legacyRound
 	local player = if type(state) == "table" and type(state.player) == "table" then state.player else legacyPlayer
 	if type(round) ~= "table" then
+		self:_stopTimerPulse()
 		Components.SetLetterspacedText(self.phaseLabel, "WAITING FOR THE CAMP")
 		self.progressLabel.Text = "Connecting to the round server..."
 		if self.eliminatedBanner then
@@ -3825,8 +3886,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	if seconds <= 10 and seconds > 0 then
 		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
+		self:_startTimerPulse()
 	else
 		self.timerLabel.TextColor3 = Theme.Colors.Gold
+		self:_stopTimerPulse()
 	end
 
 	local objectiveDone = readNumber(round, "objectivesCompleted", 0)
@@ -3847,6 +3910,19 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.progressLabel.Text = string.format("Votes locked %d/%d - accuse carefully.", cast, eligible)
 		self.objectiveText.Text = "FINAL OBJECTIVE\nReview the notebook and identify the Murderer."
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(cast / eligible, 0, 1), 1)
+	elseif phase == "MurderPlanning" then
+		local localRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		if localRole == "Murderer" then
+			self.progressLabel.Text = "Plan your attack before night falls."
+			self.objectiveText.Text = "MURDERER OBJECTIVE\nEliminate your target. Frame the evidence."
+			self.objectiveFill.Size = UDim2.fromScale(1, 1)
+		else
+			self.progressLabel.Text = "Night is coming. Prepare your tools."
+			self.objectiveText.Text = "MURDERER OBJECTIVE\nWait for darkness. Review your equipment."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		end
 	else
 		self.progressLabel.Text = readString(
 			round,
@@ -4102,6 +4178,7 @@ function GameView:Tick()
 		then self.currentState.round
 		else self.legacyRound
 	if type(round) ~= "table" then
+		self:_stopTimerPulse()
 		self:_updateMonsterPanel(self.currentState, nil)
 		return
 	end
@@ -4111,7 +4188,13 @@ function GameView:Tick()
 	)
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
-	self.timerLabel.TextColor3 = if seconds <= 10 and seconds > 0 then Theme.Colors.DangerBright else Theme.Colors.Gold
+	if seconds <= 10 and seconds > 0 then
+		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
+		self:_startTimerPulse()
+	else
+		self.timerLabel.TextColor3 = Theme.Colors.Gold
+		self:_stopTimerPulse()
+	end
 	if self.timerFill then
 		local phaseStartedAt = readNumber(round, "phaseStartedAt", 0)
 		local phaseEndsAt = readNumber(round, "phaseEndsAt", 0)
@@ -4970,6 +5053,280 @@ function GameView:PlayWinReveal(winner: string, isHumanWin: boolean)
 	task.delay(2.3, exitReveal)
 end
 
+function GameView:_cancelRoundSummary()
+	self.roundSummaryToken += 1
+	local overlay = self.roundSummaryOverlay
+	self.roundSummaryOverlay = nil
+	if not overlay then
+		return
+	end
+	Motion.Cancel(overlay)
+	for _, descendant in overlay:GetDescendants() do
+		if descendant:IsA("GuiObject") then
+			Motion.Cancel(descendant)
+		end
+	end
+	if overlay.Parent then
+		overlay:Destroy()
+	end
+end
+
+function GameView:PlayRoundSummary(stats: RoundSummaryStats)
+	if self.destroyed then
+		return
+	end
+	self:_cancelRoundSummary()
+	local token = self.roundSummaryToken
+
+	-- Let the win reveal finish its normal exit before presenting the recap.
+	task.delay(2.7, function()
+		if self.destroyed or self.roundSummaryToken ~= token then
+			return
+		end
+
+		local factionColor = if stats.isHumanWin
+			then Theme.Colors.Gold
+			else Theme.Colors.DangerBright
+		local overlay = Instance.new("CanvasGroup")
+		overlay.Name = "RoundSummaryOverlay"
+		overlay.Size = UDim2.fromScale(1, 1)
+		overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		overlay.BackgroundTransparency = 0.55
+		overlay.GroupTransparency = 1
+		overlay.BorderSizePixel = 0
+		overlay.Active = true
+		overlay.ZIndex = 80
+		overlay.Parent = self.root
+		self.roundSummaryOverlay = overlay
+
+		local card = Instance.new("Frame")
+		card.Name = "SummaryCard"
+		card.AnchorPoint = Vector2.new(0.5, 0.5)
+		card.Position = UDim2.fromScale(0.5, 0.5)
+		card.Size = UDim2.fromOffset(520, 380)
+		card.BackgroundColor3 = Theme.Colors.Panel
+		card.BackgroundTransparency = 0.06
+		card.BorderSizePixel = 0
+		card.ZIndex = 81
+		card.Parent = overlay
+		Components.Corner(card, 12)
+
+		local strip = Instance.new("Frame")
+		strip.Name = "AccentStrip"
+		strip.Size = UDim2.new(1, 0, 0, 4)
+		strip.BackgroundColor3 = factionColor
+		strip.BorderSizePixel = 0
+		strip.ZIndex = 82
+		strip.Parent = card
+		Components.Corner(strip, 12)
+
+		local header = Components.Label(
+			card,
+			"Header",
+			string.format("ROUND %d RECAP", stats.roundNumber),
+			22,
+			Enum.Font.GothamBold
+		)
+		header.Position = UDim2.fromOffset(24, 18)
+		header.Size = UDim2.new(1, -48, 0, 28)
+		header.TextColor3 = Theme.Colors.Gold
+		header.TextXAlignment = Enum.TextXAlignment.Center
+		header.ZIndex = 82
+
+		local winText = if stats.isHumanWin
+			then "THE CAMP SURVIVED"
+			else "THE MONSTER ESCAPED"
+		local winLabel = Components.Label(
+			card,
+			"WinLine",
+			winText,
+			15,
+			Enum.Font.GothamBold
+		)
+		winLabel.Position = UDim2.fromOffset(24, 50)
+		winLabel.Size = UDim2.new(1, -48, 0, 22)
+		winLabel.TextColor3 = factionColor
+		winLabel.TextXAlignment = Enum.TextXAlignment.Center
+		winLabel.ZIndex = 82
+
+		local divider = Instance.new("Frame")
+		divider.Name = "Divider"
+		divider.Position = UDim2.fromOffset(32, 80)
+		divider.Size = UDim2.new(1, -64, 0, 1)
+		divider.BackgroundColor3 = Theme.Colors.Ghost
+		divider.BackgroundTransparency = 0.7
+		divider.BorderSizePixel = 0
+		divider.ZIndex = 82
+		divider.Parent = card
+
+		local function statRow(
+			yOffset: number,
+			labelText: string,
+			valueText: string,
+			valueColor: Color3?
+		)
+			local label = Components.Label(
+				card,
+				labelText .. "Label",
+				labelText,
+				14
+			)
+			label.Position = UDim2.fromOffset(36, yOffset)
+			label.Size = UDim2.fromOffset(240, 26)
+			label.TextColor3 = Theme.Colors.TextMuted
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.ZIndex = 82
+
+			local value = Components.Label(
+				card,
+				labelText .. "Value",
+				valueText,
+				14,
+				Enum.Font.GothamBold
+			)
+			value.Position = UDim2.new(1, -36, 0, yOffset)
+			value.AnchorPoint = Vector2.new(1, 0)
+			value.Size = UDim2.fromOffset(210, 26)
+			value.TextColor3 = valueColor or Theme.Colors.Text
+			value.TextXAlignment = Enum.TextXAlignment.Right
+			value.ZIndex = 82
+		end
+
+		local survivorColor = if stats.survivorCount == 0
+			then Theme.Colors.DangerBright
+			elseif stats.survivorCount >= stats.totalParticipants
+			then Theme.Colors.Success
+			else Theme.Colors.Text
+		statRow(
+			96,
+			"Survivors",
+			string.format("%d of %d", stats.survivorCount, stats.totalParticipants),
+			survivorColor
+		)
+		statRow(
+			128,
+			"Evidence",
+			string.format("%d / %d clues", stats.evidenceFound, stats.evidenceGoal),
+			if stats.evidenceFound >= stats.evidenceGoal
+				then Theme.Colors.Success
+				else Theme.Colors.Text
+		)
+		statRow(
+			160,
+			"Camp Tasks",
+			string.format("%d / %d", stats.objectivesCompleted, stats.objectiveGoal),
+			if stats.objectivesCompleted >= stats.objectiveGoal
+				then Theme.Colors.Success
+				else Theme.Colors.Text
+		)
+
+		if stats.monsterId and stats.monsterId ~= "" then
+			local monsterDisplay = stats.monsterId
+				:gsub("(%l)(%u)", "%1 %2")
+				:gsub("-", " ")
+			statRow(192, "Monster", monsterDisplay, Theme.Colors.DangerBright)
+		end
+		if stats.victimName and stats.victimName ~= "" then
+			statRow(224, "Victim", stats.victimName, Theme.Colors.TextMuted)
+		end
+
+		if stats.playerRole ~= "Spectator" and stats.personalEvidence > 0 then
+			local personalLabel = Components.Label(
+				card,
+				"PersonalContrib",
+				string.format(
+					"You contributed %d evidence piece%s.",
+					stats.personalEvidence,
+					if stats.personalEvidence == 1 then "" else "s"
+				),
+				13
+			)
+			personalLabel.Position = UDim2.fromOffset(24, 270)
+			personalLabel.Size = UDim2.new(1, -48, 0, 22)
+			personalLabel.TextColor3 = Theme.Colors.Gold
+			personalLabel.TextXAlignment = Enum.TextXAlignment.Center
+			personalLabel.ZIndex = 82
+		end
+
+		local countdownLabel = Components.Label(
+			card,
+			"Countdown",
+			"Auto-advancing in 8s",
+			12
+		)
+		countdownLabel.Position = UDim2.fromOffset(24, 302)
+		countdownLabel.Size = UDim2.new(1, -48, 0, 20)
+		countdownLabel.TextColor3 = Theme.Colors.TextMuted
+		countdownLabel.TextXAlignment = Enum.TextXAlignment.Center
+		countdownLabel.ZIndex = 82
+
+		local dismissButton = Components.Button(card, {
+			name = "DismissBtn",
+			text = "VIEW REWARDS →",
+			size = UDim2.fromOffset(190, 44),
+			position = UDim2.new(0.5, 0, 1, -60),
+			color = Theme.Colors.Gold,
+		})
+		dismissButton.AnchorPoint = Vector2.new(0.5, 0)
+		dismissButton.ZIndex = 82
+
+		local dismissed = false
+		local function active(): boolean
+			return not self.destroyed
+				and self.roundSummaryToken == token
+				and self.roundSummaryOverlay == overlay
+				and overlay.Parent ~= nil
+		end
+		local function cleanup()
+			if overlay.Parent then
+				overlay:Destroy()
+			end
+			if self.roundSummaryOverlay == overlay then
+				self.roundSummaryOverlay = nil
+			end
+		end
+		local function dismiss()
+			if dismissed or not active() then
+				return
+			end
+			dismissed = true
+			if Motion.IsReducedMotion(self.root) then
+				cleanup()
+				return
+			end
+			Motion.FadeOut(overlay, {
+				duration = 0.35,
+				onComplete = function(_completed: boolean)
+					cleanup()
+				end,
+			})
+		end
+
+		dismissButton.Activated:Connect(dismiss)
+		task.spawn(function()
+			local countdown = 8
+			while countdown > 0 and not dismissed and active() do
+				task.wait(1)
+				countdown -= 1
+				if active() then
+					countdownLabel.Text = if countdown > 0
+						then string.format("Auto-advancing in %ds", countdown)
+						else "Advancing..."
+				end
+			end
+			if not dismissed and active() then
+				dismiss()
+			end
+		end)
+
+		if Motion.IsReducedMotion(self.root) then
+			overlay.GroupTransparency = 0
+		else
+			Motion.FadeIn(overlay)
+		end
+	end)
+end
+
 function GameView:PlayDeathCinematic()
 	if self.destroyed then
 		return
@@ -5407,9 +5764,90 @@ function GameView:Announce(payload: any)
 	end)
 end
 
-function GameView:PrepareReconnectSnapshot()
+function GameView:PrepareReconnectSnapshot(phaseName: string)
 	self.notebook:SetAttribute("SuppressNextStagger", true)
 	Motion.Cancel(self.evidenceList)
+
+	local existingOverlay = self.root:FindFirstChild("ReconnectOverlay")
+	if existingOverlay then
+		if existingOverlay:IsA("GuiObject") then
+			Motion.Cancel(existingOverlay)
+		end
+		existingOverlay:Destroy()
+	end
+	if phaseName == "Lobby" or phaseName == "Rewards" then
+		return
+	end
+
+	local reconnectOverlay = Instance.new("CanvasGroup")
+	reconnectOverlay.Name = "ReconnectOverlay"
+	reconnectOverlay.Size = UDim2.fromScale(1, 1)
+	reconnectOverlay.BackgroundColor3 = Color3.fromRGB(8, 10, 12)
+	reconnectOverlay.BackgroundTransparency = 0
+	reconnectOverlay.GroupTransparency = 0
+	reconnectOverlay.BorderSizePixel = 0
+	reconnectOverlay.Active = false
+	reconnectOverlay.ZIndex = 90
+	reconnectOverlay.Parent = self.root
+
+	local phaseDisplayMap: { [string]: string } = {
+		RoleReveal = "ROLE REVEAL",
+		Day = "DAY PHASE",
+		MurderPlanning = "NIGHT PLANNING",
+		NightTransform = "NIGHT FALLS",
+		Investigation = "NIGHT INVESTIGATION",
+		Campfire = "CAMPFIRE VOTE",
+		Resolution = "MYSTERY RESOLVED",
+	}
+	local phaseDisplay = phaseDisplayMap[phaseName] or string.upper(phaseName)
+
+	local reconnectLabel = Components.Label(
+		reconnectOverlay,
+		"ReconnectLabel",
+		"RETURNING TO CAMP",
+		28,
+		Enum.Font.GothamBold
+	)
+	reconnectLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	reconnectLabel.Position = UDim2.fromScale(0.5, 0.46)
+	reconnectLabel.Size = UDim2.new(1, -48, 0, 44)
+	reconnectLabel.TextColor3 = Theme.Colors.White
+	reconnectLabel.TextXAlignment = Enum.TextXAlignment.Center
+	reconnectLabel.ZIndex = 91
+
+	local reconnectPhaseLabel = Components.Label(
+		reconnectOverlay,
+		"PhaseLabel",
+		phaseDisplay,
+		14,
+		Enum.Font.Gotham
+	)
+	reconnectPhaseLabel.AnchorPoint = Vector2.new(0.5, 0)
+	reconnectPhaseLabel.Position = UDim2.fromScale(0.5, 0.54)
+	reconnectPhaseLabel.Size = UDim2.new(1, -48, 0, 22)
+	reconnectPhaseLabel.TextColor3 = Theme.Colors.Gold
+	reconnectPhaseLabel.TextTransparency = 0.2
+	reconnectPhaseLabel.TextXAlignment = Enum.TextXAlignment.Center
+	reconnectPhaseLabel.ZIndex = 91
+
+	local reducedMotion = Motion.IsReducedMotion(self.root)
+	task.delay(1.5, function()
+		if self.destroyed or reconnectOverlay.Parent == nil then
+			return
+		end
+		if reducedMotion then
+			reconnectOverlay:Destroy()
+			return
+		end
+		Motion.FadeOut(reconnectOverlay, {
+			duration = 0.5,
+			onComplete = function(_completed: boolean)
+				if reconnectOverlay.Parent then
+					reconnectOverlay:Destroy()
+				end
+			end,
+		})
+	end)
 end
 
 function GameView:Notify(
@@ -5489,6 +5927,8 @@ function GameView:Destroy()
 	self:_cancelRoleReveal()
 	self:_cancelPhaseTitle()
 	self:_cancelWinReveal()
+	self:_cancelRoundSummary()
+	self:_stopTimerPulse()
 	self:_cancelVoteReveal()
 	self:_cancelEvidenceDiscovery()
 	self:_dismissInterviewPicker(true)
