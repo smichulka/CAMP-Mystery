@@ -33,6 +33,8 @@ type EffectsViewState = {
 	monsterModeBaselineShift: Color3,
 	evidenceFlash: CanvasGroup?,
 	evidenceFlashTween: Tween?,
+	healFlash: CanvasGroup?,
+	healFlashTween: Tween?,
 	reducedMotion: boolean,
 	phaseToken: number,
 	subtitleToken: number,
@@ -280,6 +282,8 @@ function EffectsView.new(parent: Instance): EffectsView
 		monsterModeBaselineShift = Lighting.ColorShift_Top,
 		evidenceFlash = nil,
 		evidenceFlashTween = nil,
+		healFlash = nil,
+		healFlashTween = nil,
 		reducedMotion = false,
 		phaseToken = 0,
 		subtitleToken = 0,
@@ -535,6 +539,54 @@ function EffectsView:FlashEvidenceFound()
 	fadeOut:Play()
 end
 
+function EffectsView:ShowHealedEffect()
+	if self.destroyed then
+		return
+	end
+
+	local activeTween = self.healFlashTween
+	if activeTween then
+		activeTween:Cancel()
+		self.healFlashTween = nil
+	end
+	local activeFlash = self.healFlash
+	if activeFlash then
+		activeFlash:Destroy()
+		self.healFlash = nil
+	end
+
+	local flash = Instance.new("CanvasGroup")
+	flash.Name = "HealFlash"
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.BackgroundColor3 = Color3.fromRGB(60, 190, 90)
+	flash.BackgroundTransparency = 0
+	flash.GroupTransparency = 0.78
+	flash.BorderSizePixel = 0
+	flash.Active = false
+	flash.ZIndex = 75
+	flash.Parent = self.root
+	self.healFlash = flash
+
+	local fadeOut = TweenService:Create(
+		flash,
+		TweenInfo.new(0.65, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ GroupTransparency = 1 }
+	)
+	self.healFlashTween = fadeOut
+	fadeOut.Completed:Connect(function()
+		if self.healFlashTween == fadeOut then
+			self.healFlashTween = nil
+		end
+		if self.healFlash == flash then
+			self.healFlash = nil
+		end
+		if flash.Parent then
+			flash:Destroy()
+		end
+	end)
+	fadeOut:Play()
+end
+
 function EffectsView:ShowPhase(title: string, body: string, duration: number?)
 	if self.destroyed then
 		return
@@ -727,6 +779,14 @@ function EffectsView:Destroy()
 	if self.evidenceFlash then
 		self.evidenceFlash:Destroy()
 		self.evidenceFlash = nil
+	end
+	if self.healFlashTween then
+		self.healFlashTween:Cancel()
+		self.healFlashTween = nil
+	end
+	if self.healFlash then
+		self.healFlash:Destroy()
+		self.healFlash = nil
 	end
 	Lighting.ColorShift_Top = self.monsterModeBaselineShift
 	if self.spectatorOverlay.Parent then
