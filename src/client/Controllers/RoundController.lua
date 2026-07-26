@@ -84,6 +84,7 @@ local lastMonsterEvidenceCount = 0
 local lastRevealedWitnessCount = 0
 local lastObjectivesCompleted = 0
 local lastAbilityWasCooling: boolean? = nil
+local lastStaminaWasLow: boolean? = nil
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
@@ -801,6 +802,21 @@ local function updateReleaseExperience(
 	else
 		lastAbilityWasCooling = nil
 	end
+	if type(abilityMonster) == "table" and readBoolean(abilityMonster, "active", false) then
+		local stamina = readNumber(abilityMonster, "stamina", 0)
+		local maxStamina = readNumber(abilityMonster, "maxStamina", 0)
+		local staminaIsLow = maxStamina > 0 and (stamina / maxStamina) < 0.2
+		if staminaIsLow and lastStaminaWasLow == false and not reconnect and currentView then
+			currentView:Notify(
+				"Stamina low",
+				"Disengage and let it recover before striking again.",
+				"Warning"
+			)
+		end
+		lastStaminaWasLow = staminaIsLow
+	else
+		lastStaminaWasLow = nil
+	end
 	currentEffects:SetGhostTint(isGhost)
 	-- Role-based spectators also serialize as dead non-ghost participants.
 	local isEliminated = type(player) == "table"
@@ -1043,6 +1059,16 @@ function RoundController.Start()
 				else
 					lastAbilityWasCooling = nil
 				end
+				if type(reconnectMonster) == "table"
+					and readBoolean(reconnectMonster, "active", false)
+				then
+					local reconnectStamina = readNumber(reconnectMonster, "stamina", 0)
+					local reconnectMaxStamina = readNumber(reconnectMonster, "maxStamina", 0)
+					lastStaminaWasLow = reconnectMaxStamina > 0
+						and (reconnectStamina / reconnectMaxStamina) < 0.2
+				else
+					lastStaminaWasLow = nil
+				end
 				local reconnectPhase = if type(round) == "table"
 						and type(round.phase) == "string"
 					then round.phase
@@ -1203,6 +1229,7 @@ function RoundController.Stop()
 	lastRevealedWitnessCount = 0
 	lastObjectivesCompleted = 0
 	lastAbilityWasCooling = nil
+	lastStaminaWasLow = nil
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
