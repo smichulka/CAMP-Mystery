@@ -1,4 +1,4 @@
-"""Focused contracts for Claude Request 0008 role and phase ceremonies."""
+"""Focused contracts for role reveals, phase titles, and phase tips."""
 
 from __future__ import annotations
 
@@ -29,6 +29,29 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertNotIn("\tLobby =", catalog)
         self.assertNotIn("\tRewards =", catalog)
         self.assertIn("return table.freeze(PhaseTitles)", catalog)
+
+    def test_phase_tip_catalog_is_strict_frozen_and_wired(self) -> None:
+        catalog = read("src/shared/Config/PhaseTips.lua")
+        view = read("src/client/UI/GameView.lua")
+        self.assertTrue(catalog.startswith("--!strict"))
+        for phase in (
+            "MurderPlanning",
+            "NightTransform",
+            "Investigation",
+            "Day",
+            "Campfire",
+            "Resolution",
+        ):
+            self.assertIn(f"\t{phase}", catalog)
+        self.assertNotIn("\tLobby", catalog)
+        self.assertNotIn("\tRewards", catalog)
+        self.assertIn("return table.freeze(PhaseTips)", catalog)
+        self.assertIn(
+            'local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))',
+            view,
+        )
+        self.assertIn("local tipText = PhaseTips[phaseName]", view)
+        self.assertIn('"PhaseTip"', view)
 
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
@@ -81,7 +104,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             "or isReconnect",
             "or self.roleRevealActive",
             'band.Name = "PhaseTitleBand"',
-            "band.Size = UDim2.new(1, 0, 0, 96)",
+            "band.Size = UDim2.new(1, 0, 0, 120)",
             "band.BackgroundTransparency = 0.45",
             "scale.Scale = 0.97",
             "math.floor(Theme.Typography.HeadingSize * 1.4)",
