@@ -34,6 +34,8 @@ local EVENT_TO_CUE: { [string]: string } = {
 	["phase-sting"] = "PhaseChime",
 }
 
+-- VoteOpen and PhaseChime are already registered by AudioController and are not
+-- duplicated in DEFINITIONS here.
 -- These are temporary Creator Store sounds, not final authored CAMP-Mystery audio.
 -- Nil defaults intentionally stay silent until an approved asset is supplied through
 -- the matching SoundService attribute.
