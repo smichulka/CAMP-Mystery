@@ -772,6 +772,12 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		profile = profile,
 	}, GameRuntimeService)
 	runtimeRef = self
+	lifecycle:On("ParticipantGhostTransition", function()
+		local runtime = runtimeRef
+		if runtime and runtime.running then
+			runtime:Broadcast()
+		end
+	end)
 	return self
 end
 
