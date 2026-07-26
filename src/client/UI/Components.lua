@@ -119,12 +119,12 @@ function Components.Label(
 end
 
 local function escapeRichText(value: string): string
-	return string.gsub(value, "[<>&\"]", {
+	return (string.gsub(value, "[<>&\"]", {
 		["<"] = "&lt;",
 		[">"] = "&gt;",
 		["&"] = "&amp;",
 		['"'] = "&quot;",
-	})
+	}))
 end
 
 function Components.LetterspacedText(value: string, spacing: number?): string
