@@ -19,6 +19,9 @@ type EffectsViewState = {
 	statusStroke: UIStroke,
 	statusLabel: TextLabel,
 	subtitle: TextLabel,
+	spectatorOverlay: Frame,
+	spectatorActive: boolean,
+	spectatorTween: Tween?,
 	vignette: ImageLabel?,
 	vignetteTween: Tween?,
 	injuryPulseTween: Tween?,
@@ -230,6 +233,18 @@ function EffectsView.new(parent: Instance): EffectsView
 	subtitleConstraint.Parent = subtitle
 
 	setLayer(root, 50)
+
+	-- This overlay is intentionally created after setLayer so its lower layer is
+	-- not overwritten with the status-overlay layer used by the other effects.
+	local spectatorOverlay = Instance.new("Frame")
+	spectatorOverlay.Name = "SpectatorOverlay"
+	spectatorOverlay.Size = UDim2.fromScale(1, 1)
+	spectatorOverlay.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+	spectatorOverlay.BackgroundTransparency = 1
+	spectatorOverlay.BorderSizePixel = 0
+	spectatorOverlay.ZIndex = 2
+	spectatorOverlay.Parent = root
+
 	local vignetteInstance = parent:FindFirstChild("Vignette")
 	local vignette = if vignetteInstance and vignetteInstance:IsA("ImageLabel")
 		then vignetteInstance
@@ -244,6 +259,9 @@ function EffectsView.new(parent: Instance): EffectsView
 		statusStroke = statusStroke,
 		statusLabel = statusLabel,
 		subtitle = subtitle,
+		spectatorOverlay = spectatorOverlay,
+		spectatorActive = false,
+		spectatorTween = nil,
 		vignette = vignette,
 		vignetteTween = nil,
 		injuryPulseTween = nil,
@@ -264,6 +282,12 @@ function EffectsView:SetReducedMotion(reducedMotion: boolean)
 	self.reducedMotion = reducedMotion
 	self.root:SetAttribute("ReducedMotion", reducedMotion)
 	if changed then
+		local spectatorTween = self.spectatorTween
+		if spectatorTween then
+			spectatorTween:Cancel()
+			self.spectatorTween = nil
+		end
+		self.spectatorOverlay.BackgroundTransparency = if self.spectatorActive then 0.72 else 1
 		if reducedMotion then
 			self:_stopInjuryPulse()
 			self.statusStroke.Transparency = 0.32
@@ -272,6 +296,38 @@ function EffectsView:SetReducedMotion(reducedMotion: boolean)
 		end
 		self:SetNightIntensity(self.nightIntensity)
 	end
+end
+
+function EffectsView:SetSpectatorMode(active: boolean)
+	if self.destroyed or active == self.spectatorActive then
+		return
+	end
+	self.spectatorActive = active
+
+	local activeTween = self.spectatorTween
+	if activeTween then
+		activeTween:Cancel()
+		self.spectatorTween = nil
+	end
+
+	local targetTransparency = if active then 0.72 else 1
+	if self.reducedMotion then
+		self.spectatorOverlay.BackgroundTransparency = targetTransparency
+		return
+	end
+
+	local tween = TweenService:Create(
+		self.spectatorOverlay,
+		TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = targetTransparency }
+	)
+	self.spectatorTween = tween
+	tween.Completed:Connect(function()
+		if self.spectatorTween == tween then
+			self.spectatorTween = nil
+		end
+	end)
+	tween:Play()
 end
 
 function EffectsView:SetNightIntensity(fraction: number)
@@ -549,9 +605,16 @@ function EffectsView:Destroy()
 	self.phaseToken += 1
 	self.subtitleToken += 1
 	self:_stopInjuryPulse()
+	if self.spectatorTween then
+		self.spectatorTween:Cancel()
+		self.spectatorTween = nil
+	end
 	if self.vignetteTween then
 		self.vignetteTween:Cancel()
 		self.vignetteTween = nil
+	end
+	if self.spectatorOverlay.Parent then
+		self.spectatorOverlay:Destroy()
 	end
 	if self.root.Parent then
 		self.root:Destroy()
