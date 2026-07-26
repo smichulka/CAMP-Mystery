@@ -24,6 +24,27 @@ local Theme = {
 	PanelTransparency = 0.08,
 	StrokeTransparency = 0.38,
 	AnimationTime = 0.18,
+	Motion = {
+		PopDuration = 0.25,
+		SlideDuration = 0.24,
+		FadeDuration = 0.18,
+		ReducedFadeDuration = 0.12,
+		HoverDuration = 0.12,
+		PressDuration = 0.08,
+		ReleaseDuration = 0.16,
+		ShakeStepDuration = 0.035,
+		StaggerDelay = 0.035,
+		PopScale = 0.92,
+		PressScale = 0.97,
+		SlideOffset = 28,
+		ShakeDistance = 8,
+		PopEasingStyle = Enum.EasingStyle.Back,
+		PopEasingDirection = Enum.EasingDirection.Out,
+		ExitEasingStyle = Enum.EasingStyle.Quint,
+		ExitEasingDirection = Enum.EasingDirection.In,
+		StandardEasingStyle = Enum.EasingStyle.Quint,
+		StandardEasingDirection = Enum.EasingDirection.Out,
+	},
 }
 
 return table.freeze(Theme)
