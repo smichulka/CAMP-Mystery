@@ -23,6 +23,14 @@ class OperationalWorkflowContracts(unittest.TestCase):
         self.assertNotIn("pull `master`", source("README.md"))
         self.assertNotIn("Keep `master`", source("docs/DELIVERY_PLAN.md"))
 
+    def test_ci_tool_bootstrap_is_authenticated_and_version_pinned(self) -> None:
+        workflow = source(".github/workflows/validate.yml")
+        self.assertIn("rojo-rbx/rokit/v1.2.0/scripts/install.sh", workflow)
+        self.assertIn("bash -s -- 1.2.0", workflow)
+        self.assertIn("GITHUB_PAT: ${{ github.token }}", workflow)
+        self.assertIn('"$HOME/.rokit/bin/rokit" --version', workflow)
+        self.assertNotIn("rojo-rbx/rokit/main/scripts/install.sh", workflow)
+
     def test_real_datastore_test_mode_is_isolated_and_fault_injectable(self) -> None:
         config = source("src/server/Config/ProfileStoreConfiguration.lua")
         memory_adapter = source("src/server/Adapters/MemoryProfileStore.lua")
