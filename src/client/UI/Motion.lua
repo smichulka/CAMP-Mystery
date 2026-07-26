@@ -490,7 +490,8 @@ function Motion.Shake(target: GuiObject, config: TransitionConfig?): RBXScriptSi
 				TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
 				{ Position = shiftedHorizontal(restingPosition, offset) }
 			)
-			record.tweens = { tween }
+			table.clear(record.tweens)
+			table.insert(record.tweens, tween)
 			tween:Play()
 			local playbackState = tween.Completed:Wait()
 			if record.finished then
@@ -534,6 +535,7 @@ function Motion.StaggerChildren(container: GuiObject, config: StaggerConfig?): R
 		for _, child in children do
 			if child.Parent then
 				child.Visible = true
+				Motion.Cancel(child)
 			end
 		end
 	end)
