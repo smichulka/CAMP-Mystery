@@ -31,6 +31,8 @@ type EffectsViewState = {
 	monsterModeActive: boolean,
 	monsterModeTween: Tween?,
 	monsterModeBaselineShift: Color3,
+	evidenceFlash: CanvasGroup?,
+	evidenceFlashTween: Tween?,
 	reducedMotion: boolean,
 	phaseToken: number,
 	subtitleToken: number,
@@ -276,6 +278,8 @@ function EffectsView.new(parent: Instance): EffectsView
 		monsterModeActive = false,
 		monsterModeTween = nil,
 		monsterModeBaselineShift = Lighting.ColorShift_Top,
+		evidenceFlash = nil,
+		evidenceFlashTween = nil,
 		reducedMotion = false,
 		phaseToken = 0,
 		subtitleToken = 0,
@@ -483,6 +487,54 @@ function EffectsView:SetMonsterMode(active: boolean)
 	tween:Play()
 end
 
+function EffectsView:FlashEvidenceFound()
+	if self.destroyed then
+		return
+	end
+
+	local activeTween = self.evidenceFlashTween
+	if activeTween then
+		activeTween:Cancel()
+		self.evidenceFlashTween = nil
+	end
+	local activeFlash = self.evidenceFlash
+	if activeFlash then
+		activeFlash:Destroy()
+		self.evidenceFlash = nil
+	end
+
+	local flash = Instance.new("CanvasGroup")
+	flash.Name = "EvidenceFlash"
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.BackgroundColor3 = Theme.Colors.Gold
+	flash.BackgroundTransparency = 0
+	flash.GroupTransparency = 0.72
+	flash.BorderSizePixel = 0
+	flash.Active = false
+	flash.ZIndex = 75
+	flash.Parent = self.root
+	self.evidenceFlash = flash
+
+	local fadeOut = TweenService:Create(
+		flash,
+		TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ GroupTransparency = 1 }
+	)
+	self.evidenceFlashTween = fadeOut
+	fadeOut.Completed:Connect(function()
+		if self.evidenceFlashTween == fadeOut then
+			self.evidenceFlashTween = nil
+		end
+		if self.evidenceFlash == flash then
+			self.evidenceFlash = nil
+		end
+		if flash.Parent then
+			flash:Destroy()
+		end
+	end)
+	fadeOut:Play()
+end
+
 function EffectsView:ShowPhase(title: string, body: string, duration: number?)
 	if self.destroyed then
 		return
@@ -667,6 +719,14 @@ function EffectsView:Destroy()
 	if self.monsterModeTween then
 		self.monsterModeTween:Cancel()
 		self.monsterModeTween = nil
+	end
+	if self.evidenceFlashTween then
+		self.evidenceFlashTween:Cancel()
+		self.evidenceFlashTween = nil
+	end
+	if self.evidenceFlash then
+		self.evidenceFlash:Destroy()
+		self.evidenceFlash = nil
 	end
 	Lighting.ColorShift_Top = self.monsterModeBaselineShift
 	if self.spectatorOverlay.Parent then
