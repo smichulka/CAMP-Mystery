@@ -82,6 +82,7 @@ local lastEvidenceFound = 0
 local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
 local lastRevealedWitnessCount = 0
+local lastObjectivesCompleted = 0
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
@@ -474,6 +475,20 @@ local function updateReleaseExperience(
 		)
 	end
 	lastRevealedWitnessCount = revealedWitnessCount
+	local objectivesCompleted = readNumber(round, "objectivesCompleted", 0)
+	local objectiveGoal = math.max(1, readNumber(round, "objectiveGoal", 1))
+	if objectivesCompleted > lastObjectivesCompleted
+		and not reconnect
+		and phaseName == "Day"
+		and currentView
+	then
+		currentView:Notify(
+			"Camp task complete",
+			string.format("%d of %d tasks done.", objectivesCompleted, objectiveGoal),
+			"Info"
+		)
+	end
+	lastObjectivesCompleted = objectivesCompleted
 	currentEffects:Update(snapshot)
 	updateInvestigationUrgencyWarning(snapshot)
 	local roundNumber = if type(round) == "table"
@@ -936,6 +951,9 @@ function RoundController.Start()
 				local reconnectMystery = if type(payload) == "table" then payload.mystery else nil
 				lastRevealedWitnessCount =
 					readNumber(reconnectMystery, "revealedWitnessCount", 0)
+				local reconnectRound = if type(payload) == "table" then payload.round else nil
+				lastObjectivesCompleted =
+					readNumber(reconnectRound, "objectivesCompleted", 0)
 				local reconnectPhase = if type(round) == "table"
 						and type(round.phase) == "string"
 					then round.phase
@@ -1102,6 +1120,7 @@ function RoundController.Stop()
 	lastCulpritEvidenceCount = 0
 	lastMonsterEvidenceCount = 0
 	lastRevealedWitnessCount = 0
+	lastObjectivesCompleted = 0
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
