@@ -2,6 +2,8 @@
 
 local SoundService = game:GetService("SoundService")
 
+local UISoundMap = require(script.Parent:WaitForChild("UISoundMap"))
+
 export type AudioOptions = {
 	onSubtitle: ((text: string, duration: number) -> ())?,
 	assetAttributes: { [string]: string }?,
@@ -13,6 +15,7 @@ type SoundDefinition = {
 	attribute: string,
 	looped: boolean,
 	subtitle: string?,
+	defaultAssetId: string?,
 }
 
 type AudioControllerState = {
@@ -85,6 +88,16 @@ local DEFINITIONS: { SoundDefinition } = {
 	},
 }
 
+for _, definition in UISoundMap.Definitions do
+	table.insert(DEFINITIONS, {
+		name = definition.name,
+		channel = "UI",
+		attribute = definition.attribute,
+		looped = false,
+		defaultAssetId = definition.defaultAssetId,
+	})
+end
+
 local DEFAULT_SETTINGS: { [string]: any } = {
 	masterVolume = 0.8,
 	musicVolume = 0.65,
@@ -136,6 +149,15 @@ local function normalizeAssetId(value: any): string
 		return ""
 	end
 	return "rbxassetid://" .. digits
+end
+
+local function soundDefinition(name: string): SoundDefinition?
+	for _, definition in DEFINITIONS do
+		if definition.name == name then
+			return definition
+		end
+	end
+	return nil
 end
 
 local function readPhase(state: any): string?
@@ -194,7 +216,13 @@ function AudioController.new(options: AudioOptions?): AudioController
 		sound.Volume = 1
 		local attributeName = attributeOverrides[definition.name] or definition.attribute
 		sound:SetAttribute("AssetAttribute", attributeName)
-		sound.SoundId = normalizeAssetId(SoundService:GetAttribute(attributeName))
+		local configuredAssetId = normalizeAssetId(SoundService:GetAttribute(attributeName))
+		local placeholderAssetId = normalizeAssetId(definition.defaultAssetId)
+		sound.SoundId = if configuredAssetId ~= "" then configuredAssetId else placeholderAssetId
+		sound:SetAttribute(
+			"UsesPlaceholderAsset",
+			configuredAssetId == "" and placeholderAssetId ~= ""
+		)
 		sound.Parent = root
 		sounds[definition.name] = sound
 	end
@@ -240,19 +268,22 @@ function AudioController:PlayCue(name: string, subtitle: string?): boolean
 	if not sound then
 		return false
 	end
-	local definitionSubtitle: string? = nil
-	for _, definition in DEFINITIONS do
-		if definition.name == name then
-			definitionSubtitle = definition.subtitle
-			break
-		end
-	end
+	local definition = soundDefinition(name)
+	local definitionSubtitle = if definition then definition.subtitle else nil
 	self:_subtitle(subtitle or definitionSubtitle, 2.5)
 	if not self:_configured(sound) then
 		return false
 	end
 	sound:Play()
 	return true
+end
+
+function AudioController:PlayUIEvent(eventName: string): boolean
+	local cueName = UISoundMap.Resolve(eventName)
+	if not cueName then
+		return false
+	end
+	return self:PlayCue(cueName)
 end
 
 function AudioController:_switchLoop(channel: string, name: string?)
@@ -348,8 +379,14 @@ function AudioController:RefreshAssetIds()
 		local sound = self.sounds[definition.name]
 		if sound then
 			local attributeName = sound:GetAttribute("AssetAttribute")
-			sound.SoundId = normalizeAssetId(
+			local configuredAssetId = normalizeAssetId(
 				if type(attributeName) == "string" then SoundService:GetAttribute(attributeName) else nil
+			)
+			local placeholderAssetId = normalizeAssetId(definition.defaultAssetId)
+			sound.SoundId = if configuredAssetId ~= "" then configuredAssetId else placeholderAssetId
+			sound:SetAttribute(
+				"UsesPlaceholderAsset",
+				configuredAssetId == "" and placeholderAssetId ~= ""
 			)
 		end
 	end
