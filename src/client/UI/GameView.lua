@@ -3917,7 +3917,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		local witnessFound = math.max(0, math.floor(readNumber(mystery, "revealedWitnessCount", 0)))
 		local witnessTotal = math.max(1, math.floor(readNumber(mystery, "totalWitnessCount", 1)))
 		self.progressLabel.Text = string.format(
-			"Camp work %d/%d · Witnesses %d/%d",
+			"Camp work %d/%d  |  Witnesses %d/%d",
 			objectiveDone, objectiveGoal, witnessFound, witnessTotal
 		)
 		self.objectiveText.Text = string.format(
@@ -3926,17 +3926,25 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		)
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(objectiveDone / objectiveGoal, 0, 1), 1)
 	elseif phase == "Investigation" then
+		local privateMonster = if type(state) == "table" then state.privateMonster else nil
+		local isMonsterPlayer = type(privateMonster) == "table"
+			and readBoolean(privateMonster, "active", false)
 		local localRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
 			else ""
-		if localRole == "Spectator" then
+		if isMonsterPlayer then
+			self.progressLabel.Text = "Hunt your targets. Don't get cornered."
+			self.objectiveText.Text = "HUNT OBJECTIVE\nEliminate your designated target. Avoid discovery. Use your ability when the time is right."
+			self.objectiveFill.Size = UDim2.fromScale(1, 1)
+		elseif localRole == "Spectator" then
 			self.progressLabel.Text = string.format("Observing. Evidence %d/%d collected.", evidenceFound, evidenceGoal)
 			self.objectiveText.Text = "OBSERVING\nYou joined mid-round. Watch the investigation unfold."
+			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 		else
 			self.progressLabel.Text = string.format("Evidence %d/%d - search the abandoned town.", evidenceFound, evidenceGoal)
 			self.objectiveText.Text = string.format("NIGHT OBJECTIVE\nCollect and post clues: %d of %d", evidenceFound, evidenceGoal)
+			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 		end
-		self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 	elseif phase == "Campfire" then
 		local cast = readNumber(round, "votesCast", 0)
 		local eligible = math.max(1, readNumber(round, "eligibleVoters", 1))
@@ -3962,6 +3970,21 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		else
 			self.progressLabel.Text = "Night is coming. Prepare your tools."
 			self.objectiveText.Text = "PREPARATION\nSomething is coming. Secure your equipment and stay alert."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		end
+	elseif phase == "NightTransform" then
+		local privateMonster = if type(state) == "table" then state.privateMonster else nil
+		local localRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		local isMonsterPlayer = type(privateMonster) == "table" or localRole == "Murderer"
+		if isMonsterPlayer then
+			self.progressLabel.Text = "The transformation is complete. The town awaits."
+			self.objectiveText.Text = "YOU ARE THE MONSTER\nThe town is yours. Hunt carefully — the campers will fight back."
+			self.objectiveFill.Size = UDim2.fromScale(1, 1)
+		else
+			self.progressLabel.Text = "The town has appeared. Stay close to your group."
+			self.objectiveText.Text = "NIGHT BEGINS\nThe abandoned town has merged with the camp. The monster is somewhere inside."
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		end
 	else
