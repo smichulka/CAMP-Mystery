@@ -155,6 +155,9 @@ local function readStatus(state: any): string?
 		end
 	end
 	if type(state.monster) == "table" and state.monster.active == true then
+		if type(state.privateMonster) == "table" and state.privateMonster.active == true then
+			return nil
+		end
 		return "MonsterActive"
 	end
 	return nil
