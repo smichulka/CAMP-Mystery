@@ -1,5 +1,6 @@
 --!strict
 
+local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 
 local Components = require(script.Parent:WaitForChild("Components"))
@@ -27,6 +28,9 @@ type EffectsViewState = {
 	injuryPulseTween: Tween?,
 	nightIntensity: number,
 	ghostTintActive: boolean,
+	monsterModeActive: boolean,
+	monsterModeTween: Tween?,
+	monsterModeBaselineShift: Color3,
 	reducedMotion: boolean,
 	phaseToken: number,
 	subtitleToken: number,
@@ -100,6 +104,8 @@ local PULSE_STATUSES: { [string]: boolean } = {
 	Bleeding = true,
 	Latched = true,
 }
+
+local MONSTER_MODE_SHIFT = Color3.fromRGB(42, 8, 4)
 
 local function setLayer(instance: Instance, zIndex: number)
 	if instance:IsA("GuiObject") then
@@ -267,6 +273,9 @@ function EffectsView.new(parent: Instance): EffectsView
 		injuryPulseTween = nil,
 		nightIntensity = 0,
 		ghostTintActive = false,
+		monsterModeActive = false,
+		monsterModeTween = nil,
+		monsterModeBaselineShift = Lighting.ColorShift_Top,
 		reducedMotion = false,
 		phaseToken = 0,
 		subtitleToken = 0,
@@ -294,6 +303,14 @@ function EffectsView:SetReducedMotion(reducedMotion: boolean)
 		elseif self.lastStatus and PULSE_STATUSES[self.lastStatus] then
 			self:_startInjuryPulse(self.lastStatus, 0)
 		end
+		local monsterModeTween = self.monsterModeTween
+		if monsterModeTween then
+			monsterModeTween:Cancel()
+			self.monsterModeTween = nil
+		end
+		Lighting.ColorShift_Top = if self.monsterModeActive
+			then MONSTER_MODE_SHIFT
+			else self.monsterModeBaselineShift
 		self:SetNightIntensity(self.nightIntensity)
 	end
 end
@@ -427,6 +444,40 @@ function EffectsView:SetGhostTint(active: boolean)
 	tween.Completed:Connect(function()
 		if self.vignetteTween == tween then
 			self.vignetteTween = nil
+		end
+	end)
+	tween:Play()
+end
+
+function EffectsView:SetMonsterMode(active: boolean)
+	if self.destroyed or active == self.monsterModeActive then
+		return
+	end
+	self.monsterModeActive = active
+
+	local activeTween = self.monsterModeTween
+	if activeTween then
+		activeTween:Cancel()
+		self.monsterModeTween = nil
+	end
+
+	local targetShift = if active
+		then MONSTER_MODE_SHIFT
+		else self.monsterModeBaselineShift
+	if self.reducedMotion then
+		Lighting.ColorShift_Top = targetShift
+		return
+	end
+
+	local tween = TweenService:Create(
+		Lighting,
+		TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+		{ ColorShift_Top = targetShift }
+	)
+	self.monsterModeTween = tween
+	tween.Completed:Connect(function()
+		if self.monsterModeTween == tween then
+			self.monsterModeTween = nil
 		end
 	end)
 	tween:Play()
@@ -613,6 +664,11 @@ function EffectsView:Destroy()
 		self.vignetteTween:Cancel()
 		self.vignetteTween = nil
 	end
+	if self.monsterModeTween then
+		self.monsterModeTween:Cancel()
+		self.monsterModeTween = nil
+	end
+	Lighting.ColorShift_Top = self.monsterModeBaselineShift
 	if self.spectatorOverlay.Parent then
 		self.spectatorOverlay:Destroy()
 	end
