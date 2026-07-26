@@ -35,6 +35,21 @@ type RemoteBridge = RemoteBridgeModule.RemoteBridge
 type UIAssetController = UIAssetControllerModule.UIAssetController
 type ProximityController = ProximityControllerModule.ProximityController
 type CameraController = CameraControllerModule.CameraController
+type RoundSummaryStats = {
+	roundNumber: number,
+	winner: string,
+	isHumanWin: boolean,
+	evidenceFound: number,
+	evidenceGoal: number,
+	objectivesCompleted: number,
+	objectiveGoal: number,
+	survivorCount: number,
+	totalParticipants: number,
+	monsterId: string?,
+	victimName: string?,
+	personalEvidence: number,
+	playerRole: string,
+}
 
 local RoundController = {}
 
@@ -232,6 +247,68 @@ local function playVoteReveal(
 	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete)
 end
 
+local function roundSummaryStats(snapshot: any): RoundSummaryStats
+	local round = if type(snapshot) == "table" and type(snapshot.round) == "table"
+		then snapshot.round
+		else nil
+	local participants = if type(snapshot) == "table"
+			and type(snapshot.participants) == "table"
+		then snapshot.participants
+		else {}
+	local player = if type(snapshot) == "table" and type(snapshot.player) == "table"
+		then snapshot.player
+		else nil
+
+	local survivorCount = 0
+	local totalParticipants = 0
+	for _, participant in participants do
+		if type(participant) == "table" then
+			totalParticipants += 1
+			if participant.alive == true then
+				survivorCount += 1
+			end
+		end
+	end
+
+	local personalEvidence = 0
+	local evidenceKnowledge = if type(player) == "table"
+			and type(player.evidenceKnowledge) == "table"
+		then player.evidenceKnowledge
+		else {}
+	for _, evidence in evidenceKnowledge do
+		if type(evidence) == "table" then
+			personalEvidence += 1
+		end
+	end
+
+	local winner = readString(round, "winner", "")
+	local monsterId = if type(round) == "table" and type(round.monsterId) == "string"
+		then round.monsterId
+		else nil
+	local victimName = if type(round) == "table" and type(round.victimName) == "string"
+		then round.victimName
+		else nil
+
+	return {
+		roundNumber = math.max(0, readNumber(round, "roundNumber", 0)),
+		winner = winner,
+		isHumanWin = winner == "Campers",
+		evidenceFound = math.max(0, readNumber(round, "evidenceFound", 0)),
+		evidenceGoal = math.max(1, readNumber(round, "evidenceGoal", 1)),
+		objectivesCompleted = math.max(
+			0,
+			readNumber(round, "objectivesCompleted", 0)
+		),
+		objectiveGoal = math.max(1, readNumber(round, "objectiveGoal", 1)),
+		survivorCount = survivorCount,
+		totalParticipants = totalParticipants,
+		monsterId = monsterId,
+		victimName = victimName,
+		personalEvidence = personalEvidence,
+		playerRole = readString(player, "role", "Camper"),
+	}
+end
+
 local function refresh()
 	local currentView = view
 	if currentView then
@@ -337,6 +414,7 @@ local function updateReleaseExperience(
 	currentAudio:Update(snapshot)
 	if evidenceFound > lastEvidenceFound and currentView then
 		local evidenceName, evidenceDescription = evidenceCopy(latestEvidence)
+		currentEffects:FlashEvidenceFound()
 		currentView:PlayEvidenceDiscovery(evidenceName, evidenceDescription)
 	end
 	lastEvidenceFound = evidenceFound
@@ -407,10 +485,16 @@ local function updateReleaseExperience(
 		and (phaseName == "Resolution" or phaseName == "Rewards")
 		and not reconnect
 		and lastWinnerAnnounced ~= winner
+	local summaryStats = if shouldRevealWinner and phaseName == "Resolution"
+		then roundSummaryStats(snapshot)
+		else nil
 	local revealWinner = if shouldRevealWinner and currentView and winner
 		then function()
 			HapticController.Celebrate()
 			currentView:PlayWinReveal(winner, winner == "Campers")
+			if summaryStats then
+				currentView:PlayRoundSummary(summaryStats)
+			end
 		end
 		else nil
 	if shouldRevealWinner then
@@ -712,7 +796,11 @@ function RoundController.Start()
 				lastEvidenceFound = evidenceFoundCount(payload)
 				lastCulpritEvidenceCount = #evidenceList(payload, "culpritEvidence")
 				lastMonsterEvidenceCount = #evidenceList(payload, "monsterEvidence")
-				gameView:PrepareReconnectSnapshot()
+				local reconnectPhase = if type(round) == "table"
+						and type(round.phase) == "string"
+					then round.phase
+					else "Lobby"
+				gameView:PrepareReconnectSnapshot(reconnectPhase)
 			end
 			state = payload :: GameState
 			refresh()
