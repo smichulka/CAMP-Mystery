@@ -2,10 +2,19 @@
 
 local Lighting = game:GetService("Lighting")
 local ServerStorage = game:GetService("ServerStorage")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
+
+type InteractiveDoor = {
+	part: Part,
+	prompt: ProximityPrompt,
+	closedCFrame: CFrame,
+	openCFrame: CFrame,
+	isOpen: boolean,
+}
 
 type ProductionMapServiceState = {
 	mapFolder: Folder,
@@ -17,6 +26,7 @@ type ProductionMapServiceState = {
 	onObjective: ObjectiveHandler,
 	onEvidence: EvidenceHandler,
 	evidenceClaimed: { [string]: boolean },
+	interactiveDoors: { InteractiveDoor },
 }
 
 local ProductionMapService = {}
@@ -28,6 +38,7 @@ export type ProductionMapService = typeof(
 
 local DAY_AMBIENT = Color3.fromRGB(128, 139, 121)
 local NIGHT_AMBIENT = Color3.fromRGB(24, 29, 43)
+local DOOR_TWEEN = TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 local OBJECTIVES = {
 	{
@@ -118,6 +129,19 @@ local function createPart(
 	return part
 end
 
+local function createCylinder(
+	parent: Instance,
+	name: string,
+	size: Vector3,
+	cframe: CFrame,
+	color: Color3,
+	material: Enum.Material
+): Part
+	local cylinder = createPart(parent, name, size, cframe, color, material)
+	cylinder.Shape = Enum.PartType.Cylinder
+	return cylinder
+end
+
 local function createPrompt(
 	parent: BasePart,
 	actionText: string,
@@ -130,8 +154,104 @@ local function createPrompt(
 	prompt.HoldDuration = holdDuration or 0.65
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = true
+	prompt.ClickablePrompt = true
 	prompt.Parent = parent
 	return prompt
+end
+
+local function createInspectPrompt(
+	parent: BasePart,
+	objectText: string,
+	response: string
+): ProximityPrompt
+	local prompt = createPrompt(parent, "Inspect", objectText, 0.45)
+	local feedback = Instance.new("BillboardGui")
+	feedback.Name = "InteractionFeedback"
+	feedback.Size = UDim2.fromOffset(260, 58)
+	feedback.StudsOffset = Vector3.new(0, 3.5, 0)
+	feedback.AlwaysOnTop = true
+	feedback.MaxDistance = 70
+	feedback.Enabled = false
+	feedback.Parent = parent
+	local label = Instance.new("TextLabel")
+	label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+	label.BackgroundTransparency = 0.08
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamMedium
+	label.Text = response
+	label.TextColor3 = Color3.fromRGB(244, 224, 176)
+	label.TextSize = 15
+	label.TextWrapped = true
+	label.Parent = feedback
+
+	local interactionVersion = 0
+	prompt.Triggered:Connect(function()
+		interactionVersion += 1
+		local version = interactionVersion
+		prompt.ActionText = "Inspected"
+		feedback.Enabled = true
+		task.delay(3, function()
+			if prompt.Parent and interactionVersion == version then
+				prompt.ActionText = "Inspect"
+				feedback.Enabled = false
+			end
+		end)
+	end)
+	return prompt
+end
+
+local function createInteractiveDoor(
+	parent: Instance,
+	name: string,
+	size: Vector3,
+	closedCFrame: CFrame,
+	color: Color3,
+	objectText: string
+): InteractiveDoor
+	local door = createPart(
+		parent,
+		name,
+		size,
+		closedCFrame,
+		color,
+		Enum.Material.WoodPlanks
+	)
+	door:SetAttribute("WorldInteraction", "Door")
+	local prompt = createPrompt(door, "Open", objectText, 0.15)
+	prompt.MaxActivationDistance = 10
+	local hinge = CFrame.new(-size.X / 2, 0, 0)
+	local openCFrame = closedCFrame
+		* hinge
+		* CFrame.Angles(0, math.rad(-102), 0)
+		* hinge:Inverse()
+	local state: InteractiveDoor = {
+		part = door,
+		prompt = prompt,
+		closedCFrame = closedCFrame,
+		openCFrame = openCFrame,
+		isOpen = false,
+	}
+	prompt.Triggered:Connect(function()
+		state.isOpen = not state.isOpen
+		prompt.ActionText = if state.isOpen then "Close" else "Open"
+		if state.isOpen then
+			door.CanCollide = false
+		end
+		TweenService:Create(
+			door,
+			DOOR_TWEEN,
+			{ CFrame = if state.isOpen then state.openCFrame else state.closedCFrame }
+		):Play()
+		if not state.isOpen then
+			task.delay(DOOR_TWEEN.Time, function()
+				if door.Parent and not state.isOpen then
+					door.CanCollide = true
+				end
+			end)
+		end
+	end)
+	return state
 end
 
 local function createSign(parent: BasePart, text: string, accent: Color3)
@@ -163,38 +283,127 @@ local function setFolderVisible(folder: Folder, visible: boolean)
 				visibleTransparency = descendant.Transparency
 				descendant:SetAttribute("VisibleTransparency", visibleTransparency)
 			end
+			local visibleCanCollide = descendant:GetAttribute("VisibleCanCollide")
+			if typeof(visibleCanCollide) ~= "boolean" then
+				visibleCanCollide = descendant.CanCollide
+				descendant:SetAttribute("VisibleCanCollide", visibleCanCollide)
+			end
+			local visibleCanTouch = descendant:GetAttribute("VisibleCanTouch")
+			if typeof(visibleCanTouch) ~= "boolean" then
+				visibleCanTouch = descendant.CanTouch
+				descendant:SetAttribute("VisibleCanTouch", visibleCanTouch)
+			end
+			local visibleCanQuery = descendant:GetAttribute("VisibleCanQuery")
+			if typeof(visibleCanQuery) ~= "boolean" then
+				visibleCanQuery = descendant.CanQuery
+				descendant:SetAttribute("VisibleCanQuery", visibleCanQuery)
+			end
 			descendant.Transparency = if visible then visibleTransparency else 1
-			descendant.CanCollide = visible
-			descendant.CanTouch = visible
-			descendant.CanQuery = visible
+			descendant.CanCollide = visible and visibleCanCollide
+			descendant.CanTouch = visible and visibleCanTouch
+			descendant.CanQuery = visible and visibleCanQuery
 		elseif descendant:IsA("ProximityPrompt") then
-			descendant.Enabled = visible
+			local visibleEnabled = descendant:GetAttribute("VisibleEnabled")
+			if typeof(visibleEnabled) ~= "boolean" then
+				visibleEnabled = descendant.Enabled
+				descendant:SetAttribute("VisibleEnabled", visibleEnabled)
+			end
+			descendant.Enabled = visible and visibleEnabled
 		elseif descendant:IsA("SurfaceGui") or descendant:IsA("BillboardGui") then
-			descendant.Enabled = visible
+			local visibleEnabled = descendant:GetAttribute("VisibleEnabled")
+			if typeof(visibleEnabled) ~= "boolean" then
+				visibleEnabled = descendant.Enabled
+				descendant:SetAttribute("VisibleEnabled", visibleEnabled)
+			end
+			descendant.Enabled = visible and visibleEnabled
 		elseif descendant:IsA("Light") then
-			descendant.Enabled = visible
+			local visibleEnabled = descendant:GetAttribute("VisibleEnabled")
+			if typeof(visibleEnabled) ~= "boolean" then
+				visibleEnabled = descendant.Enabled
+				descendant:SetAttribute("VisibleEnabled", visibleEnabled)
+			end
+			descendant.Enabled = visible and visibleEnabled
 		end
 	end
 end
 
-local function createCabin(parent: Instance, name: string, position: Vector3, width: number)
+local function createCabin(
+	parent: Instance,
+	name: string,
+	position: Vector3,
+	width: number
+): InteractiveDoor
 	local model = Instance.new("Model")
 	model.Name = name
 	model.Parent = parent
-	local body = createPart(
+
+	local wallColor = Color3.fromRGB(83, 59, 42)
+	local trimColor = Color3.fromRGB(54, 37, 27)
+	local floor = createPart(
 		model,
-		"Body",
-		Vector3.new(width, 10, 16),
-		CFrame.new(position + Vector3.new(0, 5, 0)),
-		Color3.fromRGB(83, 59, 42),
+		"Floor",
+		Vector3.new(width, 0.7, 16),
+		CFrame.new(position + Vector3.new(0, 0.35, 0)),
+		Color3.fromRGB(72, 51, 36),
 		Enum.Material.WoodPlanks
 	)
-	model.PrimaryPart = body
+	model.PrimaryPart = floor
 	createPart(
 		model,
-		"Roof",
-		Vector3.new(width + 3, 2, 19),
-		CFrame.new(position + Vector3.new(0, 11, 0)) * CFrame.Angles(0, 0, math.rad(4)),
+		"BackWall",
+		Vector3.new(width, 10, 0.7),
+		CFrame.new(position + Vector3.new(0, 5, 7.65)),
+		wallColor,
+		Enum.Material.WoodPlanks
+	)
+	for side = -1, 1, 2 do
+		createPart(
+			model,
+			"SideWall",
+			Vector3.new(0.7, 10, 16),
+			CFrame.new(position + Vector3.new(side * (width / 2 - 0.35), 5, 0)),
+			wallColor,
+			Enum.Material.WoodPlanks
+		)
+		createPart(
+			model,
+			"FrontWall",
+			Vector3.new((width - 5) / 2, 10, 0.7),
+			CFrame.new(
+				position
+					+ Vector3.new(
+						side * (width / 4 + 1.25),
+						5,
+						-7.65
+					)
+			),
+			wallColor,
+			Enum.Material.WoodPlanks
+		)
+	end
+	createPart(
+		model,
+		"DoorHeader",
+		Vector3.new(5, 2.4, 0.7),
+		CFrame.new(position + Vector3.new(0, 8.8, -7.65)),
+		wallColor,
+		Enum.Material.WoodPlanks
+	)
+	createPart(
+		model,
+		"RoofLeft",
+		Vector3.new(width / 2 + 2, 1.1, 19),
+		CFrame.new(position + Vector3.new(-width / 4, 11.1, 0))
+			* CFrame.Angles(0, 0, math.rad(-13)),
+		Color3.fromRGB(46, 42, 39),
+		Enum.Material.Slate
+	)
+	createPart(
+		model,
+		"RoofRight",
+		Vector3.new(width / 2 + 2, 1.1, 19),
+		CFrame.new(position + Vector3.new(width / 4, 11.1, 0))
+			* CFrame.Angles(0, 0, math.rad(13)),
 		Color3.fromRGB(46, 42, 39),
 		Enum.Material.Slate
 	)
@@ -206,14 +415,15 @@ local function createCabin(parent: Instance, name: string, position: Vector3, wi
 		Color3.fromRGB(77, 54, 37),
 		Enum.Material.WoodPlanks
 	)
-	createPart(
+	local doorState = createInteractiveDoor(
 		model,
 		"Door",
-		Vector3.new(4, 7, 0.6),
-		CFrame.new(position + Vector3.new(0, 3.5, -8.3)),
-		Color3.fromRGB(45, 30, 22),
-		Enum.Material.Wood
+		Vector3.new(4.4, 7.4, 0.5),
+		CFrame.new(position + Vector3.new(0, 4.05, -8.05)),
+		trimColor,
+		name
 	)
+
 	for side = -1, 1, 2 do
 		local window = createPart(
 			model,
@@ -232,6 +442,78 @@ local function createCabin(parent: Instance, name: string, position: Vector3, wi
 		light.Enabled = false
 		light.Parent = window
 	end
+
+	local interiorLamp = createPart(
+		model,
+		"InteriorLamp",
+		Vector3.new(1.2, 0.45, 1.2),
+		CFrame.new(position + Vector3.new(0, 9.4, 1.5)),
+		Color3.fromRGB(255, 211, 132),
+		Enum.Material.Neon
+	)
+	interiorLamp.CanCollide = false
+	local interiorLight = Instance.new("PointLight")
+	interiorLight.Name = "CabinLight"
+	interiorLight.Brightness = 1.25
+	interiorLight.Range = 21
+	interiorLight.Color = Color3.fromRGB(255, 220, 161)
+	interiorLight.Shadows = true
+	interiorLight.Enabled = false
+	interiorLight.Parent = interiorLamp
+	local lightPrompt = createPrompt(interiorLamp, "Switch On", name .. " lights", 0.1)
+	lightPrompt.Triggered:Connect(function()
+		interiorLight.Enabled = not interiorLight.Enabled
+		lightPrompt.ActionText = if interiorLight.Enabled then "Switch Off" else "Switch On"
+	end)
+
+	for side = -1, 1, 2 do
+		local bed = createPart(
+			model,
+			"BunkBed",
+			Vector3.new(5.5, 1.2, 9),
+			CFrame.new(position + Vector3.new(side * (width / 2 - 3.5), 1.5, 2)),
+			Color3.fromRGB(98, 80, 61),
+			Enum.Material.WoodPlanks
+		)
+		local mattress = createPart(
+			model,
+			"Mattress",
+			Vector3.new(5.1, 0.65, 8.4),
+			bed.CFrame + Vector3.new(0, 0.9, 0),
+			if side < 0
+				then Color3.fromRGB(103, 124, 113)
+				else Color3.fromRGB(118, 105, 91),
+			Enum.Material.Fabric
+		)
+		mattress.CanCollide = false
+	end
+
+	local tableTop = createPart(
+		model,
+		"CabinTable",
+		Vector3.new(6, 0.55, 4),
+		CFrame.new(position + Vector3.new(0, 3, 2)),
+		Color3.fromRGB(91, 64, 43),
+		Enum.Material.WoodPlanks
+	)
+	createInspectPrompt(
+		tableTop,
+		name .. " guest book",
+		"LAST ENTRY — lights out at 11:47 PM. Something scratched at the door."
+	)
+	createSign(
+		createPart(
+			model,
+			"CabinSign",
+			Vector3.new(math.min(width - 6, 14), 2.4, 0.35),
+			CFrame.new(position + Vector3.new(0, 9.5, -8.2)),
+			trimColor,
+			Enum.Material.Wood
+		),
+		string.upper(string.gsub(name, "(%l)(%u)", "%1 %2")),
+		Color3.fromRGB(226, 190, 114)
+	)
+	return doorState
 end
 
 local function createBuilding(
@@ -241,19 +523,67 @@ local function createBuilding(
 	size: Vector3,
 	color: Color3,
 	signText: string
-)
+): InteractiveDoor
 	local model = Instance.new("Model")
 	model.Name = name
 	model.Parent = parent
-	local body = createPart(
+	local floor = createPart(
 		model,
-		"Structure",
-		size,
-		CFrame.new(position + Vector3.new(0, size.Y / 2, 0)),
+		"Floor",
+		Vector3.new(size.X, 0.8, size.Z),
+		CFrame.new(position + Vector3.new(0, 0.4, 0)),
+		color,
+		Enum.Material.Concrete
+	)
+	model.PrimaryPart = floor
+	createPart(
+		model,
+		"BackWall",
+		Vector3.new(size.X, size.Y, 1),
+		CFrame.new(position + Vector3.new(0, size.Y / 2, size.Z / 2 - 0.5)),
 		color,
 		Enum.Material.Brick
 	)
-	model.PrimaryPart = body
+	for side = -1, 1, 2 do
+		createPart(
+			model,
+			"SideWall",
+			Vector3.new(1, size.Y, size.Z),
+			CFrame.new(position + Vector3.new(side * (size.X / 2 - 0.5), size.Y / 2, 0)),
+			color,
+			Enum.Material.Brick
+		)
+		createPart(
+			model,
+			"FrontWall",
+			Vector3.new((size.X - 6) / 2, size.Y, 1),
+			CFrame.new(
+				position
+					+ Vector3.new(
+						side * (size.X / 4 + 1.5),
+						size.Y / 2,
+						-size.Z / 2 + 0.5
+					)
+			),
+			color,
+			Enum.Material.Brick
+		)
+	end
+	createPart(
+		model,
+		"DoorHeader",
+		Vector3.new(6, math.max(2, size.Y - 8), 1),
+		CFrame.new(
+			position
+				+ Vector3.new(
+					0,
+					8 + math.max(2, size.Y - 8) / 2,
+					-size.Z / 2 + 0.5
+				)
+		),
+		color,
+		Enum.Material.Brick
+	)
 	createPart(
 		model,
 		"Roof",
@@ -261,6 +591,14 @@ local function createBuilding(
 		CFrame.new(position + Vector3.new(0, size.Y + 0.75, 0)),
 		Color3.fromRGB(41, 43, 46),
 		Enum.Material.Slate
+	)
+	local doorState = createInteractiveDoor(
+		model,
+		"Door",
+		Vector3.new(5.4, 7.6, 0.55),
+		CFrame.new(position + Vector3.new(0, 4.2, -size.Z / 2 - 0.05)),
+		Color3.fromRGB(54, 48, 42),
+		signText
 	)
 	local sign = createPart(
 		model,
@@ -281,6 +619,20 @@ local function createBuilding(
 			Enum.Material.WoodPlanks
 		)
 	end
+	local interiorCounter = createPart(
+		model,
+		"SearchCounter",
+		Vector3.new(math.min(12, size.X - 6), 3.5, 3),
+		CFrame.new(position + Vector3.new(0, 1.75, 3)),
+		Color3.fromRGB(66, 57, 49),
+		Enum.Material.WoodPlanks
+	)
+	createInspectPrompt(
+		interiorCounter,
+		signText .. " interior",
+		"Dust trails and fresh marks suggest someone searched this place before you."
+	)
+	return doorState
 end
 
 local function createStreetlight(parent: Instance, position: Vector3)
@@ -314,28 +666,150 @@ local function createPineTree(
 	height: number,
 	canopyColor: Color3
 )
-	local trunk = createPart(
+	local trunk = createCylinder(
 		parent,
 		"PineTrunk",
-		Vector3.new(2.4, height, 2.4),
-		CFrame.new(position + Vector3.new(0, height / 2, 0)),
+		Vector3.new(height, 2.4, 2.4),
+		CFrame.new(position + Vector3.new(0, height / 2, 0))
+			* CFrame.Angles(0, 0, math.rad(90)),
 		Color3.fromRGB(67, 50, 36),
 		Enum.Material.Wood
 	)
 	trunk:SetAttribute("Occluder", true)
-	for layer = 1, 3 do
+	for layer = 1, 5 do
+		local width = 13 - layer * 1.45
 		local canopy = createPart(
 			parent,
 			"PineCanopy",
-			Vector3.new(12 - layer * 1.8, 7, 12 - layer * 1.8),
-			CFrame.new(position + Vector3.new(0, height * 0.52 + layer * 3.2, 0)),
-			canopyColor,
+			Vector3.new(width, 5.2, width),
+			CFrame.new(
+				position
+					+ Vector3.new(
+						if layer % 2 == 0 then 0.7 else -0.5,
+						height * 0.42 + layer * 2.65,
+						if layer % 3 == 0 then 0.6 else -0.35
+					)
+			),
+			canopyColor:Lerp(Color3.fromRGB(26, 61, 39), layer * 0.035),
 			Enum.Material.Grass
 		)
 		canopy.Shape = Enum.PartType.Ball
 		canopy.CanCollide = false
 		canopy:SetAttribute("Occluder", true)
 	end
+end
+
+local function configureLighting()
+	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.32
+	Lighting.EnvironmentDiffuseScale = 0.35
+	Lighting.EnvironmentSpecularScale = 0.55
+
+	local atmosphere = Lighting:FindFirstChild("CampAtmosphere")
+	if not atmosphere or not atmosphere:IsA("Atmosphere") then
+		if atmosphere then
+			atmosphere:Destroy()
+		end
+		atmosphere = Instance.new("Atmosphere")
+		atmosphere.Name = "CampAtmosphere"
+		atmosphere.Parent = Lighting
+	end
+	atmosphere.Density = 0.22
+	atmosphere.Offset = 0.05
+	atmosphere.Color = Color3.fromRGB(199, 213, 200)
+	atmosphere.Decay = Color3.fromRGB(92, 111, 98)
+	atmosphere.Glare = 0.08
+	atmosphere.Haze = 1.15
+
+	local color = Lighting:FindFirstChild("CampColor")
+	if not color or not color:IsA("ColorCorrectionEffect") then
+		if color then
+			color:Destroy()
+		end
+		color = Instance.new("ColorCorrectionEffect")
+		color.Name = "CampColor"
+		color.Parent = Lighting
+	end
+	color.Brightness = 0.02
+	color.Contrast = 0.08
+	color.Saturation = -0.04
+	color.TintColor = Color3.fromRGB(255, 244, 221)
+
+	local bloom = Lighting:FindFirstChild("CampBloom")
+	if not bloom or not bloom:IsA("BloomEffect") then
+		if bloom then
+			bloom:Destroy()
+		end
+		bloom = Instance.new("BloomEffect")
+		bloom.Name = "CampBloom"
+		bloom.Parent = Lighting
+	end
+	bloom.Intensity = 0.22
+	bloom.Size = 24
+	bloom.Threshold = 1.15
+
+	local rays = Lighting:FindFirstChild("CampSunRays")
+	if not rays or not rays:IsA("SunRaysEffect") then
+		if rays then
+			rays:Destroy()
+		end
+		rays = Instance.new("SunRaysEffect")
+		rays.Name = "CampSunRays"
+		rays.Parent = Lighting
+	end
+	rays.Intensity = 0.08
+	rays.Spread = 0.75
+end
+
+local function hideDefaultBaseplate()
+	local baseplate = Workspace:FindFirstChild("Baseplate")
+	if baseplate and baseplate:IsA("BasePart") then
+		baseplate.Transparency = 1
+		baseplate.CanCollide = false
+		baseplate.CanTouch = false
+		baseplate.CanQuery = false
+		baseplate:SetAttribute("HiddenByCampMystery", true)
+	end
+end
+
+local function buildCampTerrain(parent: Instance)
+	local terrain = Workspace.Terrain
+	terrain:FillBlock(
+		CFrame.new(0, -3.5, 12),
+		Vector3.new(250, 8, 205),
+		Enum.Material.Grass
+	)
+	for index = 1, 14 do
+		local angle = (index / 14) * math.pi * 2
+		local radius = 105 + (index % 3) * 9
+		terrain:FillBall(
+			Vector3.new(
+				math.cos(angle) * radius,
+				-3 + (index % 2),
+				12 + math.sin(angle) * radius
+			),
+			20 + index % 4 * 2,
+			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+		)
+	end
+	terrain:FillBlock(
+		CFrame.new(104, -0.8, 12) * CFrame.Angles(0, 0.08, 0),
+		Vector3.new(31, 4.8, 170),
+		Enum.Material.Water
+	)
+
+	local bounds = createPart(
+		parent,
+		"CampGround",
+		Vector3.new(250, 1, 205),
+		CFrame.new(0, -3, 12),
+		Color3.fromRGB(59, 82, 52),
+		Enum.Material.Grass,
+		1
+	)
+	bounds.CanCollide = false
+	bounds.CanTouch = false
+	bounds.CanQuery = false
 end
 
 local function cloneAuthoredMap(folderName: string): Model?
@@ -377,7 +851,10 @@ function ProductionMapService.new(
 		onObjective = onObjective,
 		onEvidence = onEvidence,
 		evidenceClaimed = {},
+		interactiveDoors = {},
 	}, ProductionMapService)
+	hideDefaultBaseplate()
+	configureLighting()
 	self:Build()
 	self:ResetRound()
 	return self
@@ -389,86 +866,219 @@ function ProductionMapService:Build()
 		authoredCamp.Name = "AuthoredCamp"
 		authoredCamp.Parent = self.dayCamp
 	else
-		createPart(
-			self.dayCamp,
-			"CampGround",
-			Vector3.new(230, 1, 190),
-			CFrame.new(0, -0.5, 12),
-			Color3.fromRGB(59, 82, 52),
-			Enum.Material.Grass
-		)
+		buildCampTerrain(self.dayCamp)
 		local spawn = Instance.new("SpawnLocation")
 		spawn.Name = "CampSpawn"
 		spawn.Anchored = true
 		spawn.Neutral = true
 		spawn.Size = Vector3.new(10, 1, 10)
-		spawn.Position = Vector3.new(0, 0.5, 34)
+		spawn.Position = Vector3.new(0, 1, 34)
 		spawn.Color = Color3.fromRGB(106, 88, 64)
 		spawn.Material = Enum.Material.WoodPlanks
-			spawn.Transparency = 0.35
-			spawn.Parent = self.dayCamp
+		spawn.Transparency = 0.35
+		spawn.Parent = self.dayCamp
+		for segment = -3, 3 do
 			createPart(
 				self.dayCamp,
 				"CampPath",
-				Vector3.new(18, 0.35, 150),
-				CFrame.new(0, 0.2, 5),
+				Vector3.new(18 + math.abs(segment), 0.3, 28),
+				CFrame.new(
+					math.sin(segment * 0.85) * 3,
+					0.66,
+					segment * 24 + 5
+				) * CFrame.Angles(0, math.rad(math.sin(segment) * 4), 0),
 				Color3.fromRGB(117, 91, 64),
 				Enum.Material.Ground
 			)
-			local creek = createPart(
-				self.dayCamp,
-				"Creek",
-				Vector3.new(34, 0.4, 170),
-				CFrame.new(104, 0.1, 12) * CFrame.Angles(0, 0.08, 0),
-				Color3.fromRGB(69, 123, 139),
-				Enum.Material.Glass,
-				0.25
-			)
-			creek.CanCollide = false
-			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0, 18), 24)
-		createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0, 18), 24)
-		createCabin(self.dayCamp, "CounselorLodge", Vector3.new(0, 0, 74), 30)
-		createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 0, -42), 18)
+		end
+		table.insert(
+			self.interactiveDoors,
+			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0.5, 18), 24)
+		)
+		table.insert(
+			self.interactiveDoors,
+			createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0.5, 18), 24)
+		)
+		table.insert(
+			self.interactiveDoors,
+			createCabin(self.dayCamp, "CounselorLodge", Vector3.new(0, 0.5, 74), 30)
+		)
+		table.insert(
+			self.interactiveDoors,
+			createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 0.5, -42), 18)
+		)
 		local fire = createPart(
 			self.dayCamp,
 			"Campfire",
-			Vector3.new(8, 2, 8),
-			CFrame.new(0, 1, 2) * CFrame.Angles(0, 0, math.rad(90)),
+			Vector3.new(2, 8, 8),
+			CFrame.new(0, 1.5, 2) * CFrame.Angles(0, 0, math.rad(90)),
 			Color3.fromRGB(124, 78, 48),
 			Enum.Material.Slate
 		)
 		fire.Shape = Enum.PartType.Cylinder
 		fire:SetAttribute("SafeVolume", true)
-			for index = 1, 16 do
-				local angle = (index / 16) * math.pi * 2
-				local radius = 95 + (index % 3) * 8
-				createPineTree(
-					self.dayCamp,
-					Vector3.new(
-						math.cos(angle) * radius,
-						0,
-						12 + math.sin(angle) * radius
-					),
-					20 + index % 4 * 3,
-					if index % 2 == 0
-						then Color3.fromRGB(43, 85, 57)
-						else Color3.fromRGB(50, 94, 61)
-				)
-			end
+		local flame = Instance.new("Fire")
+		flame.Name = "CampFlame"
+		flame.Color = Color3.fromRGB(255, 170, 66)
+		flame.SecondaryColor = Color3.fromRGB(193, 65, 34)
+		flame.Heat = 8
+		flame.Size = 7
+		flame.Parent = fire
+		local fireLight = Instance.new("PointLight")
+		fireLight.Name = "FireLight"
+		fireLight.Brightness = 2.4
+		fireLight.Range = 32
+		fireLight.Color = Color3.fromRGB(255, 169, 82)
+		fireLight.Shadows = true
+		fireLight.Parent = fire
+		local firePrompt = createPrompt(fire, "Tend Fire", "Campfire", 0.35)
+		firePrompt.Triggered:Connect(function()
+			flame.Size = if flame.Size > 7 then 7 else 10
+			fireLight.Brightness = if fireLight.Brightness > 2.5 then 2.4 else 3.2
+		end)
+		for seatIndex = 1, 6 do
+			local angle = (seatIndex / 6) * math.pi * 2
+			local seat = Instance.new("Seat")
+			seat.Name = "CampfireSeat"
+			seat.Anchored = true
+			seat.Size = Vector3.new(5, 1.2, 2)
+			seat.CFrame = CFrame.new(
+				math.cos(angle) * 10,
+				1.2,
+				2 + math.sin(angle) * 10
+			) * CFrame.Angles(0, -angle + math.pi / 2, 0)
+			seat.Color = Color3.fromRGB(83, 59, 39)
+			seat.Material = Enum.Material.Wood
+			seat.Parent = self.dayCamp
+		end
+		for index = 1, 30 do
+			local angle = (index / 30) * math.pi * 2
+			local radius = 91 + (index % 4) * 9
+			createPineTree(
+				self.dayCamp,
+				Vector3.new(
+					math.cos(angle) * radius,
+					0.5,
+					12 + math.sin(angle) * radius
+				),
+				18 + index % 5 * 2.5,
+				if index % 2 == 0
+					then Color3.fromRGB(43, 85, 57)
+					else Color3.fromRGB(50, 94, 61)
+			)
+		end
+		for index = 1, 18 do
+			local angle = index * 2.17
+			local radius = 34 + (index % 5) * 10
+			local rock = createPart(
+				self.dayCamp,
+				"ForestRock",
+				Vector3.new(2.5 + index % 3, 1.6 + index % 2, 2.8 + (index + 1) % 3),
+				CFrame.new(
+					math.cos(angle) * radius,
+					1.1,
+					12 + math.sin(angle) * radius
+				) * CFrame.Angles(index * 0.27, angle, index * 0.11),
+				Color3.fromRGB(82, 88, 78),
+				Enum.Material.Slate
+			)
+			rock.CanCollide = false
+		end
 	end
 
 	for _, definition in OBJECTIVES do
-		local station = createPart(
-			self.objectivesFolder,
-			definition.id,
-			Vector3.new(9, 4, 9),
-			CFrame.new(definition.position),
+		local station = Instance.new("Model")
+		station.Name = definition.id
+		station:SetAttribute("ObjectiveId", definition.id)
+		station.Parent = self.objectivesFolder
+		local root = createPart(
+			station,
+			"InteractionRoot",
+			Vector3.new(8, 1.2, 8),
+			CFrame.new(definition.position + Vector3.new(0, -1.4, 0)),
 			definition.color,
 			Enum.Material.WoodPlanks
 		)
-		station:SetAttribute("ObjectiveId", definition.id)
-		station:SetAttribute("OriginalColor", definition.color)
-		local prompt = createPrompt(station, "Complete", definition.name, 1.1)
+		root:SetAttribute("OriginalColor", definition.color)
+		station.PrimaryPart = root
+		if definition.id == "firewood" then
+			for logIndex = 1, 6 do
+				local row = (logIndex - 1) % 3
+				local layer = math.floor((logIndex - 1) / 3)
+				createCylinder(
+					station,
+					"SplitLog",
+					Vector3.new(5.8, 1.05, 1.05),
+					CFrame.new(
+						definition.position
+							+ Vector3.new(0, layer * 1.15, row * 1.35 - 1.35)
+					),
+					Color3.fromRGB(116, 73, 42),
+					Enum.Material.Wood
+				)
+			end
+		elseif definition.id == "generator" then
+			local generator = createPart(
+				station,
+				"Generator",
+				Vector3.new(7, 5, 5),
+				CFrame.new(definition.position + Vector3.new(0, 0.55, 0)),
+				Color3.fromRGB(63, 75, 71),
+				Enum.Material.DiamondPlate
+			)
+			for vent = -1, 1, 2 do
+				createPart(
+					station,
+					"Vent",
+					Vector3.new(0.25, 2.2, 1.5),
+					generator.CFrame * CFrame.new(3.58, 0.5, vent * 1.35),
+					Color3.fromRGB(28, 33, 32),
+					Enum.Material.Metal
+				)
+			end
+			local statusLamp = createPart(
+				station,
+				"StatusLamp",
+				Vector3.new(0.45, 0.45, 0.45),
+				generator.CFrame * CFrame.new(3.7, 1.55, 0),
+				Color3.fromRGB(187, 72, 49),
+				Enum.Material.Neon
+			)
+			statusLamp:SetAttribute("CompletionIndicator", true)
+			statusLamp.CanCollide = false
+		else
+			for crateIndex = 1, 4 do
+				local x = if crateIndex % 2 == 0 then 2.2 else -2.2
+				local y = if crateIndex > 2 then 2.2 else 0
+				createPart(
+					station,
+					"SupplyCrate",
+					Vector3.new(4, 3.6, 4),
+					CFrame.new(definition.position + Vector3.new(x, y, 0)),
+					Color3.fromRGB(105, 78, 48),
+					Enum.Material.WoodPlanks
+				)
+			end
+		end
+		local marker = Instance.new("BillboardGui")
+		marker.Name = "ObjectiveMarker"
+		marker.Size = UDim2.fromOffset(190, 46)
+		marker.StudsOffset = Vector3.new(0, 5.5, 0)
+		marker.AlwaysOnTop = true
+		marker.MaxDistance = 100
+		marker.Parent = root
+		local markerText = Instance.new("TextLabel")
+		markerText.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+		markerText.BackgroundTransparency = 0.12
+		markerText.BorderSizePixel = 0
+		markerText.Size = UDim2.fromScale(1, 1)
+		markerText.Font = Enum.Font.GothamBold
+		markerText.Text = string.upper(definition.name)
+		markerText:SetAttribute("OriginalText", markerText.Text)
+		markerText.TextColor3 = Color3.fromRGB(244, 224, 176)
+		markerText.TextScaled = true
+		markerText.Parent = marker
+		local prompt = createPrompt(root, "Complete", definition.name, 1.1)
 		prompt.Triggered:Connect(function(player: Player)
 			self.onObjective(player, definition.id)
 		end)
@@ -479,54 +1089,62 @@ function ProductionMapService:Build()
 		authoredTown.Name = "AuthoredNightTown"
 		authoredTown.Parent = self.nightTown
 	else
+		createPart(
+			self.nightTown,
+			"TownGround",
+			Vector3.new(300, 1, 430),
+			CFrame.new(0, -0.5, -230),
+			Color3.fromRGB(47, 51, 48),
+			Enum.Material.Ground
+		)
+		createPart(
+			self.nightTown,
+				"MainRoad",
+				Vector3.new(50, 1, 360),
+				CFrame.new(0, 0.05, -225),
+				Color3.fromRGB(36, 39, 42),
+			Enum.Material.Asphalt
+		)
+		for stripe = 1, 10 do
 			createPart(
 				self.nightTown,
-			"MainRoad",
-			Vector3.new(50, 1, 360),
-			CFrame.new(0, 0, -225),
-			Color3.fromRGB(36, 39, 42),
-				Enum.Material.Asphalt
+				"FadedRoadStripe",
+				Vector3.new(0.55, 0.08, 14),
+				CFrame.new(0, 0.59, -62 - stripe * 32),
+				Color3.fromRGB(177, 164, 111),
+				Enum.Material.Concrete,
+				0.2
+			).CanCollide = false
+		end
+		for side = -1, 1, 2 do
+			createPart(
+				self.nightTown,
+				"BrokenSidewalk",
+				Vector3.new(8, 0.6, 350),
+				CFrame.new(side * 29, 0.35, -225),
+				Color3.fromRGB(83, 83, 79),
+				Enum.Material.Concrete
 			)
-			for stripe = 1, 10 do
-				createPart(
-					self.nightTown,
-					"FadedRoadStripe",
-					Vector3.new(0.55, 0.08, 14),
-					CFrame.new(0, 0.55, -62 - stripe * 32),
-					Color3.fromRGB(177, 164, 111),
-					Enum.Material.Concrete,
-					0.2
-				).CanCollide = false
-			end
-			for side = -1, 1, 2 do
-				createPart(
-					self.nightTown,
-					"BrokenSidewalk",
-					Vector3.new(8, 0.6, 350),
-					CFrame.new(side * 29, 0.3, -225),
-					Color3.fromRGB(83, 83, 79),
-					Enum.Material.Concrete
-				)
-			end
+		end
 		createPart(
 			self.nightTown,
 			"CrossRoad",
 			Vector3.new(260, 1, 42),
-			CFrame.new(0, 0.02, -190),
+			CFrame.new(0, 0.05, -190),
 			Color3.fromRGB(38, 41, 43),
 			Enum.Material.Asphalt
 		)
-		createBuilding(self.nightTown, "GeneralStore", Vector3.new(-73, 0, -185), Vector3.new(34, 19, 30), Color3.fromRGB(77, 72, 65), "GENERAL STORE")
-		createBuilding(self.nightTown, "GasStation", Vector3.new(75, 0, -185), Vector3.new(35, 16, 28), Color3.fromRGB(82, 76, 65), "LAST STOP GAS")
-		createBuilding(self.nightTown, "ResidentialA", Vector3.new(-100, 0, -135), Vector3.new(30, 17, 28), Color3.fromRGB(71, 67, 64), "RESIDENCE")
-		createBuilding(self.nightTown, "Factory", Vector3.new(-100, 0, -275), Vector3.new(48, 28, 45), Color3.fromRGB(64, 69, 70), "MILL NO. 7")
-		createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE")
-		createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE")
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GeneralStore", Vector3.new(-73, 0, -185), Vector3.new(34, 19, 30), Color3.fromRGB(77, 72, 65), "GENERAL STORE"))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GasStation", Vector3.new(75, 0, -185), Vector3.new(35, 16, 28), Color3.fromRGB(82, 76, 65), "LAST STOP GAS"))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "ResidentialA", Vector3.new(-100, 0, -135), Vector3.new(30, 17, 28), Color3.fromRGB(71, 67, 64), "RESIDENCE"))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Factory", Vector3.new(-100, 0, -275), Vector3.new(48, 28, 45), Color3.fromRGB(64, 69, 70), "MILL NO. 7"))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE"))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE"))
 		local tower = createPart(
 			self.nightTown,
 			"WaterTower",
-			Vector3.new(16, 25, 16),
-			CFrame.new(110, 22, -292),
+			Vector3.new(25, 16, 16),
+			CFrame.new(110, 22, -292) * CFrame.Angles(0, 0, math.rad(90)),
 			Color3.fromRGB(63, 72, 75),
 			Enum.Material.CorrodedMetal
 		)
@@ -563,22 +1181,95 @@ end
 
 function ProductionMapService:SetNight(isNight: boolean)
 	setFolderVisible(self.nightTown, isNight)
+	for _, descendant in self.dayCamp:GetDescendants() do
+		if descendant:IsA("SurfaceLight") then
+			descendant.Enabled = isNight
+		end
+	end
+
+	local atmosphere = Lighting:FindFirstChild("CampAtmosphere")
+	local color = Lighting:FindFirstChild("CampColor")
+	local bloom = Lighting:FindFirstChild("CampBloom")
+	local rays = Lighting:FindFirstChild("CampSunRays")
+	local transition = TweenInfo.new(
+		if isNight then 1.8 else 1.25,
+		Enum.EasingStyle.Sine,
+		Enum.EasingDirection.InOut
+	)
 	if isNight then
 		Lighting.ClockTime = 1.25
-		Lighting.Brightness = 0.8
-		Lighting.Ambient = NIGHT_AMBIENT
-		Lighting.OutdoorAmbient = Color3.fromRGB(15, 19, 31)
-		Lighting.FogColor = Color3.fromRGB(39, 48, 59)
-		Lighting.FogStart = 18
-		Lighting.FogEnd = 215
+		TweenService:Create(Lighting, transition, {
+			Brightness = 0.72,
+			Ambient = NIGHT_AMBIENT,
+			OutdoorAmbient = Color3.fromRGB(15, 19, 31),
+			FogColor = Color3.fromRGB(39, 48, 59),
+			FogStart = 18,
+			FogEnd = 235,
+		}):Play()
+		if atmosphere and atmosphere:IsA("Atmosphere") then
+			TweenService:Create(atmosphere, transition, {
+				Density = 0.43,
+				Offset = -0.08,
+				Color = Color3.fromRGB(91, 111, 125),
+				Decay = Color3.fromRGB(24, 29, 46),
+				Glare = 0,
+				Haze = 2.35,
+			}):Play()
+		end
+		if color and color:IsA("ColorCorrectionEffect") then
+			TweenService:Create(color, transition, {
+				Brightness = -0.09,
+				Contrast = 0.22,
+				Saturation = -0.32,
+				TintColor = Color3.fromRGB(154, 181, 205),
+			}):Play()
+		end
+		if bloom and bloom:IsA("BloomEffect") then
+			TweenService:Create(bloom, transition, {
+				Intensity = 0.42,
+				Threshold = 0.82,
+			}):Play()
+		end
+		if rays and rays:IsA("SunRaysEffect") then
+			rays.Enabled = false
+		end
 	else
 		Lighting.ClockTime = 14.2
-		Lighting.Brightness = 2.1
-		Lighting.Ambient = DAY_AMBIENT
-		Lighting.OutdoorAmbient = Color3.fromRGB(135, 142, 128)
-		Lighting.FogColor = Color3.fromRGB(188, 201, 188)
-		Lighting.FogStart = 0
-		Lighting.FogEnd = 100000
+		TweenService:Create(Lighting, transition, {
+			Brightness = 2.1,
+			Ambient = DAY_AMBIENT,
+			OutdoorAmbient = Color3.fromRGB(135, 142, 128),
+			FogColor = Color3.fromRGB(188, 201, 188),
+			FogStart = 0,
+			FogEnd = 100000,
+		}):Play()
+		if atmosphere and atmosphere:IsA("Atmosphere") then
+			TweenService:Create(atmosphere, transition, {
+				Density = 0.22,
+				Offset = 0.05,
+				Color = Color3.fromRGB(199, 213, 200),
+				Decay = Color3.fromRGB(92, 111, 98),
+				Glare = 0.08,
+				Haze = 1.15,
+			}):Play()
+		end
+		if color and color:IsA("ColorCorrectionEffect") then
+			TweenService:Create(color, transition, {
+				Brightness = 0.02,
+				Contrast = 0.08,
+				Saturation = -0.04,
+				TintColor = Color3.fromRGB(255, 244, 221),
+			}):Play()
+		end
+		if bloom and bloom:IsA("BloomEffect") then
+			TweenService:Create(bloom, transition, {
+				Intensity = 0.22,
+				Threshold = 1.15,
+			}):Play()
+		end
+		if rays and rays:IsA("SunRaysEffect") then
+			rays.Enabled = true
+		end
 	end
 end
 
@@ -592,11 +1283,28 @@ end
 
 function ProductionMapService:MarkObjectiveComplete(objectiveId: string)
 	local station = self.objectivesFolder:FindFirstChild(objectiveId)
-	if not station or not station:IsA("BasePart") then
+	if not station then
 		return
 	end
-	station.Color = Color3.fromRGB(63, 130, 78)
-	local prompt = station:FindFirstChildOfClass("ProximityPrompt")
+	local root = if station:IsA("Model")
+		then station:FindFirstChild("InteractionRoot")
+		else station
+	if root and root:IsA("BasePart") then
+		root.Color = Color3.fromRGB(63, 130, 78)
+	end
+	local indicator = station:FindFirstChild("StatusLamp", true)
+	if indicator and indicator:IsA("BasePart") then
+		indicator.Color = Color3.fromRGB(79, 214, 112)
+	end
+	local marker = station:FindFirstChild("ObjectiveMarker", true)
+	if marker and marker:IsA("BillboardGui") then
+		local label = marker:FindFirstChildOfClass("TextLabel")
+		if label then
+			label.Text = "COMPLETE"
+			label.TextColor3 = Color3.fromRGB(111, 239, 144)
+		end
+	end
+	local prompt = station:FindFirstChildWhichIsA("ProximityPrompt", true)
 	if prompt then
 		prompt.Enabled = false
 	end
@@ -604,15 +1312,33 @@ end
 
 function ProductionMapService:ResetObjectives()
 	for _, station in self.objectivesFolder:GetChildren() do
-		if station:IsA("BasePart") then
-			local original = station:GetAttribute("OriginalColor")
+		local root = if station:IsA("Model")
+			then station:FindFirstChild("InteractionRoot")
+			else station
+		if root and root:IsA("BasePart") then
+			local original = root:GetAttribute("OriginalColor")
 			if typeof(original) == "Color3" then
-				station.Color = original
+				root.Color = original
 			end
-			local prompt = station:FindFirstChildOfClass("ProximityPrompt")
-			if prompt then
-				prompt.Enabled = false
+		end
+		local indicator = station:FindFirstChild("StatusLamp", true)
+		if indicator and indicator:IsA("BasePart") then
+			indicator.Color = Color3.fromRGB(187, 72, 49)
+		end
+		local marker = station:FindFirstChild("ObjectiveMarker", true)
+		if marker and marker:IsA("BillboardGui") then
+			local label = marker:FindFirstChildOfClass("TextLabel")
+			if label then
+				local originalText = label:GetAttribute("OriginalText")
+				if type(originalText) == "string" then
+					label.Text = originalText
+				end
+				label.TextColor3 = Color3.fromRGB(244, 224, 176)
 			end
+		end
+		local prompt = station:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if prompt then
+			prompt.Enabled = false
 		end
 	end
 end
@@ -653,6 +1379,12 @@ end
 function ProductionMapService:ResetRound()
 	self:ClearEvidence()
 	self:ResetObjectives()
+	for _, door in self.interactiveDoors do
+		door.isOpen = false
+		door.part.CFrame = door.closedCFrame
+		door.part.CanCollide = true
+		door.prompt.ActionText = "Open"
+	end
 	self:SetNight(false)
 end
 
