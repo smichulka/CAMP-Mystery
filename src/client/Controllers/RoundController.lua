@@ -706,6 +706,9 @@ local function updateReleaseExperience(
 		and not roundEnded
 	if healthImproved then
 		currentEffects:ShowHealedEffect()
+		if currentView then
+			currentView:Notify("You've recovered", "You're no longer injured and can act freely.", "Success")
+		end
 	end
 	if currentHealthState ~= lastHealthState then
 		lastHealthState = currentHealthState
@@ -724,6 +727,13 @@ local function updateReleaseExperience(
 			currentCinematics:PlayImpactFlash()
 			if currentSeverity >= 2 then
 				currentCinematics:PlayScreenShake(0.5)
+			end
+		end
+		if currentView then
+			if currentSeverity >= 2 then
+				currentView:Notify("You're incapacitated", "You've been seriously wounded. You can barely move.", "DangerBright")
+			else
+				currentView:Notify("You've been injured", "You're hurt. Find help before it gets worse.", "Warning")
 			end
 		end
 	end
