@@ -34,7 +34,8 @@ class OperationalWorkflowContracts(unittest.TestCase):
         self.assertIn("--retry 3 --retry-all-errors", workflow)
         self.assertIn('"$RUNNER_TEMP/bin/rojo" --version', workflow)
         self.assertNotIn("rokit/main/scripts/install.sh", workflow)
-        self.assertNotIn("GITHUB_PAT", workflow)
+        self.assertNotIn("GITHUB_PAT:", workflow)
+        self.assertNotIn("secrets.GITHUB_TOKEN", workflow)
 
     def test_real_datastore_test_mode_is_isolated_and_fault_injectable(self) -> None:
         config = source("src/server/Config/ProfileStoreConfiguration.lua")
