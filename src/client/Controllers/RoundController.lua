@@ -81,6 +81,7 @@ local lastCinematicPhase: string? = nil
 local lastEvidenceFound = 0
 local lastCulpritEvidenceCount = 0
 local lastMonsterEvidenceCount = 0
+local lastRevealedWitnessCount = 0
 local receivedFullState = false
 local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
@@ -431,6 +432,11 @@ local function updateReleaseExperience(
 		end)
 	end
 	currentTutorial:Update(snapshot)
+	local reconnect = isReconnectSnapshot == true
+	local round = if type(snapshot) == "table" then snapshot.round else nil
+	local phaseName = if type(round) == "table" and type(round.phase) == "string"
+		then round.phase
+		else nil
 	local evidenceFound = evidenceFoundCount(snapshot)
 	local culpritEvidence = evidenceList(snapshot, "culpritEvidence")
 	local monsterEvidence = evidenceList(snapshot, "monsterEvidence")
@@ -449,11 +455,26 @@ local function updateReleaseExperience(
 	lastEvidenceFound = evidenceFound
 	lastCulpritEvidenceCount = #culpritEvidence
 	lastMonsterEvidenceCount = #monsterEvidence
+	local mystery = if type(snapshot) == "table" then snapshot.mystery else nil
+	local revealedWitnessCount = readNumber(mystery, "revealedWitnessCount", 0)
+	local totalWitnessCount = math.max(1, readNumber(mystery, "totalWitnessCount", 1))
+	if revealedWitnessCount > lastRevealedWitnessCount
+		and not reconnect
+		and phaseName == "Day"
+		and currentView
+	then
+		currentView:Notify(
+			"Witness interviewed",
+			string.format(
+				"%d of %d witnesses spoken to.",
+				revealedWitnessCount,
+				totalWitnessCount
+			),
+			"Info"
+		)
+	end
+	lastRevealedWitnessCount = revealedWitnessCount
 	currentEffects:Update(snapshot)
-	local round = if type(snapshot) == "table" then snapshot.round else nil
-	local phaseName = if type(round) == "table" and type(round.phase) == "string"
-		then round.phase
-		else nil
 	updateInvestigationUrgencyWarning(snapshot)
 	local roundNumber = if type(round) == "table"
 			and type(round.roundNumber) == "number"
@@ -465,7 +486,6 @@ local function updateReleaseExperience(
 	end
 	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local localParticipantId = readString(player, "participantId", "")
-	local reconnect = isReconnectSnapshot == true
 	-- Detect participant connect/disconnect transitions.
 	local participants = if type(snapshot) == "table"
 			and type(snapshot.participants) == "table"
@@ -913,6 +933,9 @@ function RoundController.Start()
 				lastEvidenceFound = evidenceFoundCount(payload)
 				lastCulpritEvidenceCount = #evidenceList(payload, "culpritEvidence")
 				lastMonsterEvidenceCount = #evidenceList(payload, "monsterEvidence")
+				local reconnectMystery = if type(payload) == "table" then payload.mystery else nil
+				lastRevealedWitnessCount =
+					readNumber(reconnectMystery, "revealedWitnessCount", 0)
 				local reconnectPhase = if type(round) == "table"
 						and type(round.phase) == "string"
 					then round.phase
@@ -1078,6 +1101,7 @@ function RoundController.Stop()
 	lastEvidenceFound = 0
 	lastCulpritEvidenceCount = 0
 	lastMonsterEvidenceCount = 0
+	lastRevealedWitnessCount = 0
 	receivedFullState = false
 	lastRoleRevealRound = nil
 	lastWinnerAnnounced = nil
