@@ -42,6 +42,10 @@ def main() -> None:
         [sys.executable, "scripts/test_server_release_contracts.py"],
     )
     run(
+        "Operational workflow contract tests",
+        [sys.executable, "scripts/test_operational_workflow.py"],
+    )
+    run(
         "Client release contract tests",
         [sys.executable, "scripts/test_client_release.py"],
     )
