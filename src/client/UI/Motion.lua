@@ -7,6 +7,7 @@ local Theme = require(script.Parent:WaitForChild("Theme"))
 export type TransitionConfig = {
 	duration: number?,
 	distance: number?,
+	scale: number?,
 	reducedMotion: boolean?,
 	easingStyle: Enum.EasingStyle?,
 	easingDirection: Enum.EasingDirection?,
@@ -56,6 +57,13 @@ local function safeDistance(value: number?, fallback: number): number
 		return fallback
 	end
 	return math.clamp(value, 0, 160)
+end
+
+local function safeScale(value: number?, fallback: number): number
+	if value == nil or value ~= value or math.abs(value) == math.huge then
+		return fallback
+	end
+	return math.clamp(value, 0.1, 3)
 end
 
 local function callback(record: TransitionRecord, completed: boolean)
@@ -320,6 +328,7 @@ local function pop(
 		resolved.duration,
 		if reduced then Theme.Motion.ReducedFadeDuration else Theme.Motion.PopDuration
 	)
+	local popScale = safeScale(resolved.scale, Theme.Motion.PopScale)
 	local properties = fadeProperties(target)
 	local scale = motionScale(target)
 	local record = begin(target, resolved.onComplete, function()
@@ -342,11 +351,11 @@ local function pop(
 	addFadeTweens(record, properties, tweenInfo, not appearing)
 
 	if not reduced then
-		scale.Scale = if appearing then Theme.Motion.PopScale else 1
+		scale.Scale = if appearing then popScale else 1
 		table.insert(
 			record.tweens,
 			TweenService:Create(scale, tweenInfo, {
-				Scale = if appearing then 1 else Theme.Motion.PopScale,
+				Scale = if appearing then 1 else popScale,
 			})
 		)
 	end
