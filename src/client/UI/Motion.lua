@@ -42,9 +42,6 @@ local Motion = {}
 local activeTransitions = setmetatable({}, { __mode = "k" }) :: {
 	[GuiObject]: TransitionRecord,
 }
-local transparencyBaselines = setmetatable({}, { __mode = "k" }) :: {
-	[Instance]: { [string]: number },
-}
 local reducedMotionProvider: (() -> boolean)? = nil
 
 local function safeDuration(value: number?, fallback: number): number
@@ -168,68 +165,67 @@ local function play(record: TransitionRecord): RBXScriptSignal
 	return record.completion.Event
 end
 
-local function baseline(instance: Instance, property: string, value: number): number
-	local properties = transparencyBaselines[instance]
-	if not properties then
-		properties = {}
-		transparencyBaselines[instance] = properties
-	end
-	local stored = properties[property]
-	if stored == nil then
-		properties[property] = value
-		return value
-	end
-	return stored
-end
-
 local function addFadeProperties(properties: { FadeProperty }, instance: Instance)
 	if instance:IsA("GuiObject") then
 		table.insert(properties, {
 			instance = instance,
 			property = "BackgroundTransparency",
-			value = baseline(instance, "BackgroundTransparency", instance.BackgroundTransparency),
+			value = instance.BackgroundTransparency,
 		})
 	end
 	if instance:IsA("TextLabel") or instance:IsA("TextButton") or instance:IsA("TextBox") then
 		table.insert(properties, {
 			instance = instance,
 			property = "TextTransparency",
-			value = baseline(instance, "TextTransparency", instance.TextTransparency),
+			value = instance.TextTransparency,
 		})
 		table.insert(properties, {
 			instance = instance,
 			property = "TextStrokeTransparency",
-			value = baseline(instance, "TextStrokeTransparency", instance.TextStrokeTransparency),
+			value = instance.TextStrokeTransparency,
 		})
 	end
 	if instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
 		table.insert(properties, {
 			instance = instance,
 			property = "ImageTransparency",
-			value = baseline(instance, "ImageTransparency", instance.ImageTransparency),
+			value = instance.ImageTransparency,
 		})
 	end
 	if instance:IsA("UIStroke") then
 		table.insert(properties, {
 			instance = instance,
 			property = "Transparency",
-			value = baseline(instance, "Transparency", instance.Transparency),
+			value = instance.Transparency,
 		})
 	end
 	if instance:IsA("CanvasGroup") then
 		table.insert(properties, {
 			instance = instance,
 			property = "GroupTransparency",
-			value = baseline(instance, "GroupTransparency", instance.GroupTransparency),
+			value = instance.GroupTransparency,
 		})
 	end
+end
+
+local function isVisibleDescendant(instance: Instance, target: GuiObject): boolean
+	local current: Instance? = instance
+	while current and current ~= target do
+		if current:IsA("GuiObject") and not current.Visible then
+			return false
+		end
+		current = current.Parent
+	end
+	return true
 end
 
 local function fadeProperties(target: GuiObject): { FadeProperty }
 	local properties: { FadeProperty } = {}
 	addFadeProperties(properties, target)
 	for _, descendant in target:GetDescendants() do
-		addFadeProperties(properties, descendant)
+		if isVisibleDescendant(descendant, target) then
+			addFadeProperties(properties, descendant)
+		end
 	end
 	return properties
 end
