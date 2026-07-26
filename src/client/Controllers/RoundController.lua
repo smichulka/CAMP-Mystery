@@ -133,6 +133,13 @@ local function evidenceFoundCount(snapshot: any): number
 	return 0
 end
 
+local function readString(value: any, key: string, fallback: string): string
+	if type(value) == "table" and type(value[key]) == "string" then
+		return value[key]
+	end
+	return fallback
+end
+
 local function evidenceCopy(entry: any): (string, string)
 	if type(entry) ~= "table" then
 		return "New evidence found", ""
@@ -373,11 +380,44 @@ local function handleActionResult(payload: any)
 					dialogueText = dialogue.text
 				end
 			end
-			currentView:Notify(
-				if dialogueText then "Counselor interview" else "Action complete",
-				dialogueText or reason or "The server confirmed your action.",
-				"Success"
-			)
+			if dialogueText then
+				local counselorId = if type(result.data) == "table"
+						and type(result.data.dialogue) == "table"
+						and type(result.data.dialogue.counselorId) == "string"
+					then result.data.dialogue.counselorId
+					else nil
+				local topic = if type(result.data) == "table"
+						and type(result.data.dialogue) == "table"
+						and type(result.data.dialogue.topic) == "string"
+					then result.data.dialogue.topic
+					else "Observation"
+				local counselorDisplayName = "Counselor"
+				local currentState = state
+				if counselorId
+					and type(currentState) == "table"
+					and type(currentState.counselors) == "table"
+					and type(currentState.counselors.counselors) == "table"
+				then
+					for _, entry in currentState.counselors.counselors do
+						if type(entry) == "table" and entry.counselorId == counselorId then
+							counselorDisplayName =
+								readString(entry, "displayName", counselorDisplayName)
+							break
+						end
+					end
+				end
+				currentView:ShowCounselorDialogue(
+					counselorDisplayName,
+					topic,
+					dialogueText
+				)
+			else
+				currentView:Notify(
+					"Action complete",
+					reason or "The server confirmed your action.",
+					"Success"
+				)
+			end
 		end
 	elseif currentView then
 		currentView:HandleActionResult(false)
@@ -399,6 +439,12 @@ function RoundController.Start()
 		return assetController:Resolve(key)
 	end)
 	view = gameView
+	gameView:SetAudioSettingCallback(function(key: string, value: any)
+		local currentAudio = audio
+		if currentAudio then
+			currentAudio:ApplySettingImmediate(key, value)
+		end
+	end)
 	local releaseEffects = EffectsViewModule.new(gameView.root)
 	effects = releaseEffects
 	local cinematicsController = CinematicsController.new(
