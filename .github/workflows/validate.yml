@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - master
 
 permissions:
   contents: read
@@ -20,9 +19,14 @@ jobs:
           python-version: "3.12"
       - name: Install Rokit and pinned project tools
         shell: bash
+        env:
+          GITHUB_PAT: ${{ github.token }}
         run: |
-          curl -sSf https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/rojo-rbx/rokit/v1.2.0/scripts/install.sh \
+            | bash -s -- 1.2.0
           echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+          "$HOME/.rokit/bin/rokit" --version
           "$HOME/.rokit/bin/rokit" install
       - name: Run repository checks and write scoped evidence
         run: python scripts/release_gate.py --require-rojo --commit "$GITHUB_SHA"
