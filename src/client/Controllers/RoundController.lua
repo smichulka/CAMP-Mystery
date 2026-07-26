@@ -13,6 +13,7 @@ local GameViewModule = require(uiFolder:WaitForChild("GameView"))
 local EffectsViewModule = require(uiFolder:WaitForChild("EffectsView"))
 local Motion = require(uiFolder:WaitForChild("Motion"))
 local NametagsView = require(uiFolder:WaitForChild("NametagsView"))
+local PlayerStatusViewModule = require(uiFolder:WaitForChild("PlayerStatusView"))
 local AccessibilityController = require(script.Parent:WaitForChild("AccessibilityController"))
 local AudioController = require(script.Parent:WaitForChild("AudioController"))
 local CameraControllerModule = require(script.Parent:WaitForChild("CameraController"))
@@ -71,6 +72,7 @@ local camera: CameraController? = nil
 local cinematics: any = nil
 local effects: any = nil
 local nametags: any = nil
+local playerStatus: any = nil
 local tutorial: any = nil
 local uiAssets: UIAssetController? = nil
 local proximity: ProximityController? = nil
@@ -353,6 +355,24 @@ local function refresh()
 		local phaseName = readString(round, "phase", "")
 		local localParticipantId = readString(player, "participantId", "")
 		currentNametags:Update(participants, localParticipantId, phaseName)
+	end
+	local currentPlayerStatus = playerStatus
+	if currentPlayerStatus then
+		local snapshot: any = state
+		local round = if type(snapshot) == "table" and type(snapshot.round) == "table"
+			then snapshot.round
+			elseif type(legacyRound) == "table" then legacyRound
+			else nil
+		local player = if type(snapshot) == "table" and type(snapshot.player) == "table"
+			then snapshot.player
+			elseif type(legacyPlayer) == "table" then legacyPlayer
+			else nil
+		local participants = if type(snapshot) == "table"
+				and type(snapshot.participants) == "table"
+			then snapshot.participants
+			else {}
+		local phaseName = readString(round, "phase", "Lobby")
+		currentPlayerStatus:Update(participants, player, phaseName)
 	end
 end
 
@@ -731,6 +751,8 @@ function RoundController.Start()
 	end)
 	local releaseEffects = EffectsViewModule.new(gameView.root)
 	effects = releaseEffects
+	local releasePlayerStatus = PlayerStatusViewModule.new(gameView.root)
+	playerStatus = releasePlayerStatus
 	local cinematicsController = CinematicsController.new(
 		gameView.root,
 		function(intensity: number)
@@ -841,6 +863,12 @@ function RoundController.Start()
 		toggleSettings = function()
 			gameView:ToggleSettings()
 		end,
+		togglePlayerStatus = function()
+			local current = playerStatus
+			if current then
+				current:Toggle()
+			end
+		end,
 		activateSlot = function(slot: number)
 			gameView:ActivateInventorySlot(slot)
 		end,
@@ -852,6 +880,10 @@ function RoundController.Start()
 		end,
 		closeModal = function()
 			gameView:CloseModal()
+			local current = playerStatus
+			if current and current.visible == true then
+				current:Toggle()
+			end
 		end,
 	})
 
@@ -891,6 +923,10 @@ function RoundController.Stop()
 	if nametags then
 		nametags:Destroy()
 		nametags = nil
+	end
+	if playerStatus then
+		playerStatus:Destroy()
+		playerStatus = nil
 	end
 	InputController.Stop()
 	for _, connection in interactionConnections do
