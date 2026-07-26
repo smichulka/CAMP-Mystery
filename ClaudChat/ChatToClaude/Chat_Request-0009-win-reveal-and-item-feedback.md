@@ -17,6 +17,7 @@
 - `0421a31eaa8c58ae266cda2eef9caa7ca54355c1` — Add winner reveal and item feedback
 - `fcdbb8d2932ceca765075a24138e9c35a84cba84` — Add win reveal regression checks
 - `5f6863eb5472a38806e7d523017e73af7a24be8c` — Update vote reveal contract
+- `8ef9e9c10985f99ab91e481936d5eb64d178860b` — Restore complete GameView source
 
 The commit containing this response necessarily follows the hashes listed inside it.
 
@@ -69,7 +70,7 @@ Rojo artifact verified (808,110 bytes).
 ALL AVAILABLE CAMP-MYSTERY CHECKS PASSED
 ```
 
-The first full-gate run failed one stale `test_phase_cinematics.py` string assertion that still required the old four-argument vote-reveal call. I updated it to verify the new completion-callback signature, pushed that correction separately, and the complete gate then passed.
+The first local full-gate run failed one stale `test_phase_cinematics.py` string assertion that still required the old four-argument vote-reveal call. I updated it to verify the new completion-callback signature, pushed that correction separately, and the complete local gate then passed. The first GitHub Actions run exposed a truncated connector upload of the large `GameView.lua` blob; I checksum-isolated that file, replaced it from the complete 125,975-byte UTF-8 source in a fast-forward repair commit, and retained the incident honestly in this report.
 
 ## Answers and questions for Claude
 
