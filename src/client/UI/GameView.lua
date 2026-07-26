@@ -38,6 +38,7 @@ type GameViewState = {
 	notebookButton: TextButton?,
 	notebookBadge: TextLabel?,
 	lastSeenEvidenceCount: number,
+	lastEvidenceCountForPop: number,
 	settingsButton: TextButton?,
 	actionHandler: ActionHandler,
 	resolveImage: ImageResolver,
@@ -146,6 +147,7 @@ type GameViewState = {
 	keybindHintToken: number,
 	keybindHintOverlay: CanvasGroup?,
 	lastCooldownText: string?,
+	lastCooldownActive: boolean,
 	roleActionBaseText: string,
 	lastAnimatedXP: number,
 	lastAnimatedTokens: number,
@@ -725,6 +727,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		notebookButton = nil,
 		notebookBadge = nil,
 		lastSeenEvidenceCount = 0,
+		lastEvidenceCountForPop = 0,
 		settingsButton = nil,
 		actionHandler = actionHandler,
 		resolveImage = imageResolver or function(_key: string): string?
@@ -835,6 +838,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		keybindHintToken = 0,
 		keybindHintOverlay = nil,
 		lastCooldownText = nil,
+		lastCooldownActive = false,
 		roleActionBaseText = "ABILITY UNAVAILABLE",
 		lastAnimatedXP = -1,
 		lastAnimatedTokens = -1,
@@ -3677,9 +3681,8 @@ function GameView:Tick()
 			and type(self.currentState.player) == "table"
 		then self.currentState.player
 		else nil
-	local cooldownText: string? = nil
-	local minimumRemaining = math.huge
-	if not self.ghostMode and self.roleAction.Active and type(player) == "table" then
+	local trackedMinimumRemaining = math.huge
+	if type(player) == "table" then
 		local cooldowns = if type(player.abilityCooldownEndsAt) == "table"
 			then player.abilityCooldownEndsAt
 			else nil
@@ -3690,20 +3693,34 @@ function GameView:Tick()
 					if type(cooldownEndsAt) == "number"
 						and cooldownEndsAt > currentTime
 					then
-						minimumRemaining = math.min(
-							minimumRemaining,
+						trackedMinimumRemaining = math.min(
+							trackedMinimumRemaining,
 							cooldownEndsAt - currentTime
 						)
 					end
 				end
 			end
 		end
-		if minimumRemaining < math.huge then
-			cooldownText = string.format(
-				"READY IN %ds",
-				math.ceil(minimumRemaining)
-			)
+	end
+	local cooldownNowActive = trackedMinimumRemaining < math.huge
+		and trackedMinimumRemaining > 0
+	if not cooldownNowActive and self.lastCooldownActive then
+		if not Motion.IsReducedMotion(self.root) then
+			Motion.PopIn(self.roleAction, { duration = 0.18, scale = 1.12 })
 		end
+		HapticController.Click()
+	end
+	self.lastCooldownActive = cooldownNowActive
+
+	local minimumRemaining = if not self.ghostMode and self.roleAction.Active
+		then trackedMinimumRemaining
+		else math.huge
+	local cooldownText: string? = nil
+	if minimumRemaining < math.huge then
+		cooldownText = string.format(
+			"READY IN %ds",
+			math.ceil(minimumRemaining)
+		)
 	end
 	if cooldownText then
 		if self.lastCooldownText ~= cooldownText
@@ -3750,8 +3767,14 @@ function GameView:Tick()
 		if newCount > 0 and not modalTargetVisible(self.notebook) then
 			self.notebookBadge.Text = tostring(math.min(newCount, 9))
 			self.notebookBadge.Visible = true
+			local previousCount = self.lastEvidenceCountForPop
+			self.lastEvidenceCountForPop = newCount
+			if newCount > previousCount and not Motion.IsReducedMotion(self.root) then
+				Motion.PopIn(self.notebookBadge, { duration = 0.22, scale = 1.28 })
+			end
 		else
 			self.notebookBadge.Visible = false
+			self.lastEvidenceCountForPop = 0
 		end
 	end
 end
