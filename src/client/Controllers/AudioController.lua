@@ -299,6 +299,30 @@ function AudioController:_switchLoop(channel: string, name: string?)
 	end
 end
 
+function AudioController:_updateGroupVolumes()
+	local master = clampVolume(self.settings.masterVolume, DEFAULT_SETTINGS.masterVolume)
+	self.groups.Music.Volume = master * clampVolume(self.settings.musicVolume, DEFAULT_SETTINGS.musicVolume)
+	self.groups.Ambience.Volume = master * clampVolume(
+		self.settings.ambienceVolume,
+		DEFAULT_SETTINGS.ambienceVolume
+	)
+	self.groups.Effects.Volume = master * clampVolume(self.settings.effectsVolume, DEFAULT_SETTINGS.effectsVolume)
+	self.groups.UI.Volume = master * clampVolume(self.settings.uiVolume, DEFAULT_SETTINGS.uiVolume)
+end
+
+function AudioController:ApplySettingImmediate(key: string, value: any)
+	if type(key) ~= "string" then
+		return
+	end
+	self.settings = table.clone(self.settings)
+	self.settings[key] = value
+	self:_updateGroupVolumes()
+end
+
+function AudioController:GetSettings(): { [string]: any }
+	return table.clone(self.settings)
+end
+
 function AudioController:ApplySettings(settings: any)
 	if type(settings) ~= "table" then
 		return
@@ -315,14 +339,7 @@ function AudioController:ApplySettings(settings: any)
 		end
 	end
 
-	local master = clampVolume(self.settings.masterVolume, DEFAULT_SETTINGS.masterVolume)
-	self.groups.Music.Volume = master * clampVolume(self.settings.musicVolume, DEFAULT_SETTINGS.musicVolume)
-	self.groups.Ambience.Volume = master * clampVolume(
-		self.settings.ambienceVolume,
-		DEFAULT_SETTINGS.ambienceVolume
-	)
-	self.groups.Effects.Volume = master * clampVolume(self.settings.effectsVolume, DEFAULT_SETTINGS.effectsVolume)
-	self.groups.UI.Volume = master * clampVolume(self.settings.uiVolume, DEFAULT_SETTINGS.uiVolume)
+	self:_updateGroupVolumes()
 	self.settings.subtitles = self.settings.subtitles ~= false
 	self:SetHeartbeatIntensity(self.heartbeatIntensity)
 end
