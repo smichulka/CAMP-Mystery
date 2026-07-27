@@ -416,6 +416,36 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn('and hintRole ~= "Spectator"', controller)
         self.assertIn('and hintRole == "Murderer"', controller)
 
+    def test_request_0092_spectator_tutorial_step_and_role_skip_logic(self) -> None:
+        tutorial = read("src/client/Controllers/TutorialController.lua")
+        # Spectator tutorial step content
+        for token in (
+            'id = "spectator"',
+            'context = "Spectator"',
+            '"You Joined Late"',
+            '"This round is already underway. You can observe the current game',
+            '"WATCH THE ROUND \xe2\x80\x94 YOU PLAY NEXT"',
+        ):
+            self.assertIn(token, tutorial) if '\xe2\x80\x94' not in token else self.assertIn(
+                token.replace('\xe2\x80\x94', '—'),
+                tutorial,
+            )
+        # The step is only relevant for Spectators
+        self.assertIn("step.id == TutorialController.StepIds.Spectator", tutorial)
+        self.assertIn("if role ~= \"Spectator\" then", tutorial)
+        # camperEquivalent and murdererStep skip logic is complete
+        for step_id in (
+            "MurderPlanningMurderer",
+            "NightTransformMurderer",
+            "InvestigationMurderer",
+            "VoteMurderer",
+            "MurderPlanning",
+            "NightTransform",
+            "Investigation",
+            "Vote",
+        ):
+            self.assertIn(f'TutorialController.StepIds.{step_id}', tutorial)
+
     def test_request_0089_player_status_view_observer_inspect_and_status_dot(self) -> None:
         roster = read("src/client/UI/PlayerStatusView.lua")
         # statusFor: Ghost maps to "GHOST" status with Ghost color
