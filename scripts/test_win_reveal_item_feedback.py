@@ -137,5 +137,36 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
         self.assertIn("Motion.PopIn(control, { duration = 0.14 })", equip)
 
 
+    def test_request_0086_vote_and_target_modal_role_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Vote warning label differs by role
+        for token in (
+            '"One vote. No take-backs. A tie breaks in your favor."',
+            '"One vote. No take-backs. A tie favors the Murderer."',
+        ):
+            self.assertIn(token, view)
+        # Vote modal title differs by role
+        for token in (
+            '"CAMPFIRE VOTE"',
+            '"CAMPFIRE ACCUSATION"',
+        ):
+            self.assertIn(token, view)
+        # Vote-required close notification body differs by role
+        for token in (
+            '"Name someone before the fire goes out. Redirect suspicion — every vote matters."',
+            '"Choose one suspect before the fire goes out."',
+        ):
+            self.assertIn(token, view)
+        # Target modal title and no-target body differ by role
+        for token in (
+            '"Choose your target."',
+            '"Choose the living player affected by this action."',
+            '"No selectable target"',
+            "No targets available",
+            '"This action requires at least one other living player and was not sent."',
+        ):
+            self.assertIn(token, view)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
