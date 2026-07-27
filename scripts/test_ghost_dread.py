@@ -199,5 +199,30 @@ class GhostDreadTests(unittest.TestCase):
             self.assertIn(token, controller)
 
 
+    def test_request_0091_effects_view_status_copy_and_ghost_detection(self) -> None:
+        effects = read("src/client/UI/EffectsView.lua")
+        # STATUS_COPY table has Ghost entry mapping to "SPIRIT STATE"
+        for token in (
+            'Ghost = { label = "SPIRIT STATE", color = Theme.Colors.Ghost }',
+            'MonsterActive = { label = "THE MONSTER IS ACTIVE", color = Theme.Colors.DangerBright }',
+            'Incapacitated = { label = "INCAPACITATED", color = Theme.Colors.DangerBright }',
+            'Injured = { label = "INJURED", color = Theme.Colors.Danger }',
+        ):
+            self.assertIn(token, effects)
+        # PULSE_STATUSES marks the high-urgency statuses
+        for token in ("Injured = true", "Incapacitated = true", "Bleeding = true", "Latched = true"):
+            self.assertIn(token, effects)
+        # readStatus checks combat.isGhost before healthState, then player.isGhost
+        read_start = effects.index("local function readStatus(state: any)")
+        read_end = effects.index("if type(state.monster)", read_start)
+        read_fn = effects[read_start:read_end]
+        self.assertIn("combat.isGhost == true", read_fn)
+        self.assertIn("player.isGhost == true", read_fn)
+        self.assertLess(
+            read_fn.index("combat.isGhost == true"),
+            read_fn.index("combat.healthState"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
