@@ -3561,6 +3561,107 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('asset:IsA("ImageButton")', res_fn)
         self.assertIn('asset:GetAttribute("AssetId")', res_fn)
 
+    def test_request_0163_remote_bridge_emit_bind_has_action_request_and_destroy(
+        self,
+    ) -> None:
+        bridge = (
+            ROOT / "src" / "client" / "Controllers" / "RemoteBridge.lua"
+        ).read_text(encoding="utf-8")
+
+        # --- Channel and action tables wired correctly ---
+        # SNAPSHOT_EVENTS: game channel receives GameStateChanged
+        self.assertIn('GameStateChanged = "game"', bridge)
+        # GETTERS: GetGameState maps to game channel
+        self.assertIn('GetGameState = "game"', bridge)
+        # ACTION_REMOTES: production path for UseRoleAbility
+        self.assertIn('UseRoleAbility = { "RoleAction"', bridge)
+        # Vote uses payload.targetKey (not raw payload)
+        self.assertIn('remote:FireServer(payload.targetKey)', bridge)
+        # Ready uses payload.ready
+        self.assertIn('remote:FireServer(payload.ready)', bridge)
+
+        # --- _emit: destroyed guard; game channel sets productionReady; pcall wraps handlers ---
+        emit_start = bridge.index("function RemoteBridge:_emit(")
+        emit_end = bridge.index("\nfunction RemoteBridge:_bind(", emit_start)
+        emit_fn = bridge[emit_start:emit_end]
+        self.assertIn("if self.destroyed then", emit_fn)
+        self.assertIn('if channel == "game" and type(payload) == "table" then', emit_fn)
+        self.assertIn("self.productionReady = true", emit_fn)
+        self.assertIn("pcall(handler, payload)", emit_fn)
+        self.assertIn('"[RemoteBridge] Snapshot handler failed:"', emit_fn)
+
+        # --- _bind: dedup via boundNames; ActionResult wired separately ---
+        bind_start = bridge.index("function RemoteBridge:_bind(")
+        bind_end = bridge.index("\nfunction RemoteBridge:Start(", bind_start)
+        bind_fn = bridge[bind_start:bind_end]
+        self.assertIn("self.boundNames[instance.Name]", bind_fn)
+        self.assertIn("self.boundNames[instance.Name] = true", bind_fn)
+        # Normal snapshot events via SNAPSHOT_EVENTS lookup
+        self.assertIn("SNAPSHOT_EVENTS[instance.Name]", bind_fn)
+        self.assertIn('instance:IsA("RemoteEvent")', bind_fn)
+        # ActionResult is its own branch (not via SNAPSHOT_EVENTS)
+        self.assertIn('instance.Name == "ActionResult"', bind_fn)
+        self.assertIn("self.resultHandlers", bind_fn)
+
+        # --- Start: binds children + watches ChildAdded + fetches via GetterRemotes ---
+        start_start = bridge.index("function RemoteBridge:Start()")
+        start_end = bridge.index("\nfunction RemoteBridge:OnSnapshot(", start_start)
+        start_fn = bridge[start_start:start_end]
+        self.assertIn("self.remotes:GetChildren()", start_fn)
+        self.assertIn("self.remotes.ChildAdded:Connect(", start_fn)
+        # Getter loop invokes each RemoteFunction and emits result
+        self.assertIn("for remoteName, channel in GETTERS do", start_fn)
+        self.assertIn("instance:InvokeServer()", start_fn)
+        self.assertIn("if ok and not self.destroyed then", start_fn)
+
+        # --- HasAction: production override; candidates fallback ---
+        ha_start = bridge.index("function RemoteBridge:HasAction(")
+        ha_end = bridge.index("\nfunction RemoteBridge:Request(", ha_start)
+        ha_fn = bridge[ha_start:ha_end]
+        self.assertIn("if self.destroyed then", ha_fn)
+        # productionReady + RequestAction remote → always true
+        self.assertIn('"RequestAction"', ha_fn)
+        self.assertIn(
+            "if self.productionReady and productionRemote and productionRemote:IsA(\"RemoteFunction\") then",
+            ha_fn,
+        )
+        # Unknown action → false (no candidates)
+        self.assertIn("if not candidates then", ha_fn)
+        self.assertIn("return false", ha_fn)
+        # Any matching remote in candidates → true
+        self.assertIn("self.remotes:FindFirstChild(name)", ha_fn)
+
+        # --- Request: all major paths ---
+        req_start = bridge.index("function RemoteBridge:Request(")
+        req_end = bridge.index("\nfunction RemoteBridge:Destroy(", req_start)
+        req_fn = bridge[req_start:req_end]
+        # Destroyed path
+        self.assertIn('"The camp radio is disconnected."', req_fn)
+        # Type guard for action and payload
+        self.assertIn('type(action) ~= "string" or action == ""', req_fn)
+        self.assertIn('type(payload) ~= "table"', req_fn)
+        self.assertIn('"Invalid action request."', req_fn)
+        # Generation invalidation: stale response discarded
+        self.assertIn("local generation = self.requestGeneration", req_fn)
+        self.assertIn("generation ~= self.requestGeneration", req_fn)
+        # Failure in production path sends structured error to result handlers
+        self.assertIn('"The camp radio did not answer. Try again."', req_fn)
+        # Legacy path unknown action
+        self.assertIn('"Unknown action"', req_fn)
+        # No remote found in candidates
+        self.assertIn('"That action is not available yet."', req_fn)
+
+        # --- Destroy: increments generation to invalidate pending requests ---
+        dest_start = bridge.index("function RemoteBridge:Destroy()")
+        dest_fn = bridge[dest_start:]
+        self.assertIn("if self.destroyed then", dest_fn)
+        self.assertIn("self.requestGeneration += 1", dest_fn)
+        self.assertIn("connection:Disconnect()", dest_fn)
+        self.assertIn("table.clear(self.connections)", dest_fn)
+        self.assertIn("table.clear(self.snapshotHandlers)", dest_fn)
+        self.assertIn("table.clear(self.resultHandlers)", dest_fn)
+        self.assertIn("table.clear(self.boundNames)", dest_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
