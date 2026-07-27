@@ -1883,6 +1883,66 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0143_choose_participant_ghost_exclusion_injured_color_and_empty_notification(
+        self,
+    ) -> None:
+        view = (ROOT / "src" / "client" / "UI" / "GameView.lua").read_text(
+            encoding="utf-8"
+        )
+        func_start = view.index("function GameView:_chooseParticipant(")
+        func_end = view.index("\nfunction GameView:_chooseEvidence(", func_start)
+        func = view[func_start:func_end]
+
+        # Eligibility: alive check is first, then ghost exclusion
+        self.assertIn("readBoolean(participant, \"alive\", false)", func)
+        self.assertIn(
+            "and not readBoolean(participant, \"isGhost\", false)", func
+        )
+        alive_pos = func.index("readBoolean(participant, \"alive\", false)")
+        ghost_pos = func.index(
+            "and not readBoolean(participant, \"isGhost\", false)"
+        )
+        self.assertLess(alive_pos, ghost_pos)
+
+        # includeSelf guard: participantId excluded from self when false
+        self.assertIn(
+            "and (includeSelf or participantId ~= ownId)", func
+        )
+
+        # Injured participants get Danger color; healthy get PanelSoft
+        self.assertIn(
+            'if health == "Injured" then Theme.Colors.Danger else Theme.Colors.PanelSoft',
+            func,
+        )
+
+        # Payload receives targetParticipantId before _send is called
+        self.assertIn("payload.targetParticipantId = participantId", func)
+        payload_pos = func.index("payload.targetParticipantId = participantId")
+        send_pos = func.index("self:_send(action, payload, button)")
+        self.assertLess(payload_pos, send_pos)
+
+        # Role-specific title: Murderer title appears before camper title
+        murderer_title_pos = func.index('"Choose your target."')
+        camper_title_pos = func.index(
+            '"Choose the living player affected by this action."'
+        )
+        self.assertLess(murderer_title_pos, camper_title_pos)
+
+        # Empty-target notification: role-specific body (Murderer before camper)
+        no_target_murderer = (
+            '"No targets available — all potential victims are out of reach."'
+        )
+        no_target_camper = (
+            '"This action requires at least one other living player and was not sent."'
+        )
+        self.assertIn(no_target_murderer, func)
+        self.assertIn(no_target_camper, func)
+        self.assertLess(
+            func.index(no_target_murderer), func.index(no_target_camper)
+        )
+        # Both empty paths share the same "Warning" notification level
+        self.assertIn('"Warning"', func)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
