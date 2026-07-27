@@ -1823,5 +1823,66 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("Workspace.CurrentCamera.CFrame.LookVector", act_block)
 
 
+    def test_request_0142_game_view_progression_upgrade_mastery_gate_and_cosmetic_unlock_branching(
+        self,
+    ) -> None:
+        view = (ROOT / "src/client/UI/GameView.lua").read_text(encoding="utf-8")
+
+        # _updateProgression: profile unavailable fallback
+        prog_start = view.index("function GameView:_updateProgression(state: any)")
+        prog_end = view.index("function GameView:_buildTargetSelector()", prog_start)
+        prog_block = view[prog_start:prog_end]
+        self.assertIn(
+            '"Profile unavailable - progression actions are temporarily locked."', prog_block
+        )
+
+        # Summary line: totalXP and campTokens
+        self.assertIn('"TOTAL XP  %d     CAMP TOKENS  %d\\nEverything here is earned by playing."', prog_block)
+
+        # Upgrade eligibility: capped check and mastery gate
+        self.assertIn("local capped = currentRank >= definition.maxRank", prog_block)
+        self.assertIn("local cost = if capped then 0 else UpgradeCatalog.nextRankCost(definition, currentRank)", prog_block)
+        self.assertIn("and not capped", prog_block)
+        self.assertIn("and masteryLevel >= definition.requiredMasteryLevel", prog_block)
+        self.assertIn("and tokens >= cost", prog_block)
+        # Capped upgrades show MAX RANK; uncapped show BUY RANK N+1
+        self.assertIn('if capped then "MAX RANK" else "BUY RANK " .. tostring(currentRank + 1)', prog_block)
+        # BuyUpgrade sends roleId and upgradeId
+        self.assertIn('"BuyUpgrade", {', prog_block)
+        self.assertIn("roleId = definition.roleId,", prog_block)
+        self.assertIn("upgradeId = definition.id,", prog_block)
+
+        # Cosmetic section: owned → equip vs unlockKind branching
+        self.assertIn('if isEquipped\n\t\t\tthen "EQUIPPED"', prog_block)
+        self.assertIn('elseif isOwned then "EQUIP"', prog_block)
+        self.assertIn('elseif definition.unlockKind == "CampTokens"', prog_block)
+        self.assertIn('"UNLOCK " .. tostring(definition.unlockAmount)', prog_block)
+        self.assertIn('else "LOCKED"', prog_block)
+        # Status text: Level-gated vs token-gated fallback
+        self.assertIn('elseif definition.unlockKind == "Level"', prog_block)
+        self.assertIn('"Requires level " .. tostring(definition.unlockAmount)', prog_block)
+        self.assertIn('tostring(definition.unlockAmount) .. " tokens"', prog_block)
+        # canUnlock: not owned, CampTokens kind, enough tokens
+        self.assertIn('definition.unlockKind == "CampTokens"', prog_block)
+        self.assertIn("tokens >= definition.unlockAmount", prog_block)
+        # Unlock action sends cosmeticId
+        self.assertIn('"UnlockCosmetic", { cosmeticId = definition.id }', prog_block)
+        self.assertIn('"EquipCosmetic", { cosmeticId = definition.id }', prog_block)
+
+        # ShowInterviewTopicPicker: witness topic highlighted Amber; others Panel
+        picker_start = view.index("function GameView:ShowInterviewTopicPicker(")
+        picker_end = view.index("function GameView:_dismissCounselorDialogue(", picker_start)
+        picker_block = view[picker_start:picker_end]
+        self.assertIn("if isWitness and entry.witnessHighlight", picker_block)
+        self.assertIn("then Theme.Colors.Amber", picker_block)
+        self.assertIn("else Theme.Colors.Panel,", picker_block)
+        # Token guard prevents stale button activation
+        self.assertIn("if token ~= self.interviewPickerToken then", picker_block)
+        # Fires InterviewCounselor with counselorId and topic
+        self.assertIn('"InterviewCounselor", {', picker_block)
+        self.assertIn("counselorId = counselorId,", picker_block)
+        self.assertIn("topic = topic,", picker_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
