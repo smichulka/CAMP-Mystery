@@ -4116,7 +4116,11 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		local localRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
 			else ""
-		if localRole == "Murderer" then
+		if readBoolean(player, "isGhost", false) then
+			self.progressLabel.Text = "Night is coming."
+			self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch the night unfold."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		elseif localRole == "Murderer" then
 			local murderPlan = if type(state) == "table" then state.murderPlan else nil
 			local victimParticipantId = readString(murderPlan, "victimParticipantId", "")
 			local victimName = "your target"
@@ -4136,6 +4140,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				victimName
 			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
+		elseif localRole == "Spectator" then
+			self.progressLabel.Text = "Night is coming."
+			self.objectiveText.Text = "OBSERVING\nThe night phase is beginning. Watch what unfolds."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		else
 			self.progressLabel.Text = "Night is coming. Prepare your tools."
 			self.objectiveText.Text = "PREPARATION\nSomething is coming. Secure your equipment and stay alert."
@@ -4203,6 +4211,44 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.objectiveText.Text = "ROUND OVER\nThe mystery has been resolved."
 		end
 		self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
+	elseif phase == "Resolution" then
+		local resRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		local resWinner = readString(round, "winner", "")
+		local campersWon = resWinner == "Campers"
+		local isGhostRes = readBoolean(player, "isGhost", false)
+		if resRole == "Spectator" then
+			self.progressLabel.Text = if campersWon
+				then "Campers prevailed."
+				else "The murderer escaped."
+			self.objectiveText.Text = "ROUND OVER\nThe mystery has been resolved."
+			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
+		elseif isGhostRes then
+			self.progressLabel.Text = if campersWon
+				then "Justice delivered."
+				else "The murderer escaped."
+			self.objectiveText.Text = if campersWon
+				then "JUSTICE\nThe camp caught the killer. Your death was not in vain."
+				else "UNSOLVED\nThe murderer escaped. Your death remains unavenged."
+			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
+		elseif resRole == "Murderer" then
+			self.progressLabel.Text = if campersWon
+				then "The camp unmasked you."
+				else "The camp could not name you."
+			self.objectiveText.Text = if campersWon
+				then "UNMASKED\nThe camp named you. The hunt is over."
+				else "UNSEEN\nYour name was never called. You walk free."
+			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 0 else 1, 1)
+		else
+			self.progressLabel.Text = if campersWon
+				then "Justice delivered."
+				else "The murderer escaped."
+			self.objectiveText.Text = if campersWon
+				then "NAMED\nThe murderer has been revealed. The camp is safe."
+				else "UNSOLVED\nNo verdict reached. The killer walks free."
+			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
+		end
 	else
 		self.progressLabel.Text = readString(
 			round,

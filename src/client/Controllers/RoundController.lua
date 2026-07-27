@@ -741,6 +741,12 @@ local function updateReleaseExperience(
 							"Warning"
 						)
 					end
+				else
+					currentView:Notify(
+						"Night falls",
+						"Watch from beyond. The hunt begins.",
+						"Info"
+					)
 				end
 			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
