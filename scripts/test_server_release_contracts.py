@@ -1883,6 +1883,76 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0153_camera_controller_flicker_tween_and_step_clamp_contracts(
+        self,
+    ) -> None:
+        camera = (
+            ROOT / "src" / "client" / "Controllers" / "CameraController.lua"
+        ).read_text(encoding="utf-8")
+
+        # _flickerNearestLight: ghost-mode and cooldown gate
+        flicker_start = camera.index("function CameraController:_flickerNearestLight()")
+        flicker_end = camera.index("\nfunction CameraController:_step(", flicker_start)
+        flicker_fn = camera[flicker_start:flicker_end]
+        self.assertIn(
+            "not self.ghostMode or os.clock() - self.lastFlickerAt < FLICKER_COOLDOWN",
+            flicker_fn,
+        )
+
+        # Light search: three light types within FLICKER_RANGE
+        for light_type in ('"PointLight"', '"SpotLight"', '"SurfaceLight"'):
+            self.assertIn(light_type, flicker_fn)
+        self.assertIn("distance <= nearestDistance", flicker_fn)
+
+        # Two-stage tween: fade out (Sine Out) then fade back in (Sine In)
+        self.assertIn(
+            "TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)",
+            flicker_fn,
+        )
+        self.assertIn(
+            "TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In)",
+            flicker_fn,
+        )
+        # Fade-in only executes when fade-out completed and light still parented
+        self.assertIn(
+            "playbackState ~= Enum.PlaybackState.Completed or not light.Parent",
+            flicker_fn,
+        )
+        # Brightness restored to original value on fade-in
+        self.assertIn("{ Brightness = brightness }", flicker_fn)
+        self.assertIn("{ Brightness = 0 }", flicker_fn)
+
+        # _step: ghost-mode gate
+        step_start = camera.index("function CameraController:_step(deltaTime: number)")
+        step_end = camera.index("\nfunction CameraController:SetGhostMode(", step_start)
+        step_fn = camera[step_start:step_end]
+        self.assertIn(
+            "if self.destroyed or not self.ghostMode then",
+            step_fn,
+        )
+
+        # Pitch clamped to ±85 degrees
+        self.assertIn(
+            "math.clamp(\n\t\tself.pitch + self.stickLook.Y * STICK_LOOK_SPEED * deltaTime,\n"
+            "\t\t-math.rad(85),\n"
+            "\t\tmath.rad(85)\n"
+            "\t)",
+            step_fn,
+        )
+
+        # Horizontal input normalized when magnitude > 1
+        self.assertIn("if horizontal.Magnitude > 1 then", step_fn)
+        self.assertIn("horizontal = horizontal.Unit", step_fn)
+
+        # Vertical clamped to [-1, 1]
+        self.assertIn("vertical = math.clamp(vertical, -1, 1)", step_fn)
+
+        # deltaTime capped at 0.1 to prevent large position jumps
+        self.assertIn("direction * speed * math.min(deltaTime, 0.1)", step_fn)
+
+        # Y position clamped between ground height and MAXIMUM_ALTITUDE
+        self.assertIn("math.clamp(candidate.Y, minimumY, MAXIMUM_ALTITUDE)", step_fn)
+
     def test_request_0152_cinematics_screen_shake_amplitude_decay_and_phase_flash(
         self,
     ) -> None:
