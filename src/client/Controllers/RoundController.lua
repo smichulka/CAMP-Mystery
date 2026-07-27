@@ -534,15 +534,27 @@ local function updateReleaseExperience(
 		and phaseName == "Day"
 		and currentView
 	then
-		currentView:Notify(
-			"Witness interviewed",
-			string.format(
-				"%d of %d witnesses spoken to.",
-				revealedWitnessCount,
-				totalWitnessCount
-			),
-			"Info"
-		)
+		if roleName == "Murderer" then
+			currentView:Notify(
+				"Witness interviewed",
+				string.format(
+					"A witness has been questioned — %d of %d counselors spoken to.",
+					revealedWitnessCount,
+					totalWitnessCount
+				),
+				"Warning"
+			)
+		else
+			currentView:Notify(
+				"Witness interviewed",
+				string.format(
+					"%d of %d witnesses spoken to.",
+					revealedWitnessCount,
+					totalWitnessCount
+				),
+				"Info"
+			)
+		end
 	end
 	lastRevealedWitnessCount = revealedWitnessCount
 	local objectivesCompleted = readNumber(round, "objectivesCompleted", 0)
@@ -553,11 +565,19 @@ local function updateReleaseExperience(
 		and phaseName == "Day"
 		and currentView
 	then
-		currentView:Notify(
-			"Camp task complete",
-			string.format("%d of %d tasks done.", objectivesCompleted, objectiveGoal),
-			"Info"
-		)
+		if roleName == "Murderer" then
+			currentView:Notify(
+				"Camp task progress",
+				string.format("Campers advancing: %d of %d tasks done.", objectivesCompleted, objectiveGoal),
+				"Warning"
+			)
+		else
+			currentView:Notify(
+				"Camp task complete",
+				string.format("%d of %d tasks done.", objectivesCompleted, objectiveGoal),
+				"Info"
+			)
+		end
 	end
 	lastObjectivesCompleted = objectivesCompleted
 	currentEffects:Update(snapshot)

@@ -155,7 +155,8 @@ function TutorialView:Show(step: TutorialStep, onContinue: () -> (), onSkip: () 
 	self.title.Text = string.upper(step.title)
 	self.body.Text = step.body
 	self.objective.Text = step.objective
-	self.progress.Text = string.format("NEW CAMPER BRIEFING  •  %d OF %d", step.position, step.total)
+	local briefingHeader = if string.find(step.id, "_murderer") then "MURDERER BRIEFING" else "NEW CAMPER BRIEFING"
+	self.progress.Text = string.format("%s  •  %d OF %d", briefingHeader, step.position, step.total)
 	self.root.Visible = true
 	GuiService.SelectedObject = self.continueButton
 
