@@ -778,5 +778,44 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('return if livingCampers <= 1 then "Murderer" else nil', elim_block)
 
 
+    def test_request_0127_guard_trap_spirit_sense_role_gates(self) -> None:
+        ability_svc = source("Services/RoleAbilityService.lua")
+        # SetGuard: target must be a living non-ghost Camper, not the guard themselves
+        guard_start = ability_svc.index("function RoleAbilityService:SetGuard(")
+        guard_end = ability_svc.index("function RoleAbilityService:PlaceTrap(", guard_start)
+        guard_block = ability_svc[guard_start:guard_end]
+        self.assertIn(
+            "not target or not target.alive or target.isGhost or target.team ~= \"Campers\"",
+            guard_block,
+        )
+        self.assertIn('"Guard target is not eligible"', guard_block)
+        self.assertIn("guard.participantId == target.participantId", guard_block)
+        self.assertIn('"Guard must protect another participant"', guard_block)
+        # Guard duration: 45 seconds + upgrade bonus
+        self.assertIn("expiresAt = self.clock()", guard_block)
+        self.assertIn('+ self.getUpgradeRank(guardParticipantId, "watchful-post") * 3,', guard_block)
+        # PlaceTrap: location must be non-empty and under 80 chars
+        trap_start = ability_svc.index("function RoleAbilityService:PlaceTrap(")
+        trap_end = ability_svc.index("function RoleAbilityService:TriggerTrap(", trap_start)
+        trap_block = ability_svc[trap_start:trap_end]
+        self.assertIn('locationId == "" or #locationId > 80', trap_block)
+        self.assertIn('"Trap location is invalid"', trap_block)
+        # Trap ID is round-scoped and sequential
+        self.assertIn(
+            'string.format("trap:%d:%d", self.roundId, self.nextTrapNumber)', trap_block
+        )
+        # RequestSpiritSignal: only works when at least one ghost is present
+        spirit_start = ability_svc.index("function RoleAbilityService:RequestSpiritSignal(")
+        spirit_end = ability_svc.index("function RoleAbilityService:AuthorizeTreatment(")
+        spirit_block = ability_svc[spirit_start:spirit_end]
+        self.assertIn('{ "Investigation", "Campfire" }', spirit_block)
+        self.assertIn("if ghostCount == 0 then", spirit_block)
+        self.assertIn('"No ghost is able to answer"', spirit_block)
+        # Three deterministic signal strings cycling by round + ghost count
+        self.assertIn('"THE THREAT WALKED AMONG THE CAMP BEFORE NIGHT."', spirit_block)
+        self.assertIn('"ONE SHARED CLUE MAY HAVE BEEN PLANTED."', spirit_block)
+        self.assertIn('"THE ATTACKER FAVORED AN ISOLATED TARGET."', spirit_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
