@@ -368,5 +368,19 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"InvalidRewardIdentity"', profile)
 
 
+    def test_request_0105_available_actions_ghost_spectator_root_gate(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        # _availableActions: active = false for ghost and Spectator
+        avail_start = runtime.index("function GameRuntimeService:_availableActions(")
+        avail_end = runtime.index("function GameRuntimeService:", avail_start + 1)
+        avail_block = runtime[avail_start:avail_end]
+        self.assertIn("not participant.isGhost", avail_block)
+        self.assertIn('participant.role ~= "Spectator"', avail_block)
+        # active variable is the root gate passed to all action-enabled checks
+        self.assertIn("local active = participant ~= nil", avail_block)
+        # Confirms active=false short-circuits all non-persistent action toggles
+        self.assertIn("local enabled = active", avail_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
