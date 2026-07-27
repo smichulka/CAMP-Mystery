@@ -466,6 +466,36 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertNotIn("ProximityPromptService.Enabled = false", interactions)
 
 
+    def test_request_0087_evidence_notebook_role_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Summary label header differs by role
+        self.assertIn('"EVIDENCE AGAINST YOU"', view)
+        self.assertIn('"CULPRIT CLUES"', view)
+        culprit_label = view.index(
+            'local culpritLabel = if localRole == "Murderer" then "EVIDENCE AGAINST YOU" else "CULPRIT CLUES"'
+        )
+        self.assertGreater(culprit_label, 0)
+        # Empty-board text differs by Murderer / Ghost / Camper
+        for token in (
+            '"No evidence has been posted yet. Monitor the board as the investigation continues."',
+            '"No evidence has been posted. Watch as the survivors investigate."',
+            '"No evidence has been posted. Search rooms, objects, and attack sites."',
+        ):
+            self.assertIn(token, view)
+        # Ordering: Murderer → Ghost → Camper
+        empty_start = view.index(
+            'local emptyText = if localRole == "Murderer"'
+        )
+        empty_block = view[empty_start:empty_start + 400]
+        self.assertLess(
+            empty_block.index("Monitor the board"),
+            empty_block.index("Watch as the survivors investigate"),
+        )
+        self.assertLess(
+            empty_block.index("Watch as the survivors investigate"),
+            empty_block.index("Search rooms, objects, and attack sites"),
+        )
+
     def test_request_0084_objective_panel_role_aware_copy(self) -> None:
         view = read("src/client/UI/GameView.lua")
         # Day phase: four-role objective labels
