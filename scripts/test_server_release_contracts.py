@@ -686,5 +686,36 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"Action is handled by another server domain"', action_block)
 
 
+    def test_request_0124_apply_rewards_role_and_survivor_field_assignments(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        rewards_start = runtime.index("function GameRuntimeService:_ApplyRewards(")
+        rewards_end = runtime.index("function GameRuntimeService:_GetBotActions(", rewards_start)
+        rewards_block = runtime[rewards_start:rewards_end]
+        # Only human participants receive rewards
+        self.assertIn('participant.controller.kind == "Human"', rewards_block)
+        # Spectators do not count as participated
+        self.assertIn('participated = participant.role ~= "Spectator",', rewards_block)
+        # Won is determined by team matching the winner
+        self.assertIn("won = participant.team == winner,", rewards_block)
+        # Ghost players do not count as survived
+        self.assertIn(
+            "survived = participant.alive and not participant.isGhost,", rewards_block
+        )
+        # Role is forwarded so ProfileService can compute role-specific bonuses
+        self.assertIn("roleId = participant.role,", rewards_block)
+        # _finishIfEliminated: winner message differs by team; both trigger announce
+        elim_start = runtime.index("function GameRuntimeService:_finishIfEliminated(")
+        elim_end = runtime.index("function GameRuntimeService:_isNearPart(", elim_start)
+        elim_block = runtime[elim_start:elim_end]
+        self.assertIn(
+            '"The Murderer was stopped before the final accusation."', elim_block
+        )
+        self.assertIn(
+            '"Too few campers remain to contain the hunt."', elim_block
+        )
+        self.assertIn('if winner == "Campers"', elim_block)
+        self.assertIn('self:_announce("Danger",', elim_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
