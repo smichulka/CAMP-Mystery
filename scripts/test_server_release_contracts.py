@@ -1230,5 +1230,79 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("% #lines + 1", dial_block)
 
 
+    def test_request_0134_evidence_service_baseline_attack_transfer_culprit_and_monster(
+        self,
+    ) -> None:
+        evidence_svc = source("Services/EvidenceService.lua")
+
+        # GenerateBaselineMystery: 3 culprit-weighted + 2 monster-weighted + optional planted
+        gen_start = evidence_svc.index("function EvidenceService:GenerateBaselineMystery(")
+        gen_end = evidence_svc.index("function EvidenceService:CreateAttackEvidence(", gen_start)
+        gen_block = evidence_svc[gen_start:gen_end]
+        # Culprit-weighted clues with weight 0.55
+        self.assertIn('"BeginRound must be called before evidence generation"', gen_block)
+        self.assertIn("local realWeights = { [culpritId] = 0.55 }", gen_block)
+        self.assertIn('"attack-footprint", "Real", realWeights, nil', gen_block)
+        self.assertIn('"attack-fabric", "Real", realWeights, nil', gen_block)
+        self.assertIn('"witness-conflict", "Ambiguous", realWeights, nil', gen_block)
+        # Monster-weighted clues with weight 0.6
+        self.assertIn("local monsterWeights = if monsterId then { [monsterId] = 0.6 } else {}", gen_block)
+        self.assertIn('"monster-trace", "Real", nil, monsterWeights', gen_block)
+        self.assertIn('"device-reading", "Real", nil, monsterWeights', gen_block)
+        # Optional planted evidence only when frameParticipantId is not the culprit
+        self.assertIn(
+            "if frameParticipantId and frameParticipantId ~= culpritId then", gen_block
+        )
+        self.assertIn('"planted-token", "Fake", { [frameParticipantId] = 0.8 }, nil', gen_block)
+        self.assertIn("self.fakeEvidencePlanted = true", gen_block)
+
+        # CreateAttackEvidence: culprit-only gate; lethal or 50% random → attack-blood
+        atk_start = evidence_svc.index("function EvidenceService:CreateAttackEvidence(")
+        atk_end = evidence_svc.index("function EvidenceService:PlantFake(", atk_start)
+        atk_block = evidence_svc[atk_start:atk_end]
+        self.assertIn(
+            '"Attack evidence must come from culprit"', atk_block
+        )
+        self.assertIn("attackerParticipantId == self.culpritParticipantId", atk_block)
+        # lethal or random>=0.5 selects attack-blood; otherwise attack-footprint
+        self.assertIn('"attack-blood"', atk_block)
+        self.assertIn('"attack-footprint"', atk_block)
+        self.assertIn("lethal or self.random:NextNumber() >= 0.5", atk_block)
+        # Culprit weight: 0.75 if lethal, 0.55 otherwise
+        self.assertIn("if lethal then 0.75 else 0.55", atk_block)
+
+        # SetMonsterForRound: applies monster weight 0.6 to all Monster-channel records
+        monster_start = evidence_svc.index("function EvidenceService:SetMonsterForRound(")
+        monster_end = evidence_svc.index("function EvidenceService:TransferCulprit(", monster_start)
+        monster_block = evidence_svc[monster_start:monster_end]
+        self.assertIn(
+            '"BeginRound must be called before changing monster evidence"', monster_block
+        )
+        self.assertIn('"monsterId cannot be empty"', monster_block)
+        self.assertIn('record.channel == "Monster"', monster_block)
+        self.assertIn("record.monsterWeights = { [monsterId] = 0.6 }", monster_block)
+
+        # TransferCulprit: early-exit if previous != current culprit; migrates suspectWeights
+        xfer_start = evidence_svc.index("function EvidenceService:TransferCulprit(")
+        xfer_end = evidence_svc.index("function EvidenceService:ReframeFake(", xfer_start)
+        xfer_block = evidence_svc[xfer_start:xfer_end]
+        self.assertIn(
+            "if self.culpritParticipantId ~= previousParticipantId then", xfer_block
+        )
+        self.assertIn(
+            "self.culpritParticipantId = replacementParticipantId", xfer_block
+        )
+        # Weight migration: remove old key, assign same weight to new key
+        self.assertIn(
+            "local weight = record.suspectWeights[previousParticipantId]", xfer_block
+        )
+        self.assertIn(
+            "record.suspectWeights[previousParticipantId] = nil", xfer_block
+        )
+        self.assertIn(
+            "record.suspectWeights[replacementParticipantId] = weight", xfer_block
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
