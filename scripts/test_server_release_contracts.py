@@ -595,5 +595,49 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('if participant.role == "Murderer" then 0 else 0.85', bot_block)
 
 
+    def test_request_0121_use_role_ability_gate_and_dispatch(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        ability_start = runtime.index("function GameRuntimeService:_useRoleAbility(")
+        ability_end = runtime.index("function GameRuntimeService:_handleParticipantAction(")
+        ability_block = runtime[ability_start:ability_end]
+        # monster-transformation: Murderer-only, MurderPlanning phase, one-use
+        self.assertIn('if abilityId == "monster-transformation" then', ability_block)
+        self.assertIn(
+            'if participant.role ~= "Murderer" or self.phase ~= "MurderPlanning" then',
+            ability_block,
+        )
+        self.assertIn('return actionRejected("Monster planning is not active")', ability_block)
+        self.assertIn('return actionRejected("Murder plan is already locked")', ability_block)
+        self.assertIn('victim.team ~= "Campers" or not victim.alive', ability_block)
+        self.assertIn('return actionRejected("A living Camper victim is required")', ability_block)
+        # monster-transformation sets murderPlan with victimParticipantId + monsterId
+        self.assertIn("self.murderPlan = {", ability_block)
+        self.assertIn("victimParticipantId = victim.participantId,", ability_block)
+        self.assertIn("monsterId = monsterId,", ability_block)
+        # plant-false-evidence: Murderer-only, MurderPlanning phase, one-use, frame required
+        self.assertIn('elseif abilityId == "plant-false-evidence" then', ability_block)
+        self.assertIn(
+            '"False evidence can only be planned by the Murderer"', ability_block
+        )
+        self.assertIn('"False evidence was already planned"', ability_block)
+        # Camper role ability dispatch: protect, guard, trap, investigate, spirit-sense
+        self.assertIn(
+            'elseif abilityId == "protect-participant" and targetId then', ability_block
+        )
+        self.assertIn("self.roleAbilities:SetProtection(", ability_block)
+        self.assertIn('elseif abilityId == "guard-post" and targetId then', ability_block)
+        self.assertIn("self.roleAbilities:SetGuard(", ability_block)
+        self.assertIn('elseif abilityId == "place-warning-trap" then', ability_block)
+        self.assertIn("self.roleAbilities:PlaceTrap(", ability_block)
+        self.assertIn('elseif abilityId == "analyze-evidence" and targetId then', ability_block)
+        self.assertIn("self.roleAbilities:Investigate(", ability_block)
+        self.assertIn('elseif abilityId == "spirit-sense" then', ability_block)
+        self.assertIn("self.roleAbilities:RequestSpiritSignal(", ability_block)
+        # Fallback for unknown/incomplete ability
+        self.assertIn(
+            '"Ability payload is incomplete or unsupported"', ability_block
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
