@@ -556,6 +556,41 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertLess(ghost_branch, murderer_branch)
 
 
+    def test_request_0085_result_modal_lobby_objective_and_eliminated_banner(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Result modal: four-role title/body pairs
+        for token in (
+            '"CAMPERS WIN"',
+            '"MURDERER WINS"',
+            '"The camp never identified you. A flawless hunt."',
+            '"Justice was served. The camp is safe."',
+            '"The murderer escaped. The mystery went unsolved."',
+        ):
+            self.assertIn(token, view)
+        # Result modal branch order: Spectator → Ghost → Murderer → Camper
+        modal_start = view.index("if not self.voteRevealOwnsResults then")
+        modal_end = view.index("\n\t\tlocal profile = if type(state)", modal_start)
+        modal = view[modal_start:modal_end]
+        self.assertLess(modal.index('"CAMPERS WIN"'), modal.index('"JUSTICE"'))
+        self.assertLess(modal.index('"JUSTICE"'), modal.index('"CAUGHT"'))
+        self.assertLess(modal.index('"CAUGHT"'), modal.index('"VICTORY"'))
+        # Lobby phase objective text: Spectator / Murderer / Camper
+        for token in (
+            '"OBSERVING\\nYou are watching this round. Wait for it to begin."',
+            '"CHOSEN\\nYou have been selected. Your target will be revealed when night falls."',
+            '"NEXT MYSTERY\\nReady up while the camp fills empty seats."',
+        ):
+            self.assertIn(token, view)
+        # Eliminated banner: observing vs eliminated, Murderer copy differs
+        for token in (
+            '"OBSERVING"',
+            '"You joined during an active round. You\'ll play next."',
+            '"ELIMINATED"',
+            '"The camp saw through you. Your hunt is over."',
+            '"You are spectating. Watch the mystery unfold."',
+        ):
+            self.assertIn(token, view)
+
     def test_request_0083_audio_controller_role_aware_subtitles(self) -> None:
         audio = read("src/client/Controllers/AudioController.lua")
         # VoteOpen: Murderer gets a subtitle; others get nil
