@@ -937,5 +937,92 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('self:EnterPhase("RoleReveal")', begin_block)
 
 
+    def test_request_0131_mystery_clue_generation_and_begin_round_invariants(
+        self,
+    ) -> None:
+        mystery = source("Services/MysteryService.lua")
+
+        # Constants
+        self.assertIn("CULPRIT_CLUE_COUNT = 3", mystery)
+        self.assertIn("PLANTED_CLUE_COUNT = 2", mystery)
+        self.assertIn("MONSTER_CLUE_COUNT = 3", mystery)
+        self.assertIn("WITNESS_ACCOUNT_COUNT = 4", mystery)
+
+        # BeginRound guards: culprit must be in suspectIds
+        self.assertIn(
+            '"culpritParticipantId must be in suspectIds"', mystery
+        )
+        # Frame target cannot equal the culprit
+        self.assertIn('"frame target cannot be the culprit"', mystery)
+        # Frame target must also be a suspect
+        self.assertIn('"frameTargetId must be in suspectIds"', mystery)
+
+        # buildAuthenticCandidateSet: always seeds with culprit first
+        auth_fn_start = mystery.index("local function buildAuthenticCandidateSet(")
+        auth_fn_end = mystery.index("\nend\n", auth_fn_start)
+        auth_fn = mystery[auth_fn_start:auth_fn_end]
+        self.assertIn("local candidates: { string } = { culpritParticipantId }", auth_fn)
+        self.assertIn("if suspectId ~= culpritParticipantId then", auth_fn)
+
+        # buildPlantedCandidateSet: excludes both culprit and frameTarget from decoys
+        plant_fn_start = mystery.index("local function buildPlantedCandidateSet(")
+        plant_fn_end = mystery.index("\nend\n", plant_fn_start)
+        plant_fn = mystery[plant_fn_start:plant_fn_end]
+        self.assertIn(
+            "if suspectId ~= culpritParticipantId and suspectId ~= frameTargetId then",
+            plant_fn,
+        )
+        # Planted set always seeds with frameTargetId as the primary suspect
+        self.assertIn("local candidates: { string } = { frameTargetId }", plant_fn)
+
+        # Culprit clues use shuffled culpritClues catalog with Authentic authenticity
+        begin_start = mystery.index("function MysteryService:BeginRound(")
+        begin_end = mystery.index("function MysteryService:GetSearchPlacements(", begin_start)
+        begin_block = mystery[begin_start:begin_end]
+        self.assertIn(
+            "local culpritTemplates = shuffled(MysteryCatalog.culpritClues, random)",
+            begin_block,
+        )
+        self.assertIn('for clueIndex = 1, CULPRIT_CLUE_COUNT do', begin_block)
+        self.assertIn('"Authentic",', begin_block)
+
+        # Planted clues use shuffled plantedClues catalog with Planted authenticity
+        self.assertIn(
+            "local plantedTemplates = shuffled(MysteryCatalog.plantedClues, random)",
+            begin_block,
+        )
+        self.assertIn('for clueIndex = 1, PLANTED_CLUE_COUNT do', begin_block)
+        self.assertIn('"Planted",', begin_block)
+
+        # Monster clues: {} suspect candidates, template.monsterCandidates for monsters
+        self.assertIn("for clueIndex = 1, MONSTER_CLUE_COUNT do", begin_block)
+        self.assertIn("template.monsterCandidates", begin_block)
+        self.assertIn(
+            "table.find(template.monsterCandidates, request.monsterId)",
+            begin_block,
+        )
+
+        # Witness accounts: 2 truthful (Authentic, reliability 0.76+), 1 mistaken
+        self.assertIn("for accountIndex = 1, 2 do", begin_block)
+        self.assertIn("0.76 + random:NextNumber() * 0.18", begin_block)
+        self.assertIn('"Mistaken",', begin_block)
+        self.assertIn("0.34 + random:NextNumber() * 0.2", begin_block)
+        # Mistaken witness uses planted candidate set (frames the frame target)
+        self.assertIn(
+            "buildPlantedCandidateSet(\n\t\t\trequest.culpritParticipantId,",
+            begin_block,
+        )
+        # Monster witness: no suspect candidates, uses firstMonsterTemplate.monsterCandidates
+        self.assertIn("0.65 + random:NextNumber() * 0.2", begin_block)
+        self.assertIn("firstMonsterTemplate.monsterCandidates", begin_block)
+
+        # Post-generation deduction invariants
+        self.assertIn("local audit = self:AuditDeduction()", begin_block)
+        self.assertIn('"Seeded mystery failed the culprit deduction invariant"', begin_block)
+        self.assertIn('"Seeded mystery failed the monster deduction invariant"', begin_block)
+        self.assertIn('"Seeded mystery requires plausible planted clues"', begin_block)
+        self.assertIn('"Seeded mystery requires a conflicting witness"', begin_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
