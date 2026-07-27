@@ -1883,6 +1883,58 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0146_set_monster_status_dedup_guard_custom_message_and_pulse_gate(
+        self,
+    ) -> None:
+        effects = (ROOT / "src" / "client" / "UI" / "EffectsView.lua").read_text(
+            encoding="utf-8"
+        )
+        fn_start = effects.index("function EffectsView:SetMonsterStatus(")
+        fn_end = effects.index("\nfunction EffectsView:Update(", fn_start)
+        fn = effects[fn_start:fn_end]
+
+        # Dedup guard: skip update when statusId hasn't changed
+        self.assertIn("statusId == self.lastStatus", fn)
+
+        # nil statusId: hide overlay and return
+        self.assertIn("if not statusId then", fn)
+        self.assertIn("self.statusOverlay.Visible = false", fn)
+
+        # Missing STATUS_COPY entry: also hides overlay and returns
+        self.assertIn("if not presentation then", fn)
+
+        # customMessage takes priority over catalog label
+        self.assertIn("customMessage or presentation.label", fn)
+
+        # Non-reduced-motion path: stroke tweens from 0.05 → 0.32
+        self.assertIn("self.statusStroke.Transparency = 0.05", fn)
+        self.assertIn("{ Transparency = 0.32 }", fn)
+
+        # Reduced-motion path: sets 0.32 directly without tween
+        self.assertIn("self.statusStroke.Transparency = 0.32", fn)
+
+        # PULSE_STATUSES gate: only pulsing statuses trigger _startInjuryPulse
+        self.assertIn("if PULSE_STATUSES[statusId] then", fn)
+        self.assertIn("self:_startInjuryPulse(statusId, 0.5)", fn)
+
+        # _startInjuryPulse: reducedMotion guard prevents pulsing
+        pulse_start = effects.index("function EffectsView:_startInjuryPulse(")
+        pulse_end = effects.index("\nfunction EffectsView:SetMonsterStatus(", pulse_start)
+        pulse_fn = effects[pulse_start:pulse_end]
+        self.assertIn(
+            "self.destroyed or self.reducedMotion or not PULSE_STATUSES[statusId]",
+            pulse_fn,
+        )
+        # Pulse tween: -1 repeat count, reversing (InOut), 0.72 target transparency
+        self.assertIn("-1,", pulse_fn)
+        self.assertIn("true", pulse_fn)
+        self.assertIn("{ Transparency = 0.72 }", pulse_fn)
+        # Delayed start: 0.5 s delay honoured by task.delay guard
+        self.assertIn(
+            "self.injuryPulseTween == pulseTween",
+            pulse_fn,
+        )
+
     def test_request_0145_update_phase_arc_visibility_gate_and_dot_state_styling(
         self,
     ) -> None:
