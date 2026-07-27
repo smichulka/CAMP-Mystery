@@ -454,5 +454,44 @@ class GhostDreadTests(unittest.TestCase):
         self.assertIn("button.TextColor3 = Theme.Colors.Background", vote_block)
 
 
+    def test_request_0123_ghost_camera_mouse_behavior_and_cinematic_tint(self) -> None:
+        camera = read("src/client/Controllers/CameraController.lua")
+        # SetGhostMode clears all input state before switching modes
+        ghost_fn_start = camera.index("function CameraController:SetGhostMode(active: boolean)")
+        ghost_fn_end = camera.index("function CameraController:SetMonsterDread(", ghost_fn_start)
+        ghost_fn = camera[ghost_fn_start:ghost_fn_end]
+        self.assertIn("table.clear(self.keyboardMove)", ghost_fn)
+        self.assertIn("self.stickMove = Vector2.zero", ghost_fn)
+        self.assertIn("self.stickLook = Vector2.zero", ghost_fn)
+        # Activating ghost mode: snaps to scriptable camera, locks mouse center
+        self.assertIn("camera.CameraType = Enum.CameraType.Scriptable", ghost_fn)
+        self.assertIn("self.previousMouseBehavior = UserInputService.MouseBehavior", ghost_fn)
+        self.assertIn(
+            "UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter", ghost_fn
+        )
+        self.assertIn("UserInputService.MouseIconEnabled = false", ghost_fn)
+        # Deactivating ghost mode: restores custom camera and mouse state
+        self.assertIn("camera.CameraType = Enum.CameraType.Custom", ghost_fn)
+        self.assertIn("camera.CameraSubject = humanoid", ghost_fn)
+        self.assertIn(
+            "UserInputService.MouseBehavior = self.previousMouseBehavior", ghost_fn
+        )
+        self.assertIn(
+            "UserInputService.MouseIconEnabled = self.previousMouseIconEnabled", ghost_fn
+        )
+        # CinematicsController: GHOST_TINT color, saturation offset, and transition timing
+        cinematic = read("src/client/Controllers/CinematicsController.lua")
+        self.assertIn("local GHOST_TINT = Color3.fromRGB(200, 220, 255)", cinematic)
+        cin_ghost_start = cinematic.index(
+            "function CinematicsController:SetGhostMode(active: boolean)"
+        )
+        cin_ghost_end = cinematic.index("function CinematicsController:PlayImpactFlash(")
+        cin_ghost = cinematic[cin_ghost_start:cin_ghost_end]
+        self.assertIn("self.ghostSaturationOffset = if active then -0.28 else 0", cin_ghost)
+        self.assertIn("TintColor = if active then GHOST_TINT else DEFAULT_TINT", cin_ghost)
+        # Transition is slower to ghost (1.2s) than reverting (0.6s)
+        self.assertIn("if active then 1.2 else 0.6", cin_ghost)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
