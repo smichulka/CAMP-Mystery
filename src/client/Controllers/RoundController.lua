@@ -679,6 +679,28 @@ local function updateReleaseExperience(
 					else string.format("%d players remain. Cast your vote.", aliveCount)
 				currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
 			end
+			if phaseName == "MurderPlanning" and not reconnect and roleName == "Murderer" then
+				local murdPlan = if type(snapshot) == "table" then snapshot.murderPlan else nil
+				local victimId = if type(murdPlan) == "table"
+						and type(murdPlan.victimParticipantId) == "string"
+						and murdPlan.victimParticipantId ~= ""
+					then murdPlan.victimParticipantId
+					else nil
+				local victimName = "your target"
+				if victimId ~= nil then
+					for _, p in participants do
+						if type(p) == "table" and p.participantId == victimId then
+							victimName = readString(p, "displayName", "your target")
+							break
+						end
+					end
+				end
+				currentView:Notify(
+					"Night is falling",
+					string.format("You must eliminate %s. Use the shadows.", victimName),
+					"Warning"
+				)
+			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
 			if HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
