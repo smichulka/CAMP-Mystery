@@ -1883,6 +1883,85 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0148_round_lifecycle_event_names_emit_isolation_and_disconnect(
+        self,
+    ) -> None:
+        lc = source("Services/RoundLifecycle.lua")
+
+        # All 7 lifecycle event names declared in the LifecycleEventName type union
+        for event in (
+            '"RoundStarted"',
+            '"PhaseChanged"',
+            '"ParticipantInjured"',
+            '"ParticipantEliminated"',
+            '"ParticipantGhostTransition"',
+            '"RoundEnded"',
+            '"RoundReset"',
+        ):
+            self.assertIn(event, lc)
+
+        # LifecycleEvent shape includes roundId, revision, serverTime, and payload
+        for field in (
+            "roundId: number,",
+            "revision: number,",
+            "serverTime: number,",
+            "payload: { [string]: unknown },",
+        ):
+            self.assertIn(field, lc)
+
+        # BeginRound: must strictly increase round ID
+        self.assertIn(
+            'assert(roundId > self.roundId, "Round IDs must increase")',
+            lc,
+        )
+        # BeginRound: emits RoundStarted immediately after setting roundId
+        begin_start = lc.index("function RoundLifecycle:BeginRound(")
+        begin_end = lc.index("\nfunction RoundLifecycle:On(", begin_start)
+        begin_fn = lc[begin_start:begin_end]
+        roundid_pos = begin_fn.index("self.roundId = roundId")
+        emit_pos = begin_fn.index('self:Emit("RoundStarted", {})')
+        self.assertLess(roundid_pos, emit_pos)
+
+        # On: guards destroyed state and unknown event names
+        self.assertIn(
+            'assert(not self.destroyed, "Cannot subscribe to a destroyed lifecycle")',
+            lc,
+        )
+        self.assertIn(
+            '"Unknown lifecycle event: " .. eventName',
+            lc,
+        )
+        # On: disconnect closure guards idempotency with connected flag
+        on_start = lc.index("function RoundLifecycle:On(")
+        on_end = lc.index("\nfunction RoundLifecycle:Emit(", on_start)
+        on_fn = lc[on_start:on_end]
+        self.assertIn("local connected = true", on_fn)
+        self.assertIn("if not connected then", on_fn)
+        self.assertIn("table.remove(listeners, index)", on_fn)
+
+        # Emit: revision increments before building the event
+        emit_start = lc.index("function RoundLifecycle:Emit(")
+        emit_end = lc.index("\nfunction RoundLifecycle:Destroy(", emit_start)
+        emit_fn = lc[emit_start:emit_end]
+        rev_pos = emit_fn.index("self.revision += 1")
+        event_build_pos = emit_fn.index("local event: LifecycleEvent = {")
+        self.assertLess(rev_pos, event_build_pos)
+
+        # Emit: listeners cloned before iteration (safe against mid-dispatch removal)
+        self.assertIn("local listeners = table.clone(self.listeners[eventName])", emit_fn)
+
+        # Emit: listener errors are isolated via pcall with a warn
+        self.assertIn(
+            "local success, message = pcall(listener, event)", emit_fn
+        )
+        self.assertIn("[RoundLifecycle]", emit_fn)
+
+        # Destroy: idempotent and clears all listeners
+        destroy_start = lc.index("function RoundLifecycle:Destroy(")
+        destroy_fn = lc[destroy_start:]
+        self.assertIn("if self.destroyed then", destroy_fn)
+        self.assertIn("table.clear(listeners)", destroy_fn)
+
     def test_request_0147_status_effect_service_round_boundary_expiry_and_transfer(
         self,
     ) -> None:
