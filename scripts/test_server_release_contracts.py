@@ -1304,5 +1304,76 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0135_inventory_service_grant_transfer_drop_and_consume_charge(
+        self,
+    ) -> None:
+        inv = source("Services/InventoryService.lua")
+
+        self.assertIn("DEFAULT_CAPACITY = 15", inv)
+        self.assertIn('"Inventory capacity must be positive"', inv)
+
+        # Grant: unknown participant, full inventory, unknown equipment guards
+        grant_start = inv.index("function InventoryService:Grant(")
+        grant_end = inv.index("function InventoryService:GetOwnedItem(", grant_start)
+        grant_block = inv[grant_start:grant_end]
+        self.assertIn('"Unknown participant"', grant_block)
+        self.assertIn('"Inventory is full"', grant_block)
+        self.assertIn('"Unknown equipment"', grant_block)
+        # Item instanceId format embeds roundId and item number
+        self.assertIn('"item:%d:%d"', grant_block)
+        self.assertIn("self.roundId,", grant_block)
+        self.assertIn("self.nextItemNumber", grant_block)
+        # Charges and durability seeded from rule
+        self.assertIn("charges = rule.maxCharges,", grant_block)
+        self.assertIn("durability = rule.maxDurability,", grant_block)
+
+        # GetOwnedItem: returns nil if item.ownerParticipantId != participantId
+        owned_start = inv.index("function InventoryService:GetOwnedItem(")
+        owned_end = inv.index("function InventoryService:GetItemServer(", owned_start)
+        owned_block = inv[owned_start:owned_end]
+        self.assertIn("item.ownerParticipantId ~= participantId", owned_block)
+
+        # Transfer: guards both inventories + item ownership; capacity check on target
+        xfer_start = inv.index("function InventoryService:Transfer(")
+        xfer_end = inv.index("function InventoryService:RecoverDropped(", xfer_start)
+        xfer_block = inv[xfer_start:xfer_end]
+        self.assertIn('"Transfer participants or item are invalid"', xfer_block)
+        self.assertIn('"Target inventory is full"', xfer_block)
+        self.assertIn('"Item is not in source inventory"', xfer_block)
+        self.assertIn("item.ownerParticipantId = toParticipantId", xfer_block)
+        self.assertIn("item.equipped = false", xfer_block)
+
+        # RecoverDropped: ownerParticipantId must be nil (item is on ground)
+        recover_start = inv.index("function InventoryService:RecoverDropped(")
+        recover_end = inv.index("function InventoryService:DropAll(", recover_start)
+        recover_block = inv[recover_start:recover_end]
+        self.assertIn('"Item is already owned"', recover_block)
+        self.assertIn("item.ownerParticipantId ~= nil", recover_block)
+        self.assertIn("item.ownerParticipantId = participantId", recover_block)
+
+        # DropAll: clears inventory, sets owner=nil and equipped=false on every item
+        drop_start = inv.index("function InventoryService:DropAll(")
+        drop_end = inv.index("function InventoryService:ConsumeCharge(", drop_start)
+        drop_block = inv[drop_start:drop_end]
+        self.assertIn("item.ownerParticipantId = nil", drop_block)
+        self.assertIn("item.equipped = false", drop_block)
+        self.assertIn("table.clear(inventory)", drop_block)
+
+        # ConsumeCharge: must be equipped; checks charges+durability; cooldown guard
+        consume_start = inv.index("function InventoryService:ConsumeCharge(")
+        consume_end = inv.index("function InventoryService:GetSnapshot(", consume_start)
+        consume_block = inv[consume_start:consume_end]
+        self.assertIn('"Item must be owned and equipped"', consume_block)
+        self.assertIn('"Item is depleted"', consume_block)
+        self.assertIn('"Item is cooling down"', consume_block)
+        self.assertIn("item.charges <= 0 or item.durability <= 0", consume_block)
+        self.assertIn("now < item.cooldownEndsAt", consume_block)
+        self.assertIn("item.charges -= 1", consume_block)
+        self.assertIn("item.cooldownEndsAt = now + rule.cooldownSeconds", consume_block)
+
+        # GetDroppedItemIds: items with ownerParticipantId == nil
+        self.assertIn("item.ownerParticipantId == nil", inv)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
