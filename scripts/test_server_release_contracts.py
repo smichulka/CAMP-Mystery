@@ -3270,6 +3270,136 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("table.clear(self.evidence)", dest_fn)
         self.assertIn("table.clear(self.roots)", dest_fn)
 
+    def test_request_0161_interaction_controller_inputlabel_prompts_hold_and_input_controller_activate(
+        self,
+    ) -> None:
+        interaction = (
+            ROOT / "src" / "client" / "Controllers" / "InteractionController.lua"
+        ).read_text(encoding="utf-8")
+
+        # --- inputLabel: Touch → "TAP", Unknown → "USE", else upper+strip "Button" prefix ---
+        il_start = interaction.index("local function inputLabel(")
+        il_end = interaction.index("\nlocal function promptPart(", il_start)
+        il_fn = interaction[il_start:il_end]
+        self.assertIn("Enum.ProximityPromptInputType.Touch", il_fn)
+        self.assertIn('return "TAP"', il_fn)
+        self.assertIn("Enum.ProximityPromptInputType.Gamepad", il_fn)
+        self.assertIn("prompt.GamepadKeyCode", il_fn)
+        self.assertIn("prompt.KeyboardKeyCode", il_fn)
+        self.assertIn("Enum.KeyCode.Unknown", il_fn)
+        # Button prefix stripped from gamepad key names
+        self.assertIn('key.Name:gsub("^Button", "")', il_fn)
+        self.assertIn("string.upper(", il_fn)
+        # Fallback for unknown key
+        self.assertIn('return "USE"', il_fn)
+
+        # --- promptPart: parent must exist and be a BasePart ---
+        pp_start = interaction.index("local function promptPart(")
+        pp_end = interaction.index("\nlocal function hideDefaultPrompt(", pp_start)
+        pp_fn = interaction[pp_start:pp_end]
+        self.assertIn('parent:IsA("BasePart")', pp_fn)
+
+        # --- hideDefaultPrompt: sets Custom style; saves+disables when prompts disabled ---
+        hdp_start = interaction.index("local function hideDefaultPrompt(")
+        hdp_end = interaction.index("\nfunction InteractionController.SetPromptsEnabled(", hdp_start)
+        hdp_fn = interaction[hdp_start:hdp_end]
+        self.assertIn('instance:IsA("ProximityPrompt")', hdp_fn)
+        self.assertIn("Enum.ProximityPromptStyle.Custom", hdp_fn)
+        # Saves original Enabled value before forcing to false
+        self.assertIn("ghostDisabledPrompts[instance] == nil", hdp_fn)
+        self.assertIn("ghostDisabledPrompts[instance] = instance.Enabled", hdp_fn)
+        self.assertIn("instance.Enabled = false", hdp_fn)
+
+        # --- SetPromptsEnabled: enable path restores and clears; disable path scans Workspace ---
+        spe_start = interaction.index("function InteractionController.SetPromptsEnabled(")
+        spe_end = interaction.index("\nfunction InteractionController.Start(", spe_start)
+        spe_fn = interaction[spe_start:spe_end]
+        # Enable: restore wasEnabled (if prompt still has a parent), then clear table
+        self.assertIn("prompt.Parent", spe_fn)
+        self.assertIn("prompt.Enabled = wasEnabled", spe_fn)
+        self.assertIn("table.clear(ghostDisabledPrompts)", spe_fn)
+        # Disable: saves existing enabled state before forcing false
+        self.assertIn("ghostDisabledPrompts[descendant] == nil", spe_fn)
+        self.assertIn("ghostDisabledPrompts[descendant] = descendant.Enabled", spe_fn)
+        self.assertIn("descendant.Enabled = false", spe_fn)
+
+        # --- PromptShown: early return when prompts disabled; part vs non-part dispatch ---
+        shown_start = interaction.index("ProximityPromptService.PromptShown:Connect(")
+        shown_end = interaction.index("ProximityPromptService.PromptHidden:Connect(", shown_start)
+        shown_block = interaction[shown_start:shown_end]
+        self.assertIn("if not promptsEnabled then", shown_block)
+        # Part path: registers zone, starts at 0, makes visible, hides legacy UI
+        self.assertIn("proximityController:RegisterZone(part, prompt.ActionText, hint)", shown_block)
+        self.assertIn("proximityController:SetProgress(part, 0)", shown_block)
+        self.assertIn("callbacks.hidden()", shown_block)
+        # Non-part path: passes ActionText + ObjectText + hint
+        self.assertIn("callbacks.shown(prompt.ActionText, prompt.ObjectText, hint)", shown_block)
+
+        # --- PromptButtonHoldBegan: minimum hold duration 0.01 ---
+        hold_start = interaction.index("ProximityPromptService.PromptButtonHoldBegan:Connect(")
+        hold_end = interaction.index("ProximityPromptService.PromptButtonHoldEnded:Connect(", hold_start)
+        hold_block = interaction[hold_start:hold_end]
+        self.assertIn("math.max(prompt.HoldDuration, 0.01)", hold_block)
+        self.assertIn("proximityController:SetProgress(part, 0)", hold_block)
+
+        # --- PromptTriggered: early return if disabled; SetProgress(1); part from hold or promptPart ---
+        trig_start = interaction.index("ProximityPromptService.PromptTriggered:Connect(")
+        trig_end = interaction.index("RunService.RenderStepped:Connect(", trig_start)
+        trig_block = interaction[trig_start:trig_end]
+        self.assertIn("if not promptsEnabled then", trig_block)
+        self.assertIn("local part = if hold then hold.part else promptPart(prompt)", trig_block)
+        self.assertIn("proximityController:SetProgress(part, 1)", trig_block)
+
+        # --- RenderStepped: orphan cleanup when prompt or part loses its parent ---
+        rs_start = interaction.index("RunService.RenderStepped:Connect(")
+        rs_fn = interaction[rs_start:]
+        self.assertIn("not prompt.Parent or not hold.part.Parent", rs_fn)
+
+        # --- InputController: activate wrapper and selectOffset formula ---
+        inputs = (
+            ROOT / "src" / "client" / "Controllers" / "InputController.lua"
+        ).read_text(encoding="utf-8")
+
+        # activate: only fires on Begin; always Sinks
+        act_start = inputs.index("local function activate(")
+        act_end = inputs.index("\nfunction InputController.Start(", act_start)
+        act_fn = inputs[act_start:act_end]
+        self.assertIn("inputState == Enum.UserInputState.Begin", act_fn)
+        self.assertIn("return Enum.ContextActionResult.Sink", act_fn)
+
+        # selectOffset: wrapping modulo formula
+        self.assertIn(
+            "selectedSlot = ((selectedSlot - 1 + offset) % count) + 1",
+            inputs,
+        )
+        # count clamped to max 15
+        self.assertIn("math.clamp(callbacks.getSlotCount(), 0, 15)", inputs)
+
+        # Notebook action name + touch-specific setup
+        self.assertIn('local ACTION_NOTEBOOK = "CampMysteryNotebook"', inputs)
+        self.assertIn("ContextActionService:SetTitle(ACTION_NOTEBOOK, \"CLUES\")", inputs)
+        self.assertIn(
+            "ContextActionService:SetPosition(ACTION_NOTEBOOK, UDim2.new(1, -150, 1, -190))",
+            inputs,
+        )
+        self.assertIn(
+            'ContextActionService:SetImage(ACTION_NOTEBOOK, "")',
+            inputs,
+        )
+
+        # Stop unbinds all seven named actions and the slot loop
+        stop_start = inputs.index("function InputController.Stop(")
+        stop_fn = inputs[stop_start:]
+        self.assertIn("UnbindAction(ACTION_NOTEBOOK)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_PLAYER_STATUS)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_SETTINGS)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_CLOSE)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_SLOT_PREVIOUS)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_SLOT_NEXT)", stop_fn)
+        self.assertIn("UnbindAction(ACTION_SLOT_USE)", stop_fn)
+        # Slot loop unregisters all 10 numeric slot actions
+        self.assertIn('"CampMysterySlot" .. tostring(slot)', stop_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
