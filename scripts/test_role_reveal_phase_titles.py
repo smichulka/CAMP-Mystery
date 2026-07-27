@@ -416,6 +416,25 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn('and hintRole ~= "Spectator"', controller)
         self.assertIn('and hintRole == "Murderer"', controller)
 
+    def test_request_0093_server_announcement_titles_match_murderer_override_keys(self) -> None:
+        runtime = read("src/server/Services/GameRuntimeService.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Server sends these exact titles — Murderer override keys must match
+        server_titles = (
+            "Your Role Is Ready",
+            "Daylight Objectives",
+            "Something Is Being Planned",
+            "The Town Is Appearing",
+            "Night Investigation",
+            "Campfire Accusation",
+        )
+        for title in server_titles:
+            self.assertIn(f'\ttitle = "{title}"', runtime)
+            self.assertIn(f'["{title}"] = {{', controller)
+        # Server also sends these (no Murderer override needed — they are not Murderer-active)
+        for title in ("Back at Camp", "Mystery Resolution", "Round Complete"):
+            self.assertIn(f'\ttitle = "{title}"', runtime)
+
     def test_request_0092_spectator_tutorial_step_and_role_skip_logic(self) -> None:
         tutorial = read("src/client/Controllers/TutorialController.lua")
         # Spectator tutorial step content
