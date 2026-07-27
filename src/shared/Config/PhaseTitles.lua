@@ -10,6 +10,7 @@ export type PhaseTitle = {
 	title: string,
 	subtitle: string,
 	murderer: PhaseTitleOverride?,
+	observer: PhaseTitleOverride?,
 }
 
 local PhaseTitles: { [string]: PhaseTitle } = {
@@ -39,6 +40,11 @@ local PhaseTitles: { [string]: PhaseTitle } = {
 			subtitle = "Stay hidden. Destroy the evidence.",
 			tip = "The evidence board builds against you. Steer suspicion before it locks in.",
 		}),
+		observer = table.freeze({
+			title = "INVESTIGATION BEGINS",
+			subtitle = "Watch the survivors search for clues.",
+			tip = "",
+		}),
 	}),
 	Day = table.freeze({
 		title = "A NEW DAY",
@@ -56,6 +62,11 @@ local PhaseTitles: { [string]: PhaseTitle } = {
 			title = "THE VOTE",
 			subtitle = "Steer the blame. Survive the accusations.",
 			tip = "A tie breaks in your favor. Spread doubt before votes are cast.",
+		}),
+		observer = table.freeze({
+			title = "CAMPFIRE VOTE",
+			subtitle = "Watch the verdict unfold.",
+			tip = "",
 		}),
 	}),
 	Resolution = table.freeze({

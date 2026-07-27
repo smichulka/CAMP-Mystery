@@ -79,7 +79,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, view)
         self.assertIn(
-            "currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName)",
+            'currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName, isGhost or roleName == "Spectator")',
             controller,
         )
 
@@ -273,7 +273,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             "phaseTitleToken: number",
             "phaseTitleActive: boolean",
             "function GameView:_cancelPhaseTitle()",
-            "function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?)",
+            "function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?, isObserver: boolean?)",
             "or isReconnect",
             "or self.roleRevealActive",
             'band.Name = "PhaseTitleBand"',
@@ -296,7 +296,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             "currentCinematics:PlayPhaseTransition(phaseName)"
         )
         title = controller.index(
-            "currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName)"
+            'currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName, isGhost or roleName == "Spectator")'
         )
         resolution = controller.index(
             'if phaseName == "Resolution" and currentView then'

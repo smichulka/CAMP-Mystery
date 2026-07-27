@@ -5997,14 +5997,19 @@ function GameView:PlayDeathCinematic(deathCause: string?, localRole: string?)
 	end)
 end
 
-function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?)
+function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?, isObserver: boolean?)
 	local defaultEntry = PhaseTitles[phaseName]
 	local murdererEntry = if type(defaultEntry) == "table" then defaultEntry.murderer else nil
+	local observerEntry = if type(defaultEntry) == "table" then defaultEntry.observer else nil
 	local entry = if localRole == "Murderer" and type(murdererEntry) == "table"
 		then murdererEntry
+		elseif isObserver and type(observerEntry) == "table"
+		then observerEntry
 		else defaultEntry
 	local tipText = if localRole == "Murderer" and type(murdererEntry) == "table"
 		then murdererEntry.tip
+		elseif isObserver and type(observerEntry) == "table"
+		then observerEntry.tip
 		else PhaseTips[phaseName]
 	if self.destroyed
 		or isReconnect

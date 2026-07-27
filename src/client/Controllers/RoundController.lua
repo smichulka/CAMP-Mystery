@@ -794,7 +794,7 @@ local function updateReleaseExperience(
 					roleName == "Murderer"
 				)
 			end
-			currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName)
+			currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName, isGhost or roleName == "Spectator")
 			if phaseName == "Campfire" and not reconnect then
 				local aliveCount = 0
 				for _, participant in participants do
