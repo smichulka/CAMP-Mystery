@@ -986,6 +986,7 @@ local function updateReleaseExperience(
 		and not reconnect
 		and not roundEnded
 	if severityDegraded then
+		currentAudio:PlayUIEvent("error")
 		local currentCinematics = cinematics
 		if currentCinematics then
 			currentCinematics:PlayImpactFlash()
