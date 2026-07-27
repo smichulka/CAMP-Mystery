@@ -1375,5 +1375,82 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("item.ownerParticipantId == nil", inv)
 
 
+    def test_request_0136_participant_service_reset_round_vote_gate_and_serialize_private(
+        self,
+    ) -> None:
+        participant_svc = (ROOT / "src/server/Services/ParticipantService.lua").read_text(
+            encoding="utf-8"
+        )
+
+        # resetParticipant: alive = false for Spectator; isGhost always cleared
+        reset_start = participant_svc.index("function resetParticipant(")
+        reset_end = participant_svc.index("\nend\n", reset_start)
+        reset_fn = participant_svc[reset_start:reset_end]
+        self.assertIn('state.alive = roleName ~= "Spectator"', reset_fn)
+        self.assertIn("state.isGhost = false", reset_fn)
+        self.assertIn("state.team = roleDefinition.team", reset_fn)
+        self.assertIn('state.healthState = "Healthy"', reset_fn)
+        self.assertIn("state.vote = {", reset_fn)
+        self.assertIn("hasVoted = false,", reset_fn)
+
+        # ResetRound: 12-participant cap; all first reset to Spectator; then roles assigned
+        reset_round_start = participant_svc.index(
+            "function ParticipantService:ResetRound("
+        )
+        reset_round_end = participant_svc.index(
+            "function ParticipantService:AddInventoryItem(", reset_round_start
+        )
+        reset_round_block = participant_svc[reset_round_start:reset_round_end]
+        self.assertIn('"A round supports at most 12 participants"', reset_round_block)
+        # Fisher-Yates shuffle
+        self.assertIn("self.randomSource:NextInteger(1, index)", reset_round_block)
+        # All participants reset to Spectator before selective role assignment
+        self.assertIn('resetParticipant(state, "Spectator")', reset_round_block)
+        # Then selected participants get real roles from RoleCatalog
+        self.assertIn("local roles = RoleCatalog.GetDistribution(#selectedIds)", reset_round_block)
+        self.assertIn("local roleName = roles[index]", reset_round_block)
+        self.assertIn("resetParticipant(state, roleName)", reset_round_block)
+        self.assertIn("assignments[participantId] = roleName", reset_round_block)
+
+        # SetVote: ghost and dead participants cannot vote
+        vote_start = participant_svc.index("function ParticipantService:SetVote(")
+        vote_end = participant_svc.index(
+            "function ParticipantService:SerializePublic(", vote_start
+        )
+        vote_block = participant_svc[vote_start:vote_end]
+        self.assertIn("not state.alive or state.isGhost", vote_block)
+        self.assertIn("hasVoted = targetParticipantId ~= nil,", vote_block)
+
+        # SerializePrivate: includes role, team, abilityIds from RoleCatalog
+        priv_start = participant_svc.index(
+            "function ParticipantService:SerializePrivate("
+        )
+        priv_end = participant_svc.index(
+            "function ParticipantService:SerializeAllPublic(", priv_start
+        )
+        priv_block = participant_svc[priv_start:priv_end]
+        self.assertIn("local roleDefinition = RoleCatalog.Get(state.role)", priv_block)
+        self.assertIn("role = state.role,", priv_block)
+        self.assertIn("roleDisplayName = roleDefinition.displayName,", priv_block)
+        self.assertIn("roleDescription = roleDefinition.description,", priv_block)
+        self.assertIn("team = state.team,", priv_block)
+        self.assertIn("abilityIds = abilityIds,", priv_block)
+        self.assertIn("isGhost = state.isGhost,", priv_block)
+        self.assertIn("evidenceKnowledge = sortedEvidenceKnowledge(state),", priv_block)
+        self.assertIn("inventoryCapacity = MAX_INVENTORY_SLOTS,", priv_block)
+
+        # RecordEvidenceKnowledge: confidence range guard
+        rec_start = participant_svc.index(
+            "function ParticipantService:RecordEvidenceKnowledge("
+        )
+        rec_end = participant_svc.index("function ParticipantService:SetVote(", rec_start)
+        rec_block = participant_svc[rec_start:rec_end]
+        self.assertIn('"Evidence ID cannot be empty"', rec_block)
+        self.assertIn(
+            '"Evidence confidence must be between 0 and 1"', rec_block
+        )
+        self.assertIn("knowledge.confidence >= 0 and knowledge.confidence <= 1", rec_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
