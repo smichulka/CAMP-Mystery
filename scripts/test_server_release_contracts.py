@@ -2875,6 +2875,127 @@ class ServerReleaseContracts(unittest.TestCase):
         # Both empty paths share the same "Warning" notification level
         self.assertIn('"Warning"', func)
 
+    def test_request_0158_motion_helper_guards_slide_fade_pop_cancel_and_attribute_walk(
+        self,
+    ) -> None:
+        motion = (ROOT / "src" / "client" / "UI" / "Motion.lua").read_text(
+            encoding="utf-8"
+        )
+
+        # --- safeDuration: NaN + Inf guard, clamp to [0, 3] ---
+        dur_start = motion.index("local function safeDuration(")
+        dur_end = motion.index("\nlocal function safeDistance(", dur_start)
+        dur_fn = motion[dur_start:dur_end]
+        self.assertIn("value ~= value", dur_fn)
+        self.assertIn("math.abs(value) == math.huge", dur_fn)
+        self.assertIn("math.clamp(value, 0, 3)", dur_fn)
+
+        # --- safeDistance: clamp to [0, 160] ---
+        dist_start = motion.index("local function safeDistance(")
+        dist_end = motion.index("\nlocal function safeScale(", dist_start)
+        dist_fn = motion[dist_start:dist_end]
+        self.assertIn("value ~= value", dist_fn)
+        self.assertIn("math.clamp(value, 0, 160)", dist_fn)
+
+        # --- safeScale: clamp to [0.1, 3] ---
+        scale_start = motion.index("local function safeScale(")
+        scale_end = motion.index("\nlocal function callback(", scale_start)
+        scale_fn = motion[scale_start:scale_end]
+        self.assertIn("value ~= value", scale_fn)
+        self.assertIn("math.clamp(value, 0.1, 3)", scale_fn)
+
+        # --- findReducedMotionAttribute: GetAttribute walk up Parent chain ---
+        attr_start = motion.index("local function findReducedMotionAttribute(")
+        attr_end = motion.index("\nfunction Motion.SetReducedMotionProvider(", attr_start)
+        attr_fn = motion[attr_start:attr_end]
+        self.assertIn('current:GetAttribute("ReducedMotion") == true', attr_fn)
+        self.assertIn("current = current.Parent", attr_fn)
+
+        # --- cancelRecord: cancels each tween, clears tweens table, fires callback(false) ---
+        cancel_start = motion.index("local function cancelRecord(")
+        cancel_end = motion.index("\nlocal function begin(", cancel_start)
+        cancel_fn = motion[cancel_start:cancel_end]
+        self.assertIn("tween:Cancel()", cancel_fn)
+        self.assertIn("table.clear(record.tweens)", cancel_fn)
+        self.assertIn("activeTransitions[record.target] = nil", cancel_fn)
+        self.assertIn("callback(record, false)", cancel_fn)
+
+        # --- motionScale: reuse existing UIScale or create one named "MotionScale" ---
+        ms_start = motion.index("local function motionScale(")
+        ms_end = motion.index("\nlocal function pop(", ms_start)
+        ms_fn = motion[ms_start:ms_end]
+        self.assertIn('target:FindFirstChild("MotionScale")', ms_fn)
+        self.assertIn('existing:IsA("UIScale")', ms_fn)
+        self.assertIn('scale.Name = "MotionScale"', ms_fn)
+        self.assertIn("scale.Scale = 1", ms_fn)
+
+        # --- pop: scale tweened only when not reduced motion ---
+        pop_start = motion.index("local function pop(")
+        pop_end = motion.index("\nfunction Motion.PopIn(", pop_start)
+        pop_fn = motion[pop_start:pop_end]
+        self.assertIn("if not reduced then", pop_fn)
+        # Appearing: scale starts at popScale → tweens to 1
+        self.assertIn("scale.Scale = if appearing then popScale else 1", pop_fn)
+        self.assertIn("Scale = if appearing then 1 else popScale", pop_fn)
+        # pop cleanup restores scale
+        self.assertIn("scale.Scale = 1", pop_fn)
+        # ReducedFadeDuration used when reduced, PopDuration otherwise
+        self.assertIn("Theme.Motion.ReducedFadeDuration", pop_fn)
+        self.assertIn("Theme.Motion.PopDuration", pop_fn)
+
+        # --- fade: ReducedFadeDuration vs FadeDuration selection ---
+        fade_start = motion.index("local function fade(")
+        fade_end = motion.index("\nfunction Motion.FadeIn(", fade_start)
+        fade_fn = motion[fade_start:fade_end]
+        self.assertIn("Theme.Motion.ReducedFadeDuration", fade_fn)
+        self.assertIn("Theme.Motion.FadeDuration", fade_fn)
+        # Appearing: first setFade transparent, then tween to opaque
+        self.assertIn("setFade(properties, true)", fade_fn)
+        self.assertIn("addFadeTweens(record, properties, tweenInfo, not appearing)", fade_fn)
+
+        # --- slide: reduced path falls back to FadeIn/FadeOut ---
+        slide_start = motion.index("local function slide(")
+        slide_end = motion.index("\nfunction Motion.SlideUp(", slide_start)
+        slide_fn = motion[slide_start:slide_end]
+        self.assertIn(
+            "return if appearing then Motion.FadeIn(target, resolved) else Motion.FadeOut(target, resolved)",
+            slide_fn,
+        )
+        # Non-reduced: restingPosition captured and restored
+        self.assertIn("local restingPosition = target.Position", slide_fn)
+        self.assertIn("target.Position = restingPosition", slide_fn)
+        # Appearing: position set to shifted(restingPosition, distance) initially
+        self.assertIn(
+            "target.Position = shifted(restingPosition, distance)", slide_fn
+        )
+
+        # --- shifted: only modifies Y.Offset ---
+        shifted_start = motion.index("local function shifted(")
+        shifted_end = motion.index("\nlocal function shiftedHorizontal(", shifted_start)
+        shifted_fn = motion[shifted_start:shifted_end]
+        self.assertIn("position.Y.Offset + yOffset", shifted_fn)
+
+        # --- shiftedHorizontal: only modifies X.Offset (used by Shake) ---
+        hshift_start = motion.index("local function shiftedHorizontal(")
+        hshift_end = motion.index("\nlocal function slide(", hshift_start)
+        hshift_fn = motion[hshift_start:hshift_end]
+        self.assertIn("position.X.Offset + xOffset", hshift_fn)
+
+        # --- StaggerChildren: preset dispatch order ---
+        stagger_start = motion.index("function Motion.StaggerChildren(container: GuiObject")
+        stagger_fn = motion[stagger_start:]
+        # "reduced or FadeIn" branch comes before PopIn branch
+        fade_preset_pos = stagger_fn.index('reduced or resolved.preset == "FadeIn"')
+        pop_preset_pos = stagger_fn.index('resolved.preset == "PopIn"')
+        self.assertLess(fade_preset_pos, pop_preset_pos)
+        # FadeIn is the fallback for reduced motion in stagger
+        self.assertIn("Motion.FadeIn(child, childConfig)", stagger_fn)
+        self.assertIn("Motion.PopIn(child, childConfig)", stagger_fn)
+        self.assertIn("Motion.SlideUp(child, childConfig)", stagger_fn)
+        # Cleanup in stagger: restores Visible=true and cancels child transitions
+        self.assertIn("child.Visible = true", stagger_fn)
+        self.assertIn("Motion.Cancel(child)", stagger_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
