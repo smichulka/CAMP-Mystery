@@ -432,6 +432,8 @@ function PlayerStatusView:Update(
 		then "SUSPECTS"
 		elseif localIsGhost
 		then "SPIRIT VIEW"
+		elseif localRole == "Spectator"
+		then "SPECTATOR VIEW"
 		else "CAMP ROSTER"
 	Components.SetLetterspacedText(self.titleLabel, headerText)
 
