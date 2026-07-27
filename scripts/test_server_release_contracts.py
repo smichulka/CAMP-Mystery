@@ -896,5 +896,46 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0130_begin_round_culprit_victim_frame_and_monster_cycling(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        # _findCulprit: finds the Murderer, errors hard if roster has no Murderer
+        culprit_start = runtime.index("function GameRuntimeService:_findCulprit()")
+        culprit_end = runtime.index("function GameRuntimeService:_defaultFrameTarget(")
+        culprit_block = runtime[culprit_start:culprit_end]
+        self.assertIn('if participant.role == "Murderer" then', culprit_block)
+        self.assertIn('"Role assignment did not produce a Murderer"', culprit_block)
+        # _defaultFrameTarget: first non-culprit Camper becomes the framing candidate
+        frame_start = runtime.index("function GameRuntimeService:_defaultFrameTarget(")
+        frame_end = runtime.index("function GameRuntimeService:_defaultVictim(")
+        frame_block = runtime[frame_start:frame_end]
+        self.assertIn("participant.participantId ~= culpritId", frame_block)
+        self.assertIn('participant.team == "Campers"', frame_block)
+        # _defaultVictim: living non-culprit Campers, round-indexed
+        victim_start = runtime.index("function GameRuntimeService:_defaultVictim(")
+        victim_end = runtime.index("function GameRuntimeService:_grantLoadout(")
+        victim_block = runtime[victim_start:victim_end]
+        self.assertIn("participant.participantId ~= culpritId", victim_block)
+        self.assertIn('participant.team == "Campers"', victim_block)
+        self.assertIn("participant.alive", victim_block)
+        self.assertIn('"Round needs at least one Camper target"', victim_block)
+        # Cycles deterministically by round: (roundId - 1) % #candidates + 1
+        self.assertIn(
+            "candidates[((self.roundId - 1) % #candidates) + 1]", victim_block
+        )
+        # BeginRound: monster selected via MONSTER_ORDER modulo roundId
+        begin_start = runtime.index("function GameRuntimeService:BeginRound(")
+        begin_end = runtime.index("function GameRuntimeService:EnterPhase(", begin_start)
+        begin_block = runtime[begin_start:begin_end]
+        self.assertIn(
+            "MONSTER_ORDER[((roundId - 1) % #MONSTER_ORDER) + 1]", begin_block
+        )
+        # Initial murderPlan set from default victim/frame before player action
+        self.assertIn("self.murderPlan = {", begin_block)
+        self.assertIn('victimParticipantId = self:_defaultVictim(', begin_block)
+        self.assertIn('frameParticipantId = frameTarget,', begin_block)
+        # Round begins with RoleReveal phase
+        self.assertIn('self:EnterPhase("RoleReveal")', begin_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
