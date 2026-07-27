@@ -469,6 +469,9 @@ local function updateReleaseExperience(
 		then round.phase
 		else nil
 	local player = if type(snapshot) == "table" then snapshot.player else nil
+	local roleName = if type(player) == "table" and type(player.role) == "string"
+		then player.role
+		else "Spectator"
 	local isGhost = type(player) == "table" and player.isGhost == true
 	local evidenceFound = evidenceFoundCount(snapshot)
 	local culpritEvidence = evidenceList(snapshot, "culpritEvidence")
@@ -669,9 +672,6 @@ local function updateReleaseExperience(
 			currentCinematics:PlayPhaseFlash()
 		end
 		if currentView then
-			local roleName = if type(player) == "table" and type(player.role) == "string"
-				then player.role
-				else "Spectator"
 			if previousPhase == "Lobby"
 				and phaseName ~= "Lobby"
 				and phaseName ~= "Rewards"
@@ -889,11 +889,55 @@ local function updateReleaseExperience(
 				"Warning"
 			)
 		else
-			currentView:Notify(
-				"Reconnected",
-				string.format("Current phase: %s.", phaseName),
-				"Info"
-			)
+			if roleName == "Murderer" then
+				currentView:Notify(
+					"Reconnected",
+					string.format("You are the Murderer. Phase: %s. Stay in character.", phaseName),
+					"Warning"
+				)
+			elseif roleName == "Spectator" then
+				currentView:Notify(
+					"Reconnected",
+					string.format("Observing — Phase: %s.", phaseName),
+					"Info"
+				)
+			elseif phaseName == "Day" then
+				currentView:Notify(
+					"Reconnected",
+					"Complete camp work and interview witnesses before nightfall.",
+					"Info"
+				)
+			elseif phaseName == "Investigation" then
+				currentView:Notify(
+					"Reconnected",
+					"Find and post evidence before the campfire vote.",
+					"Info"
+				)
+			elseif phaseName == "Campfire" then
+				currentView:Notify(
+					"Reconnected",
+					"Cast your vote carefully. The verdict decides the round.",
+					"Info"
+				)
+			elseif phaseName == "MurderPlanning" then
+				currentView:Notify(
+					"Reconnected",
+					string.format("Phase: %s. Follow the phase instructions.", phaseName),
+					"Info"
+				)
+			elseif phaseName == "NightTransform" then
+				currentView:Notify(
+					"Reconnected",
+					string.format("Phase: %s. Follow the phase instructions.", phaseName),
+					"Info"
+				)
+			else
+				currentView:Notify(
+					"Reconnected",
+					string.format("Current phase: %s.", phaseName),
+					"Info"
+				)
+			end
 		end
 	end
 	local abilityMonster = if type(snapshot) == "table"
@@ -1147,7 +1191,6 @@ function RoundController.Start()
 				and phaseName ~= "Lobby"
 				and phaseName ~= "Rewards"
 				and type(player) == "table"
-				and player.role ~= "Spectator"
 			if isReconnectSnapshot then
 				lastCinematicPhase = phaseName
 				if type(round) == "table" and type(round.roundNumber) == "number" then

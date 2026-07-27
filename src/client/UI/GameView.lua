@@ -102,6 +102,7 @@ type GameViewState = {
 	settingsList: ScrollingFrame,
 	voteModal: Frame,
 	voteCountLabel: TextLabel?,
+	voteWarningLabel: TextLabel?,
 	voteList: ScrollingFrame,
 	resultModal: Frame,
 	resultTitle: TextLabel,
@@ -1023,6 +1024,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		settingsList = nil :: any,
 		voteModal = voteModal,
 		voteCountLabel = nil,
+		voteWarningLabel = nil,
 		voteList = nil :: any,
 		resultModal = resultModal,
 		resultTitle = nil :: any,
@@ -1447,6 +1449,7 @@ function GameView:_buildVote()
 	warning.Size = UDim2.new(1, -40, 0, 44)
 	warning.TextColor3 = Theme.Colors.Amber
 	warning.TextXAlignment = Enum.TextXAlignment.Center
+	self.voteWarningLabel = warning
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "Suspects"
 	list.Position = UDim2.fromOffset(18, 106)
@@ -3532,6 +3535,11 @@ function GameView:_updateVote(round: any, player: any)
 	local phase = readString(round, "phase", "Lobby")
 	local alive = readBoolean(player, "alive", false)
 	local isGhost = readBoolean(player, "isGhost", false)
+	if self.voteWarningLabel then
+		self.voteWarningLabel.Text = if readString(player, "role", "") == "Murderer"
+			then "One vote. No take-backs. A tie breaks in your favor."
+			else "One vote. No take-backs. A tie favors the Murderer."
+	end
 	local vote = if type(player) == "table" then player.vote else nil
 	local hasVoted = readBoolean(player, "hasVoted", false)
 	if type(vote) == "table" then
@@ -6342,6 +6350,7 @@ function GameView:Destroy()
 	self.rosterScrollFrame = nil
 	self.lastRosterSignature = ""
 	self.voteCountLabel = nil
+	self.voteWarningLabel = nil
 	self.localVoteHasLocked = false
 	self.dayObjectiveNotifiedRound = nil
 	self.evidenceNotifiedRound = nil
