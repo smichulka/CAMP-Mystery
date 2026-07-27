@@ -53,6 +53,42 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn("else PhaseTips[phaseName]", view)
         self.assertIn('"PhaseTip"', view)
 
+    def test_request_0070_tip_catalog_role_filter_and_murderer_strategy_tips(self) -> None:
+        catalog = read("src/shared/Config/TipCatalog.lua")
+        view = read("src/client/UI/GameView.lua")
+        # Tip type has both filter fields
+        for token in (
+            "excludeRoles: { string }?",
+            "includeRoles: { string }?,",
+        ):
+            self.assertIn(token, catalog)
+        # Murderer-only STRATEGY tips exist
+        for token in (
+            'category = "STRATEGY"',
+            'includeRoles = { "Murderer" }',
+            '"Your notebook tracks evidence collected against you. Check it often to gauge how close they are."',
+            '"Vote last when possible — watch where suspicion falls before committing your vote."',
+            '"Keep up with camp tasks. An idle Murderer stands out; participation builds trust."',
+            '"If evidence mounts against you, redirect — point to contradictions in the clues and cast doubt on the accuser."',
+        ):
+            self.assertIn(token, catalog)
+        # excludeRoles tips exist for teamwork/counterplay
+        self.assertIn('excludeRoles = { "Murderer" }', catalog)
+        # GameView cycling applies includeRoles filter
+        for token in (
+            'if not excluded and candidate and type(candidate.includeRoles) == "table" then',
+            "local included = false",
+            "if r == localRole0 then included = true; break end",
+            "if not included then excluded = true end",
+        ):
+            self.assertIn(token, view)
+        # GameView cycling applies excludeRoles filter
+        for token in (
+            'if candidate and type(candidate.excludeRoles) == "table" then',
+            "if r == localRole0 then excluded = true; break end",
+        ):
+            self.assertIn(token, view)
+
     def test_request_0049_murderer_phase_copy(self) -> None:
         catalog = read("src/shared/Config/PhaseTitles.lua")
         view = read("src/client/UI/GameView.lua")
