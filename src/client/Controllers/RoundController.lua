@@ -717,6 +717,12 @@ local function updateReleaseExperience(
 							"DangerBright"
 						)
 					end
+				else
+					currentView:Notify(
+						"Investigation begins",
+						"You are a ghost. Watch as the survivors search for the truth.",
+						"Info"
+					)
 				end
 			end
 			if phaseName == "NightTransform" and not reconnect then
