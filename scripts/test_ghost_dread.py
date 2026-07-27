@@ -91,7 +91,7 @@ class GhostDreadTests(unittest.TestCase):
             "currentAudio:SetHeartbeatIntensity(dreadFraction)",
             "currentCamera:SetMonsterDread(dreadFraction)",
             "currentCamera:SetGhostMode(isGhost and not roundEnded)",
-            "InteractionController.SetPromptsEnabled(not isGhost)",
+            "InteractionController.SetPromptsEnabled(not isGhost and roleName ~= \"Spectator\")",
         ):
             self.assertIn(token, controller)
 

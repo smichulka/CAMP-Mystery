@@ -523,6 +523,12 @@ local function updateReleaseExperience(
 				"A clue has been posted against you. Stay composed.",
 				"Warning"
 			)
+		elseif isGhost or roleName == "Spectator" then
+			currentView:Notify(
+				"Evidence Posted",
+				"A clue has been added to the board.",
+				"Info"
+			)
 		else
 			local evidenceName, evidenceDescription = evidenceCopy(latestEvidence)
 			currentEffects:FlashEvidenceFound()
@@ -537,6 +543,7 @@ local function updateReleaseExperience(
 	local totalWitnessCount = math.max(1, readNumber(mystery, "totalWitnessCount", 1))
 	if revealedWitnessCount > lastRevealedWitnessCount
 		and not isGhost
+		and roleName ~= "Spectator"
 		and not reconnect
 		and phaseName == "Day"
 		and currentView
@@ -568,6 +575,7 @@ local function updateReleaseExperience(
 	local objectiveGoal = math.max(1, readNumber(round, "objectiveGoal", 1))
 	if objectivesCompleted > lastObjectivesCompleted
 		and not isGhost
+		and roleName ~= "Spectator"
 		and not reconnect
 		and phaseName == "Day"
 		and currentView
@@ -606,7 +614,7 @@ local function updateReleaseExperience(
 					"The vote is sealed. Your fate is decided.",
 					"DangerBright"
 				)
-			elseif isGhost then
+			elseif isGhost or roleName == "Spectator" then
 				currentView:Notify(
 					"All votes are in",
 					"The campfire vote is sealed. Watch the verdict.",
@@ -751,6 +759,8 @@ local function updateReleaseExperience(
 				string.format("ROUND %d", roundNumber),
 				if roundToastRole == "Murderer"
 					then "Your identity is hidden. Play the role."
+					elseif roundToastRole == "Spectator"
+					then "You are observing this round."
 					else "The mystery begins. Stay together.",
 				"Info"
 			)
@@ -888,7 +898,7 @@ local function updateReleaseExperience(
 				and not reconnect
 				and currentView
 				and not hintIsGhost
-				and not (hintRole == "Spectator" and (phaseName == "Campfire" or phaseName == "Investigation"))
+				and hintRole ~= "Spectator"
 			local showMurdererHint = MURDERER_HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
 				and not reconnect
@@ -1117,7 +1127,7 @@ local function updateReleaseExperience(
 		currentView:SetGhostMode(isGhost)
 	end
 	currentCamera:SetGhostMode(isGhost and not roundEnded)
-	InteractionController.SetPromptsEnabled(not isGhost)
+	InteractionController.SetPromptsEnabled(not isGhost and roleName ~= "Spectator")
 	local dreadFraction = monsterDreadFraction(snapshot)
 	currentCinematics:SetMonsterDread(dreadFraction)
 	if roleName == "Murderer" or isGhost or roleName == "Spectator" then

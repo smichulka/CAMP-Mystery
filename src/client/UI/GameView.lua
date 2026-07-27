@@ -4460,6 +4460,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	if ghost then
 		self.healthText.Text = "SPIRIT STATE  -  LIVING ACTIONS LOCKED"
 		self.healthFill.BackgroundColor3 = Theme.Colors.Ghost
+	elseif role == "Spectator" then
+		self.healthText.Text = "SPECTATING  -  OBSERVING THIS ROUND"
+		self.healthFill.BackgroundColor3 = Theme.Colors.PanelSoft
 	elseif not alive then
 		self.healthText.Text = "WAITING FOR NEXT ROUND"
 		self.healthFill.BackgroundColor3 = Theme.Colors.PanelSoft
