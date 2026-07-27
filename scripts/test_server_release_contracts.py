@@ -3400,6 +3400,167 @@ class ServerReleaseContracts(unittest.TestCase):
         # Slot loop unregisters all 10 numeric slot actions
         self.assertIn('"CampMysterySlot" .. tostring(slot)', stop_fn)
 
+    def test_request_0162_tutorial_controller_context_dispatch_all_seen_finish_and_lifecycle(
+        self,
+    ) -> None:
+        tut = (
+            ROOT / "src" / "client" / "Controllers" / "TutorialController.lua"
+        ).read_text(encoding="utf-8")
+
+        # --- currentContext: type guards ---
+        ctx_start = tut.index("local function currentContext(state: any)")
+        ctx_end = tut.index("\nfunction TutorialController.new(", ctx_start)
+        ctx_fn = tut[ctx_start:ctx_end]
+        self.assertIn('type(state) ~= "table"', ctx_fn)
+        self.assertIn('type(round) ~= "table"', ctx_fn)
+
+        # Lobby is checked first before any role dispatch
+        self.assertIn('if phase == "Lobby" then', ctx_fn)
+        self.assertIn('return "Lobby"', ctx_fn)
+
+        # Spectator short-circuit (before Murderer check)
+        lobby_pos = ctx_fn.index('return "Lobby"')
+        spectator_pos = ctx_fn.index('return "Spectator"')
+        murderer_pos = ctx_fn.index('role == "Murderer"')
+        self.assertLess(lobby_pos, spectator_pos)
+        self.assertLess(spectator_pos, murderer_pos)
+
+        # Murderer phase dispatch: four phases map to murderer-specific contexts
+        self.assertIn('return "MurderPlanningMurderer"', ctx_fn)
+        self.assertIn('return "NightTransformMurderer"', ctx_fn)
+        self.assertIn('return "InvestigationMurderer"', ctx_fn)
+        self.assertIn('return "VoteMurderer"', ctx_fn)
+
+        # Investigation: Evidence context when evidenceFound > 0
+        self.assertIn('readNumber(round, "evidenceFound", 0)', ctx_fn)
+        self.assertIn("if evidenceFound > 0 then", ctx_fn)
+        self.assertIn('return "Evidence"', ctx_fn)
+        # Falls back to Investigation when evidenceFound == 0
+        self.assertIn('return "Investigation"', ctx_fn)
+
+        # Resolution and Rewards both map to Rewards context
+        self.assertIn('"Resolution" or phase == "Rewards"', ctx_fn)
+        self.assertIn('return "Rewards"', ctx_fn)
+
+        # --- buildSteps: injects position and total into each step ---
+        build_start = tut.index("local function buildSteps()")
+        build_end = tut.index("\nlocal function readString(", build_start)
+        build_fn = tut[build_start:build_end]
+        self.assertIn("position = index,", build_fn)
+        self.assertIn("total = total,", build_fn)
+        self.assertIn("local total = #STEP_COPY", build_fn)
+
+        # --- _allSeen: role-aware step filtering ---
+        all_start = tut.index("function TutorialController:_allSeen()")
+        all_end = tut.index("\nfunction TutorialController:_finish(", all_start)
+        all_fn = tut[all_start:all_end]
+        # Spectator step is skipped for non-Spectator roles
+        self.assertIn(
+            'if step.id == TutorialController.StepIds.Spectator then', all_fn
+        )
+        self.assertIn('if role ~= "Spectator" then', all_fn)
+        self.assertIn("continue", all_fn)
+        # Murderer steps skipped when role != Murderer; camper steps skipped when Murderer
+        self.assertIn(
+            '(murdererStep and role ~= "Murderer") or (camperEquivalent and role == "Murderer")',
+            all_fn,
+        )
+        # Returns false when any relevant step is unseen
+        self.assertIn("if not self.seen[step.id] then", all_fn)
+        self.assertIn("return false", all_fn)
+
+        # --- _finish: idempotent; sets completed; fires onCompleted with skipped flag ---
+        fin_start = tut.index("function TutorialController:_finish(")
+        fin_end = tut.index("\nfunction TutorialController:_show(", fin_start)
+        fin_fn = tut[fin_start:fin_end]
+        self.assertIn("if self.completed then", fin_fn)
+        self.assertIn("self.completed = true", fin_fn)
+        self.assertIn("self.activeStep = nil", fin_fn)
+        self.assertIn("self.view:Hide()", fin_fn)
+        self.assertIn("self.onCompleted(skipped)", fin_fn)
+
+        # --- Update: same-context no-op; marks active seen on context change ---
+        upd_start = tut.index("function TutorialController:Update(")
+        upd_end = tut.index("\nfunction TutorialController:Advance(", upd_start)
+        upd_fn = tut[upd_start:upd_end]
+        self.assertIn("if self.completed or self.destroyed then", upd_fn)
+        self.assertIn("self.lastState = state", upd_fn)
+        # Same context: early return
+        self.assertIn("if active.context == context then", upd_fn)
+        # Context change: mark seen, clear active, hide
+        self.assertIn("self.seen[active.id] = true", upd_fn)
+        self.assertIn("self.activeStep = nil", upd_fn)
+        # If no step found and all seen: _finish(false)
+        self.assertIn("elseif self:_allSeen() then", upd_fn)
+        self.assertIn("self:_finish(false)", upd_fn)
+
+        # --- Advance: marks seen, hides, then re-runs Update ---
+        adv_start = tut.index("function TutorialController:Advance()")
+        adv_end = tut.index("\nfunction TutorialController:Skip()", adv_start)
+        adv_fn = tut[adv_start:adv_end]
+        self.assertIn("self.seen[active.id] = true", adv_fn)
+        self.assertIn("self.view:Hide()", adv_fn)
+        self.assertIn("self:Update(self.lastState)", adv_fn)
+        # allSeen → _finish(false) before Update
+        self.assertIn("if self:_allSeen() then", adv_fn)
+
+        # --- Skip: marks all steps seen, calls _finish(true) ---
+        skip_start = tut.index("function TutorialController:Skip()")
+        skip_end = tut.index("\nfunction TutorialController:SetReducedMotion(", skip_start)
+        skip_fn = tut[skip_start:skip_end]
+        self.assertIn("for _, step in self.steps do", skip_fn)
+        self.assertIn("self.seen[step.id] = true", skip_fn)
+        self.assertIn("self:_finish(true)", skip_fn)
+
+        # --- SetCompleted: silently marks done without firing onCompleted ---
+        sc_start = tut.index("function TutorialController:SetCompleted(")
+        sc_end = tut.index("\nfunction TutorialController:IsCompleted(", sc_start)
+        sc_fn = tut[sc_start:sc_end]
+        self.assertIn("if completed and not self.completed then", sc_fn)
+        self.assertIn("self.completed = true", sc_fn)
+        self.assertIn("self.view:Hide()", sc_fn)
+        # onCompleted must NOT be called (silent sync — not a real completion)
+        self.assertNotIn("self.onCompleted", sc_fn)
+
+        # --- UIAssetController: normalizeAssetId guards ---
+        asset = (
+            ROOT / "src" / "client" / "Controllers" / "UIAssetController.lua"
+        ).read_text(encoding="utf-8")
+        norm_start = asset.index("local function normalizeAssetId(")
+        norm_end = asset.index("\nlocal function findRoot(", norm_start)
+        norm_fn = asset[norm_start:norm_end]
+        # String: two patterns
+        self.assertIn('"^%s*(%d+)%s*$"', norm_fn)
+        self.assertIn('"^rbxassetid://(%d+)$"', norm_fn)
+        # Number: NaN guard (value == value), positive, not infinite, integer
+        self.assertIn("value == value", norm_fn)
+        self.assertIn("value > 0", norm_fn)
+        self.assertIn("value < math.huge", norm_fn)
+        self.assertIn("value % 1 == 0", norm_fn)
+        self.assertIn('string.format("%.0f", value)', norm_fn)
+        # Requires at least one non-zero digit (rejects "000")
+        self.assertIn('string.find(digits, "[1-9]")', norm_fn)
+        # Result always prefixed
+        self.assertIn('"rbxassetid://" .. digits', norm_fn)
+
+        # Resolve: five child type resolution paths
+        res_start = asset.index("function UIAssetController:Resolve(")
+        res_end = asset.index("\nfunction UIAssetController:Destroy(", res_start)
+        res_fn = asset[res_start:res_end]
+        # Key length and pattern validation
+        self.assertIn("#key == 0 or #key > 64", res_fn)
+        self.assertIn('"^[%w_%-]+$"', res_fn)
+        # Root re-fetch when nil or orphaned
+        self.assertIn("root.Parent == nil", res_fn)
+        # Attribute lookup first
+        self.assertIn("root:GetAttribute(key)", res_fn)
+        # Five child types
+        self.assertIn('asset:IsA("StringValue")', res_fn)
+        self.assertIn('asset:IsA("NumberValue")', res_fn)
+        self.assertIn('asset:IsA("ImageLabel")', res_fn)
+        self.assertIn('asset:IsA("ImageButton")', res_fn)
+        self.assertIn('asset:GetAttribute("AssetId")', res_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
