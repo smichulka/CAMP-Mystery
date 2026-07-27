@@ -1883,6 +1883,57 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0144_monster_panel_phase_gate_stamina_fraction_and_cooldown_rich_text(
+        self,
+    ) -> None:
+        view = (ROOT / "src" / "client" / "UI" / "GameView.lua").read_text(
+            encoding="utf-8"
+        )
+        panel_start = view.index("function GameView:_updateMonsterPanel(state: any")
+        panel_end = view.index("function GameView:_stopTimerPulse()", panel_start)
+        panel_fn = view[panel_start:panel_end]
+
+        # Phase gate: only Investigation and NightTransform show the panel
+        self.assertIn(
+            'monsterActive and (phase == "Investigation" or phase == "NightTransform")',
+            panel_fn,
+        )
+
+        # Stamina fraction is clamped to [0, 1]; zero when maxStamina is 0
+        self.assertIn(
+            "then math.clamp(stamina / maxStamina, 0, 1)",
+            panel_fn,
+        )
+        self.assertIn("else 0", panel_fn)
+
+        # Cooldown display: remaining > 0.5 threshold distinguishes cooling from ready
+        self.assertIn("if remaining > 0.5 then", panel_fn)
+
+        # Cooling color constant defined at module level
+        self.assertIn('MONSTER_ABILITY_COOLING_RICH_COLOR = "#E27F31"', view)
+        # Ready color constant defined at module level
+        self.assertIn('MONSTER_ABILITY_READY_RICH_COLOR = "#DAAC4F"', view)
+
+        # Cooling line uses COOLING color and formats countdown in seconds
+        self.assertIn("MONSTER_ABILITY_COOLING_RICH_COLOR,", panel_fn)
+        self.assertIn("math.ceil(remaining)", panel_fn)
+
+        # Ready line uses READY color and appends "READY" text
+        self.assertIn("MONSTER_ABILITY_READY_RICH_COLOR,", panel_fn)
+        self.assertIn("READY</font>", panel_fn)
+
+        # Fallback ability list from cooldownEndsAt keys when MONSTER_ABILITIES has no entry
+        self.assertIn(
+            "if #abilityIds == 0 and type(cooldowns) == \"table\" then",
+            panel_fn,
+        )
+        self.assertIn("for abilityId in cooldowns do", panel_fn)
+
+        # Cooling label position before ready label in the conditional
+        cooling_pos = panel_fn.index("MONSTER_ABILITY_COOLING_RICH_COLOR,")
+        ready_pos = panel_fn.index("MONSTER_ABILITY_READY_RICH_COLOR,")
+        self.assertLess(cooling_pos, ready_pos)
+
     def test_request_0143_choose_participant_ghost_exclusion_injured_color_and_empty_notification(
         self,
     ) -> None:
