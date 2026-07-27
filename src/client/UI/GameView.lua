@@ -4432,7 +4432,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					subLabel.Text = "You joined during an active round. You'll play next."
 				else
 					titleLabel.Text = "ELIMINATED"
-					subLabel.Text = "You are spectating. Watch the mystery unfold."
+					subLabel.Text = if role == "Murderer"
+						then "The camp saw through you. Your hunt is over."
+						else "You are spectating. Watch the mystery unfold."
 				end
 			end
 		end
