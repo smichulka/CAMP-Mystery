@@ -209,6 +209,9 @@ local MONSTER_ABILITIES: { [string]: { string } } = {
 	Banshee = { "MournfulWail", "DeathMark" },
 }
 
+local MONSTER_ABILITY_READY_RICH_COLOR = "#DAAC4F"
+local MONSTER_ABILITY_COOLING_RICH_COLOR = "#E27F31"
+
 local MONSTER_PLAN_LOCATIONS: { [string]: string } = {
 	BabyAlien = "residential-bedroom-clue",
 	Screamer = "square-gas-station-clue",
@@ -836,10 +839,13 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		11,
 		Theme.Typography.CaptionFont
 	)
-	monsterAbilityLabel.Position = UDim2.fromOffset(10, 46)
-	monsterAbilityLabel.Size = UDim2.new(1, -20, 0, 14)
+	monsterAbilityLabel.Position = UDim2.fromOffset(10, 41)
+	monsterAbilityLabel.Size = UDim2.new(1, -20, 0, 26)
+	monsterAbilityLabel.TextSize = 10
+	monsterAbilityLabel.RichText = true
 	monsterAbilityLabel.TextColor3 = Theme.Colors.Gold
 	monsterAbilityLabel.TextXAlignment = Enum.TextXAlignment.Left
+	monsterAbilityLabel.TextYAlignment = Enum.TextYAlignment.Center
 	monsterAbilityLabel.ZIndex = 23
 
 	-- Live player roster panel — right side, visible during active round phases
@@ -3825,28 +3831,50 @@ function GameView:_updateMonsterPanel(state: any, phase: string?)
 	end
 	local monsterAbilityLabel = self.monsterAbilityLabel
 	if monsterAbilityLabel then
-		local longestRemaining = 0
+		local currentTime = Workspace:GetServerTimeNow()
 		local cooldowns = monsterSnapshot.cooldownEndsAt
-		if type(cooldowns) == "table" then
-			local currentTime = Workspace:GetServerTimeNow()
-			for _, endsAt in cooldowns do
-				if type(endsAt) == "number"
-					and endsAt == endsAt
-					and math.abs(endsAt) < math.huge
-				then
-					longestRemaining = math.max(longestRemaining, endsAt - currentTime)
+		local monsterId = readString(monsterSnapshot, "monsterId", "")
+		local abilityIds = table.clone(MONSTER_ABILITIES[monsterId] or {})
+		if #abilityIds == 0 and type(cooldowns) == "table" then
+			for abilityId in cooldowns do
+				if type(abilityId) == "string" then
+					table.insert(abilityIds, abilityId)
 				end
 			end
+			table.sort(abilityIds)
 		end
-		if longestRemaining > 0.5 then
-			monsterAbilityLabel.Text = string.format(
-				"ABILITY COOLING: %ds",
-				math.ceil(longestRemaining)
+
+		local abilityLines: { string } = {}
+		for _, abilityId in abilityIds do
+			local displayName = string.upper(
+				abilityId:gsub("(%l)(%u)", "%1 %2"):gsub("-", " ")
 			)
-			monsterAbilityLabel.TextColor3 = Theme.Colors.TextMuted
+			local endsAt = if type(cooldowns) == "table" then cooldowns[abilityId] else nil
+			local remaining = if type(endsAt) == "number"
+					and endsAt == endsAt
+					and math.abs(endsAt) < math.huge
+				then endsAt - currentTime
+				else 0
+			if remaining > 0.5 then
+				table.insert(abilityLines, string.format(
+					'<font color="%s">%s  %ds</font>',
+					MONSTER_ABILITY_COOLING_RICH_COLOR,
+					displayName,
+					math.ceil(remaining)
+				))
+			else
+				table.insert(abilityLines, string.format(
+					'<font color="%s">%s  READY</font>',
+					MONSTER_ABILITY_READY_RICH_COLOR,
+					displayName
+				))
+			end
+		end
+
+		if #abilityLines > 0 then
+			monsterAbilityLabel.Text = table.concat(abilityLines, "\n")
 		else
 			monsterAbilityLabel.Text = "ABILITY READY"
-			monsterAbilityLabel.TextColor3 = Theme.Colors.Gold
 		end
 	end
 end

@@ -83,6 +83,30 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             controller,
         )
 
+    def test_request_0054_named_monster_cooldowns_and_phase_tip_routing(self) -> None:
+        catalog = read("src/shared/Config/PhaseTitles.lua")
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            'tip = "Study your target now. Your window is short."',
+            'tip = "Your ability is your greatest weapon. Use it wisely."',
+            "local abilityIds = table.clone(MONSTER_ABILITIES[monsterId] or {})",
+            "for _, abilityId in abilityIds do",
+            "cooldowns[abilityId]",
+            "then endsAt - currentTime",
+            "else 0",
+            "%s  %ds</font>",
+            "%s  READY</font>",
+            'table.concat(abilityLines, "\\n")',
+        ):
+            self.assertIn(token, catalog if token.startswith("tip =") else view)
+        self.assertIn("monsterAbilityLabel.RichText = true", view)
+        self.assertIn(
+            "monsterAbilityLabel.Size = UDim2.new(1, -20, 0, 26)",
+            view,
+        )
+        self.assertIn("TipCatalog.definitions[self.lobbyTipIndex]", view)
+        self.assertEqual(view.count("PhaseTips[phaseName]"), 1)
+
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
