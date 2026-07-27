@@ -701,6 +701,24 @@ local function updateReleaseExperience(
 					"Warning"
 				)
 			end
+			if phaseName == "Investigation" and not reconnect then
+				local playerIsGhost = type(player) == "table" and player.isGhost == true
+				if not playerIsGhost then
+					if roleName == "Murderer" then
+						currentView:Notify(
+							"Body discovered",
+							"Stay calm. Blend in with the others.",
+							"Warning"
+						)
+					elseif roleName ~= "Spectator" then
+						currentView:Notify(
+							"Body discovered",
+							"Someone was killed. Find the evidence before campfire.",
+							"DangerBright"
+						)
+					end
+				end
+			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
 			if HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
