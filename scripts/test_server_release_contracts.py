@@ -249,5 +249,42 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("participant.alive and not participant.isGhost", voting)
 
 
+    def test_request_0101_participant_and_ability_role_init_and_gate_contracts(self) -> None:
+        participant_svc = (ROOT / "src/server/Services/ParticipantService.lua").read_text(encoding="utf-8")
+        ability_svc = (ROOT / "src/server/Services/RoleAbilityService.lua").read_text(encoding="utf-8")
+        evidence_svc = source("Services/EvidenceService.lua")
+        # Spectator spawns dead (alive = false) via resetParticipant
+        self.assertIn('state.alive = roleName ~= "Spectator"', participant_svc)
+        self.assertIn("state.isGhost = false", participant_svc)
+        # RoleAbilityService: Spectator and dead-non-ghost are blocked from all abilities
+        self.assertIn(
+            'participant.role == "Spectator" or (not participant.alive and not participant.isGhost)',
+            ability_svc,
+        )
+        self.assertIn('"Participant is not active"', ability_svc)
+        # RoleAbilityService: ghost blocked unless allowGhost is true
+        self.assertIn("participant.isGhost and not allowGhost", ability_svc)
+        self.assertIn('"Ghosts cannot use this ability"', ability_svc)
+        # TriggerTrap: Murderer trigger reveals monster and gets 4-second slow; Camper gets 1
+        self.assertIn('revealedMonster = triggering.role == "Murderer"', ability_svc)
+        self.assertIn('if triggering.role == "Murderer" then 4 else 1', ability_svc)
+        # Investigate: Spectator cannot be investigated
+        self.assertIn('target.role == "Spectator"', ability_svc)
+        self.assertIn('"Investigation target is invalid"', ability_svc)
+        # Investigate: Murderer gets High suspicion band; innocent gets Low
+        inv_start = ability_svc.index('local band = if target.role == "Murderer"')
+        inv_block = ability_svc[inv_start:inv_start + 200]
+        self.assertIn('"High"', inv_block)
+        self.assertIn('"Low"', inv_block)
+        self.assertLess(inv_block.index('"High"'), inv_block.index('"Low"'))
+        # EvidenceService: ghosts cannot discover or annotate evidence
+        self.assertIn("participant.isGhost", evidence_svc)
+        self.assertIn('"Participant cannot discover physical evidence"', evidence_svc)
+        self.assertIn('"Participant cannot add a note"', evidence_svc)
+        # EvidenceService: only the living Detective can verify evidence
+        self.assertIn('detective.role ~= "Detective"', evidence_svc)
+        self.assertIn('"Only the living Detective can verify evidence"', evidence_svc)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
