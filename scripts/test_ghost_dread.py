@@ -283,6 +283,55 @@ class GhostDreadTests(unittest.TestCase):
             camper_idx = block.index('"Info"')
             self.assertLess(murderer_idx, camper_idx, name)
 
+    def test_request_0109_health_state_degradation_and_recovery_notifications(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # HEALTH_SEVERITY lookup table: four states with numeric severity levels
+        self.assertIn("local HEALTH_SEVERITY: { [string]: number } = {", controller)
+        self.assertIn("Healthy = 0,", controller)
+        self.assertIn("Injured = 1,", controller)
+        self.assertIn("Incapacitated = 2,", controller)
+        self.assertIn("Critical = 2,", controller)
+        # healthImproved guard: only fires when actually healing, not on reconnect or round end
+        self.assertIn(
+            "local healthImproved = currentHealthState == \"Healthy\"",
+            controller,
+        )
+        self.assertIn("and lastHealthState ~= nil", controller)
+        self.assertIn('and lastHealthState ~= "Healthy"', controller)
+        # Healing effect + notification on health improvement
+        recovery_start = controller.index("if healthImproved then")
+        recovery_end = controller.index("if currentHealthState ~= lastHealthState then", recovery_start)
+        recovery_block = controller[recovery_start:recovery_end]
+        self.assertIn("currentEffects:ShowHealedEffect()", recovery_block)
+        self.assertIn('"You\'ve recovered"', recovery_block)
+        self.assertIn('"Success"', recovery_block)
+        # severityDegraded guard: only fires when severity strictly worsens
+        self.assertIn("local severityDegraded = currentSeverity ~= nil", controller)
+        self.assertIn("and currentSeverity > lastHealthSeverity", controller)
+        # Impact flash fires for both injury severity levels
+        degrade_start = controller.index("if severityDegraded then")
+        degrade_end = controller.index("if currentSeverity ~= lastHealthSeverity then", degrade_start)
+        degrade_block = controller[degrade_start:degrade_end]
+        self.assertIn("currentCinematics:PlayImpactFlash()", degrade_block)
+        # Incapacitated (severity >= 2): screen shake + DangerBright notification
+        self.assertIn("if currentSeverity >= 2 then", degrade_block)
+        self.assertIn("currentCinematics:PlayScreenShake(0.5)", degrade_block)
+        self.assertIn('"You\'re incapacitated"', degrade_block)
+        self.assertIn('"DangerBright"', degrade_block)
+        # Injured (severity < 2): Warning notification, no extra shake
+        self.assertIn('"You\'ve been injured"', degrade_block)
+        self.assertIn('"Warning"', degrade_block)
+        # Incapacitated branch precedes Injured branch (matching if/else order)
+        self.assertLess(
+            degrade_block.index('"DangerBright"'),
+            degrade_block.index('"Warning"'),
+        )
+        # healthImproved block comes before severityDegraded block in source order
+        self.assertLess(
+            controller.index("if healthImproved then"),
+            controller.index("if severityDegraded then"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
