@@ -717,5 +717,32 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('self:_announce("Danger",', elim_block)
 
 
+    def test_request_0125_handle_action_ghost_bypass_and_note_filter(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        handle_start = runtime.index("function GameRuntimeService:HandleAction(")
+        handle_end = runtime.index("function GameRuntimeService:_ResolveAccusation(")
+        handle_block = runtime[handle_start:handle_end]
+        # Ghost participants can use role abilities without passing _validateActiveParticipant
+        self.assertIn(
+            'actionName == "UseRoleAbility"\n\t\tand rawParticipant\n\t\tand rawParticipant.isGhost',
+            handle_block,
+        )
+        self.assertIn("self:_useRoleAbility(rawParticipant, clonePayload(payload))", handle_block)
+        # The ghost branch runs _useRoleAbility with rawParticipant (not validated participant)
+        ghost_branch_pos = handle_block.index("rawParticipant.isGhost")
+        validate_pos = handle_block.index("_validateActiveParticipant")
+        # ghost branch check must appear AFTER validation is defined, but bypasses it
+        self.assertLess(validate_pos, ghost_branch_pos)
+        # AddEvidenceNote: text is filtered and capped at 160 chars before storage
+        self.assertIn('actionName == "AddEvidenceNote"', handle_block)
+        self.assertIn("TextService:FilterStringAsync(", handle_block)
+        self.assertIn("string.sub(rawText, 1, 160)", handle_block)
+        self.assertIn("GetNonChatStringForBroadcastAsync()", handle_block)
+        self.assertIn('"Evidence note could not be moderated"', handle_block)
+        # Non-ghost path requires a validated participant; actions broadcast on acceptance
+        self.assertIn('"Player cannot act"', handle_block)
+        self.assertIn("self:Broadcast()", handle_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
