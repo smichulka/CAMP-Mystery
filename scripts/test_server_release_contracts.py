@@ -3125,6 +3125,151 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("text.ZIndex = track.ZIndex + 2", pb_fn)
         self.assertIn("text.TextXAlignment = Enum.TextXAlignment.Center", pb_fn)
 
+    def test_request_0160_accessibility_controller_defaults_evidence_shake_and_destroy(
+        self,
+    ) -> None:
+        acc = (
+            ROOT / "src" / "client" / "Controllers" / "AccessibilityController.lua"
+        ).read_text(encoding="utf-8")
+
+        # --- SettingIds: four frozen setting key constants ---
+        self.assertIn('Subtitles = "subtitles"', acc)
+        self.assertIn('ReducedMotion = "reducedMotion"', acc)
+        self.assertIn('CameraShake = "cameraShake"', acc)
+        self.assertIn('HighContrastEvidence = "highContrastEvidence"', acc)
+
+        # --- Default settings: subtitles on, reducedMotion off, cameraShake on, highContrast off ---
+        new_start = acc.index("function AccessibilityController.new(")
+        new_end = acc.index("\nfunction AccessibilityController:_applyRootAttributes(", new_start)
+        new_fn = acc[new_start:new_end]
+        self.assertIn("subtitles = true", new_fn)
+        self.assertIn("reducedMotion = false", new_fn)
+        self.assertIn("cameraShake = true", new_fn)
+        self.assertIn("highContrastEvidence = false", new_fn)
+        self.assertIn("shakeToken = 0", new_fn)
+        self.assertIn("destroyed = false", new_fn)
+
+        # --- isTextGui: TextLabel, TextButton, TextBox only ---
+        itg_start = acc.index("local function isTextGui(")
+        itg_end = acc.index("\nfunction AccessibilityController.new(", itg_start)
+        itg_fn = acc[itg_start:itg_end]
+        self.assertIn('"TextLabel"', itg_fn)
+        self.assertIn('"TextButton"', itg_fn)
+        self.assertIn('"TextBox"', itg_fn)
+
+        # --- _applyRootAttributes: sets all four attributes on roots with a parent ---
+        ara_start = acc.index("function AccessibilityController:_applyRootAttributes(")
+        ara_end = acc.index("\nfunction AccessibilityController:_applyEvidence(", ara_start)
+        ara_fn = acc[ara_start:ara_end]
+        self.assertIn("root.Parent", ara_fn)
+        self.assertIn('root:SetAttribute("Subtitles"', ara_fn)
+        self.assertIn('root:SetAttribute("ReducedMotion"', ara_fn)
+        self.assertIn('root:SetAttribute("CameraShake"', ara_fn)
+        self.assertIn('root:SetAttribute("HighContrastEvidence"', ara_fn)
+
+        # --- _applyEvidence: creates gold UIStroke when high contrast enabled ---
+        ev_start = acc.index("function AccessibilityController:_applyEvidence(")
+        ev_end = acc.index("\nfunction AccessibilityController:RegisterRoot(", ev_start)
+        ev_fn = acc[ev_start:ev_end]
+        # Orphaned gui cleans itself out of the evidence table
+        self.assertIn("self.evidence[gui] = nil", ev_fn)
+        # UIStroke created with specific color and thickness
+        self.assertIn('newStroke.Name = "AccessibilityEvidenceStroke"', ev_fn)
+        self.assertIn("Color3.fromRGB(255, 221, 87)", ev_fn)
+        self.assertIn("newStroke.Thickness = 3", ev_fn)
+        self.assertIn("newStroke.Transparency = 0", ev_fn)
+        # Text stroke: black color, full opacity
+        self.assertIn("Color3.fromRGB(0, 0, 0)", ev_fn)
+        self.assertIn("textGui.TextStrokeTransparency = 0", ev_fn)
+        # On disable: destroy stroke and restore original values
+        self.assertIn("stroke:Destroy()", ev_fn)
+        self.assertIn("record.originalTextStrokeColor", ev_fn)
+        self.assertIn("record.originalTextStrokeTransparency", ev_fn)
+
+        # --- ScanEvidence: IsEvidence attribute OR name contains "evidence" (case-insensitive) ---
+        scan_start = acc.index("function AccessibilityController:ScanEvidence(")
+        scan_end = acc.index("\nfunction AccessibilityController:ApplySettings(", scan_start)
+        scan_fn = acc[scan_start:scan_end]
+        self.assertIn('descendant:GetAttribute("IsEvidence") == true', scan_fn)
+        self.assertIn(
+            'string.find(string.lower(descendant.Name), "evidence", 1, true)',
+            scan_fn,
+        )
+
+        # --- ApplySettings: nil/destroyed guard + type-check gates ---
+        apply_start = acc.index("function AccessibilityController:ApplySettings(")
+        apply_end = acc.index("\nfunction AccessibilityController:ApplyGameState(", apply_start)
+        apply_fn = acc[apply_start:apply_end]
+        self.assertIn("not settings or self.destroyed", apply_fn)
+        self.assertIn('type(settings.subtitles) == "boolean"', apply_fn)
+        self.assertIn('type(settings.reducedMotion) == "boolean"', apply_fn)
+        self.assertIn('type(settings.cameraShake) == "boolean"', apply_fn)
+        self.assertIn('type(settings.highContrastEvidence) == "boolean"', apply_fn)
+        # Shake cancelled when reducedMotion=true OR cameraShake=false
+        self.assertIn(
+            "if self.settings.reducedMotion or not self.settings.cameraShake then",
+            apply_fn,
+        )
+        self.assertIn("self:CancelCameraShake()", apply_fn)
+
+        # --- ApplyGameState: deep profile.profile.settings path with type guards ---
+        ags_start = acc.index("function AccessibilityController:ApplyGameState(")
+        ags_end = acc.index("\nfunction AccessibilityController:IsReducedMotion(", ags_start)
+        ags_fn = acc[ags_start:ags_end]
+        self.assertIn('type(state.profile) == "table"', ags_fn)
+        self.assertIn('type(state.profile.profile) == "table"', ags_fn)
+        self.assertIn("state.profile.profile.settings", ags_fn)
+
+        # --- CanShakeCamera: requires cameraShake=true AND reducedMotion=false ---
+        self.assertIn(
+            "return self.settings.cameraShake and not self.settings.reducedMotion",
+            acc,
+        )
+
+        # --- GetMotionDuration: 0 when reduced, else max(0, duration) ---
+        self.assertIn(
+            "return if self.settings.reducedMotion then 0 else math.max(0, standardDuration)",
+            acc,
+        )
+
+        # --- CancelCameraShake: increments shakeToken to invalidate running shake ---
+        self.assertIn("self.shakeToken += 1", acc)
+
+        # --- ShakeCamera: clamp bounds, noise frequencies, and offset scale ---
+        shake_start = acc.index("function AccessibilityController:ShakeCamera(")
+        shake_end = acc.index("\nfunction AccessibilityController:Destroy(", shake_start)
+        shake_fn = acc[shake_start:shake_end]
+        # Guard: destroyed or not CanShakeCamera
+        self.assertIn("self.destroyed or not self:CanShakeCamera()", shake_fn)
+        # Strength clamped to [0, 2]; duration clamped to [0.05, 2]
+        self.assertIn("math.clamp(strength, 0, 2)", shake_fn)
+        self.assertIn("math.clamp(duration, 0.05, 2)", shake_fn)
+        # Token invalidation inside loop
+        self.assertIn("token == self.shakeToken", shake_fn)
+        # Noise frequencies: 24 Hz (x), 27 Hz (y), 22 Hz (roll)
+        self.assertIn("elapsed * 24", shake_fn)
+        self.assertIn("elapsed * 27", shake_fn)
+        self.assertIn("elapsed * 22", shake_fn)
+        # Spatial offset scale: 0.08 for both x and y
+        self.assertIn("x * 0.08", shake_fn)
+        self.assertIn("y * 0.08", shake_fn)
+        # Roll uses math.rad of strength
+        self.assertIn("math.rad(safeStrength)", shake_fn)
+        # Cleanup: inverse offset applied after loop
+        self.assertIn("camera.CFrame * previousOffset:Inverse()", shake_fn)
+
+        # --- Destroy: idempotent, calls CancelCameraShake, clears evidence with cleanup ---
+        dest_start = acc.index("function AccessibilityController:Destroy(")
+        dest_fn = acc[dest_start:]
+        self.assertIn("if self.destroyed then", dest_fn)
+        self.assertIn("self.destroyed = true", dest_fn)
+        self.assertIn("self:CancelCameraShake()", dest_fn)
+        # Resets highContrast to false before cleanup so evidence strokes are removed
+        self.assertIn("self.settings.highContrastEvidence = false", dest_fn)
+        self.assertIn("self:_applyEvidence(record)", dest_fn)
+        self.assertIn("table.clear(self.evidence)", dest_fn)
+        self.assertIn("table.clear(self.roots)", dest_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
