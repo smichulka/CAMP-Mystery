@@ -458,5 +458,49 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertNotIn("ProximityPromptService.Enabled = false", interactions)
 
 
+    def test_request_0073_resolution_and_rewards_role_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Resolution phase — four-role objective text
+        for token in (
+            'local resRole = if type(player) == "table" and type(player.role) == "string"',
+            'if resRole == "Spectator" then',
+            '"ROUND OVER\\nThe mystery has been resolved."',
+            "elseif isGhostRes then",
+            '"JUSTICE\\nThe camp caught the killer. Your death was not in vain."',
+            '"UNSOLVED\\nThe murderer escaped. Your death remains unavenged."',
+            'elseif resRole == "Murderer" then',
+            '"UNMASKED\\nThe camp named you. The hunt is over."',
+            '"UNSEEN\\nYour name was never called. You walk free."',
+            '"NAMED\\nThe murderer has been revealed. The camp is safe."',
+            '"UNSOLVED\\nNo verdict reached. The killer walks free."',
+        ):
+            self.assertIn(token, view)
+        # Rewards phase — four-role objective text
+        for token in (
+            'local rewardsRole = readString(player, "role", "Spectator")',
+            'local rewardsIsGhost = readBoolean(player, "isGhost", false)',
+            'if rewardsRole == "Murderer" then',
+            '"CAUGHT\\nThe campers solved the mystery. Better luck next time."',
+            '"ESCAPED\\nThe camp never caught you. A flawless hunt."',
+            "elseif rewardsIsGhost then",
+            '"JUSTICE\\nThe murderer was caught. Your death was not in vain."',
+            '"UNSOLVED\\nThe murderer escaped. The mystery remains."',
+            'elseif rewardsRole ~= "Spectator" then',
+            '"VICTORY\\nYou helped catch the monster. The camp is safe."',
+            '"DEFEAT\\nThe mystery went unsolved. The monster walks free."',
+            '"ROUND OVER\\nThe mystery has been resolved."',
+        ):
+            self.assertIn(token, view)
+        # Branch ordering: Spectator → Ghost → Murderer → Camper in Resolution
+        resolution_start = view.index('local resRole = if type(player)')
+        resolution_end = view.index('elseif phase == "Lobby"', resolution_start)
+        res_block = view[resolution_start:resolution_end]
+        spectator_branch = res_block.index('if resRole == "Spectator" then')
+        ghost_branch = res_block.index("elseif isGhostRes then")
+        murderer_branch = res_block.index('elseif resRole == "Murderer" then')
+        self.assertLess(spectator_branch, ghost_branch)
+        self.assertLess(ghost_branch, murderer_branch)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
