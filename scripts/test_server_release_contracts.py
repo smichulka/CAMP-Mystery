@@ -1544,5 +1544,86 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("self.lastRequestSequence = 0", xfer_block)
 
 
+    def test_request_0138_bot_memory_eviction_observe_relationship_and_lie_target(
+        self,
+    ) -> None:
+        bot = (ROOT / "src/server/Services/ComputerPlayerService.lua").read_text(
+            encoding="utf-8"
+        )
+
+        # Remember: memory eviction removes entry with lowest value formula
+        remember_start = bot.index("function ComputerPlayerService:Remember(")
+        remember_end = bot.index("function ComputerPlayerService:GetMemories(", remember_start)
+        remember_block = bot[remember_start:remember_end]
+        self.assertIn('"Bot memory ID cannot be empty"', remember_block)
+        self.assertIn('"Memory confidence must be 0-1"', remember_block)
+        self.assertIn('"Memory importance must be 0-1"', remember_block)
+        # Existing memory is replaced by ID match
+        self.assertIn("existing.id == memory.id", remember_block)
+        # Eviction: while memories exceed limit, remove weakest
+        self.assertIn("while #runtime.memories > tuning.memoryLimit do", remember_block)
+        self.assertIn(
+            "local value = candidate.importance * candidate.confidence - age * 0.0001",
+            remember_block,
+        )
+
+        # GetMemories: excludes expired entries
+        get_start = bot.index("function ComputerPlayerService:GetMemories(")
+        get_end = bot.index("function ComputerPlayerService:ForgetExpiredMemories(", get_start)
+        get_block = bot[get_start:get_end]
+        self.assertIn("not memory.expiresAt or memory.expiresAt > now", get_block)
+
+        # ObserveForBot: truncates summary, generates composite memoryId, adjusts relationships
+        obs_start = bot.index("function ComputerPlayerService:ObserveForBot(")
+        obs_end = bot.index("function ComputerPlayerService:BroadcastObservation(", obs_start)
+        obs_block = bot[obs_start:obs_end]
+        self.assertIn("summary == \"\"", obs_block)
+        self.assertIn("local safeSummary = string.sub(summary, 1, 200)", obs_block)
+        self.assertIn("round:%d:%s:%d:%d:%s", obs_block)
+        # Evidence/Injury/RoleHint: suspicion += confidence * importance * 0.15; trust -= suspicion * 0.35
+        self.assertIn(
+            'kind == "Evidence" or kind == "Injury" or kind == "RoleHint"', obs_block
+        )
+        self.assertIn(
+            "suspicionDelta = clampUnit(confidence) * clampUnit(importance) * 0.15", obs_block
+        )
+        self.assertIn("trustDelta = -suspicionDelta * 0.35", obs_block)
+        # Statement: small positive trust bump
+        self.assertIn('elseif kind == "Statement" then', obs_block)
+        self.assertIn("trustDelta = clampUnit(confidence) * 0.04", obs_block)
+
+        # AdjustRelationship: clamps trust and suspicion to [0, 1]
+        adj_start = bot.index("function ComputerPlayerService:AdjustRelationship(")
+        adj_end = bot.index("function ComputerPlayerService:ObserveForBot(", adj_start)
+        adj_block = bot[adj_start:adj_end]
+        self.assertIn("relationship.trust = clampUnit(relationship.trust + trustDelta)", adj_block)
+        self.assertIn(
+            "relationship.suspicion = clampUnit(relationship.suspicion + suspicionDelta)",
+            adj_block,
+        )
+
+        # BuildMurdererLieTarget: only Murderer role; value = suspicion - trust * 0.25
+        lie_start = bot.index("function ComputerPlayerService:BuildMurdererLieTarget(")
+        lie_end = bot.index("function ComputerPlayerService:ScoreAction(", lie_start)
+        lie_block = bot[lie_start:lie_end]
+        self.assertIn('participant.role ~= "Murderer"', lie_block)
+        self.assertIn("other.alive and other.role ~= \"Murderer\"", lie_block)
+        self.assertIn("local value = relationship.suspicion - relationship.trust * 0.25", lie_block)
+
+        # ScoreAction: ghost Protector UseRoleAbility is the only ghost action allowed
+        score_start = bot.index("function ComputerPlayerService:ScoreAction(")
+        score_end = bot.index("function ComputerPlayerService:ChooseAction(", score_start)
+        score_block = bot[score_start:score_end]
+        self.assertIn(
+            'participant.isGhost\n\t\t\tand participant.role == "Protector"', score_block
+        )
+        self.assertIn('candidate.actionType == "UseRoleAbility"', score_block)
+        # Vote scoring: relationship suspicion and memories about target
+        self.assertIn("relationship.suspicion * 30 - relationship.trust * 12", score_block)
+        self.assertIn("memory.subjectParticipantId == targetId", score_block)
+        # Noise injection: (1 - decisionQuality) * 20
+        self.assertIn("local noiseRange = (1 - tuning.decisionQuality) * 20", score_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
