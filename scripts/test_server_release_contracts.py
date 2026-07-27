@@ -1883,6 +1883,64 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0152_cinematics_screen_shake_amplitude_decay_and_phase_flash(
+        self,
+    ) -> None:
+        cin = (
+            ROOT / "src" / "client" / "Controllers" / "CinematicsController.lua"
+        ).read_text(encoding="utf-8")
+
+        # PlayScreenShake: amplitude derived from intensity, clamped to [0, 0.2]
+        shake_start = cin.index("function CinematicsController:PlayScreenShake(intensity: number?)")
+        shake_end = cin.index("\nfunction CinematicsController:PlayPhaseFlash()", shake_start)
+        shake_fn = cin[shake_start:shake_end]
+        self.assertIn(
+            "local amp = math.clamp((intensity or 1.0) * 0.07, 0, 0.2)",
+            shake_fn,
+        )
+        # Fixed frequency and duration
+        self.assertIn("local freq = 14", shake_fn)
+        self.assertIn("local duration = 0.4", shake_fn)
+
+        # Token guard prevents stale shakes from overwriting new ones
+        self.assertIn("self.shakeToken += 1", shake_fn)
+        self.assertIn("if self.shakeToken ~= token or self.destroyed then", shake_fn)
+
+        # Previous shake cancelled and residual offset cleared before starting new one
+        prev_cancel_pos = shake_fn.index("self:_clearShakeOffset()")
+        self.assertIn("self.shakeConn:Disconnect()", shake_fn)
+
+        # Decay: linear from 1 → 0 over duration
+        self.assertIn("local decay = 1 - elapsed / duration", shake_fn)
+
+        # Sinusoidal x axis; y axis at half amplitude with 0.7π phase offset
+        self.assertIn("local t = elapsed * freq * math.pi * 2", shake_fn)
+        self.assertIn("local x = math.sin(t) * amp * decay", shake_fn)
+        self.assertIn(
+            "local y = math.sin(t + math.pi * 0.7) * amp * 0.5 * decay",
+            shake_fn,
+        )
+
+        # Camera offset applied and tracked for cleanup
+        self.assertIn("cam.CFrame = cam.CFrame * CFrame.new(newOffset)", shake_fn)
+        self.assertIn("self.shakePrevOffset = newOffset", shake_fn)
+
+        # _clearShakeOffset called each frame to avoid accumulation
+        frame_clear_count = shake_fn.count("self:_clearShakeOffset()")
+        self.assertGreaterEqual(frame_clear_count, 2)
+
+        # PlayPhaseFlash: two-stage brightness — flash to 0.14 then fade back to 0
+        flash_start = cin.index("function CinematicsController:PlayPhaseFlash()")
+        flash_end = cin.index("\nfunction CinematicsController:PlayPhaseTransition(", flash_start)
+        flash_fn = cin[flash_start:flash_end]
+        self.assertIn("{ Brightness = 0.14 }", flash_fn)
+        self.assertIn("{ Brightness = 0 }", flash_fn)
+        # Flash phase (0.10 s) completes before fade phase (0.28 s)
+        self.assertIn("task.delay(0.10,", flash_fn)
+        flash_pos = flash_fn.index("{ Brightness = 0.14 }")
+        fade_pos = flash_fn.index("{ Brightness = 0 }")
+        self.assertLess(flash_pos, fade_pos)
+
     def test_request_0151_haptic_controller_vibration_profiles_and_pcall_guards(
         self,
     ) -> None:
