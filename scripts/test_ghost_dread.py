@@ -139,6 +139,38 @@ class GhostDreadTests(unittest.TestCase):
         self.assertLess(hidden, triggered)
 
 
+    def test_request_0080_health_panel_role_aware_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            '"SPIRIT STATE  -  LIVING ACTIONS LOCKED"',
+            '"SPECTATING  -  OBSERVING THIS ROUND"',
+            '"WAITING FOR NEXT ROUND"',
+        ):
+            self.assertIn(token, view)
+        # Branch ordering: Ghost → Spectator → dead → alive
+        self.assertLess(
+            view.index('"SPIRIT STATE  -  LIVING ACTIONS LOCKED"'),
+            view.index('"SPECTATING  -  OBSERVING THIS ROUND"'),
+        )
+        self.assertLess(
+            view.index('"SPECTATING  -  OBSERVING THIS ROUND"'),
+            view.index('"WAITING FOR NEXT ROUND"'),
+        )
+
+    def test_request_0081_witness_and_objectives_spectator_guard(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        witness_start = controller.index("revealedWitnessCount > lastRevealedWitnessCount")
+        objectives_start = controller.index("objectivesCompleted > lastObjectivesCompleted")
+        witness_block = controller[witness_start:objectives_start]
+        objectives_block = controller[objectives_start:objectives_start + 600]
+        for block in (witness_block, objectives_block):
+            self.assertIn("and not isGhost", block)
+            self.assertIn('and roleName ~= "Spectator"', block)
+            self.assertLess(
+                block.index("and not isGhost"),
+                block.index('and roleName ~= "Spectator"'),
+            )
+
     def test_request_0063_nametagsview_role_and_victim_dot(self) -> None:
         nametags = read("src/client/UI/NametagsView.lua")
         controller = read("src/client/Controllers/RoundController.lua")
