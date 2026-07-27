@@ -139,5 +139,33 @@ class GhostDreadTests(unittest.TestCase):
         self.assertLess(hidden, triggered)
 
 
+    def test_request_0063_nametagsview_role_and_victim_dot(self) -> None:
+        nametags = read("src/client/UI/NametagsView.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Extended Update signature
+        for token in (
+            "function NametagsView:Update(",
+            "localRole: string?,",
+            "victimParticipantId: string?",
+        ):
+            self.assertIn(token, nametags)
+        # Murderer victim dot override uses Amber
+        for token in (
+            'if localRole == "Murderer"',
+            "and alive",
+            "and victimParticipantId ~= nil",
+            "and participantId == victimParticipantId",
+            "Theme.Colors.Amber",
+        ):
+            self.assertIn(token, nametags)
+        # RoundController passes localRole and victimId
+        for token in (
+            "local localRole = readString(player, \"role\", \"\")",
+            "local victimId = if type(snapshot) == \"table\"",
+            "currentNametags:Update(participants, localParticipantId, phaseName, localRole, victimId)",
+        ):
+            self.assertIn(token, controller)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
