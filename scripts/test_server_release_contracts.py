@@ -1883,6 +1883,58 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0156_player_status_view_sort_order_accent_and_disconnect_label(
+        self,
+    ) -> None:
+        roster = (
+            ROOT / "src" / "client" / "UI" / "PlayerStatusView.lua"
+        ).read_text(encoding="utf-8")
+
+        # sortedParticipants: alive bucket → ghosts bucket → dead bucket
+        sort_start = roster.index("local function sortedParticipants(participants: { any })")
+        sort_end = roster.index("\nlocal function createDetailLabel(", sort_start)
+        sort_fn = roster[sort_start:sort_end]
+        # Three buckets defined
+        self.assertIn("local alive: { any } = {}", sort_fn)
+        self.assertIn("local ghosts: { any } = {}", sort_fn)
+        self.assertIn("local dead: { any } = {}", sort_fn)
+        # Alive check comes before ghost check in the classification logic
+        alive_check_pos = sort_fn.index("readBoolean(participant, \"alive\", false)")
+        ghost_check_pos = sort_fn.index("readBoolean(participant, \"isGhost\", false)")
+        self.assertLess(alive_check_pos, ghost_check_pos)
+        # Concatenation order: alive, ghosts, dead
+        concat_pos = sort_fn.index("{ alive, ghosts, dead }")
+        self.assertGreater(concat_pos, alive_check_pos)
+
+        # createRow: name label transparency — connected=0, disconnected=0.5
+        row_start = roster.index("local function createRow(")
+        row_end = roster.index("\nfunction PlayerStatusView.new(", row_start)
+        row_fn = roster[row_start:row_end]
+        self.assertIn(
+            "nameLabel.TextTransparency = if connected then 0 else 0.5",
+            row_fn,
+        )
+
+        # Name label color: alive → Text; dead → TextMuted
+        self.assertIn(
+            "nameLabel.TextColor3 = if alive then Theme.Colors.Text else Theme.Colors.TextMuted",
+            row_fn,
+        )
+
+        # Disconnected players get a "(disconnected)" detail label
+        self.assertIn("if not connected then", row_fn)
+        self.assertIn('"(disconnected)"', row_fn)
+
+        # Local player gets a Gold accent bar
+        self.assertIn("if isLocalPlayer then", row_fn)
+        self.assertIn('accent.Name = "LocalPlayerAccent"', row_fn)
+        self.assertIn("accent.BackgroundColor3 = Theme.Colors.Gold", row_fn)
+
+        # Disconnected label appears before the local player accent block
+        disc_pos = row_fn.index('"(disconnected)"')
+        accent_pos = row_fn.index('"LocalPlayerAccent"')
+        self.assertLess(disc_pos, accent_pos)
+
     def test_request_0155_proximity_controller_zone_registration_label_clamp_and_progress_rounding(
         self,
     ) -> None:
