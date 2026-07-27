@@ -5810,8 +5810,15 @@ function GameView:PlayDeathCinematic()
 	end)
 end
 
-function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
-	local entry = PhaseTitles[phaseName]
+function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?)
+	local defaultEntry = PhaseTitles[phaseName]
+	local murdererEntry = if type(defaultEntry) == "table" then defaultEntry.murderer else nil
+	local entry = if localRole == "Murderer" and type(murdererEntry) == "table"
+		then murdererEntry
+		else defaultEntry
+	local tipText = if localRole == "Murderer" and type(murdererEntry) == "table"
+		then murdererEntry.tip
+		else PhaseTips[phaseName]
 	if self.destroyed
 		or isReconnect
 		or self.roleRevealActive
@@ -5867,7 +5874,6 @@ function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)
 	subtitle.TextXAlignment = Enum.TextXAlignment.Center
 	subtitle.ZIndex = 81
 
-	local tipText = PhaseTips[phaseName]
 	if tipText then
 		local tip = Components.Label(
 			band,

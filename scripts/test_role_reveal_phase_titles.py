@@ -50,8 +50,38 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             'local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))',
             view,
         )
-        self.assertIn("local tipText = PhaseTips[phaseName]", view)
+        self.assertIn("else PhaseTips[phaseName]", view)
         self.assertIn('"PhaseTip"', view)
+
+    def test_request_0049_murderer_phase_copy(self) -> None:
+        catalog = read("src/shared/Config/PhaseTitles.lua")
+        view = read("src/client/UI/GameView.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            'title = "THE NIGHT IS CHOSEN"',
+            'subtitle = "A hidden plan takes shape."',
+            'title = "NIGHT FALLS"',
+            'subtitle = "The monster awakens."',
+            'title = "YOUR PREY IS CHOSEN"',
+            'subtitle = "Strike before dawn."',
+            'tip = "Study your target now. Your window is short."',
+            'title = "YOU ARE THE MONSTER NOW"',
+            'subtitle = "The hunt begins. Move in shadow."',
+            'tip = "Your ability is your greatest weapon. Use it wisely."',
+        ):
+            self.assertIn(token, catalog)
+        for token in (
+            "local murdererEntry = if type(defaultEntry) == \"table\"",
+            'local entry = if localRole == "Murderer"',
+            'local tipText = if localRole == "Murderer"',
+            "else defaultEntry",
+            "else PhaseTips[phaseName]",
+        ):
+            self.assertIn(token, view)
+        self.assertIn(
+            "currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName)",
+            controller,
+        )
 
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
@@ -100,7 +130,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             "phaseTitleToken: number",
             "phaseTitleActive: boolean",
             "function GameView:_cancelPhaseTitle()",
-            "function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean)",
+            "function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, localRole: string?)",
             "or isReconnect",
             "or self.roleRevealActive",
             'band.Name = "PhaseTitleBand"',
@@ -123,7 +153,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             "currentCinematics:PlayPhaseTransition(phaseName)"
         )
         title = controller.index(
-            "currentView:PlayPhaseTitleCard(phaseName, reconnect)"
+            "currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName)"
         )
         resolution = controller.index(
             'if phaseName == "Resolution" and currentView then'
