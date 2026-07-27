@@ -671,5 +671,43 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertEqual(cue_block.count("else nil"), 4)
 
 
+    def test_request_0095_death_cinematic_and_ghost_transition_notifications(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Default (living camper killed) heading and sub
+        self.assertIn('local headingText = "YOU HAVE FALLEN"', view)
+        self.assertIn('"Your spirit remains', view)
+        # Voted-out branch heading and sub
+        self.assertIn('headingText = "VOTED OUT"', view)
+        self.assertIn('"The camp made their choice. Watch over the living."', view)
+        # Murderer-caught branch heading and sub
+        self.assertIn('headingText = "CAUGHT"', view)
+        self.assertIn('"The camp saw through you. Your hunt is over."', view)
+        # Branch ordering in PlayDeathCinematic: default → Murderer → voted
+        fn_start = view.index("function GameView:PlayDeathCinematic(")
+        fn_end = view.index("self.deathCinematicToken += 1", fn_start)
+        fn = view[fn_start:fn_end]
+        self.assertLess(fn.index('"YOU HAVE FALLEN"'), fn.index('"CAUGHT"'))
+        self.assertLess(fn.index('"CAUGHT"'), fn.index('"VOTED OUT"'))
+        # deathCause routing: Campfire/Resolution phases route as "voted"
+        self.assertIn('then "voted"', controller)
+        self.assertIn('else "killed"', controller)
+        # Ghost transition notifications differ by role
+        self.assertIn('"You have been unmasked"', controller)
+        self.assertIn('"The camp named you. Watch the resolution unfold."', controller)
+        self.assertIn('"You have been eliminated"', controller)
+        self.assertIn('"You are now a ghost. Observe the round and witness the verdict."', controller)
+        # Murderer notification uses DangerBright; camper uses Info
+        notif_start = controller.index('"You have been unmasked"')
+        notif_end = controller.index("lastIsGhost = isGhost", notif_start)
+        notif_block = controller[notif_start:notif_end]
+        self.assertIn('"DangerBright"', notif_block)
+        self.assertIn('"Info"', notif_block)
+        self.assertLess(
+            notif_block.index('"DangerBright"'),
+            notif_block.index('"Info"'),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
