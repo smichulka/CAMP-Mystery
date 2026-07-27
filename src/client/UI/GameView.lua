@@ -4562,7 +4562,23 @@ function GameView:Tick()
 	local currentTime = Workspace:GetServerTimeNow()
 	if self.lobbyWasVisible and currentTime - self.lobbyTipChangedAt >= 8 then
 		self.lobbyTipChangedAt = currentTime
-		self.lobbyTipIndex = (self.lobbyTipIndex % #TipCatalog.definitions) + 1
+		local localPlayer0 = if type(self.currentState) == "table" then self.currentState.player else nil
+		local localRole0 = readString(localPlayer0, "role", "")
+		local definitions0 = TipCatalog.definitions
+		local n0 = #definitions0
+		local nextIdx = self.lobbyTipIndex
+		for _ = 1, n0 do
+			nextIdx = (nextIdx % n0) + 1
+			local candidate = definitions0[nextIdx]
+			local excluded = false
+			if candidate and type(candidate.excludeRoles) == "table" then
+				for _, r in candidate.excludeRoles do
+					if r == localRole0 then excluded = true; break end
+				end
+			end
+			if not excluded then break end
+		end
+		self.lobbyTipIndex = nextIdx
 		local tip = TipCatalog.definitions[self.lobbyTipIndex]
 		local function applyTip()
 			if tip and self.lobbyTip.Parent then
