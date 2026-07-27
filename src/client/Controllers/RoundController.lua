@@ -571,7 +571,6 @@ local function updateReleaseExperience(
 				"Warning"
 			)
 		else
-			currentAudio:PlayUIEvent("toast")
 			currentView:Notify(
 				"Witness interviewed",
 				string.format(
@@ -579,7 +578,7 @@ local function updateReleaseExperience(
 					revealedWitnessCount,
 					totalWitnessCount
 				),
-				"Info"
+				"Success"
 			)
 		end
 	end
@@ -600,11 +599,10 @@ local function updateReleaseExperience(
 				"Warning"
 			)
 		else
-			currentAudio:PlayUIEvent("success")
 			currentView:Notify(
 				"Camp task complete",
 				string.format("%d of %d tasks done.", objectivesCompleted, objectiveGoal),
-				"Info"
+				"Success"
 			)
 		end
 	end
@@ -969,7 +967,6 @@ local function updateReleaseExperience(
 		and not roundEnded
 	if healthImproved then
 		currentEffects:ShowHealedEffect()
-		currentAudio:PlayUIEvent("success")
 		if currentView then
 			currentView:Notify("You've recovered", "You're no longer injured and can act freely.", "Success")
 		end
@@ -986,7 +983,6 @@ local function updateReleaseExperience(
 		and not reconnect
 		and not roundEnded
 	if severityDegraded then
-		currentAudio:PlayUIEvent("error")
 		local currentCinematics = cinematics
 		if currentCinematics then
 			currentCinematics:PlayImpactFlash()
@@ -996,7 +992,7 @@ local function updateReleaseExperience(
 		end
 		if currentView then
 			if currentSeverity >= 2 then
-				currentView:Notify("You're incapacitated", "You've been seriously wounded. You can barely move.", "DangerBright")
+				currentView:Notify("You're incapacitated", "You've been seriously wounded. You can barely move.", "Danger")
 			else
 				currentView:Notify("You've been injured", "You're hurt. Find help before it gets worse.", "Warning")
 			end
@@ -1107,7 +1103,6 @@ local function updateReleaseExperience(
 			and not reconnect
 			and currentView
 		then
-			currentAudio:PlayUIEvent("success")
 			currentView:Notify(
 				"Ability ready",
 				"Your ability is charged. Strike when the moment is right.",
@@ -1123,7 +1118,6 @@ local function updateReleaseExperience(
 		local maxStamina = readNumber(abilityMonster, "maxStamina", 0)
 		local staminaIsLow = maxStamina > 0 and (stamina / maxStamina) < 0.2
 		if staminaIsLow and lastStaminaWasLow ~= true and not reconnect and currentView then
-			currentAudio:PlayUIEvent("error")
 			currentView:Notify(
 				"Stamina low",
 				"Disengage and let it recover before striking again.",

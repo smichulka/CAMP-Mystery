@@ -277,10 +277,10 @@ class GhostDreadTests(unittest.TestCase):
         objectives_block = controller[objectives_start:objectives_end]
         self.assertIn("and not isGhost", objectives_block)
         self.assertIn('and roleName ~= "Spectator"', objectives_block)
-        # Within each notification block, Murderer Warning precedes Camper Info
+        # Within each notification block, Murderer Warning precedes Camper Success
         for block, name in ((witness_block, "witness"), (objectives_block, "objectives")):
             murderer_idx = block.index('"Warning"')
-            camper_idx = block.index('"Info"')
+            camper_idx = block.index('"Success"')
             self.assertLess(murderer_idx, camper_idx, name)
 
     def test_request_0109_health_state_degradation_and_recovery_notifications(self) -> None:
@@ -313,17 +313,17 @@ class GhostDreadTests(unittest.TestCase):
         degrade_end = controller.index("if currentSeverity ~= lastHealthSeverity then", degrade_start)
         degrade_block = controller[degrade_start:degrade_end]
         self.assertIn("currentCinematics:PlayImpactFlash()", degrade_block)
-        # Incapacitated (severity >= 2): screen shake + DangerBright notification
+        # Incapacitated (severity >= 2): screen shake + Danger notification (red, plays "error")
         self.assertIn("if currentSeverity >= 2 then", degrade_block)
         self.assertIn("currentCinematics:PlayScreenShake(0.5)", degrade_block)
         self.assertIn('"You\'re incapacitated"', degrade_block)
-        self.assertIn('"DangerBright"', degrade_block)
-        # Injured (severity < 2): Warning notification, no extra shake
+        self.assertIn('"Danger"', degrade_block)
+        # Injured (severity < 2): Warning notification (also plays "error"), no extra shake
         self.assertIn('"You\'ve been injured"', degrade_block)
         self.assertIn('"Warning"', degrade_block)
         # Incapacitated branch precedes Injured branch (matching if/else order)
         self.assertLess(
-            degrade_block.index('"DangerBright"'),
+            degrade_block.index('"Danger"'),
             degrade_block.index('"Warning"'),
         )
         # healthImproved block comes before severityDegraded block in source order
