@@ -709,5 +709,42 @@ class PhaseCinematicsTests(unittest.TestCase):
         )
 
 
+    def test_request_0099_round_summary_camper_win_text_and_stat_rows(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Win text header: Murderer vs Camper, win vs loss
+        for token in (
+            '"YOU WERE CAUGHT"',
+            '"YOU ESCAPED"',
+            '"THE CAMP SURVIVED"',
+            '"THE MONSTER ESCAPED"',
+        ):
+            self.assertIn(token, view)
+        # Camper stat rows
+        for token in (
+            '"Survivors"',
+            '"Evidence"',
+            '"Camp Tasks"',
+            '"Monster"',
+            '"Victim"',
+            '"%d / %d clues"',
+        ):
+            self.assertIn(token, view)
+        # Personal evidence contribution is suppressed for Murderer and Spectator
+        contrib_start = view.index('"You contributed %d evidence piece%s."')
+        contrib_block = view[contrib_start - 300:contrib_start]
+        self.assertIn('stats.playerRole ~= "Murderer"', contrib_block)
+        self.assertIn('stats.playerRole ~= "Spectator"', contrib_block)
+        self.assertIn('"You contributed %d evidence piece%s."', view)
+        # Win text split: Murderer branch before Camper branch
+        summary_start = view.index(
+            'local winText = if stats.playerRole == "Murderer"'
+        )
+        summary_block = view[summary_start:summary_start + 200]
+        self.assertLess(
+            summary_block.index('"YOU WERE CAUGHT"'),
+            summary_block.index('"THE CAMP SURVIVED"'),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
