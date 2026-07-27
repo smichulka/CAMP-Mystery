@@ -116,5 +116,38 @@ class LobbyReconnectTests(unittest.TestCase):
         self.assertIn('SetAttribute("SuppressNextStagger", true)', view)
 
 
+    def test_request_0096_reconnect_role_messages_and_urgency_warning_split(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Active Murderer reconnect message
+        self.assertIn('"You are the Murderer. Phase: %s. Stay in character."', controller)
+        # Spectator reconnect message
+        self.assertIn('"Observing — Phase: %s."', controller)
+        # Phase-specific camper reconnect messages
+        for token in (
+            '"Complete camp work and interview witnesses before nightfall."',
+            '"Find and post evidence before the campfire vote."',
+            '"Cast your vote carefully. The verdict decides the round."',
+        ):
+            self.assertIn(token, controller)
+        # Reconnect block ordering: Murderer → Spectator → phase messages
+        reconnect_start = controller.index("if reconnect and currentView and not roundEnded")
+        reconnect_end = controller.index("local abilityMonster = if type(snapshot)", reconnect_start)
+        reconnect_block = controller[reconnect_start:reconnect_end]
+        murderer_msg = reconnect_block.index('"You are the Murderer.')
+        spectator_msg = reconnect_block.index('"Observing')
+        self.assertLess(murderer_msg, spectator_msg)
+        # Urgency warning: Ghost/Spectator are suppressed; Murderer vs Camper get different copy
+        self.assertIn("not urgIsGhost and urgRole", controller)
+        self.assertIn('"Investigation ending"', controller)
+        self.assertIn('"The campers are running out of time. Prepare for the vote."', controller)
+        self.assertIn('"Investigation closing"', controller)
+        self.assertIn('"Under a minute left. Post your evidence before campfire."', controller)
+        # Murderer urgency uses Success style; camper urgency uses DangerBright
+        urgency_start = controller.index("sentUrgencyWarning = true")
+        urgency_end = controller.index("end\nend\n\nlocal function evidenceCopy", urgency_start)
+        urgency_block = controller[urgency_start:urgency_end]
+        self.assertLess(urgency_block.index('"Success"'), urgency_block.index('"DangerBright"'))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
