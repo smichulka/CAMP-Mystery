@@ -374,5 +374,44 @@ class GhostDreadTests(unittest.TestCase):
         )
 
 
+    def test_request_0117_roster_panel_ghost_sort_and_dot_color_dispatch(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        roster_start = view.index("function GameView:_updateRoster(state: any)")
+        roster_end = view.index("function GameView:_updateVote(", roster_start)
+        roster_block = view[roster_start:roster_end]
+        # Sort: alive+not-ghost=0, ghost=1, dead=2 (alive < ghost < dead)
+        self.assertIn(
+            "if leftAlive and not leftGhost then 0 elseif leftGhost then 1 else 2",
+            roster_block,
+        )
+        self.assertIn(
+            "if rightAlive and not rightGhost then 0 elseif rightGhost then 1 else 2",
+            roster_block,
+        )
+        # Dot color: ghost → Ghost, not alive → TextMuted, Injured/Critical → Danger, else → Success
+        self.assertIn(
+            "if ghost\n\t\t\tthen Theme.Colors.Ghost",
+            roster_block,
+        )
+        self.assertIn("elseif not alive then Theme.Colors.TextMuted", roster_block)
+        self.assertIn(
+            'elseif healthState == "Injured" or healthState == "Critical"',
+            roster_block,
+        )
+        self.assertIn("then Theme.Colors.Danger", roster_block)
+        self.assertIn("else Theme.Colors.Success", roster_block)
+        # Name label: ghost → Ghost, not alive → TextMuted + 0.5 transparency, else → Text
+        self.assertIn("nameLabel.TextColor3 = if ghost", roster_block)
+        self.assertIn("then Theme.Colors.Ghost", roster_block)
+        self.assertIn("elseif not alive then Theme.Colors.TextMuted", roster_block)
+        self.assertIn("else Theme.Colors.Text", roster_block)
+        self.assertIn(
+            "nameLabel.TextTransparency = if not alive and not ghost then 0.5 else 0",
+            roster_block,
+        )
+        # "isMe" marker appended to the local player's name
+        self.assertIn('if isMe then displayName .. " ●" else displayName', roster_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
