@@ -1129,5 +1129,106 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0133_counselor_threat_flee_hide_dialogue_and_observation_routing(
+        self,
+    ) -> None:
+        counselor = source("Services/CounselorService.lua")
+
+        # Constants
+        self.assertIn("DIALOGUE_COOLDOWN_SECONDS = 1.5", counselor)
+        self.assertIn("MAX_MEMORIES_PER_COUNSELOR = 12", counselor)
+
+        # FIXED_WITNESS_STATEMENTS built from all three witness account collections
+        self.assertIn("MysteryCatalog.truthfulWitnessAccounts,", counselor)
+        self.assertIn("MysteryCatalog.mistakenWitnessAccounts,", counselor)
+        self.assertIn("MysteryCatalog.monsterWitnessAccounts,", counselor)
+        self.assertIn("table.freeze(FIXED_WITNESS_STATEMENTS)", counselor)
+
+        # interactionAllowed rejects Fleeing, Hiding, Unavailable behaviors
+        interact_start = counselor.index("local function interactionAllowed(")
+        interact_end = counselor.index("\nend\n", interact_start)
+        interact_fn = counselor[interact_start:interact_end]
+        self.assertIn('state.behavior ~= "Fleeing"', interact_fn)
+        self.assertIn('state.behavior ~= "Hiding"', interact_fn)
+        self.assertIn('state.behavior ~= "Unavailable"', interact_fn)
+
+        # baseBehavior priority: Suspect > Witness > Routine
+        base_start = counselor.index("local function baseBehavior(")
+        base_end = counselor.index("\nend\n", base_start)
+        base_fn = counselor[base_start:base_end]
+        self.assertIn("if state.isSuspect then", base_fn)
+        self.assertIn('return "Suspect"', base_fn)
+        self.assertIn("elseif state.isWitness then", base_fn)
+        self.assertIn('return "Witness"', base_fn)
+        self.assertIn('return "Routine"', base_fn)
+
+        # RecordObservation: importance >= 0.65 sets isWitness; behavior = Witness unless threat/suspect
+        obs_start = counselor.index("function CounselorService:RecordObservation(")
+        obs_end = counselor.index("function CounselorService:AssignWitnessAccount(", obs_start)
+        obs_block = counselor[obs_start:obs_end]
+        self.assertIn('"Observation summary must be between 1 and 240 characters"', obs_block)
+        self.assertIn(
+            '"Observation confidence and importance must be between 0 and 1"', obs_block
+        )
+        self.assertIn("if observation.importance >= 0.65 then", obs_block)
+        self.assertIn("state.isWitness = true", obs_block)
+        self.assertIn("if not state.threatActive and not state.isSuspect then", obs_block)
+        self.assertIn('state.behavior = "Witness"', obs_block)
+
+        # ReportThreat: bravery >= severity * 0.82 → Fleeing, else Hiding
+        # severity >= 0.8 affects all counselors regardless of location
+        threat_start = counselor.index("function CounselorService:ReportThreat(")
+        threat_end = counselor.index("function CounselorService:ArriveAtDestination(", threat_start)
+        threat_block = counselor[threat_start:threat_end]
+        self.assertIn('"Threat location cannot be empty"', threat_block)
+        self.assertIn(
+            "state.locationId == threat.locationId or threat.severity >= 0.8", threat_block
+        )
+        self.assertIn("local shouldFlee = definition.bravery >= threat.severity * 0.82", threat_block)
+        self.assertIn("then definition.fleeLocationIds", threat_block)
+        self.assertIn("else definition.hideLocationIds", threat_block)
+        self.assertIn('then "Fleeing"', threat_block)
+        self.assertIn('else "Hiding"', threat_block)
+        self.assertIn("state.threatActive = true", threat_block)
+
+        # ArriveAtDestination: Fleeing counselor → Alert; Hiding counselor stays Hiding
+        arrive_start = counselor.index("function CounselorService:ArriveAtDestination(")
+        arrive_end = counselor.index("function CounselorService:ClearThreat(", arrive_start)
+        arrive_block = counselor[arrive_start:arrive_end]
+        self.assertIn('"Counselor has no active destination"', arrive_block)
+        self.assertIn("state.locationId = destinationId", arrive_block)
+        self.assertIn('if state.behavior == "Fleeing" then', arrive_block)
+        self.assertIn('state.behavior = "Alert"', arrive_block)
+        self.assertIn('"Monitoring the safe route for evacuees"', arrive_block)
+        self.assertIn('"Sheltering until the route is clear"', arrive_block)
+
+        # ClearThreat: resets threatActive + destinationId; only mutates when cleared > 0
+        clear_start = counselor.index("function CounselorService:ClearThreat(")
+        clear_end = counselor.index("function CounselorService:RequestDialogue(", clear_start)
+        clear_block = counselor[clear_start:clear_end]
+        self.assertIn("state.threatActive = false", clear_block)
+        self.assertIn("state.destinationId = nil", clear_block)
+        self.assertIn("if cleared > 0 then", clear_block)
+        self.assertIn("return cleared", clear_block)
+
+        # RequestDialogue: unknown topic gate, Fleeing/Hiding gate, cooldown gate
+        dial_start = counselor.index("function CounselorService:RequestDialogue(")
+        dial_end = counselor.index("function CounselorService:EndRound(", dial_start)
+        dial_block = counselor[dial_start:dial_end]
+        self.assertIn('"Unsupported dialogue topic"', dial_block)
+        self.assertIn('"Counselor cannot talk while fleeing or hiding"', dial_block)
+        self.assertIn('"Participant is not allowed to interact with this counselor"', dial_block)
+        self.assertIn('"Dialogue request is on cooldown"', dial_block)
+        self.assertIn("now - lastDialogueAt < DIALOGUE_COOLDOWN_SECONDS", dial_block)
+        # Observation topic with witnessStatement bypasses dialogue lines lookup
+        self.assertIn('if topic == "Observation" and state.witnessStatement then', dial_block)
+        self.assertIn("text = state.witnessStatement", dial_block)
+        # Non-Observation topics use stable round-seed + hash + count index
+        self.assertIn("self.roundSeed", dial_block)
+        self.assertIn("hashString(dialogueKey)", dial_block)
+        self.assertIn("+ dialogueCount", dial_block)
+        self.assertIn("% #lines + 1", dial_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
