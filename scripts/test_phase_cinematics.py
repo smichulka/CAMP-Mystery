@@ -745,6 +745,35 @@ class PhaseCinematicsTests(unittest.TestCase):
             summary_block.index('"THE CAMP SURVIVED"'),
         )
 
+    def test_request_0108_day_and_evidence_complete_notification_role_branch(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Day-objectives-complete block: anchored before isMurdererAlive declaration, ends at Investigation
+        day_notif_start = view.index("local aliveNotGhost = readBoolean(player, \"alive\", false)")
+        day_notif_end = view.index("elseif phase == \"Investigation\" then", day_notif_start)
+        day_block = view[day_notif_start:day_notif_end]
+        self.assertIn("local isMurdererAlive = localRole == \"Murderer\" and aliveNotGhost", day_block)
+        self.assertIn("if isMurdererAlive then", day_block)
+        # Dedup guard prevents repeat notifications within the same round
+        self.assertIn("self.dayObjectiveNotifiedRound ~= roundNum", day_block)
+        self.assertIn("self.dayObjectiveNotifiedRound = roundNum", day_block)
+        # Ghost suppression: aliveNotGhost excludes ghosts from triggering day notification
+        self.assertIn("and not readBoolean(player, \"isGhost\", false)", day_block)
+        # Murderer gets Warning, camper gets Success — ordering enforces Murderer branch first
+        murderer_pos = day_block.index('"Warning"')
+        camper_pos = day_block.index('"Success"')
+        self.assertLess(murderer_pos, camper_pos)
+        # Evidence-complete block: anchored before evidAliveNotGhost declaration, ends at Campfire
+        evid_notif_start = view.index("local evidAliveNotGhost = readBoolean(player, \"alive\", false)")
+        evid_notif_end = view.index("elseif phase == \"Campfire\" then", evid_notif_start)
+        evid_block = view[evid_notif_start:evid_notif_end]
+        self.assertIn("local evidIsMurderer = localRole == \"Murderer\" and evidAliveNotGhost", evid_block)
+        self.assertIn("if evidIsMurderer then", evid_block)
+        self.assertIn("self.evidenceNotifiedRound ~= roundNum", evid_block)
+        self.assertIn("self.evidenceNotifiedRound = roundNum", evid_block)
+        evid_murderer_pos = evid_block.index('"Warning"')
+        evid_camper_pos = evid_block.index('"Success"')
+        self.assertLess(evid_murderer_pos, evid_camper_pos)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
