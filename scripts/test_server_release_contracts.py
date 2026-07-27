@@ -542,5 +542,58 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('participant.role == "Detective"', verify_block)
 
 
+    def test_request_0113_bot_actions_role_phase_dispatch(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        bot_start = runtime.index("function GameRuntimeService:_GetBotActions(")
+        bot_end = runtime.index("function GameRuntimeService:_ExecuteBotAction(", bot_start)
+        bot_block = runtime[bot_start:bot_end]
+        # Day phase: each support role gets a named action with appropriate abilityId
+        day_start = bot_block.index('if phase == "Day" then')
+        murder_planning_start = bot_block.index('elseif phase == "MurderPlanning"', day_start)
+        day_block = bot_block[day_start:murder_planning_start]
+        self.assertIn('participant.role == "Protector"', day_block)
+        self.assertIn('"protect-participant"', day_block)
+        self.assertIn('participant.role == "Guard"', day_block)
+        self.assertIn('"guard-post"', day_block)
+        self.assertIn('participant.role == "Trapper"', day_block)
+        self.assertIn('"place-warning-trap"', day_block)
+        self.assertIn('participant.role == "Detective"', day_block)
+        self.assertIn('"analyze-evidence"', day_block)
+        self.assertIn('participant.role == "Medic"', day_block)
+        self.assertIn('"field-treatment"', day_block)
+        # MurderPlanning phase: only Murderer gets the plan action
+        investigation_start = bot_block.index('elseif phase == "Investigation"', murder_planning_start)
+        planning_block = bot_block[murder_planning_start:investigation_start]
+        self.assertIn('participant.role == "Murderer"', planning_block)
+        self.assertIn('"role:plan"', planning_block)
+        self.assertIn('"monster-transformation"', planning_block)
+        # Investigation phase: Murderer gets Attack action toward murder plan victim
+        campfire_start = bot_block.index('elseif phase == "Campfire"', investigation_start)
+        investigation_block = bot_block[investigation_start:campfire_start]
+        self.assertIn('participant.role == "Murderer"', investigation_block)
+        self.assertIn('"Attack"', investigation_block)
+        self.assertIn("plan.victimParticipantId", investigation_block)
+        # Investigation: night role abilities for support roles
+        self.assertIn('"role:protect-night"', investigation_block)
+        self.assertIn('"role:guard-night"', investigation_block)
+        self.assertIn('"role:trap-night"', investigation_block)
+        self.assertIn('"role:investigate-night"', investigation_block)
+        self.assertIn('"spirit-sense"', investigation_block)
+        self.assertIn('"role:treat-night"', investigation_block)
+        # Campfire: Murderer frame target gets boosted utility
+        campfire_block = bot_block[campfire_start:]
+        self.assertIn('participant.role == "Murderer"', campfire_block)
+        self.assertIn("self.murderPlan.frameParticipantId", campfire_block)
+        self.assertIn("caseUtility = 24", campfire_block)
+        # addRoleAction: Detective/Medium have high informationValue; Murderer has zero teamValue
+        self.assertIn(
+            'if participant.role == "Detective" or participant.role == "Medium"',
+            bot_block,
+        )
+        self.assertIn("then 0.9", bot_block)
+        self.assertIn("else 0.2", bot_block)
+        self.assertIn('if participant.role == "Murderer" then 0 else 0.85', bot_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
