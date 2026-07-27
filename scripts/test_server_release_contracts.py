@@ -1883,6 +1883,72 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0157_motion_shake_offset_sequence_and_stagger_children_sort_and_remaining(
+        self,
+    ) -> None:
+        motion = (ROOT / "src" / "client" / "UI" / "Motion.lua").read_text(
+            encoding="utf-8"
+        )
+
+        # Motion.Shake: reduced motion short-circuits to immediate play
+        shake_start = motion.index("function Motion.Shake(target: GuiObject")
+        shake_end = motion.index("\nlocal function visibleChildren(", shake_start)
+        shake_fn = motion[shake_start:shake_end]
+        self.assertIn(
+            "if Motion.IsReducedMotion(target, resolved.reducedMotion) then",
+            shake_fn,
+        )
+
+        # Five-step offset sequence: full, full, dampened, dampened, zero
+        self.assertIn(
+            "{ -distance, distance, -distance * 0.55, distance * 0.55, 0 }",
+            shake_fn,
+        )
+
+        # restingPosition restored on cancel via record cleanup
+        self.assertIn("local restingPosition = target.Position", shake_fn)
+        self.assertIn("target.Position = restingPosition", shake_fn)
+
+        # Loop guard: exits early if record.finished
+        self.assertIn("if record.finished then", shake_fn)
+
+        # Non-completed playback → finish with false (interrupted)
+        self.assertIn(
+            "if playbackState ~= Enum.PlaybackState.Completed then",
+            shake_fn,
+        )
+        self.assertIn("finish(record, false)", shake_fn)
+
+        # visibleChildren: sorted by LayoutOrder then Name
+        vis_start = motion.index("local function visibleChildren(container: GuiObject)")
+        vis_end = motion.index("\nfunction Motion.StaggerChildren(", vis_start)
+        vis_fn = motion[vis_start:vis_end]
+        self.assertIn('child:IsA("GuiObject") and child.Visible', vis_fn)
+        self.assertIn("left.LayoutOrder == right.LayoutOrder", vis_fn)
+        self.assertIn("return left.Name < right.Name", vis_fn)
+        self.assertIn("return left.LayoutOrder < right.LayoutOrder", vis_fn)
+
+        # Motion.StaggerChildren: reduced motion collapses step to 0
+        stagger_start = motion.index("function Motion.StaggerChildren(container: GuiObject")
+        stagger_fn = motion[stagger_start:]
+        self.assertIn("if reduced then", stagger_fn)
+        self.assertIn("step = 0", stagger_fn)
+
+        # Empty children path: skips delay and returns immediately
+        self.assertIn("if #children == 0 then", stagger_fn)
+
+        # Remaining counter: decremented per child; finishes when 0
+        self.assertIn("local remaining = #children", stagger_fn)
+        self.assertIn("remaining -= 1", stagger_fn)
+        self.assertIn("if remaining == 0 then", stagger_fn)
+        self.assertIn("finish(record, true)", stagger_fn)
+
+        # All children hidden before stagger begins
+        self.assertIn("child.Visible = false", stagger_fn)
+
+        # Delay per child is (index - 1) * step
+        self.assertIn("task.delay((index - 1) * step,", stagger_fn)
+
     def test_request_0156_player_status_view_sort_order_accent_and_disconnect_label(
         self,
     ) -> None:
