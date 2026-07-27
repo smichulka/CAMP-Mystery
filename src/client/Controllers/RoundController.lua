@@ -68,6 +68,23 @@ local MURDERER_HINT_PHASES: { [string]: boolean } = {
 	NightTransform = true,
 }
 
+local MURDERER_ANNOUNCEMENT_COPY: {
+	[string]: { title: string, message: string },
+} = {
+	["Something Is Being Planned"] = {
+		title = "YOUR PLAN",
+		message = "Choose your target. You have until dawn.",
+	},
+	["The Town Is Appearing"] = {
+		title = "YOUR HUNT BEGINS",
+		message = "You are the threat. Move unseen.",
+	},
+	["Night Investigation"] = {
+		title = "THEY ARE SEARCHING",
+		message = "Stay calm. Blend in. Cast doubt.",
+	},
+}
+
 local started = false
 local state: GameState? = nil
 local legacyRound: any = nil
@@ -493,9 +510,17 @@ local function updateReleaseExperience(
 	end
 	currentAudio:Update(snapshot)
 	if evidenceFound > lastEvidenceFound and currentView then
-		local evidenceName, evidenceDescription = evidenceCopy(latestEvidence)
-		currentEffects:FlashEvidenceFound()
-		currentView:PlayEvidenceDiscovery(evidenceName, evidenceDescription)
+		if roleName == "Murderer" then
+			currentView:Notify(
+				"Evidence Found",
+				"A clue has been posted against you. Stay composed.",
+				"Warning"
+			)
+		else
+			local evidenceName, evidenceDescription = evidenceCopy(latestEvidence)
+			currentEffects:FlashEvidenceFound()
+			currentView:PlayEvidenceDiscovery(evidenceName, evidenceDescription)
+		end
 	end
 	lastEvidenceFound = evidenceFound
 	lastCulpritEvidenceCount = #culpritEvidence
@@ -1292,7 +1317,24 @@ function RoundController.Start()
 	end)
 	remoteBridge:OnSnapshot("announcement", function(payload: any)
 		if type(payload) == "table" then
-			gameView:Announce(payload :: Announcement)
+			local currentState: any = state
+			local currentPlayer = if type(currentState) == "table"
+					and type(currentState.player) == "table"
+				then currentState.player
+				elseif type(legacyPlayer) == "table" then legacyPlayer
+				else nil
+			local announcementPayload = payload
+			if readString(currentPlayer, "role", "") == "Murderer" then
+				local replacement = MURDERER_ANNOUNCEMENT_COPY[
+					readString(payload, "title", "")
+				]
+				if replacement then
+					announcementPayload = table.clone(payload)
+					announcementPayload.title = replacement.title
+					announcementPayload.message = replacement.message
+				end
+			end
+			gameView:Announce(announcementPayload :: Announcement)
 		end
 	end)
 	remoteBridge:OnActionResult(handleActionResult)

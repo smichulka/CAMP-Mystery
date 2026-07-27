@@ -226,6 +226,39 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+    def test_request_0053_murderer_announcements_and_evidence_are_role_aware(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            '["Something Is Being Planned"]',
+            'title = "YOUR PLAN"',
+            'message = "Choose your target. You have until dawn."',
+            '["The Town Is Appearing"]',
+            'title = "YOUR HUNT BEGINS"',
+            'message = "You are the threat. Move unseen."',
+            '["Night Investigation"]',
+            'title = "THEY ARE SEARCHING"',
+            'message = "Stay calm. Blend in. Cast doubt."',
+            'readString(currentPlayer, "role", "") == "Murderer"',
+            "announcementPayload = table.clone(payload)",
+            "gameView:Announce(announcementPayload :: Announcement)",
+            'currentView:Notify(\n\t\t\t\t"Evidence Found",',
+            '"A clue has been posted against you. Stay composed."',
+            '"Warning"',
+        ):
+            self.assertIn(token, controller)
+
+        evidence_branch = controller.index(
+            'if roleName == "Murderer" then',
+            controller.index("if evidenceFound > lastEvidenceFound and currentView then"),
+        )
+        evidence_end = controller.index("lastEvidenceFound = evidenceFound", evidence_branch)
+        murderer_branch = controller[evidence_branch:evidence_end]
+        murderer_path, non_murderer_path = murderer_branch.split("\n\t\telse\n", 1)
+        self.assertNotIn("FlashEvidenceFound", murderer_path)
+        self.assertNotIn("PlayEvidenceDiscovery", murderer_path)
+        self.assertIn("FlashEvidenceFound", non_murderer_path)
+        self.assertIn("PlayEvidenceDiscovery", non_murderer_path)
+
     def test_vote_reveal_is_staged_bounded_and_reduced_motion_safe(self) -> None:
         view = read("src/client/UI/GameView.lua")
         for token in (
