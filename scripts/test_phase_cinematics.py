@@ -466,6 +466,52 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertNotIn("ProximityPromptService.Enabled = false", interactions)
 
 
+    def test_request_0084_objective_panel_role_aware_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        # Day phase: four-role objective labels
+        for token in (
+            '"DAY COVER\\nCamp work: %d of %d. Witnesses: %d of %d. Act natural."',
+            '"DAY OBJECTIVE\\nCamp work: %d of %d\\nInterview witnesses: %d of %d"',
+            "blend in.",
+            '"All camp work done and witnesses interviewed. Investigation begins soon."',
+            "Campers are ready. Investigation begins soon",
+        ):
+            self.assertIn(token, view)
+        # Investigation phase: four-role objective labels
+        for token in (
+            '"HUNT OBJECTIVE\\nEliminate %s. Avoid discovery. Use your ability when the time is right."',
+            '"NIGHT OBJECTIVE\\nCollect and post clues: %d of %d"',
+            '"OBSERVING\\nYou joined mid-round. Watch the investigation unfold."',
+            '"OBSERVING\\nYou are a ghost. Watch as the survivors investigate."',
+            '"All clues collected. Return for the Campfire."',
+            "All evidence is on the board. Stay composed",
+        ):
+            self.assertIn(token, view)
+        # MurderPlanning phase: four-role objective labels
+        for token in (
+            '"MURDERER OBJECTIVE\\nEliminate %s. Frame the evidence."',
+            '"PREPARATION\\nSomething is coming. Secure your equipment and stay alert."',
+            '"OBSERVING\\nYou are a ghost. Watch the night unfold."',
+            '"OBSERVING\\nThe night phase is beginning. Watch what unfolds."',
+        ):
+            self.assertIn(token, view)
+        # NightTransform phase: four-role objective labels
+        for token in (
+            "The town is yours. Hunt %s",
+            '"NIGHT BEGINS\\nThe abandoned town has merged with the camp. The monster is somewhere inside."',
+            '"OBSERVING\\nYou are a ghost. Watch the hunt from beyond."',
+            '"OBSERVING\\nThe night phase has begun. Watch what unfolds."',
+        ):
+            self.assertIn(token, view)
+        # Campfire phase progress labels distinguish Spectator / Ghost / Murderer / Camper
+        for token in (
+            '"Votes locked %d/%d - observing."',
+            '"Votes locked %d/%d - watching."',
+            '"Votes locked %d/%d - stay calm."',
+            '"Votes locked %d/%d - accuse carefully."',
+        ):
+            self.assertIn(token, view)
+
     def test_request_0073_resolution_and_rewards_role_copy(self) -> None:
         view = read("src/client/UI/GameView.lua")
         # Resolution phase — four-role objective text
