@@ -573,11 +573,25 @@ local function updateReleaseExperience(
 			and votesCast >= eligibleVoters
 			and roundNumber ~= lastVoteCompleteRound
 		then
-			currentView:Notify(
-				"All votes are in",
-				"The campfire vote is sealed. The verdict is coming.",
-				"Warning"
-			)
+			if roleName == "Murderer" then
+				currentView:Notify(
+					"All votes are in",
+					"The vote is sealed. Your fate is decided.",
+					"DangerBright"
+				)
+			elseif isGhost then
+				currentView:Notify(
+					"All votes are in",
+					"The campfire vote is sealed. Watch the verdict.",
+					"Info"
+				)
+			else
+				currentView:Notify(
+					"All votes are in",
+					"The campfire vote is sealed. The verdict is coming.",
+					"Warning"
+				)
+			end
 			lastVoteCompleteRound = roundNumber
 		end
 	end
@@ -645,11 +659,19 @@ local function updateReleaseExperience(
 					"Success"
 				)
 			elseif participantId ~= localParticipantId and currentView then
-				currentView:Notify(
-					displayName .. " has been eliminated",
-					"A player has been taken out.",
-					"Warning"
-				)
+				if roleName == "Murderer" then
+					currentView:Notify(
+						"ELIMINATED",
+						displayName .. " has been taken out.",
+						"Success"
+					)
+				else
+					currentView:Notify(
+						displayName .. " has been eliminated",
+						"A player has been taken out.",
+						"Warning"
+					)
+				end
 			end
 		end
 		lastParticipantAliveStates[participantId] = alive
@@ -743,11 +765,22 @@ local function updateReleaseExperience(
 						aliveCount += 1
 					end
 				end
-				local voteMessage = if aliveCount == 1
-					then "One player remains. Cast your vote."
-					else string.format("%d players remain. Cast your vote.", aliveCount)
 				if not isGhost and roleName ~= "Spectator" then
-					currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
+					if roleName == "Murderer" then
+						local survivorText = if aliveCount == 1
+							then "One player remains."
+							else string.format("%d players remain.", aliveCount)
+						currentView:Notify(
+							"CAMPFIRE VOTE",
+							survivorText .. " Stay calm. Deflect suspicion.",
+							"DangerBright"
+						)
+					else
+						local voteMessage = if aliveCount == 1
+							then "One player remains. Cast your vote."
+							else string.format("%d players remain. Cast your vote.", aliveCount)
+						currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
+					end
 				end
 			end
 			if phaseName == "MurderPlanning" and not reconnect and roleName == "Murderer" then
@@ -856,11 +889,19 @@ local function updateReleaseExperience(
 			then "voted"
 			else "killed"
 		currentView:PlayDeathCinematic(deathCause, roleName)
-		currentView:Notify(
-			"You have been eliminated",
-			"You are now a ghost. Observe the round and witness the verdict.",
-			"Info"
-		)
+		if roleName == "Murderer" then
+			currentView:Notify(
+				"You have been unmasked",
+				"The camp named you. Watch the resolution unfold.",
+				"DangerBright"
+			)
+		else
+			currentView:Notify(
+				"You have been eliminated",
+				"You are now a ghost. Observe the round and witness the verdict.",
+				"Info"
+			)
+		end
 	end
 	if isGhost ~= lastIsGhost then
 		currentCinematics:SetGhostMode(isGhost)

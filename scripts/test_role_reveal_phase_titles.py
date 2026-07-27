@@ -182,6 +182,50 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, roster)
 
+    def test_request_0057_round_controller_toasts_are_role_aware(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            '"The vote is sealed. Your fate is decided."',
+            '"The campfire vote is sealed. Watch the verdict."',
+            '"The campfire vote is sealed. The verdict is coming."',
+            'survivorText .. " Stay calm. Deflect suspicion."',
+            '"One player remains. Cast your vote."',
+            '"You have been unmasked"',
+            '"The camp named you. Watch the resolution unfold."',
+            '"You have been eliminated"',
+            '"You are now a ghost. Observe the round and witness the verdict."',
+            '"TARGET ELIMINATED"',
+            '"ELIMINATED"',
+            'displayName .. " has been taken out."',
+            'displayName .. " has been eliminated"',
+            '"A player has been taken out."',
+        ):
+            self.assertIn(token, controller)
+
+        all_votes = controller.split(
+            "and roundNumber ~= lastVoteCompleteRound", 1
+        )[1].split("lastVoteCompleteRound = roundNumber", 1)[0]
+        self.assertLess(all_votes.index('roleName == "Murderer"'), all_votes.index("isGhost"))
+
+        elimination = controller.split(
+            "if monsterTargetId ~= nil and monsterTargetId == participantId", 1
+        )[1].split("lastParticipantAliveStates[participantId] = alive", 1)[0]
+        self.assertLess(elimination.index('"TARGET ELIMINATED"'), elimination.index('"ELIMINATED"'))
+
+        campfire = controller.split(
+            'if phaseName == "Campfire" and not reconnect then', 1
+        )[1].split('if phaseName == "MurderPlanning"', 1)[0]
+        self.assertIn('not isGhost and roleName ~= "Spectator"', campfire)
+        self.assertIn('roleName == "Murderer"', campfire)
+
+        ghost_death = controller.split("if ghostJustDied and currentView then", 1)[1].split(
+            "if isGhost ~= lastIsGhost then", 1
+        )[0]
+        self.assertLess(
+            ghost_death.index("currentView:PlayDeathCinematic(deathCause, roleName)"),
+            ghost_death.index('if roleName == "Murderer"'),
+        )
+
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
