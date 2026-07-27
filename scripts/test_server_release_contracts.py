@@ -639,5 +639,52 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0122_handle_participant_action_role_gates(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        action_start = runtime.index("function GameRuntimeService:_handleParticipantAction(")
+        action_end = runtime.index("function GameRuntimeService:HandleAction(")
+        action_block = runtime[action_start:action_end]
+        # SetMurderPlan: Murderer-only in MurderPlanning phase
+        self.assertIn('if actionName == "SetMurderPlan" then', action_block)
+        self.assertIn(
+            'if self.phase ~= "MurderPlanning" or participant.role ~= "Murderer" then',
+            action_block,
+        )
+        self.assertIn(
+            '"Only the Murderer can plan during the planning phase"', action_block
+        )
+        # Victim eligibility: alive, not ghost, on Campers team, not the murderer themselves
+        self.assertIn("not victim.alive", action_block)
+        self.assertIn("victim.isGhost", action_block)
+        self.assertIn('victim.team ~= "Campers"', action_block)
+        self.assertIn(
+            "victim.participantId == participant.participantId", action_block
+        )
+        self.assertIn('"The selected victim is not eligible"', action_block)
+        # Monster and location validated against known lists
+        self.assertIn("table.find(MONSTER_ORDER,", action_block)
+        self.assertIn('"Unknown monster transformation"', action_block)
+        self.assertIn("table.find(SEARCH_LOCATIONS,", action_block)
+        self.assertIn('"Unknown murder location"', action_block)
+        # Vote: Campfire phase only; accelerates phase end when all votes in
+        self.assertIn('if self.phase ~= "Campfire" then', action_block)
+        self.assertIn('"Voting is not active"', action_block)
+        self.assertIn("self.voting:IsComplete()", action_block)
+        self.assertIn("self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 1)", action_block)
+        # UseMonsterAbility: Murderer only
+        self.assertIn('if participant.role ~= "Murderer" then', action_block)
+        self.assertIn('"Only the Murderer controls the monster"', action_block)
+        # TransferItem: target must be alive and not ghost
+        self.assertIn(
+            "not target or not target.alive or target.isGhost", action_block
+        )
+        self.assertIn('"Transfer target is not eligible"', action_block)
+        # Proximity check for item transfers
+        self.assertIn("> 12", action_block)
+        self.assertIn('"Move closer to the transfer target"', action_block)
+        # Fallback for unrecognized actions
+        self.assertIn('"Action is handled by another server domain"', action_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
