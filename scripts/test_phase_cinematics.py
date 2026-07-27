@@ -247,6 +247,14 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+        # Observer (Ghost/Spectator) gets quiet "Evidence Posted" Info toast
+        for token in (
+            "elseif isGhost or roleName == \"Spectator\" then",
+            '"Evidence Posted"',
+            '"A clue has been added to the board."',
+            '"Info"',
+        ):
+            self.assertIn(token, controller)
         evidence_branch = controller.index(
             'if roleName == "Murderer" then',
             controller.index("if evidenceFound > lastEvidenceFound and currentView then"),
