@@ -4,6 +4,7 @@ export type Tip = {
 	category: string,
 	body: string,
 	excludeRoles: { string }?,
+	includeRoles: { string }?,
 }
 
 local definitions: { Tip } = {
@@ -22,8 +23,8 @@ local definitions: { Tip } = {
 	{ category = "VOTING", body = "Campfire votes are hidden until the reveal begins." },
 	{ category = "VOTING", body = "Discuss evidence, not guesses, before locking in a suspect." },
 	{ category = "VOTING", body = "A confident accusation can still be wrong—watch for contradictions." },
-	{ category = "TEAMWORK", body = "Split up to search faster, but keep a safe route back to camp." },
-	{ category = "TEAMWORK", body = "Injured campers need help; a missing teammate costs everyone information." },
+	{ category = "TEAMWORK", body = "Split up to search faster, but keep a safe route back to camp.", excludeRoles = { "Murderer" } },
+	{ category = "TEAMWORK", body = "Injured campers need help; a missing teammate costs everyone information.", excludeRoles = { "Murderer" } },
 	{ category = "CONTROLS", body = "Interaction prompts show the correct input for keyboard, touch, or controller." },
 
 	-- Equipment tips
@@ -43,6 +44,12 @@ local definitions: { Tip } = {
 	{ category = "COUNTERPLAY", body = "UV light and direct flashlights can remove the Chupacabra's latch faster than waiting it out.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "Leave the wail radius immediately when the Banshee starts its attack — hesitation means injury.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "The Entity teleports between anchors. Watch for the arrival silhouette and move away from anchor points.", excludeRoles = { "Murderer" } },
+
+	-- Murderer-only tips
+	{ category = "STRATEGY", body = "Your notebook tracks evidence collected against you. Check it often to gauge how close they are.", includeRoles = { "Murderer" } },
+	{ category = "STRATEGY", body = "Vote last when possible — watch where suspicion falls before committing your vote.", includeRoles = { "Murderer" } },
+	{ category = "STRATEGY", body = "Keep up with camp tasks. An idle Murderer stands out; participation builds trust.", includeRoles = { "Murderer" } },
+	{ category = "STRATEGY", body = "If evidence mounts against you, redirect — point to contradictions in the clues and cast doubt on the accuser.", includeRoles = { "Murderer" } },
 }
 
 return table.freeze({

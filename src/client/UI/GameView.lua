@@ -4610,6 +4610,13 @@ function GameView:Tick()
 					if r == localRole0 then excluded = true; break end
 				end
 			end
+			if not excluded and candidate and type(candidate.includeRoles) == "table" then
+				local included = false
+				for _, r in candidate.includeRoles do
+					if r == localRole0 then included = true; break end
+				end
+				if not included then excluded = true end
+			end
 			if not excluded then break end
 		end
 		self.lobbyTipIndex = nextIdx
