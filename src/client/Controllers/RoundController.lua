@@ -719,6 +719,24 @@ local function updateReleaseExperience(
 					end
 				end
 			end
+			if phaseName == "NightTransform" and not reconnect then
+				local playerIsGhost = type(player) == "table" and player.isGhost == true
+				if not playerIsGhost then
+					if roleName == "Murderer" then
+						currentView:Notify(
+							"Your moment is now",
+							"Strike true. The camp is yours.",
+							"DangerBright"
+						)
+					elseif roleName ~= "Spectator" then
+						currentView:Notify(
+							"Night falls",
+							"Stay alert. Someone won't make it to morning.",
+							"Warning"
+						)
+					end
+				end
+			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
 			if HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
