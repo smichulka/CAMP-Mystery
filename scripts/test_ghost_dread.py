@@ -252,5 +252,37 @@ class GhostDreadTests(unittest.TestCase):
         self.assertIn("ColorShift_Top = targetShift", effects)
 
 
+    def test_request_0098_witness_and_objective_notification_role_split(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Witness-interviewed notification: Murderer gets Warning; Camper gets Info
+        self.assertIn('"Witness interviewed"', controller)
+        self.assertIn(
+            '"A witness has been questioned — %d of %d counselors spoken to."',
+            controller,
+        )
+        self.assertIn('"%d of %d witnesses spoken to."', controller)
+        # Objectives notification: Murderer gets Warning; Camper gets Info
+        self.assertIn('"Camp task progress"', controller)
+        self.assertIn('"Campers advancing: %d of %d tasks done."', controller)
+        self.assertIn('"Camp task complete"', controller)
+        self.assertIn('"%d of %d tasks done."', controller)
+        # Both notifications are suppressed for Ghost and Spectator
+        witness_start = controller.index("revealedWitnessCount > lastRevealedWitnessCount")
+        witness_end = controller.index("lastRevealedWitnessCount = revealedWitnessCount", witness_start)
+        witness_block = controller[witness_start:witness_end]
+        self.assertIn("and not isGhost", witness_block)
+        self.assertIn('and roleName ~= "Spectator"', witness_block)
+        objectives_start = controller.index("objectivesCompleted > lastObjectivesCompleted")
+        objectives_end = controller.index("lastObjectivesCompleted = objectivesCompleted", objectives_start)
+        objectives_block = controller[objectives_start:objectives_end]
+        self.assertIn("and not isGhost", objectives_block)
+        self.assertIn('and roleName ~= "Spectator"', objectives_block)
+        # Within each notification block, Murderer Warning precedes Camper Info
+        for block, name in ((witness_block, "witness"), (objectives_block, "objectives")):
+            murderer_idx = block.index('"Warning"')
+            camper_idx = block.index('"Info"')
+            self.assertLess(murderer_idx, camper_idx, name)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
