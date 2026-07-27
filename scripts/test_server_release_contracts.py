@@ -1695,5 +1695,85 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0140_game_view_request_role_action_dispatch_and_murder_plan_setup(
+        self,
+    ) -> None:
+        view = (ROOT / "src/client/UI/GameView.lua").read_text(encoding="utf-8")
+
+        # MONSTER_PLAN_ORDER lists all 8 monster types for the planning UI
+        for monster_id in (
+            "BabyAlien", "Screamer", "Wendigo", "ShadowMonster",
+            "Chupacabra", "Dullahan", "Entity", "Banshee",
+        ):
+            self.assertIn(f'"{monster_id}"', view)
+
+        # MONSTER_TAGLINES: each monster has a one-line tagline for the planning UI
+        self.assertIn("Burst leaps · close ambush · weak in open light", view)
+        self.assertIn("Wail attack senses · marks vulnerable campers", view)
+
+        # MONSTER_ABILITIES: all 8 monsters have two named abilities
+        for pair in (
+            '"ScuttleLeap", "AcidSwipe"',
+            '"DisruptingScream", "ClawStrike"',
+            '"ForestCharge", "MimicMark"',
+            '"ShadowStep", "LightDrain"',
+            '"BloodPounce", "Latch"',
+            '"RelentlessPursuit", "FreezingTouch"',
+            '"AnchorTeleport", "Distort"',
+            '"MournfulWail", "DeathMark"',
+        ):
+            self.assertIn(pair, view)
+
+        # _chooseMurderPlan: iterates MONSTER_PLAN_ORDER, looks up locationId per monster
+        choose_start = view.index("function GameView:_chooseMurderPlan()")
+        choose_end = view.index("function GameView:_requestRoleAction()", choose_start)
+        choose_block = view[choose_start:choose_end]
+        self.assertIn("for _, monsterId in MONSTER_PLAN_ORDER do", choose_block)
+        self.assertIn("local locationId = MONSTER_PLAN_LOCATIONS[monsterId]", choose_block)
+        self.assertIn("local tagline = MONSTER_TAGLINES[monsterId] or \"\"", choose_block)
+        # Each button fires SetMurderPlan with monsterId and locationId
+        self.assertIn('"SetMurderPlan", {', choose_block)
+        self.assertIn("monsterId = monsterId,", choose_block)
+        self.assertIn("locationId = locationId,", choose_block)
+        # Title prompt tells user to choose monster then victim
+        self.assertIn(
+            '"Choose your transformation for tonight. Then choose a victim."', choose_block
+        )
+
+        # _requestRoleAction: ghost/eliminated early-return guard
+        role_start = view.index("function GameView:_requestRoleAction()")
+        role_end = view.index("function GameView:_settingRow(", role_start)
+        role_block = view[role_start:role_end]
+        self.assertIn("if self.ghostMode or self.eliminatedMode then", role_block)
+        # SetMurderPlan available (Murderer) → _chooseMurderPlan
+        self.assertIn('local planEnabled = self:_available(state, "SetMurderPlan")', role_block)
+        self.assertIn("self:_chooseMurderPlan()", role_block)
+        # Monster active → single ability uses direct participant picker; multi → _chooseAbility Monster
+        self.assertIn('"UseMonsterAbility", {', role_block)
+        self.assertIn('self:_chooseAbility("Monster", monsterAbilities)', role_block)
+        self.assertIn("table.clone(MONSTER_ABILITIES[monsterId] or {})", role_block)
+        # Single role ability → _activateRoleAbility; multi → _chooseAbility Role
+        self.assertIn("self:_activateRoleAbility(abilities[1])", role_block)
+        self.assertIn('self:_chooseAbility("Role", abilities)', role_block)
+        # Fallback when no abilities
+        self.assertIn('"No active ability"', role_block)
+
+        # SetGhostMode: disables role action button and all hotbar buttons
+        ghost_start = view.index("function GameView:SetGhostMode(active: boolean)")
+        ghost_end = view.index("function GameView:", ghost_start + 1)
+        ghost_block = view[ghost_start:ghost_end]
+        self.assertIn("Components.SetButtonEnabled(self.roleAction, false)", ghost_block)
+        self.assertIn("child:IsA(\"TextButton\") and active", ghost_block)
+        # Ghost badge pulses unless reduced motion
+        self.assertIn("self.ghostBadge.Visible = active", ghost_block)
+        self.assertIn("if active and not reducedMotion then", ghost_block)
+        self.assertIn("TextTransparency = 0.4", ghost_block)
+        # Interaction panel becomes semi-transparent in ghost mode
+        self.assertIn(
+            "self.interaction.BackgroundTransparency = if active then 0.45 else Theme.PanelTransparency",
+            ghost_block,
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
