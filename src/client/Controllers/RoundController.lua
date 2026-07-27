@@ -196,6 +196,13 @@ local function readNumber(value: any, key: string, fallback: number): number
 	return fallback
 end
 
+local function readBoolean(value: any, key: string, fallback: boolean): boolean
+	if type(value) == "table" and type(value[key]) == "boolean" then
+		return value[key]
+	end
+	return fallback
+end
+
 local function updateInvestigationUrgencyWarning(snapshot: any)
 	local round = if type(snapshot) == "table" then snapshot.round else nil
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
@@ -212,12 +219,27 @@ local function updateInvestigationUrgencyWarning(snapshot: any)
 	local phaseEndsAt = readNumber(round, "phaseEndsAt", 0)
 	local remaining = phaseEndsAt - Workspace:GetServerTimeNow()
 	if remaining > 0 and remaining < 60 then
-		sentUrgencyWarning = true
-		currentView:Notify(
-			"Investigation closing",
-			"Under a minute remaining.",
-			"Danger"
-		)
+		local urgPlayer = if type(snapshot) == "table" then snapshot.player else nil
+		local urgIsGhost = type(urgPlayer) == "table" and urgPlayer.isGhost == true
+		local urgRole = if type(urgPlayer) == "table" and type(urgPlayer.role) == "string"
+			then urgPlayer.role
+			else ""
+		if not urgIsGhost and urgRole ~= "Spectator" then
+			sentUrgencyWarning = true
+			if urgRole == "Murderer" then
+				currentView:Notify(
+					"Investigation ending",
+					"The campers are running out of time. Prepare for the vote.",
+					"Success"
+				)
+			else
+				currentView:Notify(
+					"Investigation closing",
+					"Under a minute left. Post your evidence before campfire.",
+					"DangerBright"
+				)
+			end
+		end
 	end
 end
 
@@ -441,6 +463,8 @@ local function updateReleaseExperience(
 	local phaseName = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
+	local player = if type(snapshot) == "table" then snapshot.player else nil
+	local isGhost = type(player) == "table" and player.isGhost == true
 	local evidenceFound = evidenceFoundCount(snapshot)
 	local culpritEvidence = evidenceList(snapshot, "culpritEvidence")
 	local monsterEvidence = evidenceList(snapshot, "monsterEvidence")
@@ -463,6 +487,7 @@ local function updateReleaseExperience(
 	local revealedWitnessCount = readNumber(mystery, "revealedWitnessCount", 0)
 	local totalWitnessCount = math.max(1, readNumber(mystery, "totalWitnessCount", 1))
 	if revealedWitnessCount > lastRevealedWitnessCount
+		and not isGhost
 		and not reconnect
 		and phaseName == "Day"
 		and currentView
@@ -481,6 +506,7 @@ local function updateReleaseExperience(
 	local objectivesCompleted = readNumber(round, "objectivesCompleted", 0)
 	local objectiveGoal = math.max(1, readNumber(round, "objectiveGoal", 1))
 	if objectivesCompleted > lastObjectivesCompleted
+		and not isGhost
 		and not reconnect
 		and phaseName == "Day"
 		and currentView
@@ -517,7 +543,6 @@ local function updateReleaseExperience(
 		table.clear(seenHintPhases)
 		lastHintRound = roundNumber
 	end
-	local player = if type(snapshot) == "table" then snapshot.player else nil
 	local localParticipantId = readString(player, "participantId", "")
 	-- Detect participant connect/disconnect transitions.
 	local participants = if type(snapshot) == "table"
@@ -677,7 +702,9 @@ local function updateReleaseExperience(
 				local voteMessage = if aliveCount == 1
 					then "One player remains. Cast your vote."
 					else string.format("%d players remain. Cast your vote.", aliveCount)
-				currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
+				if not isGhost and roleName ~= "Spectator" then
+					currentView:Notify("CAMPFIRE VOTE", voteMessage, "Warning")
+				end
 			end
 			if phaseName == "MurderPlanning" and not reconnect and roleName == "Murderer" then
 				local murdPlan = if type(snapshot) == "table" then snapshot.murderPlan else nil
@@ -767,7 +794,6 @@ local function updateReleaseExperience(
 	if revealWinner and not winnerQueuedAfterVote then
 		revealWinner()
 	end
-	local isGhost = type(player) == "table" and player.isGhost == true
 	local roundEnded = phaseName == "Rewards" or phaseName == "Lobby"
 	-- Ghost transition cinematic — fires once on the false → true crossing.
 	local ghostJustDied = isGhost == true and lastIsGhost == false and not reconnect
@@ -892,7 +918,7 @@ local function updateReleaseExperience(
 		local stamina = readNumber(abilityMonster, "stamina", 0)
 		local maxStamina = readNumber(abilityMonster, "maxStamina", 0)
 		local staminaIsLow = maxStamina > 0 and (stamina / maxStamina) < 0.2
-		if staminaIsLow and lastStaminaWasLow == false and not reconnect and currentView then
+		if staminaIsLow and lastStaminaWasLow ~= true and not reconnect and currentView then
 			currentView:Notify(
 				"Stamina low",
 				"Disengage and let it recover before striking again.",

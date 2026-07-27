@@ -4155,7 +4155,11 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		local isMonsterPlayer = type(privateMonster) == "table" or localRole == "Murderer"
-		if isMonsterPlayer then
+		if readBoolean(player, "isGhost", false) then
+			self.progressLabel.Text = "Night has fallen."
+			self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch the hunt from beyond."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		elseif isMonsterPlayer then
 			local nightMurderPlan = if type(state) == "table" then state.murderPlan else nil
 			local nightVictimId = if type(nightMurderPlan) == "table"
 					and type(nightMurderPlan.victimParticipantId) == "string"
@@ -4181,6 +4185,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				nightVictimName
 			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
+		elseif localRole == "Spectator" then
+			self.progressLabel.Text = "Night has fallen."
+			self.objectiveText.Text = "OBSERVING\nThe night phase has begun. Watch what unfolds."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		else
 			self.progressLabel.Text = "The town has appeared. Stay close to your group."
 			self.objectiveText.Text = "NIGHT BEGINS\nThe abandoned town has merged with the camp. The monster is somewhere inside."
@@ -4249,15 +4257,31 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				else "UNSOLVED\nNo verdict reached. The killer walks free."
 			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
 		end
+	elseif phase == "Lobby" then
+		local lobbyRole = if type(player) == "table" and type(player.role) == "string"
+			then player.role
+			else ""
+		local lobbyMsg = readString(round, "resultMessage", "Ready up while the camp fills seats.")
+		if lobbyRole == "Spectator" then
+			self.progressLabel.Text = lobbyMsg
+			self.objectiveText.Text = "OBSERVING\nYou are watching this round. Wait for it to begin."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		elseif lobbyRole == "Murderer" then
+			self.progressLabel.Text = lobbyMsg
+			self.objectiveText.Text = "CHOSEN\nYou have been selected. Your target will be revealed when night falls."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		else
+			self.progressLabel.Text = lobbyMsg
+			self.objectiveText.Text = "NEXT MYSTERY\nReady up while the camp fills empty seats."
+			self.objectiveFill.Size = UDim2.fromScale(0, 1)
+		end
 	else
 		self.progressLabel.Text = readString(
 			round,
 			"resultMessage",
 			if readBoolean(round, "isNight", false) then "Stay together. The town is awake." else "Listen for the next briefing."
 		)
-		self.objectiveText.Text = if phase == "Lobby"
-			then "NEXT MYSTERY\nReady up while the camp fills empty seats."
-			else "CURRENT MISSION\nFollow the phase instructions and stay alert."
+		self.objectiveText.Text = "CURRENT MISSION\nFollow the phase instructions and stay alert."
 		self.objectiveFill.Size = UDim2.fromScale(0, 1)
 	end
 
