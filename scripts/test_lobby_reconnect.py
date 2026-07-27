@@ -149,5 +149,30 @@ class LobbyReconnectTests(unittest.TestCase):
         self.assertLess(urgency_block.index('"Success"'), urgency_block.index('"DangerBright"'))
 
 
+    def test_request_0116_ghost_reconnect_murderer_vs_camper_split(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        reconnect_start = controller.index("if reconnect and currentView and not roundEnded")
+        reconnect_end = controller.index("local abilityMonster = if type(snapshot)", reconnect_start)
+        reconnect_block = controller[reconnect_start:reconnect_end]
+        # Ghost block appears before the active (non-ghost) reconnect paths
+        ghost_block_start = reconnect_block.index("if isGhost then")
+        non_ghost_murderer_start = reconnect_block.index('"You are the Murderer.')
+        self.assertLess(ghost_block_start, non_ghost_murderer_start)
+        # Ghost + Murderer: Warning notification identifies revealed identity
+        ghost_block_end = reconnect_block.index("elseif currentHealthState ==", ghost_block_start)
+        ghost_block = reconnect_block[ghost_block_start:ghost_block_end]
+        self.assertIn('roleName == "Murderer"', ghost_block)
+        self.assertIn('"Your identity was revealed. Watch the round as a ghost."', ghost_block)
+        self.assertIn('"Warning"', ghost_block)
+        # Ghost + non-Murderer: Info notification — observer perspective
+        self.assertIn('"You are a ghost. Observe the round and witness the verdict."', ghost_block)
+        self.assertIn('"Info"', ghost_block)
+        # Murderer ghost notification (Warning) appears before non-Murderer ghost (Info)
+        self.assertLess(
+            ghost_block.index('"Warning"'),
+            ghost_block.index('"Info"'),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
