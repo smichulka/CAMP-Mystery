@@ -485,5 +485,62 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0112_available_actions_per_role_ability_gates(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        avail_start = runtime.index("function GameRuntimeService:_availableActions(")
+        avail_end = runtime.index("function GameRuntimeService:", avail_start + 1)
+        avail_block = runtime[avail_start:avail_end]
+        # SetMurderPlan: Murderer only, MurderPlanning phase, abilityUses gate
+        self.assertIn('participant.role == "Murderer"', avail_block)
+        self.assertIn('self.phase == "MurderPlanning"', avail_block)
+        self.assertIn('participant.abilityUses["monster-transformation"] or 0) < 1', avail_block)
+        # UseMonsterAbility: Murderer only, Investigation phase
+        use_monster_start = avail_block.index('name == "UseMonsterAbility"')
+        use_monster_end = avail_block.index('name == "UseRoleAbility"', use_monster_start)
+        use_monster_block = avail_block[use_monster_start:use_monster_end]
+        self.assertIn('participant.role == "Murderer"', use_monster_block)
+        self.assertIn('self.phase == "Investigation"', use_monster_block)
+        # UseRoleAbility: Murderer enabled only in MurderPlanning
+        role_ability_start = avail_block.index('name == "UseRoleAbility"')
+        role_ability_end = avail_block.index('name == "VerifyEvidence"', role_ability_start)
+        role_ability_block = avail_block[role_ability_start:role_ability_end]
+        self.assertIn('elseif participant.role == "Murderer" then', role_ability_block)
+        self.assertIn('enabled = active and self.phase == "MurderPlanning"', role_ability_block)
+        # UseRoleAbility: Medium enabled in Investigation or Campfire
+        self.assertIn('elseif participant.role == "Medium" then', role_ability_block)
+        self.assertIn(
+            'self.phase == "Investigation" or self.phase == "Campfire"',
+            role_ability_block,
+        )
+        # UseRoleAbility: ghost Protector enabled Investigation-only with no active check
+        ghost_protector_idx = role_ability_block.index(
+            'elseif participant.role == "Protector" and participant.isGhost then'
+        )
+        self.assertIn('enabled = self.phase == "Investigation"', role_ability_block[ghost_protector_idx:])
+        # Ghost Protector branch appears after Murderer/Medium branches
+        self.assertLess(
+            role_ability_block.index('participant.role == "Murderer"'),
+            ghost_protector_idx,
+        )
+        self.assertLess(
+            role_ability_block.index('participant.role == "Medium"'),
+            ghost_protector_idx,
+        )
+        # UseRoleAbility: Medic/Trapper/Guard/Protector/Detective active in Day or Investigation
+        for role in ("Medic", "Trapper", "Guard", "Detective"):
+            self.assertIn(f'participant.role == "{role}"', role_ability_block)
+        self.assertIn(
+            'enabled = active and (self.phase == "Day" or self.phase == "Investigation")',
+            role_ability_block,
+        )
+        # UseRoleAbility: else branch disables for unrecognised roles
+        self.assertIn("else", role_ability_block)
+        self.assertIn("enabled = false", role_ability_block)
+        # VerifyEvidence: Detective only
+        verify_start = avail_block.index('name == "VerifyEvidence"')
+        verify_block = avail_block[verify_start:]
+        self.assertIn('participant.role == "Detective"', verify_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
