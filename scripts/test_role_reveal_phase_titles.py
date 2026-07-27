@@ -292,6 +292,32 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, view)
 
+    def test_request_0072_murderer_announcement_copy_is_complete(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            '["Your Role Is Ready"] = {',
+            'title = "YOUR ROLE IS SET"',
+            '"You are among them, and you are the threat. Keep your composure."',
+            '["Daylight Objectives"] = {',
+            'title = "A NEW DAY"',
+            '"Blend in with the camp. Complete tasks and draw no suspicion."',
+            '["Something Is Being Planned"] = {',
+            'title = "YOUR PLAN"',
+            '"Choose your target. You have until dawn."',
+            '["The Town Is Appearing"] = {',
+            'title = "YOUR HUNT BEGINS"',
+            '"You are the threat. Move unseen."',
+            '["Night Investigation"] = {',
+            'title = "THEY ARE SEARCHING"',
+            '"Stay calm. Blend in. Cast doubt."',
+            '["Campfire Accusation"] = {',
+            'title = "THE VOTE"',
+            '"Steer the blame. A tie breaks in your favor."',
+            "announcementPayload.title = replacement.title",
+            "announcementPayload.message = replacement.message",
+        ):
+            self.assertIn(token, controller)
+
     def test_phase_title_dispatch_order_follows_cinematic(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         cinematic = controller.index(

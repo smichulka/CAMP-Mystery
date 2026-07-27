@@ -71,6 +71,14 @@ local MURDERER_HINT_PHASES: { [string]: boolean } = {
 local MURDERER_ANNOUNCEMENT_COPY: {
 	[string]: { title: string, message: string },
 } = {
+	["Your Role Is Ready"] = {
+		title = "YOUR ROLE IS SET",
+		message = "You are among them, and you are the threat. Keep your composure.",
+	},
+	["Daylight Objectives"] = {
+		title = "A NEW DAY",
+		message = "Blend in with the camp. Complete tasks and draw no suspicion.",
+	},
 	["Something Is Being Planned"] = {
 		title = "YOUR PLAN",
 		message = "Choose your target. You have until dawn.",
@@ -82,6 +90,10 @@ local MURDERER_ANNOUNCEMENT_COPY: {
 	["Night Investigation"] = {
 		title = "THEY ARE SEARCHING",
 		message = "Stay calm. Blend in. Cast doubt.",
+	},
+	["Campfire Accusation"] = {
+		title = "THE VOTE",
+		message = "Steer the blame. A tie breaks in your favor.",
 	},
 }
 
