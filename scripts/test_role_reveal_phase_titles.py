@@ -107,6 +107,44 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn("TipCatalog.definitions[self.lobbyTipIndex]", view)
         self.assertEqual(view.count("PhaseTips[phaseName]"), 1)
 
+    def test_request_0055_remaining_murderer_phase_copy(self) -> None:
+        catalog = read("src/shared/Config/PhaseTitles.lua")
+        effects = read("src/client/UI/EffectsView.lua")
+        for token in (
+            'title = "THEY ARE SEARCHING"',
+            'subtitle = "Stay hidden. Destroy the evidence."',
+            'tip = "The evidence board builds against you. Steer suspicion before it locks in."',
+            'subtitle = "Hide in plain sight. Play your role."',
+            'tip = "Act like a Camper. Suspicion spreads fastest when you seem nervous."',
+            'subtitle = "Steer the blame. Survive the accusations."',
+            'tip = "A tie breaks in your favor. Spread doubt before votes are cast."',
+            'title = "THE VERDICT"',
+            'subtitle = "Did they catch you?"',
+            'tip = ""',
+        ):
+            self.assertIn(token, catalog)
+        self.assertEqual(catalog.count("murderer = table.freeze({"), 6)
+        for token in (
+            'title = "YOUR PLAN IS SET"',
+            'body = "You chose your prey. Strike before dawn."',
+            'title = "YOU ARE THE MONSTER"',
+            'body = "The hunt begins. Move in shadow."',
+            'title = "THEY ARE SEARCHING"',
+            'body = "Stay hidden. Let them doubt each other."',
+            'title = "A NEW DAY"',
+            'body = "Play your role. Act like the rest."',
+            'title = "THE VOTE"',
+            'body = "Steer the blame. A tie favors you."',
+            'title = "THE VERDICT"',
+            'body = "Did they catch you?"',
+            'localRole == "Murderer"',
+            "and not isGhost",
+            "then murdererCopy",
+            "else copy",
+            "self:ShowPhase(selected.title, selected.body)",
+        ):
+            self.assertIn(token, effects)
+
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (

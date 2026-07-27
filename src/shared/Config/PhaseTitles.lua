@@ -34,18 +34,38 @@ local PhaseTitles: { [string]: PhaseTitle } = {
 	Investigation = table.freeze({
 		title = "INVESTIGATION BEGINS",
 		subtitle = "Search for the truth.",
+		murderer = table.freeze({
+			title = "THEY ARE SEARCHING",
+			subtitle = "Stay hidden. Destroy the evidence.",
+			tip = "The evidence board builds against you. Steer suspicion before it locks in.",
+		}),
 	}),
 	Day = table.freeze({
 		title = "A NEW DAY",
 		subtitle = "What did the night reveal?",
+		murderer = table.freeze({
+			title = "A NEW DAY",
+			subtitle = "Hide in plain sight. Play your role.",
+			tip = "Act like a Camper. Suspicion spreads fastest when you seem nervous.",
+		}),
 	}),
 	Campfire = table.freeze({
 		title = "CAMPFIRE VOTE",
 		subtitle = "Choose your suspect.",
+		murderer = table.freeze({
+			title = "THE VOTE",
+			subtitle = "Steer the blame. Survive the accusations.",
+			tip = "A tie breaks in your favor. Spread doubt before votes are cast.",
+		}),
 	}),
 	Resolution = table.freeze({
 		title = "MYSTERY RESOLVED",
 		subtitle = "The verdict is in.",
+		murderer = table.freeze({
+			title = "THE VERDICT",
+			subtitle = "Did they catch you?",
+			tip = "",
+		}),
 	}),
 }
 

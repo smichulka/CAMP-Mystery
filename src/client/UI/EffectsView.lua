@@ -48,7 +48,13 @@ EffectsView.__index = EffectsView
 
 export type EffectsView = typeof(setmetatable({} :: EffectsViewState, EffectsView))
 
-local PHASE_COPY: { [string]: { title: string, body: string } } = {
+local PHASE_COPY: {
+	[string]: {
+		title: string,
+		body: string,
+		murderer: { title: string, body: string }?,
+	},
+} = {
 	Lobby = {
 		title = "THE CAMP IS OPEN",
 		body = "Ready up while the remaining campers arrive.",
@@ -60,26 +66,50 @@ local PHASE_COPY: { [string]: { title: string, body: string } } = {
 	Day = {
 		title = "DAYLIGHT",
 		body = "Prepare the camp and gather equipment before sunset.",
+		murderer = {
+			title = "A NEW DAY",
+			body = "Play your role. Act like the rest.",
+		},
 	},
 	MurderPlanning = {
 		title = "SOMETHING IS BEING PLANNED",
 		body = "The camp grows quiet. Stay alert.",
+		murderer = {
+			title = "YOUR PLAN IS SET",
+			body = "You chose your prey. Strike before dawn.",
+		},
 	},
 	NightTransform = {
 		title = "THE TOWN AWAKENS",
 		body = "The abandoned town has appeared beyond the camp.",
+		murderer = {
+			title = "YOU ARE THE MONSTER",
+			body = "The hunt begins. Move in shadow.",
+		},
 	},
 	Investigation = {
 		title = "NIGHT INVESTIGATION",
 		body = "Search for evidence, protect each other, and survive.",
+		murderer = {
+			title = "THEY ARE SEARCHING",
+			body = "Stay hidden. Let them doubt each other.",
+		},
 	},
 	Campfire = {
 		title = "CAMPFIRE VOTE",
 		body = "Compare the evidence and identify the culprit.",
+		murderer = {
+			title = "THE VOTE",
+			body = "Steer the blame. A tie favors you.",
+		},
 	},
 	Resolution = {
 		title = "THE MYSTERY BREAKS",
 		body = "The final accusation is being resolved.",
+		murderer = {
+			title = "THE VERDICT",
+			body = "Did they catch you?",
+		},
 	},
 	Rewards = {
 		title = "ROUND COMPLETE",
@@ -744,7 +774,20 @@ function EffectsView:Update(state: any)
 		self.lastPhase = phase
 		local copy = PHASE_COPY[phase]
 		if copy then
-			self:ShowPhase(copy.title, copy.body)
+			local player = if type(state) == "table" and type(state.player) == "table"
+				then state.player
+				else nil
+			local localRole = if type(player) == "table" and type(player.role) == "string"
+				then player.role
+				else ""
+			local isGhost = type(player) == "table" and player.isGhost == true
+			local murdererCopy = copy.murderer
+			local selected = if localRole == "Murderer"
+					and not isGhost
+					and murdererCopy
+				then murdererCopy
+				else copy
+			self:ShowPhase(selected.title, selected.body)
 		end
 	end
 	local nightPhase = phase == "Night"
