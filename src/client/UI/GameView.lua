@@ -3994,24 +3994,43 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.objectiveText.Text = "OBSERVING\nYou joined mid-round. Watch the investigation unfold."
 			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 		else
-			self.progressLabel.Text = string.format("Evidence %d/%d - search the abandoned town.", evidenceFound, evidenceGoal)
-			self.objectiveText.Text = string.format("NIGHT OBJECTIVE\nCollect and post clues: %d of %d", evidenceFound, evidenceGoal)
-			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
-			local roundNum = readNumber(round, "roundNumber", 0)
-			local isLivingCamper = readString(player, "team", "") == "Campers"
-				and readBoolean(player, "alive", false)
-				and not readBoolean(player, "isGhost", false)
-			if isLivingCamper
-				and evidenceFound >= evidenceGoal
-				and roundNum > 0
-				and self.evidenceNotifiedRound ~= roundNum
-			then
-				self.evidenceNotifiedRound = roundNum
-				self:Notify(
-					"Evidence complete",
-					"All clues collected. Return for the Campfire.",
-					"Success"
+			local isGhostPlayer = readBoolean(player, "isGhost", false)
+			if isGhostPlayer then
+				self.progressLabel.Text = string.format(
+					"Evidence %d/%d collected by survivors.",
+					evidenceFound,
+					evidenceGoal
 				)
+				self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch as the survivors investigate."
+				self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+			else
+				self.progressLabel.Text = string.format(
+					"Evidence %d/%d - search the abandoned town.",
+					evidenceFound,
+					evidenceGoal
+				)
+				self.objectiveText.Text = string.format(
+					"NIGHT OBJECTIVE\nCollect and post clues: %d of %d",
+					evidenceFound,
+					evidenceGoal
+				)
+				self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+				local roundNum = readNumber(round, "roundNumber", 0)
+				local isLivingCamper = readString(player, "team", "") == "Campers"
+					and readBoolean(player, "alive", false)
+					and not readBoolean(player, "isGhost", false)
+				if isLivingCamper
+					and evidenceFound >= evidenceGoal
+					and roundNum > 0
+					and self.evidenceNotifiedRound ~= roundNum
+				then
+					self.evidenceNotifiedRound = roundNum
+					self:Notify(
+						"Evidence complete",
+						"All clues collected. Return for the Campfire.",
+						"Success"
+					)
+				end
 			end
 		end
 	elseif phase == "Campfire" then
