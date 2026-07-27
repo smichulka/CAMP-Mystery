@@ -416,6 +416,35 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn('and hintRole ~= "Spectator"', controller)
         self.assertIn('and hintRole == "Murderer"', controller)
 
+    def test_request_0088_keybind_hints_catalog_completeness(self) -> None:
+        hints = read("src/shared/Config/KeybindHints.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        self.assertTrue(hints.startswith("--!strict"))
+        self.assertIn("return table.freeze(HINTS)", hints)
+        # All phases have both keyboard and controller variants
+        for phase in ("Day", "Investigation", "Campfire", "MurderPlanning", "NightTransform"):
+            self.assertIn(f"\t{phase} = {{", hints)
+            phase_start = hints.index(f"\t{phase} = {{")
+            phase_end = hints.index("\t},\n", phase_start)
+            entry = hints[phase_start:phase_end]
+            self.assertIn("keyboard", entry)
+            self.assertIn("controller", entry)
+        # Murderer-only hints are action-specific
+        for token in (
+            '"CLICK  Choose target"',
+            '"CLICK  Monster ability"',
+        ):
+            self.assertIn(token, hints)
+        # Campfire hint has vote action
+        self.assertIn('"E  Vote"', hints)
+        # RoundController routes Murderer phases via MURDERER_HINT_PHASES
+        self.assertIn("local MURDERER_HINT_PHASES:", controller)
+        for phase in ("MurderPlanning", "NightTransform"):
+            self.assertIn(f"\t{phase} = true", controller)
+        self.assertIn("local HINT_PHASES:", controller)
+        for phase in ("Day", "Investigation", "Campfire"):
+            self.assertIn(f"\t{phase} = true", controller)
+
     def test_phase_title_dispatch_order_follows_cinematic(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         cinematic = controller.index(
