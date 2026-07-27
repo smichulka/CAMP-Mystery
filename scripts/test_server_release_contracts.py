@@ -1883,6 +1883,70 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0150_reward_calculation_safe_count_non_participated_and_survival_gate(
+        self,
+    ) -> None:
+        reward = (
+            ROOT / "src" / "server" / "Systems" / "RewardCalculation.lua"
+        ).read_text(encoding="utf-8")
+
+        # safeCount: NaN and +/-inf map to 0; result clamped and floored
+        safe_start = reward.index("local function safeCount(value: number, maximum: number)")
+        safe_end = reward.index("\nfunction RewardCalculation.Calculate(", safe_start)
+        safe_fn = reward[safe_start:safe_end]
+        self.assertIn(
+            "if value ~= value or value == math.huge or value == -math.huge then",
+            safe_fn,
+        )
+        self.assertIn("return 0", safe_fn)
+        self.assertIn("math.clamp(math.floor(value), 0, maximum)", safe_fn)
+
+        calc_start = reward.index("function RewardCalculation.Calculate(")
+        calc_fn = reward[calc_start:]
+
+        # Non-participated path: objectives and evidence reset to 0 regardless of input
+        self.assertIn("if not input.participated then", calc_fn)
+        nonpart_pos = calc_fn.index("if not input.participated then")
+        # Both zeroing assignments appear after this guard
+        obj_zero_pos = calc_fn.index("objectives = 0", nonpart_pos)
+        ev_zero_pos = calc_fn.index("evidence = 0", nonpart_pos)
+        self.assertLess(nonpart_pos, obj_zero_pos)
+        self.assertLess(nonpart_pos, ev_zero_pos)
+
+        # Participation gate: all base rewards inside `if input.participated`
+        self.assertIn("if input.participated then", calc_fn)
+        self.assertIn("roundsPlayed = 1", calc_fn)
+        self.assertIn("xp += rewards.participationXP", calc_fn)
+        self.assertIn("campTokens += rewards.participationTokens", calc_fn)
+
+        # Objectives and evidence contribute to role mastery XP together
+        self.assertIn(
+            "roleMasteryXP += (objectives + evidence) * rewards.roleContributionXP",
+            calc_fn,
+        )
+
+        # Win bonus: applied inside participation gate
+        self.assertIn("if input.won then", calc_fn)
+        self.assertIn("xp += rewards.winXP", calc_fn)
+        self.assertIn("roleMasteryXP += rewards.roleWinXP", calc_fn)
+
+        # Survival bonus: separate inner gate
+        self.assertIn("if input.survived then", calc_fn)
+        self.assertIn("xp += rewards.survivalXP", calc_fn)
+        self.assertIn("campTokens += rewards.survivalTokens", calc_fn)
+
+        # Survivals field: 1 when participated AND survived, else 0
+        self.assertIn(
+            "survivals = if input.participated and input.survived then 1 else 0,",
+            calc_fn,
+        )
+
+        # wins field: 1 when participated AND won (role-agnostic)
+        self.assertIn(
+            "wins = if input.participated and input.won then 1 else 0,",
+            calc_fn,
+        )
+
     def test_request_0149_world_service_seed_derivation_variant_selection_and_set_night_rollback(
         self,
     ) -> None:
