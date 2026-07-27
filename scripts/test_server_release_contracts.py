@@ -348,5 +348,25 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('participant.role == "Detective"', runtime)
 
 
+    def test_request_0104_profile_service_spectator_progression_exclusion(self) -> None:
+        profile = source("Services/ProfileService.lua")
+        # Spectator is excluded from progressionRoleIds
+        self.assertIn('role.name ~= "Spectator"', profile)
+        self.assertIn("local function isProgressionRole(roleId: string): boolean", profile)
+        # isProgressionRole guards roleMastery sanitization
+        mastery_start = profile.index("for rawRoleId, rawMastery in raw.roleMastery do")
+        mastery_end = profile.index("for rawRoleId, rawUpgrades in raw.upgrades do", mastery_start)
+        mastery_block = profile[mastery_start:mastery_end]
+        self.assertIn("isProgressionRole(roleId)", mastery_block)
+        # isProgressionRole guards upgrades sanitization
+        upgrades_start = profile.index("for rawRoleId, rawUpgrades in raw.upgrades do")
+        upgrades_end = profile.index("function ProfileService:", upgrades_start)
+        upgrades_block = profile[upgrades_start:upgrades_end]
+        self.assertIn("isProgressionRole(roleId)", upgrades_block)
+        # Reward application rejects Spectator roleId
+        self.assertIn("not isProgressionRole(roleId)", profile)
+        self.assertIn('"InvalidRewardIdentity"', profile)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
