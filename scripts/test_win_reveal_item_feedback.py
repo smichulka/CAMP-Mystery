@@ -31,12 +31,12 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             "and lastWinnerAnnounced ~= winner",
             "lastWinnerAnnounced = winner",
             'currentView:PlayWinReveal(winner, winner == "Campers", roleName)',
-            "playVoteReveal(snapshot, currentView, revealWinner)",
+            "playVoteReveal(snapshot, currentView, revealWinner, roleName)",
             "lastWinnerAnnounced = nil",
         ):
             self.assertIn(token, controller)
         vote = controller.index(
-            "playVoteReveal(snapshot, currentView, revealWinner)"
+            "playVoteReveal(snapshot, currentView, revealWinner, roleName)"
         )
         fallback = controller.index(
             "if revealWinner and not winnerQueuedAfterVote then"

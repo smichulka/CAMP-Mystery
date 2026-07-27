@@ -4873,7 +4873,8 @@ function GameView:PlayVoteReveal(
 	culpritId: string,
 	monsterId: string,
 	namesById: { [string]: string },
-	onComplete: (() -> ())?
+	onComplete: (() -> ())?,
+	localRole: string?
 )
 	if self.destroyed then
 		return
@@ -4974,17 +4975,25 @@ function GameView:PlayVoteReveal(
 			return
 		end
 		if correctMajority then
-			self.resultTitle.Text = "THE CULPRIT IS FOUND"
+			self.resultTitle.Text = if localRole == "Murderer"
+				then "EXPOSED"
+				else "THE CULPRIT IS FOUND"
 			self.resultTitle.TextColor3 = Theme.Colors.Gold
-			self.resultBody.Text = culpritName .. " was the " .. safeMonsterId
+			self.resultBody.Text = if localRole == "Murderer"
+				then "The camp unmasked you. The hunt is over."
+				else culpritName .. " was the " .. safeMonsterId
 			Components.PlayUISound("success")
 			if not reducedMotion then
 				self:_playVoteConfetti(token)
 			end
 		else
-			self.resultTitle.Text = "THE MONSTER ESCAPES"
+			self.resultTitle.Text = if localRole == "Murderer"
+				then "YOU SURVIVED THE VOTE"
+				else "THE MONSTER ESCAPES"
 			self.resultTitle.TextColor3 = Theme.Colors.DangerBright
-			self.resultBody.Text = safeMonsterId .. " was never caught"
+			self.resultBody.Text = if localRole == "Murderer"
+				then "The camp guessed wrong. You remain hidden."
+				else safeMonsterId .. " was never caught"
 			Components.PlayUISound("error")
 		end
 		task.delay(if reducedMotion then 0.15 else 0.9, function()
@@ -5718,10 +5727,22 @@ function GameView:PlayRoundSummary(stats: RoundSummaryStats)
 	end)
 end
 
-function GameView:PlayDeathCinematic()
+function GameView:PlayDeathCinematic(deathCause: string?, localRole: string?)
 	if self.destroyed then
 		return
 	end
+	local cause = deathCause or "killed"
+	local dRole = localRole or ""
+	local headingText = "YOU HAVE FALLEN"
+	local subText = "Your spirit remains — watch over the living."
+	if dRole == "Murderer" then
+		headingText = "CAUGHT"
+		subText = "The camp saw through you. Your hunt is over."
+	elseif cause == "voted" then
+		headingText = "VOTED OUT"
+		subText = "The camp made their choice. Watch over the living."
+	end
+
 	self.deathCinematicToken += 1
 	local token = self.deathCinematicToken
 	local prev = self.deathCinematicOverlay
@@ -5744,7 +5765,7 @@ function GameView:PlayDeathCinematic()
 	local heading = Components.Label(
 		overlay,
 		"DeathHeading",
-		"YOU HAVE FALLEN",
+		headingText,
 		math.floor(Theme.Typography.HeadingSize * 1.6),
 		Theme.Typography.HeadingFont
 	)
@@ -5754,12 +5775,12 @@ function GameView:PlayDeathCinematic()
 	heading.TextColor3 = Theme.Colors.White
 	heading.TextXAlignment = Enum.TextXAlignment.Center
 	heading.ZIndex = 93
-	Components.SetLetterspacedText(heading, "YOU HAVE FALLEN")
+	Components.SetLetterspacedText(heading, headingText)
 
 	local sub = Components.Label(
 		overlay,
 		"DeathSub",
-		"Your spirit remains — watch over the living.",
+		subText,
 		Theme.Typography.CaptionSize,
 		Theme.Typography.CaptionFont
 	)

@@ -266,11 +266,12 @@ end
 local function playVoteReveal(
 	snapshot: any,
 	gameView: GameView,
-	onComplete: (() -> ())?
+	onComplete: (() -> ())?,
+	roleName: string
 )
 	local round = if type(snapshot) == "table" then snapshot.round else nil
 	if type(round) ~= "table" then
-		gameView:PlayVoteReveal({}, "", "", {}, onComplete)
+		gameView:PlayVoteReveal({}, "", "", {}, onComplete, roleName)
 		return
 	end
 	local votes = if type(round.votes) == "table" then round.votes else {}
@@ -287,7 +288,7 @@ local function playVoteReveal(
 			end
 		end
 	end
-	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete)
+	gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete, roleName)
 end
 
 local function roundSummaryStats(snapshot: any): RoundSummaryStats
@@ -807,7 +808,7 @@ local function updateReleaseExperience(
 			end
 		end
 		if phaseName == "Resolution" and currentView then
-			playVoteReveal(snapshot, currentView, revealWinner)
+			playVoteReveal(snapshot, currentView, revealWinner, roleName)
 			winnerQueuedAfterVote = revealWinner ~= nil
 		end
 	end
@@ -818,7 +819,10 @@ local function updateReleaseExperience(
 	-- Ghost transition cinematic — fires once on the false → true crossing.
 	local ghostJustDied = isGhost == true and lastIsGhost == false and not reconnect
 	if ghostJustDied and currentView then
-		currentView:PlayDeathCinematic()
+		local deathCause = if phaseName == "Campfire" or phaseName == "Resolution"
+			then "voted"
+			else "killed"
+		currentView:PlayDeathCinematic(deathCause, roleName)
 		currentView:Notify(
 			"You have been eliminated",
 			"You are now a ghost. Observe the round and witness the verdict.",

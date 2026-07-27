@@ -251,9 +251,47 @@ class PhaseCinematicsTests(unittest.TestCase):
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
             'if phaseName == "Resolution" and currentView then',
-            "playVoteReveal(snapshot, currentView, revealWinner)",
+            "playVoteReveal(snapshot, currentView, revealWinner, roleName)",
             "type(round.votes) == \"table\"",
-            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete)",
+            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete, roleName)",
+        ):
+            self.assertIn(token, controller)
+
+    def test_request_0050_role_aware_vote_and_death_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "localRole: string?",
+            'if localRole == "Murderer"',
+            '"COUNTING THE VOTES"',
+            '"EXPOSED"',
+            '"The camp unmasked you. The hunt is over."',
+            '"YOU SURVIVED THE VOTE"',
+            '"The camp guessed wrong. You remain hidden."',
+            '"THE CULPRIT IS FOUND"',
+            '"THE MONSTER ESCAPES"',
+            "function GameView:PlayDeathCinematic(deathCause: string?, localRole: string?)",
+            'local cause = deathCause or "killed"',
+            'local dRole = localRole or ""',
+            'if dRole == "Murderer" then',
+            'headingText = "CAUGHT"',
+            'subText = "The camp saw through you. Your hunt is over."',
+            'elseif cause == "voted" then',
+            'headingText = "VOTED OUT"',
+            'subText = "The camp made their choice. Watch over the living."',
+            'local headingText = "YOU HAVE FALLEN"',
+            'local subText = "Your spirit remains — watch over the living."',
+        ):
+            self.assertIn(token, view)
+
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            "roleName: string",
+            'gameView:PlayVoteReveal({}, "", "", {}, onComplete, roleName)',
+            "gameView:PlayVoteReveal(votes, culpritId, monsterId, namesById, onComplete, roleName)",
+            'local deathCause = if phaseName == "Campfire" or phaseName == "Resolution"',
+            'then "voted"',
+            'else "killed"',
+            "currentView:PlayDeathCinematic(deathCause, roleName)",
         ):
             self.assertIn(token, controller)
 
