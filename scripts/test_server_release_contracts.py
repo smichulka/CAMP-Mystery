@@ -1625,5 +1625,75 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("local noiseRange = (1 - tuning.decisionQuality) * 20", score_block)
 
 
+    def test_request_0139_nametags_view_dot_priority_dead_ghost_name_color_and_visible_phases(
+        self,
+    ) -> None:
+        nametags = (ROOT / "src/client/UI/NametagsView.lua").read_text(encoding="utf-8")
+
+        # VISIBLE_PHASES: only Day, Investigation, Campfire show nametags
+        for phase in ("Day", "Investigation", "Campfire"):
+            self.assertIn(f"{phase} = true", nametags)
+        # Non-visible phases disable all billboards
+        self.assertIn("entry.billboard.Enabled = false", nametags)
+
+        # Bot participants are skipped (no nametag)
+        self.assertIn('readBoolean(participant, "isBot", false)', nametags)
+
+        # dead = not alive AND not isGhost (distinguishes dead from ghost)
+        self.assertIn("local dead = not alive and not isGhost", nametags)
+
+        # Dot color priority: ghost → Danger (injured/critical) → TextMuted (dead) → Success
+        update_start = nametags.index("function NametagsView:Update(")
+        update_end = nametags.index("function NametagsView:Destroy(", update_start)
+        update_block = nametags[update_start:update_end]
+        dot_start = update_block.index(
+            "entry.dot.BackgroundColor3 = if isGhost"
+        )
+        dot_end = update_block.index(
+            "if localRole == \"Murderer\"", dot_start
+        )
+        dot_block = update_block[dot_start:dot_end]
+        # Ghost is first check
+        self.assertIn("then Theme.Colors.Ghost", dot_block)
+        # Alive-and-injured/critical: Danger
+        self.assertIn(
+            'alive and (healthState == "Injured" or healthState == "Critical")', dot_block
+        )
+        self.assertIn("then Theme.Colors.Danger", dot_block)
+        # Dead (not alive): TextMuted
+        self.assertIn("elseif not alive then Theme.Colors.TextMuted", dot_block)
+        # Otherwise alive+healthy: Success
+        self.assertIn("else Theme.Colors.Success", dot_block)
+        # Priority order: Ghost before Injured/Critical before dead/muted
+        self.assertLess(dot_block.index("Ghost"), dot_block.index("Danger"))
+        self.assertLess(dot_block.index("Danger"), dot_block.index("TextMuted"))
+        self.assertLess(dot_block.index("TextMuted"), dot_block.index("Success"))
+
+        # Name label text: self gets "▸" suffix
+        self.assertIn('then displayName .. " ▸"', update_block)
+        self.assertIn("else displayName", update_block)
+
+        # Name label color: dead → TextMuted; ghost → Ghost; alive → Text
+        name_color_start = update_block.index(
+            "entry.nameLabel.TextColor3 = if dead"
+        )
+        name_color_end = update_block.index(
+            "\n\t\tlocal bg = entry.billboard", name_color_start
+        )
+        name_color_block = update_block[name_color_start:name_color_end]
+        self.assertIn("then Theme.Colors.TextMuted", name_color_block)
+        self.assertIn("elseif isGhost then Theme.Colors.Ghost", name_color_block)
+        self.assertIn("else Theme.Colors.Text", name_color_block)
+        # dead checked before ghost in name color
+        self.assertLess(
+            name_color_block.index("TextMuted"), name_color_block.index("Ghost")
+        )
+
+        # Background transparency: dead = 0.55, alive = 0.22
+        self.assertIn(
+            "bg.BackgroundTransparency = if dead then 0.55 else 0.22", update_block
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
