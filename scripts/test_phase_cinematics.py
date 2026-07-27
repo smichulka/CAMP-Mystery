@@ -510,5 +510,28 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertLess(ghost_branch, murderer_branch)
 
 
+    def test_request_0083_audio_controller_role_aware_subtitles(self) -> None:
+        audio = read("src/client/Controllers/AudioController.lua")
+        # VoteOpen: Murderer gets a subtitle; others get nil
+        self.assertIn('"They\'re voting. Choose your words carefully."', audio)
+        # PhaseChime: one Murderer subtitle per phase
+        for token in (
+            '"Daytime. Stay composed."',
+            '"Investigation begun. Maintain your cover."',
+            '"Night phase. Choose your moment."',
+            '"You chose your prey. Prepare before dawn."',
+            '"You are the monster. The hunt begins."',
+        ):
+            self.assertIn(token, audio)
+        # EvidenceFound: Murderer subtitle; others get nil
+        self.assertIn('"Evidence found against you."', audio)
+        # Subtitles are nil when not Murderer (all three sites use else nil)
+        cue_block_start = audio.index('if phase == "Campfire" then')
+        cue_block_end = audio.index("self.lastEvidenceFound = evidenceFound", cue_block_start)
+        cue_block = audio[cue_block_start:cue_block_end]
+        # 4 = voteSubtitle(1) + phaseSubtitle nested ternary(2) + evidenceSubtitle(1)
+        self.assertEqual(cue_block.count("else nil"), 4)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
