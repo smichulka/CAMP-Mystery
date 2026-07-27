@@ -1883,6 +1883,71 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0155_proximity_controller_zone_registration_label_clamp_and_progress_rounding(
+        self,
+    ) -> None:
+        prox = (
+            ROOT / "src" / "client" / "Controllers" / "ProximityController.lua"
+        ).read_text(encoding="utf-8")
+
+        # RegisterZone: guard on destroyed state and part still parented
+        reg_start = prox.index("function ProximityController:RegisterZone(")
+        reg_end = prox.index("\nfunction ProximityController:UnregisterZone(", reg_start)
+        reg_fn = prox[reg_start:reg_end]
+        self.assertIn(
+            "if self.destroyed or not part.Parent then",
+            reg_fn,
+        )
+
+        # Label truncated to 60 chars; defaults to "Interact" when empty
+        self.assertIn(
+            'local safeLabel = if label ~= "" then string.sub(label, 1, 60) else "Interact"',
+            reg_fn,
+        )
+        # Key hint truncated to 12 chars; defaults to "E" when empty
+        self.assertIn(
+            'local safeKey = if keyHint ~= "" then string.sub(keyHint, 1, 12) else "E"',
+            reg_fn,
+        )
+
+        # Existing zone reuse: update text and re-enable without recreating GUI
+        self.assertIn("if existing and existing.gui.Parent then", reg_fn)
+        self.assertIn("existing.label.Text = safeLabel", reg_fn)
+        self.assertIn('existing.keyHint.Text = "[" .. safeKey .. "]"', reg_fn)
+        self.assertIn("existing.gui.Enabled = true", reg_fn)
+
+        # SetProgress: segment count rounded to nearest (floor with +0.5)
+        prog_start = prox.index("function ProximityController:SetProgress(")
+        prog_end = prox.index("\nfunction ProximityController:SetVisible(", prog_start)
+        prog_fn = prox[prog_start:prog_end]
+        self.assertIn(
+            "math.floor(resolved * SEGMENT_COUNT + 0.5)",
+            prog_fn,
+        )
+        # Segments at or below threshold: fully opaque; above: 0.82 transparent
+        self.assertIn(
+            "if index <= visibleSegments then 0 else 0.82",
+            prog_fn,
+        )
+
+        # UnregisterZone: early return if zone unknown; destroys GUI if still parented
+        unreg_start = prox.index("function ProximityController:UnregisterZone(")
+        unreg_end = prox.index("\nfunction ProximityController:SetProgress(", unreg_start)
+        unreg_fn = prox[unreg_start:unreg_end]
+        self.assertIn("if not record then", unreg_fn)
+        self.assertIn("self.zones[part] = nil", unreg_fn)
+        self.assertIn("record.gui:Destroy()", unreg_fn)
+
+        # Destroy: idempotent; collects parts first, then unregisters (safe iteration)
+        destroy_start = prox.index("function ProximityController:Destroy()")
+        destroy_fn = prox[destroy_start:]
+        self.assertIn("if self.destroyed then", destroy_fn)
+        parts_collect_pos = destroy_fn.index(
+            "for part in self.zones do\n\t\ttable.insert(parts, part)\n\tend"
+        )
+        unreg_loop_pos = destroy_fn.index("self:UnregisterZone(part)", parts_collect_pos)
+        self.assertLess(parts_collect_pos, unreg_loop_pos)
+
     def test_request_0154_audio_controller_apply_settings_validation_and_switch_loop(
         self,
     ) -> None:
