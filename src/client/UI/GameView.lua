@@ -1424,7 +1424,11 @@ function GameView:_buildVote()
 		if self.localVoteHasLocked then
 			setModalVisible(self.voteModal, false)
 		else
-			self:Notify("Vote required", "Choose one suspect before the fire goes out.", "Warning")
+			local voteReqPlayer = if type(self.currentState) == "table" then self.currentState.player else nil
+			local voteReqBody = if readString(voteReqPlayer, "role", "") == "Murderer"
+				then "Name someone before the fire goes out. Redirect suspicion — every vote matters."
+				else "Choose one suspect before the fire goes out."
+			self:Notify("Vote required", voteReqBody, "Warning")
 		end
 	end)
 	local voteHeader = self.voteModal:FindFirstChild("Header")
@@ -1833,7 +1837,7 @@ function GameView:_chooseParticipant(
 		setModalVisible(self.targetModal, false)
 		self:Notify(
 			"No selectable target",
-			"This action needs another living camper and was not sent.",
+			"This action requires at least one other living player and was not sent.",
 			"Warning"
 		)
 		return
@@ -4055,11 +4059,19 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			and self.dayObjectiveNotifiedRound ~= roundNum
 		then
 			self.dayObjectiveNotifiedRound = roundNum
-			self:Notify(
-				"Day objectives complete",
-				"All camp work done and witnesses interviewed. Investigation begins soon.",
-				"Success"
-			)
+			if readString(player, "role", "") == "Murderer" then
+				self:Notify(
+					"Day objectives complete",
+					"Campers are ready. Investigation begins soon — stay composed.",
+					"Warning"
+				)
+			else
+				self:Notify(
+					"Day objectives complete",
+					"All camp work done and witnesses interviewed. Investigation begins soon.",
+					"Success"
+				)
+			end
 		end
 	elseif phase == "Investigation" then
 		local privateMonster = if type(state) == "table" then state.privateMonster else nil
@@ -4130,11 +4142,19 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					and self.evidenceNotifiedRound ~= roundNum
 				then
 					self.evidenceNotifiedRound = roundNum
-					self:Notify(
-						"Evidence complete",
-						"All clues collected. Return for the Campfire.",
-						"Success"
-					)
+					if readString(player, "role", "") == "Murderer" then
+						self:Notify(
+							"Evidence complete",
+							"All evidence is on the board. Stay composed — the vote decides your fate.",
+							"Warning"
+						)
+					else
+						self:Notify(
+							"Evidence complete",
+							"All clues collected. Return for the Campfire.",
+							"Success"
+						)
+					end
 				end
 			end
 		end

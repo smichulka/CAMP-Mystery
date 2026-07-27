@@ -132,7 +132,7 @@ class ClientReleaseContractTests(unittest.TestCase):
         source = read("src/client/UI/GameView.lua")
         self.assertNotIn("The server will use the action's safe default.", source)
         self.assertIn(
-            "This action needs another living camper and was not sent.",
+            "This action requires at least one other living player and was not sent.",
             source,
         )
         item_branch = re.search(
