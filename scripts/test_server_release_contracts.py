@@ -2996,6 +2996,135 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("child.Visible = true", stagger_fn)
         self.assertIn("Motion.Cancel(child)", stagger_fn)
 
+    def test_request_0159_components_escape_evidence_status_button_and_clear_generated(
+        self,
+    ) -> None:
+        comp = (ROOT / "src" / "client" / "UI" / "Components.lua").read_text(
+            encoding="utf-8"
+        )
+
+        # --- escapeRichText: four HTML entity substitutions (no apostrophe) ---
+        esc_start = comp.index("local function escapeRichText(")
+        esc_end = comp.index("\nfunction Components.LetterspacedText(", esc_start)
+        esc_fn = comp[esc_start:esc_end]
+        self.assertIn('"&lt;"', esc_fn)
+        self.assertIn('"&gt;"', esc_fn)
+        self.assertIn('"&amp;"', esc_fn)
+        self.assertIn('"&quot;"', esc_fn)
+        # Pattern uses a character class (not individual gsub calls); Lua escapes " as \"
+        self.assertIn('[<>&\\"]', esc_fn)
+        # Single-quote is NOT in the escape map (no &apos;)
+        self.assertNotIn("&apos;", esc_fn)
+
+        # --- evidenceStatus: lowercase normalization + alias mapping ---
+        ev_start = comp.index("local function evidenceStatus(")
+        ev_end = comp.index("\nfunction Components.EvidenceCard(", ev_start)
+        ev_fn = comp[ev_start:ev_end]
+        # Normalize to lowercase first
+        self.assertIn("string.lower(value)", ev_fn)
+        # "confirmed" and "verifiedreal" both map to Confirmed
+        self.assertIn('"confirmed"', ev_fn)
+        self.assertIn('"verifiedreal"', ev_fn)
+        self.assertIn('return "Confirmed"', ev_fn)
+        # "contradicted" and "verifiedfake" both map to Contradicted
+        self.assertIn('"contradicted"', ev_fn)
+        self.assertIn('"verifiedfake"', ev_fn)
+        self.assertIn('return "Contradicted"', ev_fn)
+        # Default fallback
+        self.assertIn('return "Unconfirmed"', ev_fn)
+
+        # --- LetterspacedText: short-circuit + spacer format ---
+        lsp_start = comp.index("function Components.LetterspacedText(")
+        lsp_end = comp.index("\nfunction Components.SetLetterspacedText(", lsp_start)
+        lsp_fn = comp[lsp_start:lsp_end]
+        # spacing floor + max(0, ...)
+        self.assertIn(
+            "math.max(0, math.floor(spacing or Theme.Typography.LetterSpacing))",
+            lsp_fn,
+        )
+        # Short-circuit: spacing==0 OR value has fewer than 2 chars
+        self.assertIn("resolvedSpacing == 0 or #value < 2", lsp_fn)
+        self.assertIn("return escapeRichText(value)", lsp_fn)
+        # Spacer is an invisible font element
+        self.assertIn('<font size="%d" transparency="1">.</font>', lsp_fn)
+        # Per-character escaping
+        self.assertIn("escapeRichText(string.sub(value, index, index))", lsp_fn)
+        # Joined by spacer
+        self.assertIn("table.concat(characters, spacer)", lsp_fn)
+
+        # --- Components.Button: hover lerp, AutoButtonColor, debounce guards, key types ---
+        btn_start = comp.index("function Components.Button(")
+        btn_end = comp.index("\nfunction Components.SetButtonEnabled(", btn_start)
+        btn_fn = comp[btn_start:btn_end]
+        # Hover color is a 12% lerp towards white
+        self.assertIn("normalColor:Lerp(Theme.Colors.White, 0.12)", btn_fn)
+        # AutoButtonColor disabled (managed manually)
+        self.assertIn("button.AutoButtonColor = false", btn_fn)
+        # press() debounce: early return if not Active or already pressed
+        self.assertIn("if not button.Active or pressed then", btn_fn)
+        # release() debounce: early return if not pressed and scale already at 1
+        self.assertIn("if not pressed and pressScale.Scale == 1 then", btn_fn)
+        # tweenScale: reduced motion short-circuits to immediate scale reset
+        self.assertIn("if Motion.IsReducedMotion(button) then", btn_fn)
+        self.assertIn("pressScale.Scale = 1", btn_fn)
+        # InputBegan: all five input types
+        for key in (
+            "Enum.UserInputType.MouseButton1",
+            "Enum.UserInputType.Touch",
+            "Enum.KeyCode.ButtonA",
+            "Enum.KeyCode.Return",
+            "Enum.KeyCode.Space",
+        ):
+            self.assertIn(key, btn_fn)
+        # SelectionGained: gold border, thickness 3, fully opaque
+        self.assertIn("border.Color = Theme.Colors.Gold", btn_fn)
+        self.assertIn("border.Thickness = 3", btn_fn)
+        self.assertIn("border.Transparency = 0", btn_fn)
+        # SelectionLost: restore border color and thickness=1
+        self.assertIn("border.Color = Theme.Colors.Border", btn_fn)
+        self.assertIn("border.Thickness = 1", btn_fn)
+        self.assertIn("border.Transparency = Theme.StrokeTransparency", btn_fn)
+        # SelectionGained fires before SelectionLost in source
+        gained_pos = btn_fn.index("border.Color = Theme.Colors.Gold")
+        lost_pos = btn_fn.index("border.Color = Theme.Colors.Border")
+        self.assertLess(gained_pos, lost_pos)
+
+        # --- Components.SetButtonEnabled: transparency values and reset behaviors ---
+        sbe_start = comp.index("function Components.SetButtonEnabled(")
+        sbe_end = comp.index("\nfunction Components.List(", sbe_start)
+        sbe_fn = comp[sbe_start:sbe_end]
+        self.assertIn("button.Active = enabled", sbe_fn)
+        self.assertIn("button.Selectable = enabled", sbe_fn)
+        # Background: 0 when enabled, 0.45 when disabled
+        self.assertIn("if enabled then 0 else 0.45", sbe_fn)
+        # Text: 0 when enabled, 0.32 when disabled
+        self.assertIn("if enabled then 0 else 0.32", sbe_fn)
+        # Scale reset on disable (prevents stuck-pressed state)
+        self.assertIn('"ButtonPressScale"', sbe_fn)
+        self.assertIn('pressScale:IsA("UIScale")', sbe_fn)
+        # Deselect when disabled
+        self.assertIn("GuiService.SelectedObject == button", sbe_fn)
+        self.assertIn("GuiService.SelectedObject = nil", sbe_fn)
+
+        # --- Components.ClearGenerated: destroys only "Generated" == true children ---
+        clr_start = comp.index("function Components.ClearGenerated(")
+        clr_fn = comp[clr_start:]
+        self.assertIn('child:GetAttribute("Generated") == true', clr_fn)
+        self.assertIn("child:Destroy()", clr_fn)
+
+        # --- Components.ProgressBar: key structural contracts ---
+        pb_start = comp.index("function Components.ProgressBar(")
+        pb_end = comp.index("\nfunction Components.ClearGenerated(", pb_start)
+        pb_fn = comp[pb_start:pb_end]
+        # Track clips to prevent fill overflow
+        self.assertIn("track.ClipsDescendants = true", pb_fn)
+        # Fill uses Success color and full-scale size
+        self.assertIn("fill.BackgroundColor3 = Theme.Colors.Success", pb_fn)
+        self.assertIn("fill.Size = UDim2.fromScale(1, 1)", pb_fn)
+        # Text label sits above fill (ZIndex bump)
+        self.assertIn("text.ZIndex = track.ZIndex + 2", pb_fn)
+        self.assertIn("text.TextXAlignment = Enum.TextXAlignment.Center", pb_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
