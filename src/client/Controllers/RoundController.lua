@@ -50,6 +50,9 @@ type RoundSummaryStats = {
 	victimName: string?,
 	personalEvidence: number,
 	playerRole: string,
+	killCount: number?,
+	votesAgainstMe: number?,
+	wasCaught: boolean?,
 }
 
 local RoundController = {}
@@ -332,6 +335,7 @@ local function roundSummaryStats(snapshot: any): RoundSummaryStats
 	local victimName = if type(round) == "table" and type(round.victimName) == "string"
 		then round.victimName
 		else nil
+	local roleName = readString(player, "role", "Camper")
 
 	return {
 		roundNumber = math.max(0, readNumber(round, "roundNumber", 0)),
@@ -349,7 +353,11 @@ local function roundSummaryStats(snapshot: any): RoundSummaryStats
 		monsterId = monsterId,
 		victimName = victimName,
 		personalEvidence = personalEvidence,
-		playerRole = readString(player, "role", "Camper"),
+		playerRole = roleName,
+		-- The public round snapshot does not currently expose either count.
+		killCount = 0,
+		votesAgainstMe = 0,
+		wasCaught = roleName == "Murderer" and winner == "Campers",
 	}
 end
 

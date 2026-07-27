@@ -295,6 +295,44 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+    def test_request_0051_round_summary_and_rewards_ghost_copy(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            "killCount: number?",
+            "votesAgainstMe: number?",
+            "wasCaught: boolean?",
+            'local rewardsIsGhost = readBoolean(player, "isGhost", false)',
+            "elseif rewardsIsGhost then",
+            '"JUSTICE\\nThe murderer was caught. Your death was not in vain."',
+            '"UNSOLVED\\nThe murderer escaped. The mystery remains."',
+            'if stats.playerRole == "Murderer" then',
+            '"Outcome"',
+            'if wasCaught then "CAUGHT" else "ESCAPED"',
+            '"Eliminations"',
+            '"Votes Against You"',
+            '"Survivors Remaining"',
+            'string.format("%d", stats.killCount or 0)',
+            'string.format("%d", stats.votesAgainstMe or 0)',
+            'if stats.playerRole ~= "Murderer"',
+        ):
+            self.assertIn(token, view)
+
+        rewards = view.index('elseif phase == "Rewards" then')
+        murderer = view.index('if rewardsRole == "Murderer" then', rewards)
+        ghost = view.index("elseif rewardsIsGhost then", murderer)
+        camper = view.index('elseif rewardsRole ~= "Spectator" then', ghost)
+        self.assertLess(murderer, ghost)
+        self.assertLess(ghost, camper)
+
+        controller = read("src/client/Controllers/RoundController.lua")
+        for token in (
+            'local roleName = readString(player, "role", "Camper")',
+            "killCount = 0",
+            "votesAgainstMe = 0",
+            'wasCaught = roleName == "Murderer" and winner == "Campers"',
+        ):
+            self.assertIn(token, controller)
+
     def test_vote_details_are_resolution_only_in_shared_snapshot(self) -> None:
         game_types = read("src/shared/Types/GameTypes.lua")
         for token in (

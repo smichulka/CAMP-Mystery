@@ -40,6 +40,9 @@ type RoundSummaryStats = {
 	victimName: string?,
 	personalEvidence: number,
 	playerRole: string,
+	killCount: number?,
+	votesAgainstMe: number?,
+	wasCaught: boolean?,
 }
 
 type GameViewState = {
@@ -4204,6 +4207,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		end
 	elseif phase == "Rewards" then
 		local rewardsRole = readString(player, "role", "Spectator")
+		local rewardsIsGhost = readBoolean(player, "isGhost", false)
 		local rewardsWinner = readString(round, "winner", "")
 		local campersWon = rewardsWinner == "Campers"
 		if rewardsRole == "Murderer" then
@@ -4214,6 +4218,13 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				self.progressLabel.Text = "You escaped into the night."
 				self.objectiveText.Text = "ESCAPED\nThe camp never caught you. A flawless hunt."
 			end
+		elseif rewardsIsGhost then
+			self.progressLabel.Text = if campersWon
+				then "Justice delivered."
+				else "The mystery remains unsolved."
+			self.objectiveText.Text = if campersWon
+				then "JUSTICE\nThe murderer was caught. Your death was not in vain."
+				else "UNSOLVED\nThe murderer escaped. The mystery remains."
 		elseif rewardsRole ~= "Spectator" then
 			if campersWon then
 				self.progressLabel.Text = "Justice was served."
@@ -5592,45 +5603,76 @@ function GameView:PlayRoundSummary(stats: RoundSummaryStats)
 			value.ZIndex = 82
 		end
 
-		local survivorColor = if stats.survivorCount == 0
-			then Theme.Colors.DangerBright
-			elseif stats.survivorCount >= stats.totalParticipants
-			then Theme.Colors.Success
-			else Theme.Colors.Text
-		statRow(
-			96,
-			"Survivors",
-			string.format("%d of %d", stats.survivorCount, stats.totalParticipants),
-			survivorColor
-		)
-		statRow(
-			128,
-			"Evidence",
-			string.format("%d / %d clues", stats.evidenceFound, stats.evidenceGoal),
-			if stats.evidenceFound >= stats.evidenceGoal
+		if stats.playerRole == "Murderer" then
+			local wasCaught = stats.wasCaught == true
+			statRow(
+				96,
+				"Outcome",
+				if wasCaught then "CAUGHT" else "ESCAPED",
+				if wasCaught then Theme.Colors.DangerBright else Theme.Colors.Success
+			)
+			statRow(
+				128,
+				"Eliminations",
+				string.format("%d", stats.killCount or 0),
+				Theme.Colors.DangerBright
+			)
+			statRow(
+				160,
+				"Votes Against You",
+				string.format("%d", stats.votesAgainstMe or 0),
+				Theme.Colors.Text
+			)
+			statRow(
+				192,
+				"Survivors Remaining",
+				string.format("%d of %d", stats.survivorCount, stats.totalParticipants),
+				Theme.Colors.Text
+			)
+		else
+			local survivorColor = if stats.survivorCount == 0
+				then Theme.Colors.DangerBright
+				elseif stats.survivorCount >= stats.totalParticipants
 				then Theme.Colors.Success
 				else Theme.Colors.Text
-		)
-		statRow(
-			160,
-			"Camp Tasks",
-			string.format("%d / %d", stats.objectivesCompleted, stats.objectiveGoal),
-			if stats.objectivesCompleted >= stats.objectiveGoal
-				then Theme.Colors.Success
-				else Theme.Colors.Text
-		)
+			statRow(
+				96,
+				"Survivors",
+				string.format("%d of %d", stats.survivorCount, stats.totalParticipants),
+				survivorColor
+			)
+			statRow(
+				128,
+				"Evidence",
+				string.format("%d / %d clues", stats.evidenceFound, stats.evidenceGoal),
+				if stats.evidenceFound >= stats.evidenceGoal
+					then Theme.Colors.Success
+					else Theme.Colors.Text
+			)
+			statRow(
+				160,
+				"Camp Tasks",
+				string.format("%d / %d", stats.objectivesCompleted, stats.objectiveGoal),
+				if stats.objectivesCompleted >= stats.objectiveGoal
+					then Theme.Colors.Success
+					else Theme.Colors.Text
+			)
 
-		if stats.monsterId and stats.monsterId ~= "" then
-			local monsterDisplay = stats.monsterId
-				:gsub("(%l)(%u)", "%1 %2")
-				:gsub("-", " ")
-			statRow(192, "Monster", monsterDisplay, Theme.Colors.DangerBright)
-		end
-		if stats.victimName and stats.victimName ~= "" then
-			statRow(224, "Victim", stats.victimName, Theme.Colors.TextMuted)
+			if stats.monsterId and stats.monsterId ~= "" then
+				local monsterDisplay = stats.monsterId
+					:gsub("(%l)(%u)", "%1 %2")
+					:gsub("-", " ")
+				statRow(192, "Monster", monsterDisplay, Theme.Colors.DangerBright)
+			end
+			if stats.victimName and stats.victimName ~= "" then
+				statRow(224, "Victim", stats.victimName, Theme.Colors.TextMuted)
+			end
 		end
 
-		if stats.playerRole ~= "Spectator" and stats.personalEvidence > 0 then
+		if stats.playerRole ~= "Murderer"
+			and stats.playerRole ~= "Spectator"
+			and stats.personalEvidence > 0
+		then
 			local personalLabel = Components.Label(
 				card,
 				"PersonalContrib",
