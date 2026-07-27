@@ -536,6 +536,32 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertLess(cinematic, title)
         self.assertLess(title, resolution)
 
+    def test_request_0107_tutorial_view_murderer_briefing_header(self) -> None:
+        tutorial_view = read("src/client/UI/TutorialView.lua")
+        tutorial_ctrl = read("src/client/Controllers/TutorialController.lua")
+        # Constructor sets default header to "NEW CAMPER BRIEFING" before any step is shown
+        self.assertIn('"NEW CAMPER BRIEFING"', tutorial_view)
+        # Show method derives role-aware header from step id containing "_murderer"
+        show_start = tutorial_view.index("function TutorialView:Show(")
+        show_end = tutorial_view.index("\nend\n", show_start)
+        show_fn = tutorial_view[show_start:show_end]
+        self.assertIn('string.find(step.id, "_murderer")', show_fn)
+        self.assertIn('"MURDERER BRIEFING"', show_fn)
+        self.assertIn('"NEW CAMPER BRIEFING"', show_fn)
+        # Murderer briefing header appears only for _murderer steps — camper steps keep default
+        self.assertLess(
+            show_fn.index('"MURDERER BRIEFING"'),
+            show_fn.index('"NEW CAMPER BRIEFING"', show_fn.index('"MURDERER BRIEFING"')),
+        )
+        # TutorialController has _murderer step ids in its step catalog
+        for step_id in (
+            '"murderplanning_murderer"',
+            '"nighttransform_murderer"',
+            '"investigation_murderer"',
+            '"vote_murderer"',
+        ):
+            self.assertIn(step_id, tutorial_ctrl)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

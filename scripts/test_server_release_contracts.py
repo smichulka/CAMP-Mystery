@@ -381,6 +381,36 @@ class ServerReleaseContracts(unittest.TestCase):
         # Confirms active=false short-circuits all non-persistent action toggles
         self.assertIn("local enabled = active", avail_block)
 
+    def test_request_0106_monster_catalog_murderer_note_and_consumer(self) -> None:
+        catalog = (ROOT / "src/shared/Config/PublicMonsterCatalog.lua").read_text(encoding="utf-8")
+        types = (ROOT / "src/shared/Types/MonsterTypes.lua").read_text(encoding="utf-8")
+        view = (ROOT / "src/client/UI/GameView.lua").read_text(encoding="utf-8")
+        # PublicMonsterDefinition type includes murdererNote field
+        self.assertIn("murdererNote: string,", types)
+        # All 8 monsters have a murdererNote entry
+        for token in (
+            'murdererNote = "You are fast at close range.',
+            'murdererNote = "Your scream is range-dependent.',
+            'murdererNote = "Group light sources are your threat.',
+            'murdererNote = "Avoid sustained direct light.',
+            'murdererNote = "A UV or flashlight burst can release your latch.',
+            'murdererNote = "Build pursuit speed early.',
+            'murdererNote = "Your arrival silhouette is visible.',
+            'murdererNote = "Give campers time to enter wail radius',
+        ):
+            self.assertIn(token, catalog)
+        # GameView imports PublicMonsterCatalog
+        self.assertIn('local PublicMonsterCatalog = require(SharedConfig:WaitForChild("PublicMonsterCatalog"))', view)
+        # GameView state type declares monsterNoteLabel
+        self.assertIn("monsterNoteLabel: TextLabel?,", view)
+        # _updateMonsterPanel reads murdererNote from catalog and sets the label
+        panel_start = view.index("function GameView:_updateMonsterPanel(state: any")
+        panel_end = view.index("function GameView:_stopTimerPulse()", panel_start)
+        panel_fn = view[panel_start:panel_end]
+        self.assertIn("local monsterNoteLabel = self.monsterNoteLabel", panel_fn)
+        self.assertIn("PublicMonsterCatalog[monsterId]", panel_fn)
+        self.assertIn("catalogEntry.murdererNote", panel_fn)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
