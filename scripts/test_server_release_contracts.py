@@ -286,5 +286,28 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"Only the living Detective can verify evidence"', evidence_svc)
 
 
+    def test_request_0102_computer_player_murderer_role_gates(self) -> None:
+        bot = (ROOT / "src/server/Services/ComputerPlayerService.lua").read_text(encoding="utf-8")
+        # BuildMurdererLieTarget: only runs for Murderer role
+        self.assertIn('participant.role ~= "Murderer"', bot)
+        # Lie target selection filters out co-Murderer candidates
+        self.assertIn('other.role ~= "Murderer"', bot)
+        # ScoreAction: Attack actions are blocked for non-Murderers
+        score_start = bot.index("function ComputerPlayerService:ScoreAction(")
+        score_end = bot.index("function ComputerPlayerService:", score_start + 1)
+        score_block = bot[score_start:score_end]
+        self.assertIn('candidate.actionType == "Attack" and participant.role ~= "Murderer"', score_block)
+        # ScoreAction: deceptive actions blocked for non-Murderers
+        self.assertIn('candidate.isDeceptive and participant.role ~= "Murderer"', score_block)
+        # ScoreAction: ghost bots score -math.huge except Idle and Protector intervention
+        self.assertIn("not participant.alive or participant.isGhost", score_block)
+        self.assertIn("participant.isGhost\n\t\t\tand participant.role == \"Protector\"", score_block)
+        # Strategic lie injection in Discuss phase is Murderer-only
+        lie_start = bot.index('"strategic-lie:"')
+        lie_guard = bot[lie_start - 400:lie_start]
+        self.assertIn('participant.role == "Murderer"', lie_guard)
+        self.assertIn("ALLOWED_PHASES.Discuss[context.phase]", lie_guard)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
