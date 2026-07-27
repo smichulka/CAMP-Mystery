@@ -411,6 +411,45 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("PublicMonsterCatalog[monsterId]", panel_fn)
         self.assertIn("catalogEntry.murdererNote", panel_fn)
 
+    def test_request_0110_ghost_protector_intervention_contracts(self) -> None:
+        ability_svc = source("Services/RoleAbilityService.lua")
+        # SetProtection ghost path: only Protector, only in Investigation, one-time use
+        set_protection_start = ability_svc.index("function RoleAbilityService:SetProtection(")
+        set_protection_end = ability_svc.index("function RoleAbilityService:SetGuard(", set_protection_start)
+        set_protection_fn = ability_svc[set_protection_start:set_protection_end]
+        self.assertIn("if protector and protector.isGhost then", set_protection_fn)
+        self.assertIn('protector.role ~= "Protector"', set_protection_fn)
+        self.assertIn('self.getPhase() ~= "Investigation"', set_protection_fn)
+        self.assertIn("self.ghostInterventionUsedByProtectorId[protectorParticipantId]", set_protection_fn)
+        self.assertIn('"Ghost intervention is not available"', set_protection_fn)
+        # Ghost ward is created with ghostIntervention = true flag
+        self.assertIn("ghostIntervention = ghostIntervention,", set_protection_fn)
+        self.assertIn("local ghostIntervention = protector.isGhost", set_protection_fn)
+        # Ghost intervention uses no ability cooldown (skips _commit)
+        self.assertIn("if ghostIntervention then", set_protection_fn)
+        self.assertIn("self.revision += 1", set_protection_fn)
+        # ResolveDefense: ghost ward marks intervention consumed and still injures healthy target
+        resolve_start = ability_svc.index("function RoleAbilityService:ResolveDefense(")
+        resolve_end = ability_svc.index("function RoleAbilityService:GetPrivateSnapshot(", resolve_start)
+        resolve_fn = ability_svc[resolve_start:resolve_end]
+        self.assertIn("if ward.ghostIntervention then", resolve_fn)
+        self.assertIn("self.ghostInterventionUsedByProtectorId[ward.protectorParticipantId] = true", resolve_fn)
+        # Ghost intervention still injures the target if they were healthy
+        self.assertIn("if target.injuryLevel == 0 then", resolve_fn)
+        self.assertIn('target.healthState = "Injured"', resolve_fn)
+        # Lifecycle event identifies the intervention source
+        self.assertIn('"GhostProtectorIntervention"', resolve_fn)
+        # Either ward path returns "Blocked"
+        self.assertIn('return "Blocked"', resolve_fn)
+        # GetPrivateSnapshot: ghostInterventionAvailable reflects used state
+        snapshot_start = ability_svc.index("function RoleAbilityService:GetPrivateSnapshot(")
+        snapshot_end = ability_svc.index("function RoleAbilityService:TransferParticipant(", snapshot_start)
+        snapshot_fn = ability_svc[snapshot_start:snapshot_end]
+        self.assertIn(
+            "ghostInterventionAvailable = not self.ghostInterventionUsedByProtectorId[participantId],",
+            snapshot_fn,
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
