@@ -68,6 +68,7 @@ export type PublicMonsterDefinition = {
 	movement: MovementPresentation,
 	evidencePresentation: { string },
 	counterplay: CounterplayPresentation,
+	murdererNote: string,
 }
 
 export type AbilityRequest = {

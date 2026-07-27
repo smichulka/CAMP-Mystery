@@ -27,6 +27,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Keep it in open, well-lit spaces and interrupt its approach before it reaches leaping range.",
 			recommendedEquipment = { "Flashlight", "LaserProjector" },
 		},
+		murdererNote = "You are fast at close range. Keep leaping range short and don't let prey isolate you in bright areas.",
 	},
 	Screamer = {
 		id = "Screamer",
@@ -46,6 +47,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Break range or line of sight during the scream, then use its recovery window to escape.",
 			recommendedEquipment = { "AudioRecorder", "EMFReader" },
 		},
+		murdererNote = "Your scream is range-dependent. Break line of sight early to buy recovery time and prevent campers from escaping.",
 	},
 	Wendigo = {
 		id = "Wendigo",
@@ -65,6 +67,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Stay together and use campfire or flare light to deny its strongest approach routes.",
 			recommendedEquipment = { "AudioRecorder", "FlareLantern" },
 		},
+		murdererNote = "Group light sources are your threat. Isolate targets away from campfire zones and flare coverage.",
 	},
 	ShadowMonster = {
 		id = "ShadowMonster",
@@ -84,6 +87,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Sustain direct light to make it solid, visible, and slower.",
 			recommendedEquipment = { "Flashlight", "Camera" },
 		},
+		murdererNote = "Avoid sustained direct light. Move through unlit corridors and strike before light establishes.",
 	},
 	Chupacabra = {
 		id = "Chupacabra",
@@ -103,6 +107,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "A UV or direct flashlight burst forces it to release a latched camper.",
 			recommendedEquipment = { "UVLight", "Flashlight", "MedicalKit" },
 		},
+		murdererNote = "A UV or flashlight burst can release your latch. Time strikes when victims are isolated and unequipped.",
 	},
 	Dullahan = {
 		id = "Dullahan",
@@ -122,6 +127,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Break line of sight before it reaches full speed.",
 			recommendedEquipment = { "Camera", "LaserProjector", "Thermometer" },
 		},
+		murdererNote = "Build pursuit speed early. Break away from corners that interrupt your line — speed is your advantage.",
 	},
 	Entity = {
 		id = "Entity",
@@ -141,6 +147,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Watch for its arrival silhouette and move away from nearby teleport anchors.",
 			recommendedEquipment = { "SpiritBox", "UVLight", "LaserProjector" },
 		},
+		murdererNote = "Your arrival silhouette is visible. Vary anchor selection and approach from unexpected angles.",
 	},
 	Banshee = {
 		id = "Banshee",
@@ -160,6 +167,7 @@ local catalog: { [MonsterId]: PublicMonsterDefinition } = {
 			summary = "Interrupt the wail or escape its effective radius before disorientation builds.",
 			recommendedEquipment = { "AudioRecorder", "Camera", "MedicalKit" },
 		},
+		murdererNote = "Give campers time to enter wail radius before full attack. A quick escape means no disorientation buildup.",
 	},
 }
 

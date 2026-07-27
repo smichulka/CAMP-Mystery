@@ -14,6 +14,7 @@ local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
+local PublicMonsterCatalog = require(SharedConfig:WaitForChild("PublicMonsterCatalog"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local KeybindHints = require(SharedConfig:WaitForChild("KeybindHints"))
 local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))
@@ -94,6 +95,7 @@ type GameViewState = {
 	monsterNameLabel: TextLabel?,
 	monsterStaminaFill: Frame?,
 	monsterAbilityLabel: TextLabel?,
+	monsterNoteLabel: TextLabel?,
 	monsterPanelVisible: boolean,
 	rosterPanel: Frame?,
 	rosterScrollFrame: ScrollingFrame?,
@@ -775,7 +777,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	monsterPanel.Name = "MonsterPanel"
 	monsterPanel.AnchorPoint = Vector2.new(1, 1)
 	monsterPanel.Position = UDim2.new(1, -16, 1, -88)
-	monsterPanel.Size = UDim2.fromOffset(200, 68)
+	monsterPanel.Size = UDim2.fromOffset(200, 90)
 	monsterPanel.BackgroundColor3 = Theme.Colors.Panel
 	monsterPanel.BackgroundTransparency = 0.1
 	monsterPanel.BorderSizePixel = 0
@@ -847,6 +849,21 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	monsterAbilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 	monsterAbilityLabel.TextYAlignment = Enum.TextYAlignment.Center
 	monsterAbilityLabel.ZIndex = 23
+
+	local monsterNoteLabel = Components.Label(
+		monsterPanel,
+		"MonsterNote",
+		"",
+		9,
+		Theme.Typography.CaptionFont
+	)
+	monsterNoteLabel.Position = UDim2.fromOffset(10, 68)
+	monsterNoteLabel.Size = UDim2.new(1, -20, 0, 20)
+	monsterNoteLabel.TextWrapped = true
+	monsterNoteLabel.TextColor3 = Theme.Colors.TextMuted
+	monsterNoteLabel.TextXAlignment = Enum.TextXAlignment.Left
+	monsterNoteLabel.TextYAlignment = Enum.TextYAlignment.Top
+	monsterNoteLabel.ZIndex = 23
 
 	-- Live player roster panel — right side, visible during active round phases
 	local rosterPanel = Instance.new("Frame")
@@ -1022,6 +1039,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		monsterNameLabel = monsterNameLabel,
 		monsterStaminaFill = monsterStaminaFill,
 		monsterAbilityLabel = monsterAbilityLabel,
+		monsterNoteLabel = monsterNoteLabel,
 		monsterPanelVisible = false,
 		rosterPanel = rosterPanel,
 		rosterScrollFrame = nil,
@@ -3904,6 +3922,12 @@ function GameView:_updateMonsterPanel(state: any, phase: string?)
 			monsterAbilityLabel.Text = "ABILITY READY"
 		end
 	end
+	local monsterNoteLabel = self.monsterNoteLabel
+	if monsterNoteLabel then
+		local monsterId = readString(privateMonster, "monsterId", "")
+		local catalogEntry = if monsterId ~= "" then PublicMonsterCatalog[monsterId] else nil
+		monsterNoteLabel.Text = if catalogEntry then catalogEntry.murdererNote else ""
+	end
 end
 
 function GameView:_stopTimerPulse()
@@ -6555,6 +6579,7 @@ function GameView:Destroy()
 	self.monsterNameLabel = nil
 	self.monsterStaminaFill = nil
 	self.monsterAbilityLabel = nil
+	self.monsterNoteLabel = nil
 	self.monsterPanelVisible = false
 	if self.phaseArc then
 		self.phaseArc:Destroy()
