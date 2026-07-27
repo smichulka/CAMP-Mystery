@@ -212,5 +212,42 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn(".Calculate(", profile)
 
 
+    def test_request_0100_combat_and_voting_role_eligibility_guards(self) -> None:
+        combat = source("Services/CombatService.lua")
+        voting = source("Services/VotingService.lua")
+        # CombatService: only Murderer can attack
+        self.assertIn('attacker.role ~= "Murderer"', combat)
+        self.assertIn('"Attacker is not eligible"', combat)
+        # CombatService: only living non-ghost Campers can be targeted
+        self.assertIn("target.team ~= \"Campers\"", combat)
+        self.assertIn('"Target is not eligible"', combat)
+        # CombatService: ghost transition fires 3 seconds after death
+        self.assertIn("target.isGhost = true", combat)
+        self.assertIn("self.lifecycle:Emit(\"ParticipantGhostTransition\"", combat)
+        # CombatService: ApplyInjury also blocks ghost/non-Camper targets
+        injury_start = combat.index("function CombatService:ApplyInjury(")
+        injury_end = combat.index("function CombatService:ApplyAttack(", injury_start)
+        injury_block = combat[injury_start:injury_end]
+        self.assertIn("target.isGhost", injury_block)
+        self.assertIn('target.team ~= "Campers"', injury_block)
+        # VotingService: Ghost and Spectator cannot vote
+        self.assertIn("voter.isGhost", voting)
+        self.assertIn('voter.role == "Spectator"', voting)
+        self.assertIn('"Participant cannot vote"', voting)
+        # VotingService: Ghost and Spectator cannot be voted out
+        self.assertIn("target.isGhost", voting)
+        self.assertIn('target.role == "Spectator"', voting)
+        self.assertIn('"Suspect is not eligible"', voting)
+        # VotingService: eligible voter count excludes Ghost and Spectator
+        eligible_start = voting.index("function VotingService:GetEligibleVoterCount()")
+        eligible_end = voting.index("function VotingService:CastVote(", eligible_start)
+        eligible_block = voting[eligible_start:eligible_end]
+        self.assertIn("not participant.isGhost", eligible_block)
+        self.assertIn('participant.role ~= "Spectator"', eligible_block)
+        # VotingService: early-win check requires alive, non-ghost Campers
+        self.assertIn('participant.team == "Campers"', voting)
+        self.assertIn("participant.alive and not participant.isGhost", voting)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
