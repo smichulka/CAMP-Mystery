@@ -775,5 +775,72 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertLess(evid_murderer_pos, evid_camper_pos)
 
 
+    def test_request_0120_phase_entry_toast_role_dispatch(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Round-start toast: Murderer, Spectator, or others
+        toast_start = controller.index(
+            "local roundToastRole = if type(player) == \"table\" and type(player.role) == \"string\""
+        )
+        toast_end = controller.index("currentCinematics:PlayPhaseTransition(phaseName)", toast_start)
+        toast_block = controller[toast_start:toast_end]
+        self.assertIn('"Your identity is hidden. Play the role."', toast_block)
+        self.assertIn('"You are observing this round."', toast_block)
+        self.assertIn('"The mystery begins. Stay together."', toast_block)
+        self.assertIn('roundToastRole == "Murderer"', toast_block)
+        self.assertIn('roundToastRole == "Spectator"', toast_block)
+        # Role reveal fires on Lobby→phase transition, skips Spectators and reconnects
+        reveal_start = controller.index('if previousPhase == "Lobby"')
+        reveal_end = controller.index("currentView:PlayPhaseTitleCard(", reveal_start)
+        reveal_block = controller[reveal_start:reveal_end]
+        self.assertIn('roleName ~= "Spectator"', reveal_block)
+        self.assertIn("and not reconnect", reveal_block)
+        self.assertIn("PlayRoleReveal(", reveal_block)
+        self.assertIn('roleName == "Murderer"', reveal_block)
+        # Campfire entry: not ghost/Spectator; Murderer=DangerBright, camper=Warning
+        campfire_start = controller.index(
+            'if phaseName == "Campfire" and not reconnect then'
+        )
+        campfire_end = controller.index(
+            'if phaseName == "MurderPlanning" and not reconnect', campfire_start
+        )
+        campfire_block = controller[campfire_start:campfire_end]
+        self.assertIn("not isGhost", campfire_block)
+        self.assertIn('roleName ~= "Spectator"', campfire_block)
+        self.assertIn('" Stay calm. Deflect suspicion."', campfire_block)
+        self.assertIn('"DangerBright"', campfire_block)
+        self.assertIn("Cast your vote.", campfire_block)
+        self.assertIn('"Warning"', campfire_block)
+        # MurderPlanning entry: Murderer only; victim name looked up from participants
+        plan_start = controller.index(
+            'if phaseName == "MurderPlanning" and not reconnect and roleName == "Murderer"'
+        )
+        plan_end = controller.index('if phaseName == "Investigation" and not reconnect', plan_start)
+        plan_block = controller[plan_start:plan_end]
+        self.assertIn('"You must eliminate %s. Use the shadows."', plan_block)
+        self.assertIn("victimParticipantId", plan_block)
+        self.assertIn('"your target"', plan_block)
+        # Investigation entry: ghost=Info, Murderer=Warning, camper=DangerBright
+        inv_start = controller.index('if phaseName == "Investigation" and not reconnect then')
+        inv_end = controller.index('if phaseName == "NightTransform" and not reconnect', inv_start)
+        inv_block = controller[inv_start:inv_end]
+        self.assertIn('"Stay calm. Blend in with the others."', inv_block)
+        self.assertIn('"Someone was killed. Find the evidence before campfire."', inv_block)
+        self.assertIn('"You are a ghost. Watch as the survivors search for the truth."', inv_block)
+        self.assertIn('"Warning"', inv_block)
+        self.assertIn('"DangerBright"', inv_block)
+        self.assertIn('"Info"', inv_block)
+        # NightTransform entry: ghost=Info, Murderer=DangerBright, camper=Warning
+        night_start = controller.index('if phaseName == "NightTransform" and not reconnect then')
+        night_end = controller.index("-- Keybind hint on first entry", night_start)
+        night_block = controller[night_start:night_end]
+        self.assertIn('"Strike true. The camp is yours."', night_block)
+        self.assertIn('"Stay alert. Someone won\'t make it to morning."', night_block)
+        self.assertIn('"Watch from beyond. The hunt begins."', night_block)
+        self.assertIn('"DangerBright"', night_block)
+        self.assertIn('"Warning"', night_block)
+        self.assertIn('"Info"', night_block)
+        self.assertLess(night_block.index('"DangerBright"'), night_block.index('"Info"'))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
