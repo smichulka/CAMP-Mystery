@@ -30,7 +30,7 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             "and not reconnect",
             "and lastWinnerAnnounced ~= winner",
             "lastWinnerAnnounced = winner",
-            "currentView:PlayWinReveal(winner, winner == \"Campers\")",
+            'currentView:PlayWinReveal(winner, winner == "Campers", roleName)',
             "playVoteReveal(snapshot, currentView, revealWinner)",
             "lastWinnerAnnounced = nil",
         ):
@@ -50,7 +50,7 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             "winRevealOverlay: CanvasGroup?",
             "winRevealActive: boolean",
             "function GameView:_cancelWinReveal()",
-            "function GameView:PlayWinReveal(winner: string, isHumanWin: boolean)",
+            "function GameView:PlayWinReveal(winner: string, isHumanWin: boolean, localRole: string?)",
             'overlay.Name = "WinRevealOverlay"',
             "overlay.BackgroundColor3 = Theme.Colors.Background",
             "overlay.ZIndex = 88",
@@ -71,6 +71,28 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             "TweenInfo.new(0.4",
         ):
             self.assertIn(token, view)
+
+    def test_request_0048_role_aware_cinematic_copy(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            'local resolvedRole = localRole or ""',
+            'if resolvedRole == "Murderer" then',
+            'title.Text = "CAUGHT"',
+            'subtitle.Text = "The camp unmasked you. Your hunt is over."',
+            'title.Text = "YOU ESCAPED"',
+            'subtitle.Text = "Your identity was never revealed. A flawless hunt."',
+            'if isMonster then "YOU ARE THE THREAT" else "YOUR ROLE"',
+            'monsterActive and (phase == "Investigation" or phase == "NightTransform")',
+        ):
+            self.assertIn(token, view)
+        for token in (
+            'currentView:PlayWinReveal(winner, winner == "Campers", roleName)',
+            'local roundToastRole = if type(player) == "table"',
+            'then "Your identity is hidden. Play the role."',
+            'else "The mystery begins. Stay together."',
+        ):
+            self.assertIn(token, controller)
 
     def test_vote_completion_waits_until_confetti_lifetime_ends(self) -> None:
         view = read("src/client/UI/GameView.lua")

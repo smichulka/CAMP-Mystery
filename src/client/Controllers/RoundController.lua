@@ -640,7 +640,7 @@ local function updateReleaseExperience(
 	local revealWinner = if shouldRevealWinner and currentView and winner
 		then function()
 			HapticController.Celebrate()
-			currentView:PlayWinReveal(winner, winner == "Campers")
+			currentView:PlayWinReveal(winner, winner == "Campers", roleName)
 			if summaryStats then
 				currentView:PlayRoundSummary(summaryStats)
 			end
@@ -661,9 +661,14 @@ local function updateReleaseExperience(
 			and currentView
 		then
 			lastToastedRound = roundNumber
+			local roundToastRole = if type(player) == "table" and type(player.role) == "string"
+				then player.role
+				else ""
 			currentView:Notify(
 				string.format("ROUND %d", roundNumber),
-				"The mystery begins. Stay together.",
+				if roundToastRole == "Murderer"
+					then "Your identity is hidden. Play the role."
+					else "The mystery begins. Stay together.",
 				"Info"
 			)
 		end

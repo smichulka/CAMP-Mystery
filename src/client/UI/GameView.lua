@@ -3774,7 +3774,7 @@ function GameView:_updateMonsterPanel(state: any, phase: string?)
 	local privateMonster = if type(state) == "table" then state.privateMonster else nil
 	local monsterActive = type(privateMonster) == "table"
 		and readBoolean(privateMonster, "active", false)
-	local shouldShow = monsterActive and phase == "Investigation"
+	local shouldShow = monsterActive and (phase == "Investigation" or phase == "NightTransform")
 	if shouldShow ~= self.monsterPanelVisible then
 		self.monsterPanelVisible = shouldShow
 		Motion.Cancel(panel)
@@ -5178,7 +5178,7 @@ function GameView:PlayRoleReveal(
 		local category = Components.Label(
 			card,
 			"Category",
-			"YOUR ROLE",
+			if isMonster then "YOU ARE THE THREAT" else "YOUR ROLE",
 			Theme.Typography.CaptionSize,
 			Theme.Typography.CaptionFont
 		)
@@ -5289,7 +5289,7 @@ function GameView:_cancelWinReveal()
 	end
 end
 
-function GameView:PlayWinReveal(winner: string, isHumanWin: boolean)
+function GameView:PlayWinReveal(winner: string, isHumanWin: boolean, localRole: string?)
 	if self.destroyed then
 		return
 	end
@@ -5368,6 +5368,17 @@ function GameView:PlayWinReveal(winner: string, isHumanWin: boolean)
 	subtitle.TextTransparency = 0.4
 	subtitle.TextXAlignment = Enum.TextXAlignment.Center
 	subtitle.ZIndex = 89
+
+	local resolvedRole = localRole or ""
+	if resolvedRole == "Murderer" then
+		if isHumanWin then
+			title.Text = "CAUGHT"
+			subtitle.Text = "The camp unmasked you. Your hunt is over."
+		else
+			title.Text = "YOU ESCAPED"
+			subtitle.Text = "Your identity was never revealed. A flawless hunt."
+		end
+	end
 
 	local reducedMotion = Motion.IsReducedMotion(self.root)
 	local exiting = false
