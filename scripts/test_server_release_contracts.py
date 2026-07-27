@@ -1883,6 +1883,79 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0147_status_effect_service_round_boundary_expiry_and_transfer(
+        self,
+    ) -> None:
+        svc = source("Services/StatusEffectService.lua")
+
+        # StatusSnapshot type declares all 5 required fields
+        for field in (
+            "statusId: MonsterStatusId,",
+            "sourceParticipantId: string,",
+            "abilityId: string,",
+            "appliedAt: number,",
+            "expiresAt: number,",
+        ):
+            self.assertIn(field, svc)
+
+        # BeginRound: round ID must strictly increase
+        self.assertIn(
+            'assert(roundId > self.roundId, "Round IDs must increase")',
+            svc,
+        )
+        # BeginRound: clears all effects and resets revision to 0
+        self.assertIn("self.effectsByParticipantId = {}", svc)
+        self.assertIn("self.revision = 0", svc)
+
+        # _clearExpired: removes effects where expiresAt <= clock; bumps revision only if changed
+        self.assertIn("status.expiresAt <= now", svc)
+        self.assertIn("local changed = false", svc)
+        self.assertIn("if changed then", svc)
+
+        # Apply: guards on non-empty participantId and positive duration
+        self.assertIn(
+            'assert(participantId ~= "", "participantId cannot be empty")',
+            svc,
+        )
+        self.assertIn(
+            'assert(durationSeconds > 0, "Status duration must be positive")',
+            svc,
+        )
+        # Apply: expiresAt is computed as now + durationSeconds
+        self.assertIn("expiresAt = now + durationSeconds,", svc)
+
+        # Remove: returns false when effect is absent; true and bumps revision when present
+        remove_start = svc.index("function StatusEffectService:Remove(")
+        remove_end = svc.index("\nfunction StatusEffectService:Has(", remove_start)
+        remove_fn = svc[remove_start:remove_end]
+        self.assertIn("return false", remove_fn)
+        self.assertIn("return true", remove_fn)
+
+        # Has: calls _clearExpired before checking existence
+        has_start = svc.index("function StatusEffectService:Has(")
+        has_end = svc.index("\nfunction StatusEffectService:GetSnapshot(", has_start)
+        has_fn = svc[has_start:has_end]
+        self.assertIn("self:_clearExpired(participantId)", has_fn)
+        self.assertIn("effects ~= nil and effects[statusId] ~= nil", has_fn)
+
+        # GetSnapshot: also calls _clearExpired; sorts results by statusId
+        snap_start = svc.index("function StatusEffectService:GetSnapshot(")
+        snap_end = svc.index("\nfunction StatusEffectService:ClearParticipant(", snap_start)
+        snap_fn = svc[snap_start:snap_end]
+        self.assertIn("self:_clearExpired(participantId)", snap_fn)
+        self.assertIn("return left.statusId < right.statusId", snap_fn)
+
+        # TransferParticipant: previous entry removed before assignment to replacement
+        xfer_start = svc.index("function StatusEffectService:TransferParticipant(")
+        xfer_fn = svc[xfer_start:]
+        prev_nil_pos = xfer_fn.index(
+            "self.effectsByParticipantId[previousParticipantId] = nil"
+        )
+        replacement_pos = xfer_fn.index(
+            "self.effectsByParticipantId[replacementParticipantId] = effects"
+        )
+        self.assertLess(prev_nil_pos, replacement_pos)
+
     def test_request_0146_set_monster_status_dedup_guard_custom_message_and_pulse_gate(
         self,
     ) -> None:
