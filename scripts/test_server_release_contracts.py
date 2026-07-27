@@ -744,5 +744,39 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("self:Broadcast()", handle_block)
 
 
+    def test_request_0126_voting_resolve_tie_break_and_outcome_copy(self) -> None:
+        voting = source("Services/VotingService.lua")
+        resolve_start = voting.index("function VotingService:Resolve(culpritParticipantId: string)")
+        resolve_end = voting.index("function VotingService:EvaluateEliminationVictory(")
+        resolve_block = voting[resolve_start:resolve_end]
+        # Tie: accusedParticipantId set to nil → Murderer wins by default
+        self.assertIn("if tied then", resolve_block)
+        self.assertIn("accusedParticipantId = nil", resolve_block)
+        # Winner is binary: correct accusation = Campers, anything else = Murderer
+        self.assertIn('winner = if correct then "Campers" else "Murderer"', resolve_block)
+        # Four outcome reason messages cover all vote results
+        self.assertIn('"The camp correctly exposed the Murderer."', resolve_block)
+        self.assertIn('"The accusation tied, allowing the Murderer to escape."', resolve_block)
+        self.assertIn('"The camp reached no verdict."', resolve_block)
+        self.assertIn('"The camp accused the wrong participant."', resolve_block)
+        # Correct is compared to culprit, not just any vote target
+        self.assertIn("local correct = accusedParticipantId == culpritParticipantId", resolve_block)
+        # Resolution is cached after first call
+        self.assertIn("if self.resolution then", resolve_block)
+        self.assertIn("self.resolution = resolution", resolve_block)
+        # EvaluateEliminationVictory: culprit dead → instant Campers win
+        elim_start = voting.index("function VotingService:EvaluateEliminationVictory(")
+        elim_end = voting.index("function VotingService:TransferParticipant(")
+        elim_block = voting[elim_start:elim_end]
+        self.assertIn("if not culprit or not culprit.alive then", elim_block)
+        self.assertIn('return "Campers"', elim_block)
+        # Living campers threshold: 1 or fewer remaining → Murderer wins
+        self.assertIn(
+            "participant.team == \"Campers\" and participant.alive and not participant.isGhost",
+            elim_block,
+        )
+        self.assertIn('return if livingCampers <= 1 then "Murderer" else nil', elim_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
