@@ -1775,5 +1775,53 @@ class ServerReleaseContracts(unittest.TestCase):
         )
 
 
+    def test_request_0141_game_view_inventory_ghost_eliminated_and_medical_kit_branching(
+        self,
+    ) -> None:
+        view = (ROOT / "src/client/UI/GameView.lua").read_text(encoding="utf-8")
+
+        # _updateInventory: ghost mode disables item buttons; eliminated mode clears selection
+        inv_start = view.index("function GameView:_updateInventory(state: any)")
+        inv_end = view.index("function GameView:_activateItem(", inv_start)
+        inv_block = view[inv_start:inv_end]
+        # Empty inventory fallback message
+        self.assertIn('"Equipment will appear here."', inv_block)
+        # Slot button color: selected=Info, equipped=Gold, default=Panel
+        self.assertIn("then Theme.Colors.Info", inv_block)
+        self.assertIn("elseif equipped then Theme.Colors.Gold", inv_block)
+        self.assertIn("else Theme.Colors.Panel,", inv_block)
+        # Slot selection ordering: Info (selectedSlot) checked before Gold (equipped)
+        self.assertLess(
+            inv_block.index("Theme.Colors.Info"),
+            inv_block.index("Theme.Colors.Gold"),
+        )
+        # Ghost mode: buttons disabled
+        self.assertIn(
+            "Components.SetButtonEnabled(button, not self.ghostMode)", inv_block
+        )
+        # Eliminated mode: buttons disabled (separate branch from ghostMode)
+        self.assertIn("if self.eliminatedMode then", inv_block)
+        self.assertIn("GuiService.SelectedObject = nil", inv_block)
+
+        # _activateItem: eliminated and ghost both cause early return
+        act_start = view.index("function GameView:_activateItem(")
+        act_end = view.index("function GameView:_dismissInterviewPicker(", act_start)
+        act_block = view[act_start:act_end]
+        self.assertIn("if self.eliminatedMode then", act_block)
+        self.assertIn("if self.ghostMode or type(item) ~= \"table\" then", act_block)
+        # Equipped item → UseItem; unequipped → EquipItem first
+        self.assertIn(
+            'if not readBoolean(item, "equipped", false) then', act_block
+        )
+        self.assertIn('"EquipItem", { instanceId = instanceId }', act_block)
+        # MedicalKit → _chooseParticipant (target selection required)
+        self.assertIn('if equipmentId == "MedicalKit" then', act_block)
+        self.assertIn('self:_chooseParticipant("UseItem", payload, false)', act_block)
+        # Other equipped items → _send directly
+        self.assertIn('self:_send("UseItem", payload, control)', act_block)
+        # Camera look direction included in UseItem payload
+        self.assertIn("Workspace.CurrentCamera.CFrame.LookVector", act_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
