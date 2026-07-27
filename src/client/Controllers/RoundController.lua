@@ -1107,6 +1107,7 @@ local function updateReleaseExperience(
 			and not reconnect
 			and currentView
 		then
+			currentAudio:PlayUIEvent("success")
 			currentView:Notify(
 				"Ability ready",
 				"Your ability is charged. Strike when the moment is right.",
@@ -1122,6 +1123,7 @@ local function updateReleaseExperience(
 		local maxStamina = readNumber(abilityMonster, "maxStamina", 0)
 		local staminaIsLow = maxStamina > 0 and (stamina / maxStamina) < 0.2
 		if staminaIsLow and lastStaminaWasLow ~= true and not reconnect and currentView then
+			currentAudio:PlayUIEvent("error")
 			currentView:Notify(
 				"Stamina low",
 				"Disengage and let it recover before striking again.",
