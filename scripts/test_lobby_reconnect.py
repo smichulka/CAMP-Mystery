@@ -93,12 +93,21 @@ class LobbyReconnectTests(unittest.TestCase):
             "lastEvidenceFound = evidenceFoundCount(payload)",
             "if reconnect and currentView and not roundEnded and phaseName ~= nil then",
             '"You are a ghost. Observe the round and witness the verdict."',
+            '"Your identity was revealed. Watch the round as a ghost."',
             '"Reconnected — you\'re incapacitated"',
             '"Reconnected — you\'re injured"',
             'string.format("Current phase: %s.", phaseName)',
+            'if roleName == "Murderer" then',
         ):
             self.assertIn(token, controller)
         self.assertNotIn('"Reconnected — your role is " .. roleName', controller)
+        # Murderer ghost toast uses Warning; non-Murderer uses Info
+        ghost_block = controller.split("if isGhost then", 1)[1].split(
+            "elseif currentHealthState", 1
+        )[0]
+        self.assertIn('"Warning"', ghost_block)
+        self.assertIn('"Info"', ghost_block)
+        self.assertLess(ghost_block.index('"Warning"'), ghost_block.index('"Info"'))
         self.assertIn(
             "function GameView:PrepareReconnectSnapshot(phaseName: string)",
             view,
