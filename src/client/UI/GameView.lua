@@ -4411,8 +4411,30 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	if (phase == "Resolution" or phase == "Rewards") and not modalTargetVisible(self.progression) then
 		setModalVisible(self.resultModal, true)
 		if not self.voteRevealOwnsResults then
-			self.resultTitle.Text = if winner then string.upper(winner .. " WIN") else "MYSTERY RESOLVED"
-			self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
+			local modalRole = if type(player) == "table" and type(player.role) == "string"
+				then player.role
+				else ""
+			local modalCampersWon = winner == "Campers"
+			local modalIsGhost = readBoolean(player, "isGhost", false)
+			if modalRole == "Spectator" then
+				self.resultTitle.Text = if modalCampersWon then "CAMPERS WIN" else "MURDERER WINS"
+				self.resultBody.Text = readString(round, "resultMessage", "The night is over—for now.")
+			elseif modalIsGhost then
+				self.resultTitle.Text = if modalCampersWon then "JUSTICE" else "UNSOLVED"
+				self.resultBody.Text = if modalCampersWon
+					then "The murderer was caught. Your death was not in vain."
+					else "The murderer escaped. The mystery remains."
+			elseif modalRole == "Murderer" then
+				self.resultTitle.Text = if modalCampersWon then "CAUGHT" else "ESCAPED"
+				self.resultBody.Text = if modalCampersWon
+					then "The camp unmasked you. The hunt is over."
+					else "The camp never identified you. A flawless hunt."
+			else
+				self.resultTitle.Text = if modalCampersWon then "VICTORY" else "DEFEAT"
+				self.resultBody.Text = if modalCampersWon
+					then "Justice was served. The camp is safe."
+					else "The murderer escaped. The mystery went unsolved."
+			end
 		end
 		local profile = if type(state) == "table" then state.profile else nil
 		local profileData = if type(profile) == "table" then profile.profile else nil

@@ -60,6 +60,11 @@ local HINT_PHASES: { [string]: boolean } = {
 	Campfire = true,
 }
 
+local MURDERER_HINT_PHASES: { [string]: boolean } = {
+	MurderPlanning = true,
+	NightTransform = true,
+}
+
 local started = false
 local state: GameState? = nil
 local legacyRound: any = nil
@@ -777,11 +782,21 @@ local function updateReleaseExperience(
 				end
 			end
 			-- Keybind hint on first entry to key phases (not on reconnect).
-			if HINT_PHASES[phaseName]
+			local hintIsGhost = type(player) == "table" and player.isGhost == true
+			local hintRole = roleName
+			local showHint = HINT_PHASES[phaseName]
 				and not seenHintPhases[phaseName]
 				and not reconnect
 				and currentView
-			then
+				and not hintIsGhost
+				and not (hintRole == "Spectator" and (phaseName == "Campfire" or phaseName == "Investigation"))
+			local showMurdererHint = MURDERER_HINT_PHASES[phaseName]
+				and not seenHintPhases[phaseName]
+				and not reconnect
+				and currentView
+				and not hintIsGhost
+				and hintRole == "Murderer"
+			if showHint or showMurdererHint then
 				seenHintPhases[phaseName] = true
 				currentView:ShowKeybindHint(phaseName)
 			end
