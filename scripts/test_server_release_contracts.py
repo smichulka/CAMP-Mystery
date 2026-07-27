@@ -196,5 +196,21 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("self.monsterAnimationTrack = nil", characters)
 
 
+    def test_request_0090_reward_calculation_role_split(self) -> None:
+        reward = (ROOT / "src/server/Systems/RewardCalculation.lua").read_text(encoding="utf-8")
+        # Murderer wins and camper wins are tracked separately
+        for token in (
+            'local roleIsMurderer = input.roleId == "Murderer"',
+            "camperWins = if input.participated and input.won and not roleIsMurderer",
+            "murdererWins = if input.participated and input.won and roleIsMurderer",
+        ):
+            self.assertIn(token, reward)
+        self.assertIn("return table.freeze(HINTS)", (ROOT / "src/shared/Config/KeybindHints.lua").read_text(encoding="utf-8"))
+        # ProfileService passes roleId from participant
+        profile = (ROOT / "src/server/Services/ProfileService.lua").read_text(encoding="utf-8")
+        self.assertIn("RewardCalculation", profile)
+        self.assertIn(".Calculate(", profile)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
