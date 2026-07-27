@@ -309,5 +309,44 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("ALLOWED_PHASES.Discuss[context.phase]", lie_guard)
 
 
+    def test_request_0103_runtime_role_gates_and_loadout_contracts(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        # _grantLoadout: all roles get their designated equipment
+        loadout_start = runtime.index("function GameRuntimeService:_grantLoadout(")
+        loadout_end = runtime.index("function GameRuntimeService:", loadout_start + 1)
+        loadout_block = runtime[loadout_start:loadout_end]
+        for role, item in (
+            ('"Detective"', '"UVLight"'),
+            ('"Detective"', '"Camera"'),
+            ('"Medic"', '"MedicalKit"'),
+            ('"Trapper"', '"MonsterTrap"'),
+            ('"Medium"', '"SpiritBox"'),
+            ('"Guard"', '"FlareLantern"'),
+            ('"Camper"', '"EMFReader"'),
+        ):
+            self.assertIn(role, loadout_block)
+            self.assertIn(item, loadout_block)
+        # _findCulprit: errors if no Murderer in roster
+        self.assertIn('participant.role == "Murderer"', runtime)
+        self.assertIn('"Role assignment did not produce a Murderer"', runtime)
+        # _suspects: filters out Ghost and Spectator
+        suspects_start = runtime.index("function GameRuntimeService:_suspects()")
+        suspects_end = runtime.index("function GameRuntimeService:GetRoundSnapshot", suspects_start)
+        suspects_block = runtime[suspects_start:suspects_end]
+        self.assertIn("not participant.isGhost", suspects_block)
+        self.assertIn('participant.role ~= "Spectator"', suspects_block)
+        # Action-enabled gates: SetMurderPlan only for Murderer in MurderPlanning
+        self.assertIn('name == "SetMurderPlan"', runtime)
+        self.assertIn('participant.role == "Murderer"', runtime)
+        # Action-enabled gates: UseMonsterAbility requires Murderer in Investigation
+        self.assertIn('name == "UseMonsterAbility"', runtime)
+        # Action-enabled gates: UseRoleAbility respects role-phase mapping
+        self.assertIn('participant.role == "Medium"', runtime)
+        self.assertIn('participant.role == "Protector" and participant.isGhost', runtime)
+        # Action-enabled gates: VerifyEvidence requires Detective
+        self.assertIn('name == "VerifyEvidence"', runtime)
+        self.assertIn('participant.role == "Detective"', runtime)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
