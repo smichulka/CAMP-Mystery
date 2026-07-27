@@ -1883,6 +1883,58 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0145_update_phase_arc_visibility_gate_and_dot_state_styling(
+        self,
+    ) -> None:
+        view = (ROOT / "src" / "client" / "UI" / "GameView.lua").read_text(
+            encoding="utf-8"
+        )
+        # PHASE_ARC_ORDER must list all 6 playable phases in round order
+        arc_order_start = view.index("local PHASE_ARC_ORDER: { string } = {")
+        arc_order_end = view.index("\n}", arc_order_start)
+        arc_order = view[arc_order_start:arc_order_end]
+        for phase in (
+            '"MurderPlanning"',
+            '"NightTransform"',
+            '"Investigation"',
+            '"Day"',
+            '"Campfire"',
+            '"Resolution"',
+        ):
+            self.assertIn(phase, arc_order)
+
+        fn_start = view.index("function GameView:_updatePhaseArc(state: any)")
+        fn_end = view.index("\nfunction GameView:_updateMonsterPanel(", fn_start)
+        fn = view[fn_start:fn_end]
+
+        # Visibility: hidden for Lobby and Rewards phases; visible otherwise
+        self.assertIn(
+            'phase ~= "Lobby" and phase ~= "Rewards"',
+            fn,
+        )
+
+        # Past dot (index < current): TextMuted, fully opaque, 8×8
+        self.assertIn("dot.BackgroundColor3 = Theme.Colors.TextMuted", fn)
+        self.assertIn("dot.BackgroundTransparency = 0", fn)
+        self.assertIn("dot.Size = UDim2.fromOffset(8, 8)", fn)
+
+        # Current dot (index == current): Gold, fully opaque, 12×12
+        self.assertIn("dot.BackgroundColor3 = Theme.Colors.Gold", fn)
+        self.assertIn("dot.Size = UDim2.fromOffset(12, 12)", fn)
+
+        # Future dot (index > current): TextMuted, 0.65 transparent, 8×8
+        self.assertIn("dot.BackgroundTransparency = 0.65", fn)
+
+        # Gold (current) dot appears after the past-dot TextMuted+0 block
+        gold_pos = fn.index("dot.BackgroundColor3 = Theme.Colors.Gold")
+        first_textmuted_pos = fn.index("dot.BackgroundColor3 = Theme.Colors.TextMuted")
+        self.assertLess(first_textmuted_pos, gold_pos)
+
+        # 12×12 (current dot) appears before the 0.65 transparency (future dot)
+        large_dot_pos = fn.index("dot.Size = UDim2.fromOffset(12, 12)")
+        future_transparency_pos = fn.index("dot.BackgroundTransparency = 0.65")
+        self.assertLess(large_dot_pos, future_transparency_pos)
+
     def test_request_0144_monster_panel_phase_gate_stamina_fraction_and_cooldown_rich_text(
         self,
     ) -> None:
