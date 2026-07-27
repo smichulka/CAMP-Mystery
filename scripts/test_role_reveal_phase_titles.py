@@ -383,6 +383,39 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+    def test_request_0082_phase_transition_toasts_are_role_aware(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # MurderPlanning toast fires only for Murderer
+        self.assertIn(
+            'if phaseName == "MurderPlanning" and not reconnect and roleName == "Murderer"',
+            controller,
+        )
+        self.assertIn('"Night is falling"', controller)
+        self.assertIn('"You must eliminate %s. Use the shadows."', controller)
+        # Investigation: Ghost / Murderer / Spectator-silent / Camper
+        invest_start = controller.index('if phaseName == "Investigation" and not reconnect then')
+        invest_end = controller.index('if phaseName == "NightTransform" and not reconnect then', invest_start)
+        invest = controller[invest_start:invest_end]
+        self.assertIn('"Body discovered"', invest)
+        self.assertIn('"Stay calm. Blend in with the others."', invest)
+        self.assertIn('"Someone was killed. Find the evidence before campfire."', invest)
+        self.assertIn('"Investigation begins"', invest)
+        self.assertIn('"You are a ghost. Watch as the survivors search for the truth."', invest)
+        self.assertIn('elseif roleName ~= "Spectator" then', invest)
+        # NightTransform: Ghost / Murderer / Spectator-silent / Camper
+        night_start = controller.index('if phaseName == "NightTransform" and not reconnect then')
+        night_end = controller.index("-- Keybind hint", night_start)
+        night = controller[night_start:night_end]
+        self.assertIn('"Your moment is now"', night)
+        self.assertIn('"Strike true. The camp is yours."', night)
+        self.assertIn('"Stay alert. Someone won\'t make it to morning."', night)
+        self.assertIn('"Watch from beyond. The hunt begins."', night)
+        self.assertIn('elseif roleName ~= "Spectator" then', night)
+        # Keybind hints are suppressed for ghosts and Spectators
+        self.assertIn("and not hintIsGhost", controller)
+        self.assertIn('and hintRole ~= "Spectator"', controller)
+        self.assertIn('and hintRole == "Murderer"', controller)
+
     def test_phase_title_dispatch_order_follows_cinematic(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         cinematic = controller.index(
