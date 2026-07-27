@@ -571,6 +571,7 @@ local function updateReleaseExperience(
 				"Warning"
 			)
 		else
+			currentAudio:PlayUIEvent("toast")
 			currentView:Notify(
 				"Witness interviewed",
 				string.format(
@@ -599,6 +600,7 @@ local function updateReleaseExperience(
 				"Warning"
 			)
 		else
+			currentAudio:PlayUIEvent("success")
 			currentView:Notify(
 				"Camp task complete",
 				string.format("%d of %d tasks done.", objectivesCompleted, objectiveGoal),
@@ -967,6 +969,7 @@ local function updateReleaseExperience(
 		and not roundEnded
 	if healthImproved then
 		currentEffects:ShowHealedEffect()
+		currentAudio:PlayUIEvent("success")
 		if currentView then
 			currentView:Notify("You've recovered", "You're no longer injured and can act freely.", "Success")
 		end
