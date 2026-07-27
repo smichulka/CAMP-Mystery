@@ -413,5 +413,46 @@ class GhostDreadTests(unittest.TestCase):
         self.assertIn('if isMe then displayName .. " ●" else displayName', roster_block)
 
 
+    def test_request_0118_vote_panel_murderer_text_and_ghost_gate(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        vote_start = view.index("function GameView:_updateVote(round: any, player: any)")
+        vote_end = view.index("function GameView:_available(", vote_start)
+        vote_block = view[vote_start:vote_end]
+        # Warning label: Murderer favors tie vs non-Murderer does not
+        self.assertIn(
+            'readString(player, "role", "") == "Murderer"',
+            vote_block,
+        )
+        self.assertIn(
+            '"One vote. No take-backs. A tie breaks in your favor."',
+            vote_block,
+        )
+        self.assertIn(
+            '"One vote. No take-backs. A tie favors the Murderer."',
+            vote_block,
+        )
+        # Modal title: Murderer sees "CAMPFIRE VOTE"; others see "CAMPFIRE ACCUSATION"
+        self.assertIn('"CAMPFIRE VOTE"', vote_block)
+        self.assertIn('"CAMPFIRE ACCUSATION"', vote_block)
+        # Modal hides when not Campfire phase, not alive, or isGhost
+        self.assertIn(
+            'phase ~= "Campfire" or not alive or isGhost',
+            vote_block,
+        )
+        # "(you)" suffix on the local player's own suspect row
+        self.assertIn('if isSelf then name .. " (you)" else name', vote_block)
+        # "YOUR VOTE" suffix and Gold color on the selected vote
+        self.assertIn('if isMyVote then labelText .. "  ✓ YOUR VOTE" else labelText', vote_block)
+        self.assertIn(
+            "if isMyVote\n\t\t\t\t\tthen Theme.Colors.Gold",
+            vote_block,
+        )
+        self.assertIn("elseif isOtherVote then Theme.Colors.Panel", vote_block)
+        self.assertIn("else Theme.Colors.Danger", vote_block)
+        # isOtherVote rows are dimmed; isMyVote row uses Background text color
+        self.assertIn("button.BackgroundTransparency = 0.7", vote_block)
+        self.assertIn("button.TextColor3 = Theme.Colors.Background", vote_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
