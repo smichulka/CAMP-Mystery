@@ -1883,6 +1883,72 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0151_haptic_controller_vibration_profiles_and_pcall_guards(
+        self,
+    ) -> None:
+        haptic = (
+            ROOT / "src" / "client" / "Controllers" / "HapticController.lua"
+        ).read_text(encoding="utf-8")
+
+        # Motor constants: Gamepad1, Small, Large
+        self.assertIn("Enum.UserInputType.Gamepad1", haptic)
+        self.assertIn("Enum.VibrationMotor.Small", haptic)
+        self.assertIn("Enum.VibrationMotor.Large", haptic)
+
+        # isSupported: pcall-wraps IsMotorSupported; only returns true on ok AND true result
+        support_start = haptic.index("local function isSupported(motor: Enum.VibrationMotor)")
+        support_end = haptic.index("\nlocal function vibrate(", support_start)
+        support_fn = haptic[support_start:support_end]
+        self.assertIn("HapticService:IsMotorSupported(INPUT_TYPE, motor)", support_fn)
+        self.assertIn("return ok and result == true", support_fn)
+
+        # vibrate: checks isSupported before setting motor; pcall-wraps SetMotor
+        vib_start = haptic.index("local function vibrate(motor: Enum.VibrationMotor")
+        vib_end = haptic.index("\nlocal HapticController = {}", vib_start)
+        vib_fn = haptic[vib_start:vib_end]
+        self.assertIn("if not isSupported(motor) then", vib_fn)
+        self.assertIn("HapticService:SetMotor(INPUT_TYPE, motor, amplitude)", vib_fn)
+        # Reset to 0 after duration via task.delay
+        self.assertIn("HapticService:SetMotor(INPUT_TYPE, motor, 0)", vib_fn)
+
+        # Click: Small motor, 0.35 amplitude, 0.06 duration
+        click_start = haptic.index("function HapticController.Click()")
+        click_end = haptic.index("\nfunction HapticController.Impact()", click_start)
+        click_fn = haptic[click_start:click_end]
+        self.assertIn("vibrate(MOTOR_SMALL, 0.35, 0.06)", click_fn)
+
+        # Impact: Small AND Large motors
+        impact_start = haptic.index("function HapticController.Impact()")
+        impact_end = haptic.index("\nfunction HapticController.Danger()", impact_start)
+        impact_fn = haptic[impact_start:impact_end]
+        self.assertIn("vibrate(MOTOR_SMALL, 0.6, 0.1)", impact_fn)
+        self.assertIn("vibrate(MOTOR_LARGE, 0.4, 0.08)", impact_fn)
+
+        # Danger: Large motor leads with highest amplitude (0.85); Small follows
+        danger_start = haptic.index("function HapticController.Danger()")
+        danger_end = haptic.index("\nfunction HapticController.Celebrate()", danger_start)
+        danger_fn = haptic[danger_start:danger_end]
+        self.assertIn("vibrate(MOTOR_LARGE, 0.85, 0.22)", danger_fn)
+        self.assertIn("vibrate(MOTOR_SMALL, 0.5, 0.18)", danger_fn)
+        large_pos = danger_fn.index("vibrate(MOTOR_LARGE")
+        small_pos = danger_fn.index("vibrate(MOTOR_SMALL")
+        self.assertLess(large_pos, small_pos)
+
+        # Celebrate: two Large pulses with 0.18 s delay between them
+        cel_start = haptic.index("function HapticController.Celebrate()")
+        cel_end = haptic.index("\nfunction HapticController.Error()", cel_start)
+        cel_fn = haptic[cel_start:cel_end]
+        self.assertIn("vibrate(MOTOR_LARGE, 0.7, 0.12)", cel_fn)
+        self.assertIn("task.delay(0.18,", cel_fn)
+        self.assertIn("vibrate(MOTOR_LARGE, 0.5, 0.1)", cel_fn)
+
+        # Error: two Small pulses with 0.12 s delay between them
+        err_start = haptic.index("function HapticController.Error()")
+        err_fn = haptic[err_start:]
+        self.assertIn("vibrate(MOTOR_SMALL, 0.9, 0.08)", err_fn)
+        self.assertIn("task.delay(0.12,", err_fn)
+        self.assertIn("vibrate(MOTOR_SMALL, 0.7, 0.06)", err_fn)
+
     def test_request_0150_reward_calculation_safe_count_non_participated_and_survival_gate(
         self,
     ) -> None:
