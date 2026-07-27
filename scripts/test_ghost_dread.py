@@ -333,5 +333,46 @@ class GhostDreadTests(unittest.TestCase):
         )
 
 
+    def test_request_0115_role_panel_badge_and_action_button_role_dispatch(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        update_start = view.index("function GameView:Update(state: any")
+        update_end = view.index("function GameView:Tick()", update_start)
+        update_block = view[update_start:update_end]
+        # State badge: ghost gets "GHOST" text and Ghost color (both stateBadge and roleTitle)
+        ghost_badge_start = update_block.index("if ghost then")
+        alive_badge_start = update_block.index("elseif alive then", ghost_badge_start)
+        ghost_badge_block = update_block[ghost_badge_start:alive_badge_start]
+        self.assertIn('self.stateBadge.Text = "GHOST"', ghost_badge_block)
+        self.assertIn("self.stateBadge.BackgroundColor3 = Theme.Colors.Ghost", ghost_badge_block)
+        self.assertIn("self.roleTitle.TextColor3 = Theme.Colors.Ghost", ghost_badge_block)
+        # Alive non-ghost: Murderer gets DangerBright role title; others get Gold
+        alive_badge_end = update_block.index("else\n\t\tself.stateBadge.Text", alive_badge_start)
+        alive_badge_block = update_block[alive_badge_start:alive_badge_end]
+        self.assertIn(
+            'if role == "Murderer" then Theme.Colors.DangerBright else Theme.Colors.Gold',
+            alive_badge_block,
+        )
+        # Ghost badge block appears before alive block (ordering enforced)
+        self.assertLess(ghost_badge_start, alive_badge_start)
+        # Role action button: ghost locks all actions
+        role_action_start = update_block.index("local roleActionText = if ghost")
+        role_action_end = update_block.index("self.roleActionBaseText = roleActionText", role_action_start)
+        role_action_block = update_block[role_action_start:role_action_end]
+        self.assertIn('"GHOST ACTIONS LOCKED"', role_action_block)
+        self.assertIn('"PLAN TONIGHT\'S HUNT"', role_action_block)
+        self.assertIn('"USE MONSTER ABILITY"', role_action_block)
+        self.assertIn('"USE ROLE ABILITY"', role_action_block)
+        # Ghost text precedes plan/monster/role text in dispatch (ghost is first branch)
+        self.assertLess(
+            role_action_block.index('"GHOST ACTIONS LOCKED"'),
+            role_action_block.index('"PLAN TONIGHT\'S HUNT"'),
+        )
+        # Living role action enabled gate: ghost cannot trigger living role abilities
+        self.assertIn(
+            "local livingRoleActionEnabled = not ghost and (roleEnabled or monsterEnabled or planEnabled)",
+            update_block,
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
