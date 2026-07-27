@@ -1452,5 +1452,97 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("knowledge.confidence >= 0 and knowledge.confidence <= 1", rec_block)
 
 
+    def test_request_0137_monster_service_lifecycle_ability_validation_and_effect_dispatch(
+        self,
+    ) -> None:
+        monster = source("Services/MonsterService.lua")
+
+        # SelectForRound: lifecycle guard + MONSTER_ORDER cycling default
+        sel_start = monster.index("function MonsterService:SelectForRound(")
+        sel_end = monster.index("function MonsterService:BeginPlanning(", sel_start)
+        sel_block = monster[sel_start:sel_end]
+        self.assertIn('"Reset or stop the previous monster lifecycle before selecting"', sel_block)
+        self.assertIn("self.lifecycle == \"Inactive\" or self.lifecycle == \"Stopped\"", sel_block)
+        # Default monster cycles via MONSTER_ORDER modulo roundId
+        self.assertIn("((roundId - 1) % #MONSTER_ORDER) + 1", sel_block)
+        self.assertIn("MONSTER_ORDER[selectionIndex]", sel_block)
+        self.assertIn("self.stamina = monsterRule.maxStamina", sel_block)
+        self.assertIn('self.lifecycle = "Selected"', sel_block)
+
+        # SelectPlanningMonster: only valid during Selected or Planning
+        plan_start = monster.index("function MonsterService:SelectPlanningMonster(")
+        plan_end = monster.index("function MonsterService:_activateLifecycle(", plan_start)
+        plan_block = monster[plan_start:plan_end]
+        self.assertIn('"Monster choice can only change during planning"', plan_block)
+        self.assertIn(
+            'self.lifecycle == "Selected" or self.lifecycle == "Planning"', plan_block
+        )
+
+        # _activateLifecycle: rejects if not Selected or Planning
+        act_start = monster.index("function MonsterService:_activateLifecycle(")
+        act_end = monster.index("function MonsterService:_validateActivation(", act_start)
+        act_block = monster[act_start:act_end]
+        self.assertIn('"Monster can only activate after selection or planning"', act_block)
+        self.assertIn('self.lifecycle = "Active"', act_block)
+
+        # _validateActivation: ordered rejection gates
+        val_start = monster.index("function MonsterService:_validateActivation(")
+        val_end = monster.index("function MonsterService:CanActivate(", val_start)
+        val_block = monster[val_start:val_end]
+        self.assertIn('"Request fields are invalid"', val_block)
+        self.assertIn('"Monster is not active"', val_block)
+        self.assertIn('"Round does not match"', val_block)
+        self.assertIn('"Participant does not own the monster"', val_block)
+        self.assertIn('"Request sequence is stale"', val_block)
+        self.assertIn('"Monster is not selected"', val_block)
+        self.assertIn('"Ability is not valid for this monster"', val_block)
+        self.assertIn('"Ability is not allowed in this phase"', val_block)
+        self.assertIn('"Ability is cooling down"', val_block)
+        self.assertIn('"Not enough stamina"', val_block)
+        self.assertIn('"Monster position is unavailable"', val_block)
+        self.assertIn('"A different participant target is required"', val_block)
+        self.assertIn('"Target is not eligible"', val_block)
+        self.assertIn('"Target is out of range"', val_block)
+        self.assertIn('"Line of sight is blocked"', val_block)
+        self.assertIn("self.stamina < rule.staminaCost", val_block)
+        self.assertIn(
+            "(resolvedTargetPosition - sourcePosition).Magnitude > rule.rangeStuds", val_block
+        )
+
+        # _activateAbility: deducts stamina, assigns cooldown, bumps lastRequestSequence
+        activate_start = monster.index("function MonsterService:_activateAbility(")
+        activate_end = monster.index("function MonsterService:Activate(", activate_start)
+        activate_block = monster[activate_start:activate_end]
+        self.assertIn("self.lastRequestSequence = request.requestSequence", activate_block)
+        self.assertIn("self.stamina -= validated.rule.staminaCost", activate_block)
+        self.assertIn(
+            "local cooldownEndsAt = validated.now + validated.rule.cooldownSeconds",
+            activate_block,
+        )
+        self.assertIn("self.cooldownEndsAt[validated.rule.id] = cooldownEndsAt", activate_block)
+
+        # _applyEffect: dispatches 4 effect kinds
+        effect_start = monster.index("function MonsterService:_applyEffect(")
+        effect_end = monster.index("function MonsterService:_activateAbility(", effect_start)
+        effect_block = monster[effect_start:effect_end]
+        self.assertIn('if effect.kind == "Attack" then', effect_block)
+        self.assertIn('self.callbacks.applyAttack(', effect_block)
+        self.assertIn('elseif effect.kind == "Status" then', effect_block)
+        self.assertIn('self.callbacks.applyStatus(', effect_block)
+        self.assertIn('elseif effect.kind == "Evidence" then', effect_block)
+        self.assertIn('self.callbacks.emitEvidence(', effect_block)
+        self.assertIn('elseif effect.kind == "Mobility" then', effect_block)
+        self.assertIn('self.callbacks.applyMobility(', effect_block)
+
+        # TransferControl: resets lastRequestSequence to prevent replay attacks
+        xfer_start = monster.index("function MonsterService:TransferControl(")
+        xfer_end = monster.index("function MonsterService:Reset(", xfer_start)
+        xfer_block = monster[xfer_start:xfer_end]
+        self.assertIn('"Transfer roundId does not match active round"', xfer_block)
+        self.assertIn('"No monster lifecycle is available to transfer"', xfer_block)
+        self.assertIn("self.participantId = participantId", xfer_block)
+        self.assertIn("self.lastRequestSequence = 0", xfer_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
