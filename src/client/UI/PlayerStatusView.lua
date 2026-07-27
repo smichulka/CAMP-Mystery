@@ -183,7 +183,7 @@ local function createRow(
 	local nameLabel = Components.Label(
 		row,
 		"DisplayName",
-		readString(participant, "displayName", "Unknown camper"),
+		readString(participant, "displayName", "Unknown player"),
 		14,
 		Enum.Font.Gotham
 	)

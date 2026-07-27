@@ -1821,7 +1821,7 @@ function GameView:_chooseParticipant(
 				and (includeSelf or participantId ~= ownId)
 			if eligible and participantId ~= "" then
 				added += 1
-				local name = readString(participant, "displayName", "Unknown camper")
+				local name = readString(participant, "displayName", "Unknown player")
 				local health = readString(participant, "healthState", "Healthy")
 				local button = Components.Button(self.targetList, {
 					name = "Target_" .. participantId:gsub("[^%w]", "_"),
@@ -1842,7 +1842,9 @@ function GameView:_chooseParticipant(
 		setModalVisible(self.targetModal, false)
 		self:Notify(
 			"No selectable target",
-			"This action requires at least one other living player and was not sent.",
+			if chooseLocalRole == "Murderer"
+				then "No targets available — all potential victims are out of reach."
+				else "This action requires at least one other living player and was not sent.",
 			"Warning"
 		)
 		return
@@ -2514,7 +2516,7 @@ function GameView:_rebuildLobbyRoster(lobby: any)
 			local isReady = readBoolean(entry, "isReady", false)
 				or readString(entry, "status", "Waiting") == "Locked"
 			nextReadyStates[userId] = isReady
-			name.Text = readString(entry, "displayName", "Camper")
+			name.Text = readString(entry, "displayName", "Player")
 			name.TextColor3 = Theme.Notebook.InkColor
 			dot.BackgroundColor3 = if isReady then Theme.Colors.Success else Theme.Colors.Border
 			if isReady and self.lobbyReadyStates[userId] ~= true then
@@ -3610,7 +3612,7 @@ function GameView:_updateVote(round: any, player: any)
 	for _, suspect in suspects do
 		if type(suspect) == "table" then
 			local key = readString(suspect, "key", readString(suspect, "participantId", ""))
-			local name = readString(suspect, "displayName", "Unknown camper")
+			local name = readString(suspect, "displayName", "Unknown player")
 			local isSelf = localParticipantKey ~= "" and key == localParticipantKey
 			local labelText = if isSelf then name .. " (you)" else name
 			local isMyVote = hasVoted and voteTargetId ~= "" and key == voteTargetId
