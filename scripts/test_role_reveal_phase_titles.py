@@ -416,6 +416,34 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         self.assertIn('and hintRole ~= "Spectator"', controller)
         self.assertIn('and hintRole == "Murderer"', controller)
 
+    def test_request_0089_player_status_view_observer_inspect_and_status_dot(self) -> None:
+        roster = read("src/client/UI/PlayerStatusView.lua")
+        # statusFor: Ghost maps to "GHOST" status with Ghost color
+        status_start = roster.index("local function statusFor(participant: any)")
+        status_end = roster.index("end\n\nlocal function appendSignatureValue", status_start)
+        status_fn = roster[status_start:status_end]
+        self.assertIn('"GHOST"', status_fn)
+        self.assertIn('"DEAD"', status_fn)
+        self.assertIn('"INJURED"', status_fn)
+        self.assertIn('"DOWN"', status_fn)
+        # Ghost is checked before alive/healthState
+        self.assertLess(status_fn.index("isGhost"), status_fn.index("not alive"))
+        # observerCanInspectRoles: Ghost or Spectator can see role labels
+        for token in (
+            'local observerCanInspectRoles = readBoolean(localPlayer, "isGhost", false)',
+            'or readString(localPlayer, "role", "") == "Spectator"',
+            '"(Role: ?)"',
+        ):
+            self.assertIn(token, roster)
+        # Local Murderer gets Gold label color; other self gets Info; stranger gets TextMuted
+        for token in (
+            'readString(localPlayer, "role", "") == "Murderer"',
+            "Theme.Colors.Gold",
+            "Theme.Colors.Info",
+            "Theme.Colors.TextMuted",
+        ):
+            self.assertIn(token, roster)
+
     def test_request_0088_keybind_hints_catalog_completeness(self) -> None:
         hints = read("src/shared/Config/KeybindHints.lua")
         controller = read("src/client/Controllers/RoundController.lua")
