@@ -1883,6 +1883,117 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0149_world_service_seed_derivation_variant_selection_and_set_night_rollback(
+        self,
+    ) -> None:
+        world = source("Services/WorldService.lua")
+
+        # Seed constants: Mersenne prime modulus and multiplier
+        self.assertIn("SEED_MODULUS = 2_147_483_647", world)
+        self.assertIn("SEED_MULTIPLIER = 48_271", world)
+
+        # normalizeSeed: finite + integer guards; corrects negative by adding modulus
+        norm_start = world.index("local function normalizeSeed(seed: number): number")
+        norm_end = world.index("\nlocal function deriveSeed(", norm_start)
+        norm_fn = world[norm_start:norm_end]
+        self.assertIn(
+            'assert(seed == seed and math.abs(seed) < math.huge, "World seed must be finite")',
+            norm_fn,
+        )
+        self.assertIn(
+            'assert(seed % 1 == 0, "World seed must be a whole number")',
+            norm_fn,
+        )
+        self.assertIn("local normalized = seed % SEED_MODULUS", norm_fn)
+        self.assertIn("if normalized < 0 then", norm_fn)
+        self.assertIn("normalized += SEED_MODULUS", norm_fn)
+
+        # deriveSeed: roundId * multiplier + seedSalt, passed through normalizeSeed
+        derive_start = world.index("local function deriveSeed(roundId: number): number")
+        derive_end = world.index("\nlocal function selectVariant(", derive_start)
+        derive_fn = world[derive_start:derive_end]
+        self.assertIn(
+            "normalizeSeed(roundId * SEED_MULTIPLIER + WorldManifest.seedSalt)",
+            derive_fn,
+        )
+
+        # selectVariant: 0-indexed mod then +1 for 1-indexed Lua table
+        select_start = world.index("local function selectVariant(seed: number):")
+        select_end = world.index("\nlocal function cloneDistrictIds(", select_start)
+        select_fn = world[select_start:select_end]
+        self.assertIn(
+            "(seed % #WorldManifest.variants) + 1",
+            select_fn,
+        )
+
+        # PrepareRound: roundId must be a positive integer
+        self.assertIn(
+            'assert(roundId > 0 and roundId % 1 == 0, "roundId must be a positive integer")',
+            world,
+        )
+        # PrepareRound: explicit seed path uses normalizeSeed; otherwise derives from roundId
+        self.assertIn(
+            "if explicitSeed ~= nil then normalizeSeed(explicitSeed) else deriveSeed(roundId)",
+            world,
+        )
+
+        # MarkObjectiveComplete: rejects empty objectiveId
+        self.assertIn(
+            'assert(objectiveId ~= "", "objectiveId must not be empty")',
+            world,
+        )
+
+        # TransitionState values cover all four states
+        for state in ('"Day"', '"Night"', '"TransformingToNight"', '"TransformingToDay"'):
+            self.assertIn(state, world)
+
+        # SetNight: no-op when already in the target stable state
+        set_night_start = world.index("function WorldService:SetNight(isNight: boolean)")
+        set_night_end = world.index("\nfunction WorldService:SpawnEvidence(", set_night_start)
+        set_night_fn = world[set_night_start:set_night_end]
+        self.assertIn(
+            "self.transitionState == self:_stableState(isNight)",
+            set_night_fn,
+        )
+
+        # SetNight: transitioning state set BEFORE the pcall-wrapped fallback call
+        transition_pos = set_night_fn.index(
+            "self.transitionState = self:_transitionState(isNight)"
+        )
+        pcall_pos = set_night_fn.index("local swapped, swapFailure = pcall(")
+        self.assertLess(transition_pos, pcall_pos)
+
+        # SetNight: fallback failure rolls back transitionState and re-raises
+        self.assertIn(
+            "self.transitionState = self:_stableState(previousIsNight)",
+            set_night_fn,
+        )
+        self.assertIn(
+            '"World fallback transformation failed: "',
+            set_night_fn,
+        )
+
+        # SetNight: successful transition sets activeDistrictIds from variant.districtOrder
+        self.assertIn(
+            "cloneDistrictIds(self.variant.districtOrder)",
+            set_night_fn,
+        )
+        # activeDistrictIds cleared when returning to day
+        self.assertIn(
+            "else {}",
+            set_night_fn,
+        )
+
+        # SetNight: relocation failure triggers rollback and double-error on rollback failure
+        self.assertIn(
+            '"World midpoint relocation failed: "',
+            set_night_fn,
+        )
+        self.assertIn(
+            '"World relocation and rollback failed: "',
+            set_night_fn,
+        )
+
     def test_request_0148_round_lifecycle_event_names_emit_isolation_and_disconnect(
         self,
     ) -> None:
