@@ -1433,6 +1433,7 @@ function GameView:_buildVote()
 		if voteHeaderTitle and voteHeaderTitle:IsA("TextLabel") then
 			-- Reserve 88px for the count and 8px gaps on both sides.
 			voteHeaderTitle.Size = UDim2.new(1, -212, 1, 0)
+			self.voteModalTitleLabel = voteHeaderTitle
 		end
 	end
 	local voteCountLabel = Components.Label(
@@ -3135,6 +3136,8 @@ function GameView:_updateEvidence(state: any, round: any)
 	local board = if type(state) == "table" then state.evidence else nil
 	local mystery = if type(state) == "table" then state.mystery else nil
 	local counselors = if type(state) == "table" then state.counselors else nil
+	local localPlayer = if type(state) == "table" then state.player else nil
+	local localRole = readString(localPlayer, "role", "")
 	local counselorRoster = if type(counselors) == "table"
 		then asTable(counselors.counselors)
 		else {}
@@ -3167,9 +3170,11 @@ function GameView:_updateEvidence(state: any, round: any)
 	else
 		culprit = if type(round) == "table" then asTable(round.evidence) else {}
 	end
+	local culpritLabel = if localRole == "Murderer" then "EVIDENCE AGAINST YOU" else "CULPRIT CLUES"
 	self.evidenceSummary.Text = string.format(
-		"%s\nCULPRIT CLUES  %d     MONSTER CLUES  %d     MYSTERY  %d/%d",
+		"%s\n%s  %d     MONSTER CLUES  %d     MYSTERY  %d/%d",
 		readString(mystery, "title", "CURRENT CASE"),
+		culpritLabel,
 		#culprit,
 		#monster,
 		readNumber(mystery, "discoveredClueCount", 0),
@@ -3410,10 +3415,16 @@ function GameView:_updateEvidence(state: any, round: any)
 		end
 	end
 	if #culprit + #monster + #mysteryClues + #witnessAccounts == 0 then
+		local localIsGhost = readBoolean(localPlayer, "isGhost", false)
+		local emptyText = if localRole == "Murderer"
+			then "No evidence has been posted yet. Monitor the board as the investigation continues."
+			elseif localIsGhost
+			then "No evidence has been posted. Watch as the survivors investigate."
+			else "No evidence has been posted. Search rooms, objects, and attack sites."
 		local empty = Components.Label(
 			self.evidenceList,
 			"Empty",
-			"No evidence has been posted. Search rooms, objects, and attack sites.",
+			emptyText,
 			15
 		)
 		empty:SetAttribute("Generated", true)
@@ -3548,6 +3559,11 @@ function GameView:_updateVote(round: any, player: any)
 		self.voteWarningLabel.Text = if readString(player, "role", "") == "Murderer"
 			then "One vote. No take-backs. A tie breaks in your favor."
 			else "One vote. No take-backs. A tie favors the Murderer."
+	end
+	if self.voteModalTitleLabel then
+		self.voteModalTitleLabel.Text = if readString(player, "role", "") == "Murderer"
+			then "CAMPFIRE VOTE"
+			else "CAMPFIRE ACCUSATION"
 	end
 	local vote = if type(player) == "table" then player.vote else nil
 	local hasVoted = readBoolean(player, "hasVoted", false)
