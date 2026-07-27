@@ -1883,6 +1883,79 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("counselorId = counselorId,", picker_block)
         self.assertIn("topic = topic,", picker_block)
 
+    def test_request_0154_audio_controller_apply_settings_validation_and_switch_loop(
+        self,
+    ) -> None:
+        audio = (
+            ROOT / "src" / "client" / "Controllers" / "AudioController.lua"
+        ).read_text(encoding="utf-8")
+
+        # ApplySettings: rejects values with wrong type (number vs boolean, etc.)
+        apply_start = audio.index("function AudioController:ApplySettings(settings: any)")
+        apply_end = audio.index("\nfunction AudioController:SetHeartbeatIntensity(", apply_start)
+        apply_fn = audio[apply_start:apply_end]
+        self.assertIn("if type(settings) ~= \"table\" then", apply_fn)
+        # Numeric values: must be finite (NaN/inf rejected)
+        self.assertIn(
+            "type(defaultValue) == \"number\" and type(value) == \"number\"",
+            apply_fn,
+        )
+        self.assertIn(
+            "value == value and math.abs(value) < math.huge",
+            apply_fn,
+        )
+        # Boolean values type-checked against boolean default
+        self.assertIn(
+            "type(defaultValue) == \"boolean\" and type(value) == \"boolean\"",
+            apply_fn,
+        )
+        # Fallback to defaultValue only when current setting is nil (preserves valid existing values)
+        self.assertIn("elseif self.settings[key] == nil then", apply_fn)
+        self.assertIn("self.settings[key] = defaultValue", apply_fn)
+
+        # subtitles: defaults to true unless explicitly set to false
+        self.assertIn(
+            "self.settings.subtitles = self.settings.subtitles ~= false",
+            apply_fn,
+        )
+
+        # ApplySettings ends by re-applying group volumes and heartbeat intensity
+        self.assertIn("self:_updateGroupVolumes()", apply_fn)
+        self.assertIn("self:SetHeartbeatIntensity(self.heartbeatIntensity)", apply_fn)
+
+        # _updateGroupVolumes: master multiplies each group
+        vol_start = audio.index("function AudioController:_updateGroupVolumes()")
+        vol_end = audio.index("\nfunction AudioController:ApplySettingImmediate(", vol_start)
+        vol_fn = audio[vol_start:vol_end]
+        for group in ("Music", "Ambience", "Effects", "UI"):
+            self.assertIn(f'self.groups.{group}.Volume = master *', vol_fn)
+
+        # _switchLoop: stops all channel loops that are not the target; starts target if not playing
+        loop_start = audio.index("function AudioController:_switchLoop(channel: string")
+        loop_end = audio.index("\nfunction AudioController:_updateGroupVolumes()", loop_start)
+        loop_fn = audio[loop_start:loop_end]
+        self.assertIn("definition.channel == channel and definition.looped", loop_fn)
+        self.assertIn("definition.name ~= name", loop_fn)
+        self.assertIn("sound:Stop()", loop_fn)
+        self.assertIn("not sound.IsPlaying", loop_fn)
+        self.assertIn("sound:Play()", loop_fn)
+
+        # PlayCue: provided subtitle overrides definition subtitle; empty title falls back
+        cue_start = audio.index("function AudioController:PlayCue(name: string")
+        cue_end = audio.index("\nfunction AudioController:PlayUIEvent(", cue_start)
+        cue_fn = audio[cue_start:cue_end]
+        self.assertIn("subtitle or definitionSubtitle", cue_fn)
+        self.assertIn("self:_subtitle(subtitle or definitionSubtitle, 2.5)", cue_fn)
+
+        # _subtitle: gates on text non-empty, subtitles setting, and callback presence
+        sub_start = audio.index("function AudioController:_subtitle(text: string?")
+        sub_end = audio.index("\nfunction AudioController:PlayCue(", sub_start)
+        sub_fn = audio[sub_start:sub_end]
+        self.assertIn(
+            'text and text ~= "" and self.settings.subtitles == true and self.onSubtitle',
+            sub_fn,
+        )
+
     def test_request_0153_camera_controller_flicker_tween_and_step_clamp_contracts(
         self,
     ) -> None:
