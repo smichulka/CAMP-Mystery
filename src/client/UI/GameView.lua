@@ -4052,10 +4052,23 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		local localRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
 			else ""
+		local isGhostPlayer = readBoolean(player, "isGhost", false)
 		if localRole == "Spectator" then
 			self.progressLabel.Text = string.format("Votes locked %d/%d - observing.", cast, eligible)
 			self.objectiveText.Text = string.format(
 				"OBSERVING\n%s. The vote will reveal the verdict.",
+				survivorPhrase
+			)
+		elseif isGhostPlayer then
+			self.progressLabel.Text = string.format("Votes locked %d/%d - watching.", cast, eligible)
+			self.objectiveText.Text = string.format(
+				"OBSERVING\n%s. Watch the vote decide the verdict.",
+				survivorPhrase
+			)
+		elseif localRole == "Murderer" then
+			self.progressLabel.Text = string.format("Votes locked %d/%d - stay calm.", cast, eligible)
+			self.objectiveText.Text = string.format(
+				"CAMPFIRE VOTE\n%s. Deflect suspicion. Survive the vote.",
 				survivorPhrase
 			)
 		else
