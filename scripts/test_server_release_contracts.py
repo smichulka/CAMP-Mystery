@@ -1024,5 +1024,110 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"Seeded mystery requires a conflicting witness"', begin_block)
 
 
+    def test_request_0132_mystery_discover_interview_transfer_and_audit(
+        self,
+    ) -> None:
+        mystery = source("Services/MysteryService.lua")
+
+        # DiscoverClue: guard conditions, state transition, callback
+        disc_start = mystery.index("function MysteryService:DiscoverClue(")
+        disc_end = mystery.index("function MysteryService:InterviewCounselor(", disc_start)
+        disc_block = mystery[disc_start:disc_end]
+        self.assertIn('"BeginRound must be called before clue discovery"', disc_block)
+        self.assertIn('"participantId cannot be empty"', disc_block)
+        self.assertIn('"Unknown mystery clue"', disc_block)
+        self.assertIn('"Mystery clue was already discovered"', disc_block)
+        self.assertIn('"Participant cannot discover this clue"', disc_block)
+        self.assertIn('clue.discoveryState = "Discovered"', disc_block)
+        self.assertIn("clue.discoveredByParticipantId = participantId", disc_block)
+        self.assertIn("clue.discoveredAt = now", disc_block)
+        # Discovered clue fires onClueDiscovered callback via toPublicClue
+        self.assertIn("local publicClue = toPublicClue(clue)", disc_block)
+        self.assertIn("self.callbacks.onClueDiscovered", disc_block)
+
+        # InterviewCounselor: guard, already-revealed short-circuit, state, callback
+        intv_start = mystery.index("function MysteryService:InterviewCounselor(")
+        intv_end = mystery.index("function MysteryService:TransferParticipant(", intv_start)
+        intv_block = mystery[intv_start:intv_end]
+        self.assertIn(
+            '"BeginRound must be called before witness interviews"', intv_block
+        )
+        self.assertIn('"Counselor has no account for this mystery"', intv_block)
+        # Already-revealed: returns public account without mutating again
+        self.assertIn("if account.revealed then", intv_block)
+        self.assertIn("return toPublicWitnessAccount(account), nil", intv_block)
+        self.assertIn('"Participant cannot interview this counselor"', intv_block)
+        self.assertIn("account.revealed = true", intv_block)
+        self.assertIn("account.interviewedByParticipantId = participantId", intv_block)
+        self.assertIn("account.revealedAt = now", intv_block)
+        self.assertIn("self.callbacks.onWitnessRevealed", intv_block)
+
+        # TransferParticipant: rewires every reference to previousParticipantId
+        xfer_start = mystery.index("function MysteryService:TransferParticipant(")
+        xfer_end = mystery.index("function MysteryService:AuditDeduction(", xfer_start)
+        xfer_block = mystery[xfer_start:xfer_end]
+        # Early-exit guards
+        self.assertIn("not self.initialized", xfer_block)
+        self.assertIn('previousParticipantId == ""', xfer_block)
+        self.assertIn("previousParticipantId == replacementParticipantId", xfer_block)
+        # Rewires culprit and frameTarget
+        self.assertIn(
+            "self.culpritParticipantId = replacementParticipantId", xfer_block
+        )
+        self.assertIn("self.frameTargetId = replacementParticipantId", xfer_block)
+        # Rewires suspectIds, clue.suspectCandidateIds, discoveredBy, account candidates
+        self.assertIn("self.suspectIds[index] = replacementParticipantId", xfer_block)
+        self.assertIn(
+            "clue.suspectCandidateIds[index] = replacementParticipantId", xfer_block
+        )
+        self.assertIn(
+            "clue.discoveredByParticipantId = replacementParticipantId", xfer_block
+        )
+        self.assertIn(
+            "account.suspectCandidateIds[index] = replacementParticipantId", xfer_block
+        )
+        self.assertIn(
+            "account.interviewedByParticipantId = replacementParticipantId", xfer_block
+        )
+        # _mutated only when something actually changed
+        self.assertIn("if changed then", xfer_block)
+        self.assertIn("self:_mutated()", xfer_block)
+        self.assertIn("return changed", xfer_block)
+
+        # AuditDeduction: culprit/monster intersection, planted + conflicting counts
+        audit_start = mystery.index("function MysteryService:AuditDeduction(")
+        audit_end = mystery.index("function MysteryService:IsSolved(", audit_start)
+        audit_block = mystery[audit_start:audit_end]
+        self.assertIn('clue.authenticity == "Planted"', audit_block)
+        self.assertIn('clue.authenticity == "Authentic" and clue.channel == "Culprit"', audit_block)
+        self.assertIn('clue.authenticity == "Authentic" and clue.channel == "Monster"', audit_block)
+        self.assertIn('account.authenticity == "Mistaken"', audit_block)
+        self.assertIn("conflictingWitnessCount += 1", audit_block)
+        # isCulpritDeducible: exactly one intersection member matching the culprit
+        self.assertIn(
+            "isCulpritDeducible = #culpritIntersection == 1", audit_block
+        )
+        self.assertIn(
+            "and culpritIntersection[1] == self.culpritParticipantId,", audit_block
+        )
+        # isMonsterDeducible: exactly one intersection member matching the monster
+        self.assertIn("isMonsterDeducible = #monsterIntersection == 1", audit_block)
+        self.assertIn(
+            "and monsterIntersection[1] == self.monsterId,", audit_block
+        )
+
+        # IsSolved: exact match on accused + optional monster check
+        solved_start = mystery.index("function MysteryService:IsSolved(")
+        solved_end = mystery.index("\nreturn MysteryService", solved_start)
+        solved_block = mystery[solved_start:solved_end]
+        self.assertIn(
+            "return accusedParticipantId == self.culpritParticipantId", solved_block
+        )
+        self.assertIn(
+            "and (identifiedMonsterId == nil or identifiedMonsterId == self.monsterId)",
+            solved_block,
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
