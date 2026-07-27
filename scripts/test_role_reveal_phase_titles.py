@@ -563,5 +563,34 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             self.assertIn(step_id, tutorial_ctrl)
 
 
+    def test_request_0114_tutorial_context_key_murderer_phase_dispatch(self) -> None:
+        tutorial = read("src/client/Controllers/TutorialController.lua")
+        # _getContextKey: Spectator short-circuits before any phase branching
+        spectator_idx = tutorial.index('if role == "Spectator" then')
+        murderer_idx = tutorial.index('if role == "Murderer" then')
+        self.assertLess(spectator_idx, murderer_idx)
+        # Murderer phase dispatch block exists and maps each Murderer phase to a distinct key
+        context_fn_start = tutorial.index('if role == "Murderer" then')
+        context_fn_end = tutorial.index('if phase == "RoleReveal"', context_fn_start)
+        murderer_block = tutorial[context_fn_start:context_fn_end]
+        self.assertIn('phase == "MurderPlanning"', murderer_block)
+        self.assertIn('return "MurderPlanningMurderer"', murderer_block)
+        self.assertIn('phase == "NightTransform"', murderer_block)
+        self.assertIn('return "NightTransformMurderer"', murderer_block)
+        self.assertIn('phase == "Investigation"', murderer_block)
+        self.assertIn('return "InvestigationMurderer"', murderer_block)
+        self.assertIn('phase == "Campfire"', murderer_block)
+        self.assertIn('return "VoteMurderer"', murderer_block)
+        # Murderer phase block appears before the standard camper phase keys
+        role_reveal_idx = tutorial.index('if phase == "RoleReveal"', murderer_idx)
+        self.assertLess(murderer_idx, role_reveal_idx)
+        # Camper Investigation context: evidenceFound > 0 switches context to "Evidence"
+        inv_camper_idx = tutorial.index(
+            'return "Evidence"', role_reveal_idx
+        )
+        self.assertIn('readNumber(round, "evidenceFound", 0)', tutorial[role_reveal_idx:inv_camper_idx])
+        self.assertIn("evidenceFound > 0", tutorial[role_reveal_idx:inv_camper_idx])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
