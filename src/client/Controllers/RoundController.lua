@@ -421,7 +421,14 @@ local function refresh()
 			else {}
 		local phaseName = readString(round, "phase", "")
 		local localParticipantId = readString(player, "participantId", "")
-		currentNametags:Update(participants, localParticipantId, phaseName)
+		local localRole = readString(player, "role", "")
+		local victimId = if type(snapshot) == "table"
+				and type(snapshot.murderPlan) == "table"
+				and type(snapshot.murderPlan.victimParticipantId) == "string"
+				and snapshot.murderPlan.victimParticipantId ~= ""
+			then snapshot.murderPlan.victimParticipantId
+			else nil
+		currentNametags:Update(participants, localParticipantId, phaseName, localRole, victimId)
 	end
 	local currentPlayerStatus = playerStatus
 	if currentPlayerStatus then

@@ -198,7 +198,9 @@ end
 function NametagsView:Update(
 	participants: { any },
 	localParticipantId: string,
-	phase: string
+	phase: string,
+	localRole: string?,
+	victimParticipantId: string?
 )
 	if self.destroyed then
 		return
@@ -237,7 +239,7 @@ function NametagsView:Update(
 			entry = createEntry(self, participantId, player)
 		end
 
-		local displayName = readString(participant, "displayName", "Unknown camper")
+		local displayName = readString(participant, "displayName", "Unknown")
 		local alive = readBoolean(participant, "alive", false)
 		local isGhost = readBoolean(participant, "isGhost", false)
 		local healthState = readString(participant, "healthState", "Healthy")
@@ -250,6 +252,13 @@ function NametagsView:Update(
 				then Theme.Colors.Danger
 			elseif not alive then Theme.Colors.TextMuted
 			else Theme.Colors.Success
+		if localRole == "Murderer"
+			and alive
+			and victimParticipantId ~= nil
+			and participantId == victimParticipantId
+		then
+			entry.dot.BackgroundColor3 = Theme.Colors.Amber
+		end
 		entry.nameLabel.Text = if participantId == localParticipantId
 			then displayName .. " ▸"
 			else displayName
