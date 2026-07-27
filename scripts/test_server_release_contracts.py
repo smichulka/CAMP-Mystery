@@ -859,5 +859,42 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("target.health = target.maxHealth", heal_block)
 
 
+    def test_request_0129_get_game_state_murderer_only_private_fields(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        state_start = runtime.index("function GameRuntimeService:GetGameState(player: Player)")
+        state_end = runtime.index("function GameRuntimeService:Broadcast()", state_start)
+        state_block = runtime[state_start:state_end]
+        # privateMonster: only Murderer sees the private monster snapshot
+        self.assertIn(
+            'if participant and participant.role == "Murderer"\n\t\tthen self.monster:GetPrivateSnapshot()',
+            state_block,
+        )
+        self.assertIn("else nil", state_block)
+        self.assertIn("privateMonster = privateMonster,", state_block)
+        # murderPlan: only Murderer receives the murder plan
+        self.assertIn(
+            'if participant and participant.role == "Murderer"\n\t\t\tthen self.murderPlan',
+            state_block,
+        )
+        self.assertIn("murderPlan = ", state_block)
+        # availableActions is always computed per-participant (role-aware)
+        self.assertIn("availableActions = self:_availableActions(participant),", state_block)
+        # GetRoundSnapshot: votes revealed only after Resolution/Rewards phases
+        snapshot_start = runtime.index("function GameRuntimeService:GetRoundSnapshot()")
+        snapshot_end = runtime.index("function GameRuntimeService:_availableActions(", snapshot_start)
+        snapshot_block = runtime[snapshot_start:snapshot_end]
+        self.assertIn(
+            'local revealVotes = self.phase == "Resolution" or self.phase == "Rewards"',
+            snapshot_block,
+        )
+        self.assertIn("votes = if revealVotes then voteSnapshot.votes else nil,", snapshot_block)
+        self.assertIn(
+            "culpritId = if revealVotes then self.culpritParticipantId else nil,", snapshot_block
+        )
+        self.assertIn(
+            "monsterId = if revealVotes and self.murderPlan", snapshot_block
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
