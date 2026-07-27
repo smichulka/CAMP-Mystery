@@ -333,6 +333,43 @@ class PhaseCinematicsTests(unittest.TestCase):
         ):
             self.assertIn(token, controller)
 
+    def test_request_0052_vote_self_marker_and_campfire_timer_urgency(self) -> None:
+        view = read("src/client/UI/GameView.lua")
+        for token in (
+            'local localParticipantKey = readString(player, "participantId", "")',
+            'local isSelf = localParticipantKey ~= "" and key == localParticipantKey',
+            'local labelText = if isSelf then name .. " (you)" else name',
+            'text = if isMyVote then labelText .. "  ✓ YOUR VOTE" else labelText',
+            'local isMurdererCampfire = phase == "Campfire" and localRole == "Murderer"',
+            "local dangerThreshold = if isMurdererCampfire then 20 else 10",
+            "local amberThreshold = if isMurdererCampfire then 60 else 30",
+            "elseif isMurdererCampfire and seconds <= amberThreshold then",
+            "self.timerLabel.TextColor3 = Theme.Colors.Amber",
+            "elseif seconds <= 10 and seconds > 0 then",
+            "if seconds > 0 then",
+            "self:_startTimerPulse()",
+        ):
+            self.assertIn(token, view)
+
+        self.assertEqual(
+            view.count(
+                'local isMurdererCampfire = phase == "Campfire" '
+                'and localRole == "Murderer"'
+            ),
+            2,
+            "Both snapshot and interpolated timer paths must use Murderer urgency",
+        )
+        self.assertIn(
+            "if seconds <= dangerThreshold then\n"
+            "\t\t\tself.timerFill.BackgroundColor3 = Theme.Colors.DangerBright",
+            view,
+        )
+        self.assertIn(
+            "elseif seconds <= amberThreshold then\n"
+            "\t\t\tself.timerFill.BackgroundColor3 = Theme.Colors.Amber",
+            view,
+        )
+
     def test_vote_details_are_resolution_only_in_shared_snapshot(self) -> None:
         game_types = read("src/shared/Types/GameTypes.lua")
         for token in (

@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 51389)
+Total output lines: 6496
+
 --!strict
 
 local GuiService = game:GetService("GuiService")
@@ -3127,165 +3130,7 @@ end
 function GameView:_updateEvidence(state: any, round: any)
 	Components.ClearGenerated(self.evidenceList)
 	local board = if type(state) == "table" then state.evidence else nil
-	local mystery = if type(state) == "table" then state.mystery else nil
-	local counselors = if type(state) == "table" then state.counselors else nil
-	local counselorRoster = if type(counselors) == "table"
-		then asTable(counselors.counselors)
-		else {}
-	local candidateNamesById: { [string]: string } = {}
-	if type(state) == "table" then
-		for _, participant in asTable(state.participants) do
-			if type(participant) == "table" then
-				local participantId = readString(participant, "participantId", "")
-				if participantId ~= "" then
-					candidateNamesById[participantId] =
-						readString(participant, "displayName", participantId)
-				end
-			end
-		end
-	end
-	for _, counselor in counselorRoster do
-		if type(counselor) == "table" then
-			local counselorId = readString(counselor, "counselorId", "")
-			if counselorId ~= "" then
-				candidateNamesById[counselorId] =
-					readString(counselor, "displayName", counselorId)
-			end
-		end
-	end
-	local culprit: { any } = {}
-	local monster: { any } = {}
-	if type(board) == "table" then
-		culprit = asTable(board.culpritEvidence)
-		monster = asTable(board.monsterEvidence)
-	else
-		culprit = if type(round) == "table" then asTable(round.evidence) else {}
-	end
-	self.evidenceSummary.Text = string.format(
-		"%s\nCULPRIT CLUES  %d     MONSTER CLUES  %d     MYSTERY  %d/%d",
-		readString(mystery, "title", "CURRENT CASE"),
-		#culprit,
-		#monster,
-		readNumber(mystery, "discoveredClueCount", 0),
-		readNumber(mystery, "totalClueCount", 0)
-	)
-	local nextEvidenceStatuses: { [string]: string } = {}
-	local function addEvidence(record: any, channel: string)
-		if type(record) ~= "table" then
-			return
-		end
-		local evidenceId = readString(record, "evidenceId", readString(record, "id", ""))
-		local displayName = readString(record, "displayName", "Unknown clue")
-		local verification = readString(record, "verificationState", "Unverified")
-		local status = if verification == "VerifiedReal"
-			then "Confirmed"
-			elseif verification == "VerifiedFake" then "Contradicted"
-			else "Unconfirmed"
-		local evidenceKey = if evidenceId ~= ""
-			then evidenceId
-			else channel .. ":" .. displayName
-		local previousStatus = self.evidenceStatuses[evidenceKey]
-		nextEvidenceStatuses[evidenceKey] = status
-		local finder = readString(record, "foundBy", "")
-		local discovery = record.discovery
-		if type(discovery) == "table" then
-			finder = readString(discovery, "discoveredByDisplayName", finder)
-		end
-		local card = Components.EvidenceCard(self.evidenceList, {
-			name = displayName,
-			description = readString(record, "description", "No description recorded."),
-			status = status,
-			previousStatus = previousStatus,
-			channel = channel,
-			footer = (if finder ~= "" then "Found by " .. finder .. "  |  " else "")
-				.. string.upper(status),
-			iconAsset = self.resolveImage(
-				if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"
-			),
-		})
-		card.Size = UDim2.new(1, -8, 0, Theme.Notebook.CardHeight)
-		local verifyEnabled = self:_available(state, "VerifyEvidence")
-		local noteEnabled = self:_available(state, "AddEvidenceNote")
-		local verify = Components.Button(card, {
-			name = "Verify",
-			text = "VERIFY",
-			size = UDim2.fromOffset(104, 30),
-			position = UDim2.new(1, -220, 1, -36),
-			color = Theme.Colors.Success,
-		})
-		verify.ZIndex = card.ZIndex + 5
-		local note = Components.Button(card, {
-			name = "Note",
-			text = "ADD NOTE",
-			size = UDim2.fromOffset(104, 30),
-			position = UDim2.new(1, -110, 1, -36),
-			color = Theme.Colors.Info,
-		})
-		note.ZIndex = card.ZIndex + 5
-		Components.SetButtonEnabled(verify, verifyEnabled and evidenceId ~= "")
-		Components.SetButtonEnabled(note, noteEnabled and evidenceId ~= "")
-		verify.Activated:Connect(function()
-			self:_send("VerifyEvidence", { evidenceId = evidenceId }, verify)
-		end)
-		note.Activated:Connect(function()
-			self:_promptEvidenceNote(evidenceId)
-		end)
-	end
-	for _, record in culprit do
-		addEvidence(record, "CULPRIT")
-	end
-	for _, record in monster do
-		addEvidence(record, "MONSTER")
-	end
-	self.evidenceStatuses = nextEvidenceStatuses
-	local mysteryClues = if type(mystery) == "table" then asTable(mystery.clues) else {}
-	for _, clue in mysteryClues do
-		if type(clue) == "table" then
-			local card = Components.Panel(self.evidenceList, "MysteryClue")
-			card:SetAttribute("Generated", true)
-			card.Size = UDim2.new(1, -8, 0, 132)
-			local channel = readString(clue, "channel", "Culprit")
-			local title = Components.Label(
-				card,
-				"Title",
-				readString(clue, "title", "Recovered clue"),
-				16,
-				Enum.Font.GothamBold
-			)
-			title.Position = UDim2.fromOffset(12, 7)
-			title.Size = UDim2.new(1, -150, 0, 27)
-			title.TextColor3 = if channel == "Monster"
-				then Theme.Colors.Ghost
-				else Theme.Colors.Gold
-			local icon = optionalImage(
-				card,
-				"EvidenceIcon",
-				self.resolveImage("Evidence_Mystery"),
-				UDim2.fromOffset(12, 7),
-				UDim2.fromOffset(26, 26)
-			)
-			if icon then
-				title.Position = UDim2.fromOffset(44, 7)
-				title.Size = UDim2.new(1, -182, 0, 27)
-			end
-			local tag = Components.Label(
-				card,
-				"Channel",
-				string.upper(channel .. " lead"),
-				11,
-				Enum.Font.GothamBold
-			)
-			tag.Position = UDim2.new(1, -126, 0, 7)
-			tag.Size = UDim2.fromOffset(112, 26)
-			tag.TextXAlignment = Enum.TextXAlignment.Center
-			tag.BackgroundColor3 = Theme.Colors.PanelSoft
-			tag.BackgroundTransparency = 0
-			Components.Corner(tag, 13)
-			local description = Components.Label(
-				card,
-				"Description",
-				readString(clue, "publicDescription", "No description recorded."),
-				13
+	local mystery…1389 tokens truncated…			13
 			)
 			description.Position = UDim2.fromOffset(12, 36)
 			description.Size = UDim2.new(1, -24, 0, 52)
@@ -3575,15 +3420,18 @@ function GameView:_updateVote(round: any, player: any)
 	end
 	self.currentVoteSignature = signature
 	Components.ClearGenerated(self.voteList)
+	local localParticipantKey = readString(player, "participantId", "")
 	for _, suspect in suspects do
 		if type(suspect) == "table" then
 			local key = readString(suspect, "key", readString(suspect, "participantId", ""))
 			local name = readString(suspect, "displayName", "Unknown camper")
+			local isSelf = localParticipantKey ~= "" and key == localParticipantKey
+			local labelText = if isSelf then name .. " (you)" else name
 			local isMyVote = hasVoted and voteTargetId ~= "" and key == voteTargetId
 			local isOtherVote = hasVoted and not isMyVote
 			local button = Components.Button(self.voteList, {
 				name = "Vote_" .. key:gsub("[^%w]", "_"),
-				text = if isMyVote then name .. "  ✓ YOUR VOTE" else name,
+				text = if isMyVote then labelText .. "  ✓ YOUR VOTE" else labelText,
 				size = UDim2.new(1, -8, 0, 48),
 				color = if isMyVote
 					then Theme.Colors.Gold
@@ -3925,7 +3773,21 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	)
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - Workspace:GetServerTimeNow()))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
-	if seconds <= 10 and seconds > 0 then
+	local localRole = readString(player, "role", "")
+	local isMurdererCampfire = phase == "Campfire" and localRole == "Murderer"
+	local dangerThreshold = if isMurdererCampfire then 20 else 10
+	local amberThreshold = if isMurdererCampfire then 60 else 30
+	if isMurdererCampfire and seconds <= dangerThreshold then
+		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
+		if seconds > 0 then
+			self:_startTimerPulse()
+		else
+			self:_stopTimerPulse()
+		end
+	elseif isMurdererCampfire and seconds <= amberThreshold then
+		self.timerLabel.TextColor3 = Theme.Colors.Amber
+		self:_stopTimerPulse()
+	elseif seconds <= 10 and seconds > 0 then
 		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
 		self:_startTimerPulse()
 	else
@@ -4577,9 +4439,28 @@ function GameView:Tick()
 		self.currentState,
 		readString(round, "phase", "Lobby")
 	)
+	local player = if type(self.currentState) == "table"
+			and type(self.currentState.player) == "table"
+		then self.currentState.player
+		else nil
+	local phase = readString(round, "phase", "Lobby")
+	local localRole = readString(player, "role", "")
+	local isMurdererCampfire = phase == "Campfire" and localRole == "Murderer"
+	local dangerThreshold = if isMurdererCampfire then 20 else 10
+	local amberThreshold = if isMurdererCampfire then 60 else 30
 	local seconds = math.max(0, math.ceil(readNumber(round, "phaseEndsAt", 0) - currentTime))
 	self.timerLabel.Text = string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
-	if seconds <= 10 and seconds > 0 then
+	if isMurdererCampfire and seconds <= dangerThreshold then
+		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
+		if seconds > 0 then
+			self:_startTimerPulse()
+		else
+			self:_stopTimerPulse()
+		end
+	elseif isMurdererCampfire and seconds <= amberThreshold then
+		self.timerLabel.TextColor3 = Theme.Colors.Amber
+		self:_stopTimerPulse()
+	elseif seconds <= 10 and seconds > 0 then
 		self.timerLabel.TextColor3 = Theme.Colors.DangerBright
 		self:_startTimerPulse()
 	else
@@ -4597,19 +4478,15 @@ function GameView:Tick()
 			fraction = 0
 		end
 		self.timerFill.Size = UDim2.fromScale(fraction, 1)
-		if seconds <= 10 and seconds > 0 then
+		if seconds <= dangerThreshold then
 			self.timerFill.BackgroundColor3 = Theme.Colors.DangerBright
-		elseif seconds <= 30 then
+		elseif seconds <= amberThreshold then
 			self.timerFill.BackgroundColor3 = Theme.Colors.Amber
 		else
 			self.timerFill.BackgroundColor3 = Theme.Colors.Gold
 		end
 	end
 
-	local player = if type(self.currentState) == "table"
-			and type(self.currentState.player) == "table"
-		then self.currentState.player
-		else nil
 	local trackedMinimumRemaining = math.huge
 	if type(player) == "table" then
 		local cooldowns = if type(player.abilityCooldownEndsAt) == "table"
