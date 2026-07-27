@@ -174,5 +174,55 @@ class LobbyReconnectTests(unittest.TestCase):
         )
 
 
+    def test_request_0119_mid_round_notification_role_dispatch(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        # Evidence found: Murderer=Warning, Ghost/Spectator=Info, camper=effect+discovery
+        ev_start = controller.index("if evidenceFound > lastEvidenceFound and currentView then")
+        ev_end = controller.index("lastEvidenceFound = evidenceFound", ev_start)
+        ev_block = controller[ev_start:ev_end]
+        self.assertIn('"A clue has been posted against you. Stay composed."', ev_block)
+        self.assertIn('"A clue has been added to the board."', ev_block)
+        self.assertIn('"Warning"', ev_block)
+        self.assertIn('"Info"', ev_block)
+        self.assertLess(ev_block.index('"Warning"'), ev_block.index('"Info"'))
+        self.assertIn('elseif isGhost or roleName == "Spectator" then', ev_block)
+        self.assertIn("FlashEvidenceFound", ev_block)
+        self.assertIn("PlayEvidenceDiscovery", ev_block)
+        # Witness interviewed: suppressed for ghost/Spectator; Murderer=Warning, others=Info
+        wit_start = controller.index(
+            "if revealedWitnessCount > lastRevealedWitnessCount"
+        )
+        wit_end = controller.index("lastRevealedWitnessCount = revealedWitnessCount", wit_start)
+        wit_block = controller[wit_start:wit_end]
+        self.assertIn("not isGhost", wit_block)
+        self.assertIn('roleName ~= "Spectator"', wit_block)
+        self.assertIn(
+            '"A witness has been questioned — %d of %d counselors spoken to."', wit_block
+        )
+        self.assertIn('"%d of %d witnesses spoken to."', wit_block)
+        # Camp objectives: same ghost/Spectator gate; Murderer=Warning, others=Info
+        obj_start = controller.index("if objectivesCompleted > lastObjectivesCompleted")
+        obj_end = controller.index("lastObjectivesCompleted = objectivesCompleted", obj_start)
+        obj_block = controller[obj_start:obj_end]
+        self.assertIn("not isGhost", obj_block)
+        self.assertIn(
+            '"Campers advancing: %d of %d tasks done."', obj_block
+        )
+        self.assertIn('"%d of %d tasks done."', obj_block)
+        # All votes in: Murderer=DangerBright, Ghost/Spectator=Info, camper=Warning
+        vote_start = controller.index(
+            'if phaseName == "Campfire" and not reconnect and roundNumber ~= nil and currentView then'
+        )
+        vote_end = controller.index("lastVoteCompleteRound = roundNumber", vote_start)
+        vote_block = controller[vote_start:vote_end]
+        self.assertIn('"The vote is sealed. Your fate is decided."', vote_block)
+        self.assertIn('"The campfire vote is sealed. Watch the verdict."', vote_block)
+        self.assertIn('"The campfire vote is sealed. The verdict is coming."', vote_block)
+        self.assertIn('"DangerBright"', vote_block)
+        self.assertLess(vote_block.index('"DangerBright"'), vote_block.index('"Info"'))
+        self.assertLess(vote_block.index('"Info"'), vote_block.index('"Warning"'))
+        self.assertIn('elseif isGhost or roleName == "Spectator" then', vote_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
