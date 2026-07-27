@@ -411,6 +411,40 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("PublicMonsterCatalog[monsterId]", panel_fn)
         self.assertIn("catalogEntry.murdererNote", panel_fn)
 
+    def test_request_0111_evidence_service_murderer_plant_reframe_and_detective_verify(self) -> None:
+        evidence_svc = source("Services/EvidenceService.lua")
+        # PlantFake: only the round culprit (Murderer) can plant fake evidence
+        plant_start = evidence_svc.index("function EvidenceService:PlantFake(")
+        plant_end = evidence_svc.index("function EvidenceService:SetMonsterForRound(", plant_start)
+        plant_fn = evidence_svc[plant_start:plant_end]
+        self.assertIn("murdererParticipantId ~= self.culpritParticipantId", plant_fn)
+        self.assertIn('"Only the Murderer can plant fake evidence"', plant_fn)
+        # PlantFake: one-time use gate
+        self.assertIn("if self.fakeEvidencePlanted then", plant_fn)
+        self.assertIn('"Fake evidence has already been planted"', plant_fn)
+        # PlantFake: Murderer cannot frame themselves
+        self.assertIn("frameParticipantId == murdererParticipantId", plant_fn)
+        self.assertIn('"Invalid frame target"', plant_fn)
+        # PlantFake: creates a "Fake" authenticity evidence record
+        self.assertIn('"Fake"', plant_fn)
+        self.assertIn("self.fakeEvidencePlanted = true", plant_fn)
+        # ReframeFake: same culprit guard as PlantFake
+        reframe_start = evidence_svc.index("function EvidenceService:ReframeFake(")
+        reframe_end = evidence_svc.index("function EvidenceService:Discover(", reframe_start)
+        reframe_fn = evidence_svc[reframe_start:reframe_end]
+        self.assertIn("murdererParticipantId ~= self.culpritParticipantId", reframe_fn)
+        self.assertIn('"Only the Murderer can change the frame target"', reframe_fn)
+        # Verify: VerifiedFake or VerifiedReal based on evidence authenticity
+        verify_start = evidence_svc.index("function EvidenceService:Verify(")
+        verify_end = evidence_svc.index("function EvidenceService:AddNote(", verify_start)
+        verify_fn = evidence_svc[verify_start:verify_end]
+        self.assertIn('record.authenticity == "Fake"', verify_fn)
+        self.assertIn('"VerifiedFake"', verify_fn)
+        self.assertIn('"VerifiedReal"', verify_fn)
+        self.assertLess(verify_fn.index('"VerifiedFake"'), verify_fn.index('"VerifiedReal"'))
+        # Verify records the verifying Detective's ID
+        self.assertIn("record.verifiedByParticipantId = detectiveParticipantId", verify_fn)
+
     def test_request_0110_ghost_protector_intervention_contracts(self) -> None:
         ability_svc = source("Services/RoleAbilityService.lua")
         # SetProtection ghost path: only Protector, only in Investigation, one-time use
