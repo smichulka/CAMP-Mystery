@@ -90,6 +90,8 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             'currentView:PlayWinReveal(winner, winner == "Campers", roleName)',
             'local roundToastRole = if type(player) == "table"',
             'then "Your identity is hidden. Play the role."',
+            'elseif roundToastRole == "Spectator"',
+            'then "You are observing this round."',
             'else "The mystery begins. Stay together."',
         ):
             self.assertIn(token, controller)
