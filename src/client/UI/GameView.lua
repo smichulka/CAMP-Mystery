@@ -1801,8 +1801,13 @@ function GameView:_chooseParticipant(
 	includeSelf: boolean
 )
 	Components.ClearGenerated(self.targetList)
-	self.targetTitle.Text = "Choose the living camper affected by this action."
 	local state = self.currentState
+	local chooseLocalRole = if type(state) == "table" and type(state.player) == "table"
+		then readString(state.player, "role", "")
+		else ""
+	self.targetTitle.Text = if chooseLocalRole == "Murderer"
+		then "Choose your target."
+		else "Choose the living player affected by this action."
 	local participants = if type(state) == "table" then asTable(state.participants) else {}
 	local ownId = if type(state) == "table" and type(state.player) == "table"
 		then readString(state.player, "participantId", "")
@@ -4049,17 +4054,18 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		end
 		self.objectiveFill.Size = UDim2.fromScale(math.clamp(objectiveDone / objectiveGoal, 0, 1), 1)
 		local roundNum = readNumber(round, "roundNumber", 0)
-		local isLivingCamper = readString(player, "team", "") == "Campers"
-			and readBoolean(player, "alive", false)
+		local aliveNotGhost = readBoolean(player, "alive", false)
 			and not readBoolean(player, "isGhost", false)
-		if isLivingCamper
+		local isLivingCamper = readString(player, "team", "") == "Campers" and aliveNotGhost
+		local isMurdererAlive = localRole == "Murderer" and aliveNotGhost
+		if (isLivingCamper or isMurdererAlive)
 			and objectiveDone >= objectiveGoal
 			and witnessFound >= witnessTotal
 			and roundNum > 0
 			and self.dayObjectiveNotifiedRound ~= roundNum
 		then
 			self.dayObjectiveNotifiedRound = roundNum
-			if readString(player, "role", "") == "Murderer" then
+			if isMurdererAlive then
 				self:Notify(
 					"Day objectives complete",
 					"Campers are ready. Investigation begins soon — stay composed.",
@@ -4133,16 +4139,17 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				)
 				self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
 				local roundNum = readNumber(round, "roundNumber", 0)
-				local isLivingCamper = readString(player, "team", "") == "Campers"
-					and readBoolean(player, "alive", false)
+				local evidAliveNotGhost = readBoolean(player, "alive", false)
 					and not readBoolean(player, "isGhost", false)
-				if isLivingCamper
+				local evidIsLivingCamper = readString(player, "team", "") == "Campers" and evidAliveNotGhost
+				local evidIsMurderer = localRole == "Murderer" and evidAliveNotGhost
+				if (evidIsLivingCamper or evidIsMurderer)
 					and evidenceFound >= evidenceGoal
 					and roundNum > 0
 					and self.evidenceNotifiedRound ~= roundNum
 				then
 					self.evidenceNotifiedRound = roundNum
-					if readString(player, "role", "") == "Murderer" then
+					if evidIsMurderer then
 						self:Notify(
 							"Evidence complete",
 							"All evidence is on the board. Stay composed — the vote decides your fate.",
@@ -5656,9 +5663,9 @@ function GameView:PlayRoundSummary(stats: RoundSummaryStats)
 		header.TextXAlignment = Enum.TextXAlignment.Center
 		header.ZIndex = 82
 
-		local winText = if stats.isHumanWin
-			then "THE CAMP SURVIVED"
-			else "THE MONSTER ESCAPED"
+		local winText = if stats.playerRole == "Murderer"
+			then if stats.isHumanWin then "YOU WERE CAUGHT" else "YOU ESCAPED"
+			else if stats.isHumanWin then "THE CAMP SURVIVED" else "THE MONSTER ESCAPED"
 		local winLabel = Components.Label(
 			card,
 			"WinLine",

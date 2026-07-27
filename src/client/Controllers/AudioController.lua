@@ -448,6 +448,8 @@ function AudioController:Update(state: any)
 					then if phase == "Day" then "Daytime. Stay composed."
 						elseif phase == "Investigation" then "Investigation begun. Maintain your cover."
 						elseif phase == "Night" then "Night phase. Choose your moment."
+						elseif phase == "MurderPlanning" then "You chose your prey. Prepare before dawn."
+						elseif phase == "NightTransform" then "You are the monster. The hunt begins."
 						else nil
 					else nil
 				self:PlayCue("PhaseChime", phaseSubtitle)

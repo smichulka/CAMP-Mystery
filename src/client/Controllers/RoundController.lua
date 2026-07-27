@@ -981,11 +981,19 @@ local function updateReleaseExperience(
 	end
 	if reconnect and currentView and not roundEnded and phaseName ~= nil then
 		if isGhost then
-			currentView:Notify(
-				"Reconnected",
-				"You are a ghost. Observe the round and witness the verdict.",
-				"Info"
-			)
+			if roleName == "Murderer" then
+				currentView:Notify(
+					"Reconnected",
+					"Your identity was revealed. Watch the round as a ghost.",
+					"Warning"
+				)
+			else
+				currentView:Notify(
+					"Reconnected",
+					"You are a ghost. Observe the round and witness the verdict.",
+					"Info"
+				)
+			end
 		elseif currentHealthState == "Critical" or currentHealthState == "Incapacitated" then
 			currentView:Notify(
 				"Reconnected — you're incapacitated",
