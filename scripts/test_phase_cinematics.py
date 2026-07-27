@@ -466,6 +466,33 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertNotIn("ProximityPromptService.Enabled = false", interactions)
 
 
+    def test_request_0094_interview_topics_catalog_and_witness_highlight(self) -> None:
+        topics = read("src/shared/Config/InterviewTopics.lua")
+        view = read("src/client/UI/GameView.lua")
+        self.assertTrue(topics.startswith("--!strict"))
+        self.assertIn("return table.freeze({", topics)
+        self.assertIn("definitions = table.freeze(definitions)", topics)
+        # All 4 topics present with label and hint
+        for token in (
+            '"WHAT DID YOU SEE?"',
+            '"WHERE WERE YOU?"',
+            '"ABOUT THE MONSTER"',
+            '"WHO DO YOU SUSPECT?"',
+        ):
+            self.assertIn(token, topics)
+        # Only the Observation topic has witnessHighlight = true
+        obs_start = topics.index('"WHAT DID YOU SEE?"')
+        obs_end = topics.index('"WHERE WERE YOU?"')
+        obs_entry = topics[obs_start:obs_end]
+        self.assertIn("witnessHighlight = true", obs_entry)
+        # Other topics do not enable witness highlight
+        rest = topics[obs_end:]
+        self.assertNotIn("witnessHighlight = true", rest)
+        # GameView uses witnessHighlight to tint Amber for witnesses
+        self.assertIn("if isWitness and entry.witnessHighlight", view)
+        self.assertIn("then Theme.Colors.Amber", view)
+        self.assertIn("InterviewTopics.definitions", view)
+
     def test_request_0087_evidence_notebook_role_copy(self) -> None:
         view = read("src/client/UI/GameView.lua")
         # Summary label header differs by role
