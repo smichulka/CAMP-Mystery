@@ -444,7 +444,13 @@ function AudioController:Update(state: any)
 			elseif phase == "Rewards" then
 				self:PlayCue("Reward")
 			else
-				self:PlayUIEvent("phase-sting")
+				local phaseSubtitle: string? = if localRole == "Murderer"
+					then if phase == "Day" then "Daytime. Stay composed."
+						elseif phase == "Investigation" then "Investigation begun. Maintain your cover."
+						elseif phase == "Night" then "Night phase. Choose your moment."
+						else nil
+					else nil
+				self:PlayCue("PhaseChime", phaseSubtitle)
 			end
 		end
 	end
