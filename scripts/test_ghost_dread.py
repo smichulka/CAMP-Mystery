@@ -224,5 +224,33 @@ class GhostDreadTests(unittest.TestCase):
         )
 
 
+    def test_request_0097_spectator_and_ghost_role_gates_for_effects_modes(self) -> None:
+        controller = read("src/client/Controllers/RoundController.lua")
+        effects = read("src/client/UI/EffectsView.lua")
+        # isEliminated excludes Spectator-role players (they are not eliminated even when dead)
+        self.assertIn('player.role ~= "Spectator"', controller)
+        self.assertIn("player.alive == false", controller)
+        self.assertIn("and not isGhost", controller)
+        # SetSpectatorMode is called with the isEliminated guard
+        self.assertIn("currentEffects:SetSpectatorMode(isEliminated and not roundEnded)", controller)
+        # monsterModeActive is gated: ghost players never see monster mode visuals
+        monster_mode_start = controller.index("local monsterModeActive = phaseName")
+        monster_mode_end = controller.index("currentEffects:SetMonsterMode(monsterModeActive)", monster_mode_start)
+        monster_mode_def = controller[monster_mode_start:monster_mode_end]
+        self.assertIn("and not isGhost", monster_mode_def)
+        self.assertIn('phaseName == "Investigation"', monster_mode_def)
+        # Heartbeat suppressed for Ghost, Spectator, and Murderer; only living Camper gets dread
+        heartbeat_start = controller.index('if roleName == "Murderer" or isGhost or roleName == "Spectator"')
+        heartbeat_end = controller.index("currentAudio:SetHeartbeatIntensity(dreadFraction)", heartbeat_start)
+        heartbeat_block = controller[heartbeat_start:heartbeat_end]
+        self.assertIn("currentAudio:SetHeartbeatIntensity(0)", heartbeat_block)
+        # EffectsView: SetSpectatorMode fades spectatorOverlay in; SetMonsterMode tweens ColorShift_Top
+        self.assertIn("function EffectsView:SetSpectatorMode(active: boolean)", effects)
+        self.assertIn("spectatorOverlay.BackgroundTransparency = targetTransparency", effects)
+        self.assertIn("function EffectsView:SetMonsterMode(active: boolean)", effects)
+        self.assertIn("MONSTER_MODE_SHIFT = Color3.fromRGB(42, 8, 4)", effects)
+        self.assertIn("ColorShift_Top = targetShift", effects)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
