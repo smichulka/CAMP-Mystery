@@ -424,6 +424,10 @@ function AudioController:Update(state: any)
 		self:ApplySettings(profileSettings)
 	end
 
+	local localRole = if type(state) == "table" and type(state.player) == "table" and type(state.player.role) == "string"
+		then state.player.role
+		else ""
+
 	local phase = readPhase(state)
 	if phase and phase ~= self.lastPhase then
 		local firstSnapshot = self.lastPhase == nil
@@ -433,7 +437,10 @@ function AudioController:Update(state: any)
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[phase])
 		if not firstSnapshot then
 			if phase == "Campfire" then
-				self:PlayUIEvent("vote")
+				local voteSubtitle = if localRole == "Murderer"
+					then "They're voting. Choose your words carefully."
+					else nil
+				self:PlayCue("VoteOpen", voteSubtitle)
 			elseif phase == "Rewards" then
 				self:PlayCue("Reward")
 			else
@@ -444,7 +451,8 @@ function AudioController:Update(state: any)
 
 	local evidenceFound = readEvidenceFound(state)
 	if evidenceFound > self.lastEvidenceFound then
-		self:PlayCue("EvidenceFound")
+		local evidenceSubtitle = if localRole == "Murderer" then "Evidence found against you." else nil
+		self:PlayCue("EvidenceFound", evidenceSubtitle)
 	end
 	self.lastEvidenceFound = evidenceFound
 

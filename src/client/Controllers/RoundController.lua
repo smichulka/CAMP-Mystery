@@ -1085,7 +1085,11 @@ local function updateReleaseExperience(
 	InteractionController.SetPromptsEnabled(not isGhost)
 	local dreadFraction = monsterDreadFraction(snapshot)
 	currentCinematics:SetMonsterDread(dreadFraction)
-	currentAudio:SetHeartbeatIntensity(dreadFraction)
+	if roleName == "Murderer" or isGhost or roleName == "Spectator" then
+		currentAudio:SetHeartbeatIntensity(0)
+	else
+		currentAudio:SetHeartbeatIntensity(dreadFraction)
+	end
 	currentCamera:SetMonsterDread(dreadFraction)
 	if currentView then
 		currentAccessibility:ScanEvidence(currentView.root)
