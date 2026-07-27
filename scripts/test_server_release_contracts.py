@@ -817,5 +817,47 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"THE ATTACKER FAVORED AN ISOLATED TARGET."', spirit_block)
 
 
+    def test_request_0128_combat_attack_outcomes_and_heal_gates(self) -> None:
+        combat = source("Services/CombatService.lua")
+        attack_start = combat.index("function CombatService:ApplyAttack(request: AttackRequest)")
+        attack_end = combat.index("function CombatService:Heal(")
+        attack_block = combat[attack_start:attack_end]
+        # Phase gate: Investigation only
+        self.assertIn('self.getPhase() ~= "Investigation"', attack_block)
+        self.assertIn('"Attacks are not active"', attack_block)
+        # Stale round rejected
+        self.assertIn("request.roundId ~= self.roundId", attack_block)
+        self.assertIn('"Stale or unknown round"', attack_block)
+        # Self-attack rejected
+        self.assertIn("attacker.participantId == target.participantId", attack_block)
+        self.assertIn('"A participant cannot attack itself"', attack_block)
+        # Three outcomes
+        self.assertIn('outcome = "Blocked"', attack_block)
+        self.assertIn('outcome = "Eliminated"', attack_block)
+        self.assertIn('outcome = "Injured"', attack_block)
+        # Blocked: lowest evidence risk (attack was interrupted)
+        self.assertIn("evidenceRisk = 0.8", attack_block)
+        # Reduced defense raises evidence risk vs full attack
+        self.assertIn('if defense == "Reduced" then 0.9 else 0.65', attack_block)
+        # Heal: ghost participants cannot heal or be healed; can't self-heal
+        heal_start = combat.index("function CombatService:Heal(")
+        heal_end = combat.index("function CombatService:GetSnapshot(", heal_start)
+        heal_block = combat[heal_start:heal_end]
+        self.assertIn("healer.isGhost", heal_block)
+        self.assertIn("target.isGhost", heal_block)
+        self.assertIn("healer.participantId == target.participantId", heal_block)
+        self.assertIn('"Healing participants are not eligible"', heal_block)
+        # Target must be in Injured state (not healthy or dead)
+        self.assertIn('target.injuryLevel ~= 1 or target.healthState ~= "Injured"', heal_block)
+        self.assertIn('"Target is not injured"', heal_block)
+        # Skill challenge must succeed
+        self.assertIn("if not skillChallengeSucceeded then", heal_block)
+        self.assertIn('"Skill challenge failed"', heal_block)
+        # Successful heal fully restores target
+        self.assertIn("target.injuryLevel = 0", heal_block)
+        self.assertIn('target.healthState = "Healthy"', heal_block)
+        self.assertIn("target.health = target.maxHealth", heal_block)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
