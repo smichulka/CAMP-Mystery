@@ -328,6 +328,35 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, view)
 
+    def test_request_0068_observer_phase_title_entries_and_routing(self) -> None:
+        catalog = read("src/shared/Config/PhaseTitles.lua")
+        view = read("src/client/UI/GameView.lua")
+        controller = read("src/client/Controllers/RoundController.lua")
+        # PhaseTitles type has observer field
+        self.assertIn("observer: PhaseTitleOverride?", catalog)
+        # Observer entries exist for Investigation and Campfire
+        for token in (
+            'title = "INVESTIGATION BEGINS"',
+            '"Watch the survivors search for clues."',
+            'title = "CAMPFIRE VOTE"',
+            '"Watch the verdict unfold."',
+        ):
+            self.assertIn(token, catalog)
+        # GameView routes observer to observer entry
+        for token in (
+            "isObserver: boolean?",
+            "local observerEntry = if type(defaultEntry) == \"table\" then defaultEntry.observer else nil",
+            "elseif isObserver and type(observerEntry) == \"table\"",
+            "then observerEntry",
+            "elseif isObserver and type(observerEntry) == \"table\"",
+        ):
+            self.assertIn(token, view)
+        # RoundController passes isObserver at call site
+        self.assertIn(
+            'currentView:PlayPhaseTitleCard(phaseName, reconnect, roleName, isGhost or roleName == "Spectator")',
+            controller,
+        )
+
     def test_request_0072_murderer_announcement_copy_is_complete(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
