@@ -36,10 +36,14 @@ TutorialController.StepIds = table.freeze({
 	Role = "role",
 	Day = "day",
 	MurderPlanning = "murderplanning",
+	MurderPlanningMurderer = "murderplanning_murderer",
 	NightTransform = "nighttransform",
+	NightTransformMurderer = "nighttransform_murderer",
 	Investigation = "investigation",
+	InvestigationMurderer = "investigation_murderer",
 	Evidence = "evidence",
 	Vote = "vote",
+	VoteMurderer = "vote_murderer",
 	Rewards = "rewards",
 	Spectator = "spectator",
 })
@@ -74,6 +78,13 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		objective = "EQUIP YOUR GEAR BEFORE NIGHTFALL",
 	},
 	{
+		id = "murderplanning_murderer",
+		context = "MurderPlanningMurderer",
+		title = "YOU ARE CHOOSING",
+		body = "Select your target and monster form before the night falls. Your choice is final.",
+		objective = "CHOOSE YOUR TARGET AND MONSTER FORM",
+	},
+	{
 		id = "nighttransform",
 		context = "NightTransform",
 		title = "The Town Appears",
@@ -81,11 +92,25 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		objective = "MOVE CAREFULLY — ISOLATION IS DANGEROUS",
 	},
 	{
+		id = "nighttransform_murderer",
+		context = "NightTransformMurderer",
+		title = "YOU ARE THE MONSTER",
+		body = "Your form has changed. Hunt your target and avoid detection. Use your ability wisely.",
+		objective = "HUNT YOUR TARGET WITHOUT BEING EXPOSED",
+	},
+	{
 		id = "investigation",
 		context = "Investigation",
 		title = "Investigate the Town",
 		body = "The abandoned town is dangerous. Search rooms for evidence, interview counselors, use your equipment, and stay in range of teammates. Isolation is how the monster wins.",
 		objective = "FIND REAL CLUES WITHOUT GETTING ISOLATED",
+	},
+	{
+		id = "investigation_murderer",
+		context = "InvestigationMurderer",
+		title = "STAY HIDDEN",
+		body = "The camp is searching for evidence. Blend in. Steer suspicion. Isolation is your tool — and their downfall.",
+		objective = "BLEND IN AND REDIRECT SUSPICION",
 	},
 	{
 		id = "evidence",
@@ -100,6 +125,13 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		title = "Choose Carefully",
 		body = "At the campfire, review the evidence and accuse one suspect. Living players receive one server-validated vote.",
 		objective = "LOCK IN THE SUSPECT BEST SUPPORTED BY THE CLUES",
+	},
+	{
+		id = "vote_murderer",
+		context = "VoteMurderer",
+		title = "THE VOTE",
+		body = "You are being considered. Redirect suspicion. A tie breaks in your favor.",
+		objective = "REDIRECT THE VOTE AWAY FROM YOURSELF",
 	},
 	{
 		id = "rewards",
@@ -166,6 +198,20 @@ local function currentContext(state: any): string?
 	if role == "Spectator" then
 		return "Spectator"
 	end
+	if role == "Murderer" then
+		if phase == "MurderPlanning" then
+			return "MurderPlanningMurderer"
+		end
+		if phase == "NightTransform" then
+			return "NightTransformMurderer"
+		end
+		if phase == "Investigation" then
+			return "InvestigationMurderer"
+		end
+		if phase == "Campfire" then
+			return "VoteMurderer"
+		end
+	end
 	if phase == "RoleReveal" then
 		return "Role"
 	end
@@ -226,13 +272,25 @@ function TutorialController:_findForContext(context: string): StepDefinition?
 end
 
 function TutorialController:_allSeen(): boolean
+	local lastState = self.lastState
+	local player = if type(lastState) == "table" then lastState.player else nil
+	local role = readString(player, "role", "")
 	for _, step in self.steps do
 		if step.id == TutorialController.StepIds.Spectator then
-			local lastState = self.lastState
-			local player = if type(lastState) == "table" then lastState.player else nil
-			if readString(player, "role", "") ~= "Spectator" then
+			if role ~= "Spectator" then
 				continue
 			end
+		end
+		local murdererStep = step.id == TutorialController.StepIds.MurderPlanningMurderer
+			or step.id == TutorialController.StepIds.NightTransformMurderer
+			or step.id == TutorialController.StepIds.InvestigationMurderer
+			or step.id == TutorialController.StepIds.VoteMurderer
+		local camperEquivalent = step.id == TutorialController.StepIds.MurderPlanning
+			or step.id == TutorialController.StepIds.NightTransform
+			or step.id == TutorialController.StepIds.Investigation
+			or step.id == TutorialController.StepIds.Vote
+		if (murdererStep and role ~= "Murderer") or (camperEquivalent and role == "Murderer") then
+			continue
 		end
 		if not self.seen[step.id] then
 			return false

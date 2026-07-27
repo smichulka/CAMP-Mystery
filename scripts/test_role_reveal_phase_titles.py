@@ -145,6 +145,43 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         ):
             self.assertIn(token, effects)
 
+    def test_request_0056_murderer_tutorial_and_roster_header(self) -> None:
+        tutorial = read("src/client/Controllers/TutorialController.lua")
+        roster = read("src/client/UI/PlayerStatusView.lua")
+        for token in (
+            'id = "murderplanning_murderer"',
+            'title = "YOU ARE CHOOSING"',
+            "Select your target and monster form before the night falls.",
+            'id = "nighttransform_murderer"',
+            'title = "YOU ARE THE MONSTER"',
+            "Your form has changed. Hunt your target and avoid detection.",
+            'id = "investigation_murderer"',
+            'title = "STAY HIDDEN"',
+            "The camp is searching for evidence. Blend in. Steer suspicion.",
+            'id = "vote_murderer"',
+            'body = "You are being considered. Redirect suspicion. A tie breaks in your favor."',
+            'if role == "Spectator" then',
+            'if role == "Murderer" then',
+            'return "MurderPlanningMurderer"',
+            'return "NightTransformMurderer"',
+            'return "InvestigationMurderer"',
+            'return "VoteMurderer"',
+            'murdererStep and role ~= "Murderer"',
+            'camperEquivalent and role == "Murderer"',
+        ):
+            self.assertIn(token, tutorial)
+        for token in (
+            "titleLabel: TextLabel",
+            "titleLabel = title",
+            'localRole == "Murderer"',
+            'then "SUSPECTS"',
+            "elseif localIsGhost",
+            'then "SPIRIT VIEW"',
+            'else "CAMP ROSTER"',
+            "Components.SetLetterspacedText(self.titleLabel, headerText)",
+        ):
+            self.assertIn(token, roster)
+
     def test_round_controller_fires_once_and_suppresses_reconnect(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (

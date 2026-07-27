@@ -11,6 +11,7 @@ type PlayerStatusViewState = {
 	root: Instance,
 	panel: CanvasGroup,
 	list: ScrollingFrame,
+	titleLabel: TextLabel,
 	phaseLabel: TextLabel,
 	destroyed: boolean,
 	visible: boolean,
@@ -340,6 +341,7 @@ function PlayerStatusView.new(parent: Instance): PlayerStatusView
 		root = parent,
 		panel = panel,
 		list = list,
+		titleLabel = title,
 		phaseLabel = phaseLabel,
 		destroyed = false,
 		visible = false,
@@ -423,6 +425,15 @@ function PlayerStatusView:Update(
 		return
 	end
 	self.lastSignature = signature
+
+	local localRole = readString(localPlayer, "role", "")
+	local localIsGhost = readBoolean(localPlayer, "isGhost", false)
+	local headerText = if localRole == "Murderer"
+		then "SUSPECTS"
+		elseif localIsGhost
+		then "SPIRIT VIEW"
+		else "CAMP ROSTER"
+	Components.SetLetterspacedText(self.titleLabel, headerText)
 
 	Components.ClearGenerated(self.list)
 	for index, participant in sortedParticipants(participants) do
