@@ -3814,6 +3814,19 @@ function GameView:_animateRewards(targetXP: number, targetTokens: number)
 	end)
 end
 
+function GameView:_setObjectiveFill(fraction: number)
+	local target = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+	if self.settingsValues.reducedMotion == true then
+		self.objectiveFill.Size = target
+	else
+		TweenService:Create(
+			self.objectiveFill,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ Size = target }
+		):Play()
+	end
+end
+
 function GameView:_updatePhaseArc(state: any)
 	local arc = self.phaseArc
 	if not arc or self.destroyed then
@@ -3837,6 +3850,7 @@ function GameView:_updatePhaseArc(state: any)
 		end
 	end
 
+	local reducedMotionArc = self.settingsValues.reducedMotion == true
 	for index, phaseName in PHASE_ARC_ORDER do
 		local dot = self.phaseArcDots[phaseName]
 		if not dot then
@@ -3849,7 +3863,16 @@ function GameView:_updatePhaseArc(state: any)
 		elseif index == currentIndex then
 			dot.BackgroundColor3 = Theme.Colors.Gold
 			dot.BackgroundTransparency = 0
-			dot.Size = UDim2.fromOffset(12, 12)
+			if reducedMotionArc then
+				dot.Size = UDim2.fromOffset(12, 12)
+			else
+				dot.Size = UDim2.fromOffset(16, 16)
+				TweenService:Create(
+					dot,
+					TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.fromOffset(12, 12) }
+				):Play()
+			end
 		else
 			dot.BackgroundColor3 = Theme.Colors.TextMuted
 			dot.BackgroundTransparency = 0.65
@@ -4113,7 +4136,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				objectiveDone, objectiveGoal, witnessFound, witnessTotal
 			)
 		end
-		self.objectiveFill.Size = UDim2.fromScale(math.clamp(objectiveDone / objectiveGoal, 0, 1), 1)
+		self:_setObjectiveFill(objectiveDone / objectiveGoal)
 		local roundNum = readNumber(round, "roundNumber", 0)
 		local aliveNotGhost = readBoolean(player, "alive", false)
 			and not readBoolean(player, "isGhost", false)
@@ -4176,7 +4199,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		elseif localRole == "Spectator" then
 			self.progressLabel.Text = string.format("Observing. Evidence %d/%d collected.", evidenceFound, evidenceGoal)
 			self.objectiveText.Text = "OBSERVING\nYou joined mid-round. Watch the investigation unfold."
-			self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+			self:_setObjectiveFill(evidenceFound / evidenceGoal)
 		else
 			local isGhostPlayer = readBoolean(player, "isGhost", false)
 			if isGhostPlayer then
@@ -4186,7 +4209,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					evidenceGoal
 				)
 				self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch as the survivors investigate."
-				self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+				self:_setObjectiveFill(evidenceFound / evidenceGoal)
 			else
 				self.progressLabel.Text = string.format(
 					"Evidence %d/%d - search the abandoned town.",
@@ -4198,7 +4221,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					evidenceFound,
 					evidenceGoal
 				)
-				self.objectiveFill.Size = UDim2.fromScale(math.clamp(evidenceFound / evidenceGoal, 0, 1), 1)
+				self:_setObjectiveFill(evidenceFound / evidenceGoal)
 				local roundNum = readNumber(round, "roundNumber", 0)
 				local evidAliveNotGhost = readBoolean(player, "alive", false)
 					and not readBoolean(player, "isGhost", false)
@@ -4271,7 +4294,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				survivorPhrase
 			)
 		end
-		self.objectiveFill.Size = UDim2.fromScale(math.clamp(cast / eligible, 0, 1), 1)
+		self:_setObjectiveFill(cast / eligible)
 	elseif phase == "MurderPlanning" then
 		local localRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
@@ -4542,7 +4565,17 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			or healthState == "Incapacitated"
 			then Theme.Colors.Danger else Theme.Colors.Success
 	end
-	self.healthFill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
+	local targetHealthScale = math.clamp(health / maxHealth, 0, 1)
+	local targetHealthSize = UDim2.fromScale(targetHealthScale, 1)
+	if self.settingsValues.reducedMotion == true then
+		self.healthFill.Size = targetHealthSize
+	else
+		TweenService:Create(
+			self.healthFill,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ Size = targetHealthSize }
+		):Play()
+	end
 	-- Brief damage flash when health drops
 	local currentHealth = health
 	if currentHealth < self.lastHealthForFlash and not ghost then
@@ -4803,13 +4836,19 @@ function GameView:Tick()
 		else
 			fraction = 0
 		end
-		self.timerFill.Size = UDim2.fromScale(fraction, 1)
-		if seconds <= dangerThreshold then
-			self.timerFill.BackgroundColor3 = Theme.Colors.DangerBright
-		elseif seconds <= amberThreshold then
-			self.timerFill.BackgroundColor3 = Theme.Colors.Amber
+		local fillColor = if seconds <= dangerThreshold
+			then Theme.Colors.DangerBright
+			elseif seconds <= amberThreshold then Theme.Colors.Amber
+			else Theme.Colors.Gold
+		self.timerFill.BackgroundColor3 = fillColor
+		if self.settingsValues.reducedMotion == true then
+			self.timerFill.Size = UDim2.fromScale(fraction, 1)
 		else
-			self.timerFill.BackgroundColor3 = Theme.Colors.Gold
+			TweenService:Create(
+				self.timerFill,
+				TweenInfo.new(0.75, Enum.EasingStyle.Linear),
+				{ Size = UDim2.fromScale(fraction, 1) }
+			):Play()
 		end
 	end
 
@@ -4880,10 +4919,18 @@ function GameView:Tick()
 				0,
 				1
 			)
-			self.cooldownFill.Size = UDim2.fromScale(fraction, 1)
 			self.cooldownFill.BackgroundColor3 = if minimumRemaining <= 5
 				then Theme.Colors.Success
 				else Theme.Colors.Gold
+			if self.settingsValues.reducedMotion == true then
+				self.cooldownFill.Size = UDim2.fromScale(fraction, 1)
+			else
+				TweenService:Create(
+					self.cooldownFill,
+					TweenInfo.new(0.75, Enum.EasingStyle.Linear),
+					{ Size = UDim2.fromScale(fraction, 1) }
+				):Play()
+			end
 			self.cooldownBar.Visible = true
 		else
 			self.abilityBarMaxCooldown = 0

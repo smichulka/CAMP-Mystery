@@ -2,6 +2,7 @@
 
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 local CounselorCatalog = require(
 	script.Parent.Parent.Config:WaitForChild("CounselorCatalog")
 )
@@ -23,6 +24,7 @@ type CharacterAssetServiceState = {
 	monsterTrackPlayer: Player?,
 	counselorModels: { Model },
 	botCharacterModels: { [string]: Model },
+	botHomePositions: { [string]: Vector3 },
 	monsterAnimationTrack: AnimationTrack?,
 	monsterAnimationState: string?,
 	counselorAnimationTracks: { [string]: AnimationTrack },
@@ -134,6 +136,39 @@ local BOT_SKIN_TONES: { Color3 } = {
 	Color3.fromRGB(120, 72, 44),     -- dark
 }
 
+local HAIR_COLORS: { Color3 } = {
+	Color3.fromRGB(18, 12, 8),       -- black
+	Color3.fromRGB(65, 40, 20),      -- dark brown
+	Color3.fromRGB(110, 68, 28),     -- brown
+	Color3.fromRGB(158, 110, 44),    -- golden brown
+	Color3.fromRGB(200, 158, 76),    -- dirty blonde
+	Color3.fromRGB(220, 206, 148),   -- blonde
+	Color3.fromRGB(140, 36, 36),     -- auburn
+	Color3.fromRGB(168, 168, 168),   -- grey
+}
+
+local EYE_COLORS: { Color3 } = {
+	Color3.fromRGB(18,  20,  90),   -- deep blue
+	Color3.fromRGB(24,  72,  30),   -- dark green
+	Color3.fromRGB(85,  48,  20),   -- warm brown
+	Color3.fromRGB(45,  90, 140),   -- steel blue
+	Color3.fromRGB(68,  38, 110),   -- violet
+	Color3.fromRGB(120, 80,  18),   -- amber
+	Color3.fromRGB(28,  28,  28),   -- near-black
+	Color3.fromRGB(36, 100,  95),   -- teal
+}
+
+-- Status dot color on name tags — immediately communicates role at a glance
+local ROLE_DOT_COLORS: { [string]: Color3 } = {
+	Murderer  = Color3.fromRGB(255,  60,  60),   -- red
+	Detective = Color3.fromRGB( 80, 140, 255),   -- blue
+	Medic     = Color3.fromRGB( 90, 220, 130),   -- bright green
+	Guard     = Color3.fromRGB(220, 175,  70),   -- gold
+	Protector = Color3.fromRGB(160, 185, 230),   -- silver-blue
+	Medium    = Color3.fromRGB(200, 120, 255),   -- purple
+	Camper    = Color3.fromRGB(130, 200, 100),   -- olive green
+}
+
 local function nameHash(s: string): number
 	local h = 5381
 	for i = 1, #s do
@@ -218,7 +253,7 @@ local function makePart(
 	return part
 end
 
-local function labelModel(model: Model, text: string)
+local function labelModel(model: Model, text: string, dotColor: Color3?)
 	local headPart = model:FindFirstChild("Head")
 	local anchor: BasePart? = if headPart and headPart:IsA("BasePart")
 		then headPart :: BasePart
@@ -232,19 +267,63 @@ local function labelModel(model: Model, text: string)
 	end
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "CharacterLabel"
-	billboard.Size = UDim2.fromOffset(220, 40)
+	billboard.Size = UDim2.fromOffset(160, 30)
 	billboard.StudsOffset = Vector3.new(0, anchor.Size.Y / 2 + 1.8, 0)
-	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 60
+	billboard.AlwaysOnTop = false
+	billboard.ResetOnSpawn = false
+	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	billboard.Parent = anchor
+
+	local bg = Instance.new("Frame")
+	bg.Name = "Bg"
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = Color3.fromRGB(12, 18, 20)
+	bg.BackgroundTransparency = 0.18
+	bg.BorderSizePixel = 0
+	bg.Parent = billboard
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)   -- full pill shape
+	corner.Parent = bg
+
+	-- Thin border ring for readability
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Transparency = 0.82
+	stroke.Thickness = 1
+	stroke.Parent = bg
+
+	local dot = Instance.new("Frame")
+	dot.Name = "Dot"
+	dot.Size = UDim2.fromOffset(8, 8)
+	dot.AnchorPoint = Vector2.new(0, 0.5)
+	dot.Position = UDim2.fromOffset(10, 15)
+	dot.BorderSizePixel = 0
+	dot.BackgroundColor3 = dotColor or Color3.fromRGB(90, 200, 128)
+	dot.Parent = bg
+	local dotCorner = Instance.new("UICorner")
+	dotCorner.CornerRadius = UDim.new(1, 0)
+	dotCorner.Parent = dot
+
 	local label = Instance.new("TextLabel")
-	label.BackgroundColor3 = Color3.fromRGB(12, 13, 17)
-	label.BackgroundTransparency = 0.2
-	label.Size = UDim2.fromScale(1, 1)
-	label.Text = text
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextScaled = true
+	label.Name = "Name"
+	label.Size = UDim2.new(1, -26, 1, 0)
+	label.Position = UDim2.fromOffset(24, 0)
+	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.Parent = billboard
+	label.TextSize = 12
+	label.TextColor3 = Color3.fromRGB(255, 252, 242)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextTruncate = Enum.TextTruncate.AtEnd
+	label.Text = text
+	label.Parent = bg
+
+	-- Subtle shadow for legibility over bright backgrounds
+	local shadow = Instance.new("UIStroke")
+	shadow.Color = Color3.fromRGB(0, 0, 0)
+	shadow.Transparency = 0.55
+	shadow.Thickness = 1
+	shadow.Parent = label
 end
 
 local function findAsset(folderName: string, assetName: string): Model?
@@ -352,7 +431,9 @@ local function buildHumanoidBody(
 	at: CFrame,
 	bodyColor: Color3,
 	skinColor: Color3,
-	scale: number
+	scale: number,
+	hairColor: Color3?,
+	seed: number
 ): Part
 	local tw = 2 * scale   -- torso/root width
 	local th = 2 * scale   -- torso/root height
@@ -380,16 +461,97 @@ local function buildHumanoidBody(
 	-- Eye whites
 	makePart(model, "LeftEyeW",  Vector3.new(eyeW, eyeH, eyeD), at * CFrame.new(-eyeX, eyeY, faceZ), Color3.fromRGB(242, 242, 242))
 	makePart(model, "RightEyeW", Vector3.new(eyeW, eyeH, eyeD), at * CFrame.new( eyeX, eyeY, faceZ), Color3.fromRGB(242, 242, 242))
-	-- Dark pupils (sit 0.04 in front of whites so they don't z-fight)
+	-- Eyelashes: dark strip at top edge of each eye, in front of the white
+	local lashH = 0.10 * scale
+	local lashZ = faceZ - 0.02
+	makePart(model, "LeftLash",  Vector3.new(eyeW * 1.10, lashH, eyeD), at * CFrame.new(-eyeX, eyeY + eyeH / 2 - lashH / 2, lashZ), Color3.fromRGB(20, 15, 10))
+	makePart(model, "RightLash", Vector3.new(eyeW * 1.10, lashH, eyeD), at * CFrame.new( eyeX, eyeY + eyeH / 2 - lashH / 2, lashZ), Color3.fromRGB(20, 15, 10))
+	-- Pupils — color selected by character seed so each bot/counselor has unique eyes
+	local pupilColor = EYE_COLORS[(seed % #EYE_COLORS) + 1]
+	-- Iris rings: colored disc between the eye-white and the pupil
+	local irisColor = pupilColor:Lerp(Color3.fromRGB(255, 255, 255), 0.45)
+	local irisZ = faceZ - 0.02
+	makePart(model, "LeftIris",  Vector3.new(eyeW * 0.86, eyeH * 0.86, eyeD), at * CFrame.new(-eyeX, eyeY, irisZ), irisColor)
+	makePart(model, "RightIris", Vector3.new(eyeW * 0.86, eyeH * 0.86, eyeD), at * CFrame.new( eyeX, eyeY, irisZ), irisColor)
 	local pupilZ = faceZ - 0.04
-	makePart(model, "LeftPupil",  Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new(-eyeX, eyeY - 0.03 * scale, pupilZ), Color3.fromRGB(18, 20, 90))
-	makePart(model, "RightPupil", Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new( eyeX, eyeY - 0.03 * scale, pupilZ), Color3.fromRGB(18, 20, 90))
+	local pupilCY = eyeY - 0.03 * scale
+	makePart(model, "LeftPupil",  Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new(-eyeX, pupilCY, pupilZ), pupilColor)
+	makePart(model, "RightPupil", Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new( eyeX, pupilCY, pupilZ), pupilColor)
+	-- Catchlight: tiny white highlight in the upper corner of each pupil
+	local catchZ = pupilZ - 0.03
+	local catchS = 0.09 * scale
+	local catchDX = 0.04 * scale
+	local catchDY = 0.06 * scale
+	local catchL = makePart(model, "LeftCatch",  Vector3.new(catchS, catchS, eyeD), at * CFrame.new(-eyeX + catchDX, pupilCY + catchDY, catchZ), Color3.fromRGB(255, 255, 255))
+	catchL.Transparency = 0.10
+	local catchR = makePart(model, "RightCatch", Vector3.new(catchS, catchS, eyeD), at * CFrame.new( eyeX - catchDX, pupilCY + catchDY, catchZ), Color3.fromRGB(255, 255, 255))
+	catchR.Transparency = 0.10
 	-- Eyebrows
-	local browColor = skinColor:Lerp(Color3.fromRGB(30, 18, 10), 0.65)
-	makePart(model, "LeftBrow",  Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new(-eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ), browColor)
-	makePart(model, "RightBrow", Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new( eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ), browColor)
-	-- Mouth
-	makePart(model, "Mouth", Vector3.new(0.62 * scale, 0.16 * scale, eyeD), at * CFrame.new(0, headY - 0.42 * scale, faceZ), Color3.fromRGB(95, 42, 42))
+	local browColor: Color3
+	if hairColor then
+		browColor = hairColor:Lerp(Color3.fromRGB(10, 5, 2), 0.30)
+	else
+		browColor = skinColor:Lerp(Color3.fromRGB(30, 18, 10), 0.65)
+	end
+	makePart(model, "LeftBrow",  Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new(-eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ) * CFrame.Angles(0, 0,  0.20), browColor)
+	makePart(model, "RightBrow", Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new( eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ) * CFrame.Angles(0, 0, -0.20), browColor)
+	-- Smile: center bar + raised corner blocks form a classic curved grin
+	local mouthY = headY - 0.42 * scale
+	local mouthColor = Color3.fromRGB(95, 42, 42)
+	makePart(model, "MouthC",  Vector3.new(0.42 * scale, 0.13 * scale, eyeD), at * CFrame.new(0, mouthY, faceZ), mouthColor)
+	makePart(model, "MouthL",  Vector3.new(0.15 * scale, 0.24 * scale, eyeD), at * CFrame.new(-0.29 * scale, mouthY + 0.06 * scale, faceZ), mouthColor)
+	makePart(model, "MouthR",  Vector3.new(0.15 * scale, 0.24 * scale, eyeD), at * CFrame.new( 0.29 * scale, mouthY + 0.06 * scale, faceZ), mouthColor)
+	-- Teeth: off-white strip inside the smile
+	makePart(model, "Teeth", Vector3.new(0.30 * scale, 0.09 * scale, eyeD),
+		at * CFrame.new(0, mouthY + 0.035 * scale, faceZ - 0.015), Color3.fromRGB(242, 240, 235))
+	-- Upper and lower lip definition
+	local lipColor = skinColor:Lerp(Color3.fromRGB(200, 100, 90), 0.18)
+	makePart(model, "UpperLip", Vector3.new(0.46 * scale, 0.09 * scale, eyeD + 0.005),
+		at * CFrame.new(0, mouthY + 0.11 * scale, faceZ - 0.003), lipColor)
+	makePart(model, "LowerLip", Vector3.new(0.40 * scale, 0.11 * scale, eyeD + 0.006),
+		at * CFrame.new(0, mouthY - 0.09 * scale, faceZ - 0.003), lipColor)
+	-- Chin shadow: subtle darkening below the lower lip for jaw definition
+	makePart(model, "ChinShadow", Vector3.new(0.36 * scale, 0.08 * scale, eyeD - 0.002),
+		at * CFrame.new(0, mouthY - 0.22 * scale, faceZ - 0.002),
+		skinColor:Lerp(Color3.fromRGB(0, 0, 0), 0.14))
+	-- Nose: small bump between eyes and mouth
+	makePart(model, "Nose", Vector3.new(0.20 * scale, 0.24 * scale, 0.14 * scale),
+		at * CFrame.new(0, headY - 0.08 * scale, -(hd / 2 + 0.12)), skinColor:Lerp(Color3.fromRGB(160, 100, 75), 0.14))
+	-- Nose highlight: bright catchlight on the nose tip
+	makePart(model, "NoseLight", Vector3.new(0.07 * scale, 0.07 * scale, 0.04 * scale),
+		at * CFrame.new(0, headY - 0.04 * scale, -(hd / 2 + 0.19)),
+		skinColor:Lerp(Color3.fromRGB(255, 255, 255), 0.60))
+	-- Philtrum: faint vertical groove between nose base and upper lip
+	local philtrumY = headY - 0.28 * scale
+	makePart(model, "Philtrum", Vector3.new(0.09 * scale, 0.14 * scale, eyeD),
+		at * CFrame.new(0, philtrumY, faceZ - 0.001),
+		skinColor:Lerp(Color3.fromRGB(0, 0, 0), 0.07))
+	-- Rosy cheek blush marks
+	local blushColor = skinColor:Lerp(Color3.fromRGB(240, 90, 90), 0.32)
+	local blushW = 0.30 * scale
+	local blushH = 0.17 * scale
+	local blushY = headY - 0.10 * scale
+	local blushX = 0.49 * scale
+	local lb = makePart(model, "LeftBlush",  Vector3.new(blushW, blushH, eyeD), at * CFrame.new(-blushX, blushY, faceZ), blushColor)
+	lb.Transparency = 0.40
+	local rb = makePart(model, "RightBlush", Vector3.new(blushW, blushH, eyeD), at * CFrame.new( blushX, blushY, faceZ), blushColor)
+	rb.Transparency = 0.40
+	-- Ears: skin-colored blocks flush with head sides
+	makePart(model, "LeftEar", Vector3.new(0.14 * scale, 0.44 * scale, 0.34 * scale),
+		at * CFrame.new(-(hs / 2 + 0.07), headY, 0), skinColor)
+	makePart(model, "RightEar", Vector3.new(0.14 * scale, 0.44 * scale, 0.34 * scale),
+		at * CFrame.new(hs / 2 + 0.07, headY, 0), skinColor)
+	-- Inner ear canal: darker oval on outer face of each ear
+	local earCanalX  = hs / 2 + 0.07 + 0.07 * scale
+	local canalColor = skinColor:Lerp(Color3.fromRGB(30, 0, 0), 0.22)
+	makePart(model, "LeftEarCanal",  Vector3.new(0.02, 0.14 * scale, 0.16 * scale),
+		at * CFrame.new(-earCanalX, headY, 0), canalColor)
+	makePart(model, "RightEarCanal", Vector3.new(0.02, 0.14 * scale, 0.16 * scale),
+		at * CFrame.new( earCanalX, headY, 0), canalColor)
+	-- Neck: skin-colored block filling the gap between torso top and head bottom
+	local neckW = 0.72 * scale
+	makePart(model, "Neck", Vector3.new(neckW, 0.15 * scale, neckW),
+		at * CFrame.new(0, th / 2 + 0.075 * scale, 0), skinColor)
 
 	-- Arms: R6 1×2×1, shirt-colored, flush with torso sides
 	local aw = 1 * scale
@@ -402,6 +564,40 @@ local function buildHumanoidBody(
 	local cuffY = -(ah / 2 - cuffH / 2)
 	makePart(model, "LeftCuff",  Vector3.new(aw, cuffH, aw), at * CFrame.new(-ax, cuffY, 0), skinColor)
 	makePart(model, "RightCuff", Vector3.new(aw, cuffH, aw), at * CFrame.new( ax, cuffY, 0), skinColor)
+	-- Wristwatch on left wrist: band ring + small dark face on inner wrist
+	local watchBand = makePart(model, "WatchBand", Vector3.new(aw + 0.05, cuffH * 0.54, aw + 0.05),
+		at * CFrame.new(-ax, cuffY, 0), Color3.fromRGB(28, 24, 22))
+	watchBand.Material = Enum.Material.Metal
+	makePart(model, "WatchFace", Vector3.new(aw * 0.42, cuffH * 0.52, 0.05),
+		at * CFrame.new(-ax, cuffY, -(aw * 0.5 + 0.03)), Color3.fromRGB(14, 20, 34))
+	-- Hands: skin-colored block at wrist end of each arm
+	local handH = 0.22 * scale
+	local handY = -(ah / 2 + handH / 2)
+	makePart(model, "LeftHand",  Vector3.new(aw * 0.86, handH, aw * 0.72), at * CFrame.new(-ax, handY, 0), skinColor)
+	makePart(model, "RightHand", Vector3.new(aw * 0.86, handH, aw * 0.72), at * CFrame.new( ax, handY, 0), skinColor)
+	-- Finger nubs: 3 small knuckle bumps on the front face of each hand
+	local fingW   = aw * 0.24
+	local fingH2  = 0.17 * scale
+	local fingD2  = 0.11 * scale
+	local fingFZ  = -(aw * 0.72 * 0.5 + fingD2 * 0.5)
+	local fingOff = aw * 0.86 * 0.29
+	local fingColor = skinColor:Lerp(Color3.fromRGB(0, 0, 0), 0.09)
+	makePart(model, "LFingA", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new(-ax - fingOff, handY, fingFZ), fingColor)
+	makePart(model, "LFingB", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new(-ax,           handY, fingFZ), fingColor)
+	makePart(model, "LFingC", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new(-ax + fingOff, handY, fingFZ), fingColor)
+	makePart(model, "RFingA", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new( ax - fingOff, handY, fingFZ), fingColor)
+	makePart(model, "RFingB", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new( ax,           handY, fingFZ), fingColor)
+	makePart(model, "RFingC", Vector3.new(fingW, fingH2, fingD2), at * CFrame.new( ax + fingOff, handY, fingFZ), fingColor)
+	-- Thumb stubs on the medial side of each hand
+	local thumbW  = 0.22 * scale
+	local thumbH  = 0.30 * scale
+	local thumbD  = 0.18 * scale
+	local thumbOX = aw * 0.86 / 2 + thumbW * 0.25
+	local thumbOY = handH * 0.25
+	makePart(model, "LeftThumb",  Vector3.new(thumbW, thumbH, thumbD),
+		at * CFrame.new(-ax + thumbOX, handY + thumbOY, 0), fingColor)
+	makePart(model, "RightThumb", Vector3.new(thumbW, thumbH, thumbD),
+		at * CFrame.new( ax - thumbOX, handY + thumbOY, 0), fingColor)
 
 	-- Legs: R6 1×2×1, pants-colored (slightly darker body)
 	local lw = 1 * scale
@@ -411,8 +607,293 @@ local function buildHumanoidBody(
 	local pantsColor = bodyColor:Lerp(Color3.fromRGB(10, 10, 15), 0.18)
 	makePart(model, "LeftLeg",  Vector3.new(lw, lh, lw), at * CFrame.new(-lx, ly, 0), pantsColor)
 	makePart(model, "RightLeg", Vector3.new(lw, lh, lw), at * CFrame.new( lx, ly, 0), pantsColor)
+	-- Shirt collar: lighter strip across the top of the torso front
+	local collarH = 0.18 * scale
+	local collarColor = bodyColor:Lerp(Color3.fromRGB(240, 240, 240), 0.22)
+	makePart(model, "Collar", Vector3.new(tw - 0.28 * scale, collarH, 0.08 * scale),
+		at * CFrame.new(0, th / 2 - collarH / 2, -(td / 2 + 0.05 * scale)), collarColor)
+	-- Breast pocket: left-chest pocket adds clothing depth
+	local pocketX = -0.35 * scale
+	local pocketY = th / 2 - 0.62 * scale
+	local pocketBodyColor = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.07)
+	local pocketFlapColor = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.14)
+	makePart(model, "PocketBody", Vector3.new(0.34 * scale, 0.26 * scale, 0.07 * scale),
+		at * CFrame.new(pocketX, pocketY, -(td / 2 + 0.06 * scale)), pocketBodyColor)
+	makePart(model, "PocketFlap", Vector3.new(0.34 * scale, 0.07 * scale, 0.08 * scale),
+		at * CFrame.new(pocketX, pocketY + 0.16 * scale, -(td / 2 + 0.065 * scale)), pocketFlapColor)
+	-- Shirt buttons: three small discs down the right placket
+	local btnColor = Color3.fromRGB(218, 218, 222)
+	local btnX    = 0.10 * scale
+	local btnZ    = -(td / 2 + 0.04 * scale)
+	makePart(model, "Btn1", Vector3.new(0.09 * scale, 0.09 * scale, 0.05 * scale), at * CFrame.new(btnX, th / 2 - 0.46 * scale, btnZ), btnColor)
+	makePart(model, "Btn2", Vector3.new(0.09 * scale, 0.09 * scale, 0.05 * scale), at * CFrame.new(btnX, th / 2 - 0.70 * scale, btnZ), btnColor)
+	makePart(model, "Btn3", Vector3.new(0.09 * scale, 0.09 * scale, 0.05 * scale), at * CFrame.new(btnX, th / 2 - 0.94 * scale, btnZ), btnColor)
+	-- Belt: dark strip straddling the torso-leg junction
+	local beltH = 0.20 * scale
+	local beltColor = bodyColor:Lerp(Color3.fromRGB(22, 16, 10), 0.52)
+	makePart(model, "Belt", Vector3.new(tw + 0.08 * scale, beltH, td + 0.06 * scale),
+		at * CFrame.new(0, -th / 2, 0), beltColor)
+	-- Belt buckle: small gold-tinted square at belt center front
+	local buckle = makePart(model, "BeltBuckle", Vector3.new(0.28 * scale, beltH * 0.82, 0.10 * scale),
+		at * CFrame.new(0, -th / 2, -(td / 2 + 0.06 * scale)), Color3.fromRGB(172, 155, 65))
+	buckle.Material = Enum.Material.Metal
+	-- Shirt back seam: subtle vertical centre line on the back of the torso
+	local seamColor = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.09)
+	makePart(model, "BackSeam", Vector3.new(0.08 * scale, th * 0.85, 0.03),
+		at * CFrame.new(0, th * 0.075, td / 2 + 0.02), seamColor)
+	-- Shoes: slightly wider near-black blocks at bottom of each leg
+	local shoeH = 0.38 * scale
+	local shoeW = 1.22 * scale
+	local shoeY = ly - lh / 2 + shoeH / 2
+	local shoeColor = Color3.fromRGB(26, 20, 14)
+	makePart(model, "LeftShoe",  Vector3.new(shoeW, shoeH, shoeW), at * CFrame.new(-lx, shoeY, 0), shoeColor)
+	makePart(model, "RightShoe", Vector3.new(shoeW, shoeH, shoeW), at * CFrame.new( lx, shoeY, 0), shoeColor)
+	-- Shoe soles: thin rubber-coloured strip under each shoe
+	local soleH   = 0.08 * scale
+	local soleW   = shoeW + 0.04 * scale
+	local soleY   = shoeY - shoeH / 2 + soleH / 2
+	local soleColor = Color3.fromRGB(38, 35, 30)
+	makePart(model, "LeftSole",  Vector3.new(soleW, soleH, soleW), at * CFrame.new(-lx, soleY, 0), soleColor)
+	makePart(model, "RightSole", Vector3.new(soleW, soleH, soleW), at * CFrame.new( lx, soleY, 0), soleColor)
+	-- White ankle socks: crisp band just above the shoe top
+	local sockH   = 0.16 * scale
+	local sockW   = 1.20 * scale
+	local sockY   = shoeY + shoeH / 2 + sockH / 2
+	makePart(model, "LeftSock",  Vector3.new(sockW, sockH, sockW), at * CFrame.new(-lx, sockY, 0), Color3.fromRGB(238, 238, 238))
+	makePart(model, "RightSock", Vector3.new(sockW, sockH, sockW), at * CFrame.new( lx, sockY, 0), Color3.fromRGB(238, 238, 238))
+
+	-- Knee pads: slightly wider slab at kneecap height adds definition to the leg silhouette
+	local kneeH = 0.20 * scale
+	local kneeY = ly + lh * 0.05   -- just above leg center
+	local kneeColor = pantsColor:Lerp(Color3.fromRGB(0, 0, 0), 0.08)
+	makePart(model, "LeftKnee",  Vector3.new(lw * 1.10, kneeH, lw * 0.85), at * CFrame.new(-lx, kneeY, 0), kneeColor)
+	makePart(model, "RightKnee", Vector3.new(lw * 1.10, kneeH, lw * 0.85), at * CFrame.new( lx, kneeY, 0), kneeColor)
+
+	-- Hair: style varies by seed so each character has a distinct look
+	if hairColor then
+		local hairStyle = seed % 6
+		local hairH = 0.44 * scale
+		local hairTopY = headY + hs / 2 + hairH / 2
+		local bangDepth = 0.22 * scale
+		if hairStyle == 0 then
+			-- Classic: cap + front bang + back drape
+			makePart(model, "Hair", Vector3.new(hs, hairH, hd), at * CFrame.new(0, hairTopY, 0), hairColor)
+			local bangH = 0.34 * scale
+			makePart(model, "HairBang", Vector3.new(hs * 0.82, bangH, bangDepth),
+				at * CFrame.new(0, headY + hs / 2 - bangH / 2, -(hd / 2 + bangDepth / 2)), hairColor)
+			local backH = hs * 0.72
+			makePart(model, "HairBack", Vector3.new(hs * 0.88, backH, bangDepth),
+				at * CFrame.new(0, headY + hs / 2 - backH / 2, hd / 2 + bangDepth / 2), hairColor)
+		elseif hairStyle == 1 then
+			-- Short: cap + minimal wispy bang, no back
+			local shortH = 0.30 * scale
+			makePart(model, "Hair", Vector3.new(hs, shortH, hd), at * CFrame.new(0, headY + hs / 2 + shortH / 2, 0), hairColor)
+			local bangH = 0.20 * scale
+			makePart(model, "HairBang", Vector3.new(hs * 0.55, bangH, bangDepth * 0.70),
+				at * CFrame.new(-0.10 * scale, headY + hs / 2 - bangH / 2, -(hd / 2 + bangDepth * 0.35)), hairColor)
+		elseif hairStyle == 2 then
+			-- Long: cap + wide bang + long back drape
+			makePart(model, "Hair", Vector3.new(hs, hairH, hd), at * CFrame.new(0, hairTopY, 0), hairColor)
+			local bangH = 0.52 * scale
+			makePart(model, "HairBang", Vector3.new(hs * 0.92, bangH, bangDepth),
+				at * CFrame.new(0, headY + hs / 2 - bangH / 2, -(hd / 2 + bangDepth / 2)), hairColor)
+			local backH = hs * 1.10
+			makePart(model, "HairBack", Vector3.new(hs * 0.88, backH, bangDepth),
+				at * CFrame.new(0, headY + hs / 2 - backH / 2, hd / 2 + bangDepth / 2), hairColor)
+		elseif hairStyle == 3 then
+			-- Bun: tall rounded top-knot, no bang or drape
+			local capH = 0.30 * scale
+			makePart(model, "Hair", Vector3.new(hs, capH, hd), at * CFrame.new(0, headY + hs / 2 + capH / 2, 0), hairColor)
+			local bunR = 0.52 * scale
+			makePart(model, "HairBun", Vector3.new(bunR, bunR, bunR),
+				at * CFrame.new(0, headY + hs / 2 + capH + bunR * 0.5, 0), hairColor, Enum.PartType.Ball)
+		elseif hairStyle == 4 then
+			-- Afro/Curly: large round volume covering the top and sides of the head
+			local afroR = 1.15 * scale
+			makePart(model, "Hair", Vector3.new(afroR * 2.1, afroR * 1.7, afroR * 1.85),
+				at * CFrame.new(0, headY + hs / 4, 0), hairColor, Enum.PartType.Ball)
+		else
+			-- Pigtails: flat cap with two short side tails hanging from ear level
+			local capH = 0.26 * scale
+			makePart(model, "Hair", Vector3.new(hs, capH, hd), at * CFrame.new(0, headY + hs / 2 + capH / 2, 0), hairColor)
+			local tailW = 0.32 * scale
+			local tailH = 0.64 * scale
+			local tailY = headY - 0.10 * scale
+			makePart(model, "HairTailL", Vector3.new(tailW, tailH, tailW * 0.85),
+				at * CFrame.new(-(hs / 2 + tailW * 0.3), tailY - tailH / 2, 0), hairColor)
+			makePart(model, "HairTailR", Vector3.new(tailW, tailH, tailW * 0.85),
+				at * CFrame.new( hs / 2 + tailW * 0.3, tailY - tailH / 2, 0), hairColor)
+		end
+		-- Sideburns: thin strips of hair at the temples on each side of the head
+		local sbH = 0.28 * scale
+		local sbW = 0.06 * scale
+		local sbX = hs / 2 - 0.02
+		local sbY = headY + hs / 4
+		local sbZ = -hd / 4
+		makePart(model, "SideburnL", Vector3.new(sbW, sbH, sbW),
+			at * CFrame.new(-sbX, sbY, sbZ), hairColor)
+		makePart(model, "SideburnR", Vector3.new(sbW, sbH, sbW),
+			at * CFrame.new( sbX, sbY, sbZ), hairColor)
+	end
+
+	-- Periodic blink: eye parts briefly go transparent, ~every 4-9 seconds
+	task.spawn(function()
+		local BLINK_PARTS = {
+			"LeftEyeW", "RightEyeW", "LeftPupil", "RightPupil",
+			"LeftCatch", "RightCatch", "LeftLash", "RightLash",
+		}
+		local eyeParts: { BasePart } = {}
+		for _, n in BLINK_PARTS do
+			local p = model:FindFirstChild(n) :: BasePart?
+			if p then table.insert(eyeParts, p) end
+		end
+		if #eyeParts == 0 then return end
+		task.wait(math.random() * 6)   -- stagger so all characters do not blink in unison
+		while model.Parent ~= nil do
+			for step = 1, 3 do
+				if model.Parent == nil then return end
+				for _, p in eyeParts do if p.Parent ~= nil then p.Transparency = step / 3 end end
+				task.wait(0.04)
+			end
+			task.wait(0.05)
+			for step = 3, 0, -1 do
+				if model.Parent == nil then return end
+				for _, p in eyeParts do if p.Parent ~= nil then p.Transparency = step / 3 end end
+				task.wait(0.05)
+			end
+			for _, p in eyeParts do if p.Parent ~= nil then p.Transparency = 0 end end
+			task.wait(4 + (nameHash(model.Name) % 5) * 0.9 + math.random() * 2.5)
+		end
+	end)
 
 	return root
+end
+
+-- Applies a full walk pose (arms + legs) to a procedural character after PivotTo.
+-- swingAngle in radians; cross-coordination is handled internally:
+--   rightArm backward  ↔  leftLeg backward  (natural gait)
+local function applyArmSwing(model: Model, modelCF: CFrame, swingAngle: number)
+	local leftArm  = model:FindFirstChild("LeftArm")  :: BasePart?
+	local rightArm = model:FindFirstChild("RightArm") :: BasePart?
+	if not leftArm or not rightArm then
+		return
+	end
+	local armScale = leftArm.Size.X   -- aw = 1 * scale => equals the character scale
+	local th  = 2 * armScale
+	local ax  = 1.5 * armScale
+	local ah  = 2 * armScale
+	local cuffH = 0.35 * armScale
+
+	-- Arms swing from shoulder joints (top of torso)
+	local rightShoulderCF = modelCF * CFrame.new( ax, th / 2, 0)
+	local leftShoulderCF  = modelCF * CFrame.new(-ax, th / 2, 0)
+	-- Lateral splay: arm flares slightly outward when swinging back (natural gait)
+	local splayR = -swingAngle * 0.18
+	local splayL =  swingAngle * 0.18
+	rightArm.CFrame = rightShoulderCF * CFrame.Angles(-swingAngle, 0, splayR) * CFrame.new(0, -ah / 2, 0)
+	leftArm.CFrame  = leftShoulderCF  * CFrame.Angles( swingAngle, 0, splayL) * CFrame.new(0, -ah / 2, 0)
+	local leftCuff  = model:FindFirstChild("LeftCuff")  :: BasePart?
+	local rightCuff = model:FindFirstChild("RightCuff") :: BasePart?
+	if leftCuff and rightCuff then
+		local cuffDist = ah - cuffH / 2
+		rightCuff.CFrame = rightShoulderCF * CFrame.Angles(-swingAngle, 0, splayR) * CFrame.new(0, -cuffDist, 0)
+		leftCuff.CFrame  = leftShoulderCF  * CFrame.Angles( swingAngle, 0, splayL) * CFrame.new(0, -cuffDist, 0)
+		-- Watch tracks with left cuff
+		local wBand = model:FindFirstChild("WatchBand") :: BasePart?
+		local wFace = model:FindFirstChild("WatchFace") :: BasePart?
+		if wBand then wBand.CFrame = leftCuff.CFrame end
+		if wFace then wFace.CFrame = leftCuff.CFrame * CFrame.new(0, 0, -(armScale * 0.5 + 0.03)) end
+	end
+	-- Sleeve bands track the upper-arm swing (only present on counselor models)
+	local leftBand  = model:FindFirstChild("SleeveBandL") :: BasePart?
+	local rightBand = model:FindFirstChild("SleeveBandR") :: BasePart?
+	if leftBand and rightBand then
+		local bandDist = 0.40 * armScale
+		rightBand.CFrame = rightShoulderCF * CFrame.Angles(-swingAngle, 0, splayR) * CFrame.new(0, -bandDist, 0)
+		leftBand.CFrame  = leftShoulderCF  * CFrame.Angles( swingAngle, 0, splayL) * CFrame.new(0, -bandDist, 0)
+	end
+	-- Hands follow the bottom of the arm swing
+	local leftHand  = model:FindFirstChild("LeftHand")  :: BasePart?
+	local rightHand = model:FindFirstChild("RightHand") :: BasePart?
+	if leftHand and rightHand then
+		local handDist = ah + leftHand.Size.Y * 0.5
+		local rhCF = rightShoulderCF * CFrame.Angles(-swingAngle, 0, splayR) * CFrame.new(0, -handDist, 0)
+		local lhCF = leftShoulderCF  * CFrame.Angles( swingAngle, 0, splayL) * CFrame.new(0, -handDist, 0)
+		rightHand.CFrame = rhCF
+		leftHand.CFrame  = lhCF
+		local fZ   = -(leftHand.Size.Z * 0.5 + 0.06 * armScale)
+		local fOff = leftHand.Size.X * 0.29
+		local lFA = model:FindFirstChild("LFingA") :: BasePart?
+		local rFA = model:FindFirstChild("RFingA") :: BasePart?
+		local lFB = model:FindFirstChild("LFingB") :: BasePart?
+		local rFB = model:FindFirstChild("RFingB") :: BasePart?
+		local lFC = model:FindFirstChild("LFingC") :: BasePart?
+		local rFC = model:FindFirstChild("RFingC") :: BasePart?
+		if lFA then lFA.CFrame = lhCF * CFrame.new(-fOff, 0, fZ) end
+		if rFA then rFA.CFrame = rhCF * CFrame.new(-fOff, 0, fZ) end
+		if lFB then lFB.CFrame = lhCF * CFrame.new(    0, 0, fZ) end
+		if rFB then rFB.CFrame = rhCF * CFrame.new(    0, 0, fZ) end
+		if lFC then lFC.CFrame = lhCF * CFrame.new( fOff, 0, fZ) end
+		if rFC then rFC.CFrame = rhCF * CFrame.new( fOff, 0, fZ) end
+		-- Thumb stubs track the hand swing (medial side)
+		local leftThumb  = model:FindFirstChild("LeftThumb")  :: BasePart?
+		local rightThumb = model:FindFirstChild("RightThumb") :: BasePart?
+		if leftThumb and rightThumb then
+			local thumbOX = leftHand.Size.X / 2 + 0.06 * armScale
+			local thumbOY = leftHand.Size.Y * 0.25
+			leftThumb.CFrame  = lhCF * CFrame.new( thumbOX, thumbOY, 0)
+			rightThumb.CFrame = rhCF * CFrame.new(-thumbOX, thumbOY, 0)
+		end
+	end
+
+	-- Legs swing from hip joints (bottom of torso), opposite side to same-side arm
+	local lh      = 2 * armScale
+	local lx      = 0.5 * armScale
+	local shoeH   = 0.38 * armScale
+	local legSwing = swingAngle * 0.72          -- legs swing a bit less than arms
+	local shoeDist = lh - shoeH / 2             -- hip-to-shoe-center distance along leg
+	local rightHipCF = modelCF * CFrame.new( lx, -th / 2, 0)
+	local leftHipCF  = modelCF * CFrame.new(-lx, -th / 2, 0)
+	local leftLeg  = model:FindFirstChild("LeftLeg")  :: BasePart?
+	local rightLeg = model:FindFirstChild("RightLeg") :: BasePart?
+	if leftLeg and rightLeg then
+		-- Cross-coordination: right leg rotates same direction as left arm (swingAngle > 0)
+		rightLeg.CFrame = rightHipCF * CFrame.Angles( legSwing, 0, 0) * CFrame.new(0, -lh / 2, 0)
+		leftLeg.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -lh / 2, 0)
+		local leftShoe  = model:FindFirstChild("LeftShoe")  :: BasePart?
+		local rightShoe = model:FindFirstChild("RightShoe") :: BasePart?
+		if leftShoe and rightShoe then
+			-- Ankle bend: shoe partly counteracts leg tilt so foot stays near-horizontal
+			rightShoe.CFrame = rightHipCF * CFrame.Angles( legSwing, 0, 0) * CFrame.new(0, -shoeDist, 0) * CFrame.Angles(-legSwing * 0.55, 0, 0)
+			leftShoe.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -shoeDist, 0) * CFrame.Angles( legSwing * 0.55, 0, 0)
+		end
+		-- Soles track the shoe with the same ankle counter-rotation
+		local leftSole  = model:FindFirstChild("LeftSole")  :: BasePart?
+		local rightSole = model:FindFirstChild("RightSole") :: BasePart?
+		if leftSole and rightSole then
+			local soleH2  = 0.08 * armScale
+			local soleDist = lh - soleH2 / 2
+			rightSole.CFrame = rightHipCF * CFrame.Angles( legSwing, 0, 0) * CFrame.new(0, -soleDist, 0) * CFrame.Angles(-legSwing * 0.55, 0, 0)
+			leftSole.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -soleDist, 0) * CFrame.Angles( legSwing * 0.55, 0, 0)
+		end
+		-- Knee pads track the upper-leg swing
+		local leftKnee  = model:FindFirstChild("LeftKnee")  :: BasePart?
+		local rightKnee = model:FindFirstChild("RightKnee") :: BasePart?
+		if leftKnee and rightKnee then
+			local kneeDist = lh * 0.45
+			rightKnee.CFrame = rightHipCF * CFrame.Angles( legSwing, 0, 0) * CFrame.new(0, -kneeDist, 0)
+			leftKnee.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -kneeDist, 0)
+		end
+		-- Socks follow leg swing only (no ankle counter-rotation)
+		local leftSock  = model:FindFirstChild("LeftSock")  :: BasePart?
+		local rightSock = model:FindFirstChild("RightSock") :: BasePart?
+		if leftSock and rightSock then
+			local sockH2   = 0.16 * armScale
+			local sockDist = lh - shoeH - sockH2 / 2
+			rightSock.CFrame = rightHipCF * CFrame.Angles( legSwing, 0, 0) * CFrame.new(0, -sockDist, 0)
+			leftSock.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -sockDist, 0)
+		end
+	end
 end
 
 local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
@@ -422,7 +903,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("MonsterId", monsterId)
 
-	local sc = presentation.scale
+	local sc = presentation.scale       -- Vector3: per-axis body shape multiplier
+	local sx, sy, sz = sc.X, sc.Y, sc.Z -- scalar components for offset math
 	local torsoSize = Vector3.new(4, 5, 3) * sc
 	local headSize = Vector3.new(3.2, 3.2, 3.2) * sc
 	local headY = torsoSize.Y / 2 + 1.6
@@ -432,8 +914,10 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 
 	-- Glowing eyes on all monsters that have heads (BabyAlien handles its own below)
 	if monsterId ~= "Dullahan" and monsterId ~= "BabyAlien" then
-		local eS = Vector3.new(0.55, 0.65, 0.38) * sc
-		local eX, eY, eZ = 0.62 * sc, headY + 0.1 * sc, -(headSize.Z / 2 + 0.06)
+		local eS = Vector3.new(0.55 * sx, 0.65 * sy, 0.38 * sz)
+		local eX = 0.62 * sx
+		local eY = headY + 0.1 * sy
+		local eZ = -(headSize.Z / 2 + 0.06)
 		local lg = makePart(model, "LeftGlow", eS, at * CFrame.new(-eX, eY, eZ), presentation.accent, Enum.PartType.Ball)
 		lg.Material = Enum.Material.Neon
 		local rg = makePart(model, "RightGlow", eS, at * CFrame.new(eX, eY, eZ), presentation.accent, Enum.PartType.Ball)
@@ -441,12 +925,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	end
 
 	-- Elongated creature limbs (all monsters)
-	local limbLen = 4.2 * sc
-	local limbW = 0.58 * sc
+	local limbLen = 4.2 * sy
+	local limbW = 0.58 * sx
+	local limbShoulderLX = -(torsoSize.X / 2 + limbLen * 0.16)
+	local limbShoulderY  = -0.5 * sy
 	makePart(model, "LeftLimb", Vector3.new(limbW, limbLen, limbW),
-		at * CFrame.new(-(torsoSize.X / 2 + limbLen * 0.16), -0.5 * sc, 0) * CFrame.Angles(0, 0, 0.42), presentation.accent)
+		at * CFrame.new(limbShoulderLX, limbShoulderY, 0) * CFrame.Angles(0, 0, 0.42), presentation.accent)
 	makePart(model, "RightLimb", Vector3.new(limbW, limbLen, limbW),
-		at * CFrame.new(torsoSize.X / 2 + limbLen * 0.16, -0.5 * sc, 0) * CFrame.Angles(0, 0, -0.42), presentation.accent)
+		at * CFrame.new(-limbShoulderLX, limbShoulderY, 0) * CFrame.Angles(0, 0, -0.42), presentation.accent)
+	-- Store shoulder anchors so the tracking loop can animate the limbs per-frame
+	model:SetAttribute("LimbShoulderLX", limbShoulderLX)
+	model:SetAttribute("LimbShoulderRX", -limbShoulderLX)
+	model:SetAttribute("LimbShoulderY",  limbShoulderY)
+	model:SetAttribute("LimbLen",        limbLen)
 
 	if monsterId == "BabyAlien" then
 		for side = -1, 1, 2 do
@@ -459,8 +950,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		-- 4 spider legs radiating from the base
 		for i = 0, 3 do
 			local angle = (i / 4) * math.pi * 2 + math.pi / 4
-			makePart(model, "SpiderLeg" .. tostring(i + 1), Vector3.new(0.32, 2.6 * sc, 0.32),
-				at * CFrame.new(math.cos(angle) * 2.2 * sc, -(torsoSize.Y / 2 + 0.8 * sc), math.sin(angle) * 2.2 * sc)
+			makePart(model, "SpiderLeg" .. tostring(i + 1), Vector3.new(0.32, 2.6 * sy, 0.32),
+				at * CFrame.new(math.cos(angle) * 2.2 * sx, -(torsoSize.Y / 2 + 0.8 * sy), math.sin(angle) * 2.2 * sx)
 					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
 		end
 	elseif monsterId == "Screamer" then
@@ -474,8 +965,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.52, 3.4 * sc, 0.52),
-				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.4 * sc), 0) * CFrame.Angles(0, 0, side * 0.12),
+				Vector3.new(0.52, 3.4 * sy, 0.52),
+				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
 				presentation.accent)
 		end
 	elseif monsterId == "Wendigo" then
@@ -487,8 +978,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.68, 4.2 * sc, 0.68),
-				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.7 * sc), 0), presentation.accent)
+				Vector3.new(0.68, 4.2 * sy, 0.68),
+				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.7 * sy), 0), presentation.accent)
 		end
 	elseif monsterId == "ShadowMonster" then
 		for index = 1, 4 do
@@ -504,8 +995,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		for index = 1, 3 do
 			local angle = ((index - 1) / 3) * math.pi * 2
 			local leg = makePart(model, "ShadowLeg" .. tostring(index),
-				Vector3.new(0.35, 3.5 * sc, 0.35),
-				at * CFrame.new(math.cos(angle) * 1.5, -(torsoSize.Y / 2 + 1.2 * sc), math.sin(angle) * 1.5)
+				Vector3.new(0.35, 3.5 * sy, 0.35),
+				at * CFrame.new(math.cos(angle) * 1.5, -(torsoSize.Y / 2 + 1.2 * sy), math.sin(angle) * 1.5)
 					* CFrame.Angles(math.cos(angle) * 0.3, 0, math.sin(angle) * 0.3), presentation.accent)
 			leg.Material = Enum.Material.ForceField
 			leg.Transparency = 0.5
@@ -519,8 +1010,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		for side = -1, 1, 2 do
 			for fore = -1, 1, 2 do
 				local tag = (if side < 0 then "Left" else "Right") .. (if fore < 0 then "Front" else "Back")
-				makePart(model, tag .. "Leg", Vector3.new(0.58, 2.6 * sc, 0.58),
-					at * CFrame.new(side * 1.4 * sc, -(torsoSize.Y / 2 + 0.7 * sc), fore * 0.9 * sc)
+				makePart(model, tag .. "Leg", Vector3.new(0.58, 2.6 * sy, 0.58),
+					at * CFrame.new(side * 1.4 * sx, -(torsoSize.Y / 2 + 0.7 * sy), fore * 0.9 * sz)
 						* CFrame.Angles(fore * 0.28, 0, side * 0.1), presentation.accent)
 			end
 		end
@@ -536,8 +1027,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			at * CFrame.new(0, torsoSize.Y / 2, 0), Color3.fromRGB(24, 31, 33))
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.88, 3.6 * sc, 0.88),
-				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.45 * sc), 0), presentation.color)
+				Vector3.new(0.88, 3.6 * sy, 0.88),
+				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.45 * sy), 0), presentation.color)
 		end
 	elseif monsterId == "Entity" then
 		root.Transparency = 0.25
@@ -552,8 +1043,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		for index = 1, 3 do
 			local angle = ((index - 1) / 3) * math.pi * 2
 			local stream = makePart(model, "EtherStream" .. tostring(index),
-				Vector3.new(0.28, 3.2 * sc, 0.28),
-				at * CFrame.new(math.cos(angle) * 1.2, -(torsoSize.Y / 2 + sc), math.sin(angle) * 1.2)
+				Vector3.new(0.28, 3.2 * sy, 0.28),
+				at * CFrame.new(math.cos(angle) * 1.2, -(torsoSize.Y / 2 + sy), math.sin(angle) * 1.2)
 					* CFrame.Angles(math.cos(angle) * 0.2, 0, math.sin(angle) * 0.2), presentation.accent)
 			stream.Material = Enum.Material.ForceField
 			stream.Transparency = 0.4
@@ -566,10 +1057,10 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		veil.Transparency = 0.55
 		-- Trailing wail streams
 		for index = 1, 3 do
-			local offset = (index - 2) * 1.8 * sc
+			local offset = (index - 2) * 1.8 * sx
 			local stream = makePart(model, "WailStream" .. tostring(index),
-				Vector3.new(0.3, 4.0 * sc, 0.3),
-				at * CFrame.new(offset, -(torsoSize.Y / 2 + 1.2 * sc), 0.4)
+				Vector3.new(0.3, 4.0 * sy, 0.3),
+				at * CFrame.new(offset, -(torsoSize.Y / 2 + 1.2 * sy), 0.4)
 					* CFrame.Angles(0.15, 0, (index - 2) * 0.08), presentation.accent)
 			stream.Material = Enum.Material.ForceField
 			stream.Transparency = 0.5
@@ -595,13 +1086,16 @@ local function buildProceduralCounselor(
 	local scale = 1.08 + ((index - 1) % 3) * 0.08
 	local colorIdx = ((index - 1) % #COUNSELOR_COLORS) + 1
 	local bodyColor = COUNSELOR_COLORS[colorIdx]
-	local skinR = math.max(150, 196 - index * 5)
-	local skinG = math.max(100, 155 - index * 6)
-	local skinB = math.max(85, 125 - index * 4)
-	local skinColor = Color3.fromRGB(skinR, skinG, skinB)
+	local skinColor = BOT_SKIN_TONES[((index - 1) % #BOT_SKIN_TONES) + 1]
+	local hairColor = HAIR_COLORS[((index - 1) % #HAIR_COLORS) + 1]
 
-	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
+	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale, hairColor, index)
 	model.PrimaryPart = root
+	-- Counselor socks: tint to a pastel of the team colour for visual identity
+	local lSock = model:FindFirstChild("LeftSock")  :: BasePart?
+	local rSock = model:FindFirstChild("RightSock") :: BasePart?
+	if lSock then lSock.Color  = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.68) end
+	if rSock then rSock.Color  = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.68) end
 
 	-- Match the R6 dims used inside buildHumanoidBody
 	local th = 2 * scale
@@ -610,6 +1104,13 @@ local function buildProceduralCounselor(
 	local headY = th / 2 + 0.15 * scale + hs / 2
 	local aw = 1 * scale
 	local ax = scale + aw / 2   -- tw/2 + aw/2 = scale + 0.5*scale
+	-- Sleeve bands: colored stripe on upper arm unique to each counselor's team color
+	local bandColor = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.28)
+	local bandY = th / 2 - 0.40 * scale
+	makePart(model, "SleeveBandL", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
+		at * CFrame.new(-ax, bandY, 0), bandColor)
+	makePart(model, "SleeveBandR", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
+		at * CFrame.new( ax, bandY, 0), bandColor)
 
 	if index == 1 then
 		-- Medical pack on front of torso with red cross
@@ -656,6 +1157,14 @@ local function buildProceduralCounselor(
 			at * CFrame.new(-(ax + 0.04), -(0.55 * scale), -(td / 2 + 0.13)), Color3.fromRGB(160, 48, 48))
 	end
 
+	-- Staff ID badge: colored card on a short cord around the neck
+	local badgeCordColor = Color3.fromRGB(60, 60, 65)
+	local badgeCardColor = Color3.fromRGB(240, 240, 245)
+	makePart(model, "IDCord", Vector3.new(0.06, 0.55 * scale, 0.06),
+		at * CFrame.new(0, th / 2 - 0.32 * scale, -(td / 2 + 0.07)), badgeCordColor)
+	makePart(model, "IDCard", Vector3.new(0.32 * scale, 0.42 * scale, 0.07),
+		at * CFrame.new(0, th / 2 - 0.60 * scale, -(td / 2 + 0.08)), badgeCardColor)
+
 	labelModel(model, displayName)
 	return model
 end
@@ -677,8 +1186,9 @@ local function buildProceduralBotCharacter(
 	-- Slight height variation so bots look like a crowd of different players
 	local h = nameHash(displayName)
 	local scale = 0.94 + (h % 17) * 0.01   -- range ~0.94–1.10
+	local hairColor = HAIR_COLORS[(nameHash(displayName) % #HAIR_COLORS) + 1]
 
-	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
+	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale, hairColor, h)
 	model.PrimaryPart = root
 
 	-- Glowing role badge on chest so bots are visually distinct
@@ -703,7 +1213,250 @@ local function buildProceduralBotCharacter(
 	lbl.Font = Enum.Font.GothamBold
 	lbl.Parent = sg
 
-	labelModel(model, displayName)
+	-- Role-specific accessories so each bot is identifiable at a glance
+	local hs = 2 * scale
+	local headY = th / 2 + 0.15 * scale + hs / 2
+	local ax = 1.5 * scale   -- arm center X (tw/2 + aw/2)
+	if roleName == "Murderer" then
+		-- Dark cowl draped over head
+		makePart(model, "Hood",  Vector3.new(hs + 0.24, hs * 0.65, td + 0.22),
+			at * CFrame.new(0, headY + hs * 0.175, 0), Color3.fromRGB(16, 12, 20))
+		makePart(model, "HoodL", Vector3.new(0.16, hs * 0.85, td + 0.1),
+			at * CFrame.new(-(hs / 2 + 0.12), headY, 0), Color3.fromRGB(22, 16, 28))
+		makePart(model, "HoodR", Vector3.new(0.16, hs * 0.85, td + 0.1),
+			at * CFrame.new(hs / 2 + 0.12, headY, 0), Color3.fromRGB(22, 16, 28))
+		-- Glowing red eyes visible through the hood's shadows
+		local murdEyeL = makePart(model, "MurdEyeL", Vector3.new(0.22 * scale, 0.18 * scale, 0.14),
+			at * CFrame.new(-0.35 * scale, headY + 0.10 * scale, -(td / 2 + 0.04)), Color3.fromRGB(255, 28, 28))
+		murdEyeL.Material = Enum.Material.Neon
+		local murdEyeR = makePart(model, "MurdEyeR", Vector3.new(0.22 * scale, 0.18 * scale, 0.14),
+			at * CFrame.new( 0.35 * scale, headY + 0.10 * scale, -(td / 2 + 0.04)), Color3.fromRGB(255, 28, 28))
+		murdEyeR.Material = Enum.Material.Neon
+		-- Sinister slow pulse — eyes dim and blaze on a 1.1 Hz cycle
+		task.spawn(function()
+			local pt = 0
+			while murdEyeL.Parent ~= nil do
+				local alpha = 0.04 + math.sin(pt * 1.1) * 0.08
+				murdEyeL.Transparency = alpha
+				murdEyeR.Transparency = alpha
+				pt += task.wait()
+			end
+		end)
+		-- Hip knife sheathed at the right side
+		local kX = ax + 0.06 * scale
+		local kY = -(th / 2) + 0.32 * scale
+		local blade = makePart(model, "KnifeBlade",  Vector3.new(0.10 * scale, 0.56 * scale, 0.08 * scale),
+			at * CFrame.new(kX, kY, 0), Color3.fromRGB(178, 184, 190))
+		blade.Material = Enum.Material.Metal
+		-- Tiny blood drip at the blade tip
+		makePart(model, "BloodDrip", Vector3.new(0.06 * scale, 0.13 * scale, 0.06 * scale),
+			at * CFrame.new(kX, kY - 0.33 * scale, 0), Color3.fromRGB(140, 18, 18))
+		makePart(model, "KnifeGuard",  Vector3.new(0.26 * scale, 0.07 * scale, 0.12 * scale),
+			at * CFrame.new(kX, kY + 0.30 * scale, 0), Color3.fromRGB(20, 14, 6))
+		makePart(model, "KnifeHandle", Vector3.new(0.11 * scale, 0.22 * scale, 0.11 * scale),
+			at * CFrame.new(kX, kY + 0.40 * scale, 0), Color3.fromRGB(52, 30, 12))
+		-- Dark cloak draping from shoulders down the back
+		makePart(model, "Cloak", Vector3.new(hs + 0.28, 2.0 * scale, 0.10),
+			at * CFrame.new(0, -0.12 * scale, td / 2 + 0.08), Color3.fromRGB(10, 6, 16))
+	elseif roleName == "Detective" then
+		-- Classic flat-cap detective hat
+		makePart(model, "DetBrim",  Vector3.new(hs * 1.55, 0.18 * scale, hs * 1.12),
+			at * CFrame.new(-0.12, headY + hs / 2 + 0.09, 0), Color3.fromRGB(36, 30, 22))
+		makePart(model, "DetCrown", Vector3.new(hs * 0.92, hs * 0.38, hs * 0.9),
+			at * CFrame.new(0, headY + hs / 2 + 0.09 + hs * 0.19, 0), Color3.fromRGB(46, 38, 28))
+		-- Magnifying glass clipped to the chest pocket (torso-attached, moves with PivotTo)
+		local glassColor = Color3.fromRGB(180, 195, 215)
+		local handleColor = Color3.fromRGB(90, 68, 40)
+		local gX = 0.50 * scale
+		local gY = th / 2 - 0.52 * scale
+		local magGlass = makePart(model, "MagGlass", Vector3.new(0.50 * scale, 0.50 * scale, 0.10),
+			at * CFrame.new(-gX, gY, -(td / 2 + 0.07)), Color3.fromRGB(195, 225, 255), Enum.PartType.Ball)
+		magGlass.Material = Enum.Material.Glass
+		magGlass.Transparency = 0.50
+		-- Tiny neon glint at the lens centre
+		local glint = makePart(model, "GlassGlint",
+			Vector3.new(0.10 * scale, 0.10 * scale, 0.05),
+			at * CFrame.new(-gX, gY + 0.08 * scale, -(td / 2 + 0.12)),
+			Color3.fromRGB(240, 248, 255))
+		glint.Material = Enum.Material.Neon
+		glint.Transparency = 0.15
+		makePart(model, "MagHandle", Vector3.new(0.12 * scale, 0.44 * scale, 0.10),
+			at * CFrame.new(-gX + 0.14 * scale, gY - 0.42 * scale, -(td / 2 + 0.07)), handleColor)
+		-- Overcoat lapels: two angled dark panels framing the chest
+		local lapelColor = Color3.fromRGB(30, 24, 16)
+		local lapelAngle = 0.44
+		makePart(model, "LapelL", Vector3.new(0.16 * scale, 0.52 * scale, 0.10),
+			at * CFrame.new(-0.22 * scale, th / 2 - 0.56 * scale, -(td / 2 + 0.09)) * CFrame.Angles(0, 0, -lapelAngle), lapelColor)
+		makePart(model, "LapelR", Vector3.new(0.16 * scale, 0.52 * scale, 0.10),
+			at * CFrame.new( 0.22 * scale, th / 2 - 0.56 * scale, -(td / 2 + 0.09)) * CFrame.Angles(0, 0,  lapelAngle), lapelColor)
+	elseif roleName == "Medic" then
+		-- Red cross on torso front with lub-dub heartbeat pulse
+		local crossBaseColor = Color3.fromRGB(210, 44, 44)
+		local crossBeatColor = Color3.fromRGB(255, 105, 105)
+		local medCrossH = makePart(model, "MedCrossH", Vector3.new(0.84 * scale, 0.22 * scale, 0.1),
+			at * CFrame.new(0, th / 2 - 0.5, -(td / 2 + 0.07)), crossBaseColor)
+		local medCrossV = makePart(model, "MedCrossV", Vector3.new(0.22 * scale, 0.84 * scale, 0.1),
+			at * CFrame.new(0, th / 2 - 0.5, -(td / 2 + 0.07)), crossBaseColor)
+		task.spawn(function()
+			local t = 0
+			while medCrossH.Parent ~= nil do
+				local cycle = t % 1.3
+				local beat: number
+				if cycle < 0.12 then
+					beat = math.sin(cycle / 0.12 * math.pi)                   -- lub (strong)
+				elseif cycle < 0.32 then
+					beat = 0
+				elseif cycle < 0.44 then
+					beat = math.sin((cycle - 0.32) / 0.12 * math.pi) * 0.55  -- dub (softer)
+				else
+					beat = 0
+				end
+				local c = crossBaseColor:Lerp(crossBeatColor, beat)
+				medCrossH.Color = c
+				medCrossV.Color = c
+				t += task.wait()
+			end
+		end)
+		-- White medical shoes
+		local medicLS = model:FindFirstChild("LeftShoe") :: BasePart?
+		local medicRS = model:FindFirstChild("RightShoe") :: BasePart?
+		if medicLS then medicLS.Color = Color3.fromRGB(225, 225, 225) end
+		if medicRS then medicRS.Color = Color3.fromRGB(225, 225, 225) end
+		-- Stethoscope: metallic disc + two diverging tubes
+		local stethColor = Color3.fromRGB(178, 184, 192)
+		local stHead = makePart(model, "StethHead", Vector3.new(0.24 * scale, 0.24 * scale, 0.07),
+			at * CFrame.new(-0.18 * scale, th / 2 - 0.82 * scale, -(td / 2 + 0.08)), stethColor)
+		stHead.Material = Enum.Material.Metal
+		makePart(model, "StethTL", Vector3.new(0.06 * scale, 0.42 * scale, 0.07),
+			at * CFrame.new(-0.28 * scale, th / 2 - 0.59 * scale, -(td / 2 + 0.06)) * CFrame.Angles(0, 0, -0.28), stethColor)
+		makePart(model, "StethTR", Vector3.new(0.06 * scale, 0.42 * scale, 0.07),
+			at * CFrame.new( 0.10 * scale, th / 2 - 0.59 * scale, -(td / 2 + 0.06)) * CFrame.Angles(0, 0,  0.28), stethColor)
+	elseif roleName == "Guard" then
+		-- Shoulder pauldrons: layered metal armor plates
+		local padColor = Color3.fromRGB(60, 55, 45)
+		local padL = makePart(model, "PadL", Vector3.new(scale + 0.2, scale * 0.5, scale + 0.2),
+			at * CFrame.new(-ax, 0.6 * scale, 0), padColor)
+		padL.Material = Enum.Material.Metal
+		local padR = makePart(model, "PadR", Vector3.new(scale + 0.2, scale * 0.5, scale + 0.2),
+			at * CFrame.new(ax, 0.6 * scale, 0), padColor)
+		padR.Material = Enum.Material.Metal
+		-- Raised rim at top of each pauldron gives armor-plating silhouette
+		local rimColor = Color3.fromRGB(90, 82, 66)
+		local rimH = scale * 0.09
+		local rL = makePart(model, "PadRimL", Vector3.new(scale + 0.28, rimH, scale + 0.28),
+			at * CFrame.new(-ax, 0.6 * scale + scale * 0.27, 0), rimColor)
+		rL.Material = Enum.Material.Metal
+		local rR = makePart(model, "PadRimR", Vector3.new(scale + 0.28, rimH, scale + 0.28),
+			at * CFrame.new(ax, 0.6 * scale + scale * 0.27, 0), rimColor)
+		rR.Material = Enum.Material.Metal
+		-- Tactical helmet with tinted night-vision visor
+		local helmColor = Color3.fromRGB(24, 30, 24)
+		makePart(model, "Helmet", Vector3.new(hs * 1.12, hs * 0.56, hs * 1.06),
+			at * CFrame.new(0, headY + hs * 0.12, 0), helmColor)
+		local visor = makePart(model, "Visor", Vector3.new(hs * 0.90, hs * 0.22, 0.08),
+			at * CFrame.new(0, headY - hs * 0.08, -(hs / 2 + 0.05)), Color3.fromRGB(22, 80, 35))
+		visor.Material = Enum.Material.Neon
+		visor.Transparency = 0.55
+		-- Tactical neon status strip on left chest (like a body-cam LED)
+		local tacStrip = makePart(model, "TacStrip", Vector3.new(0.07 * scale, 0.75 * scale, 0.07),
+			at * CFrame.new(-0.38 * scale, th / 2 - 0.65 * scale, -(td / 2 + 0.09)),
+			Color3.fromRGB(22, 200, 60))
+		tacStrip.Material = Enum.Material.Neon
+		tacStrip.Transparency = 0.18
+	elseif roleName == "Protector" then
+		-- Silver diamond badge on chest
+		local badgeColor = Color3.fromRGB(192, 198, 210)
+		local badge = makePart(model, "Badge", Vector3.new(0.52 * scale, 0.52 * scale, 0.08 * scale),
+			at * CFrame.new(0, th / 2 - 0.45 * scale, -(td / 2 + 0.05 * scale)) * CFrame.Angles(0, 0, math.pi / 4), badgeColor)
+		badge.Material = Enum.Material.Metal
+		-- Occasional light-catch shimmer: badge brightens briefly then fades back
+		task.spawn(function()
+			local baseColor = badge.Color
+			local shimmerColor = baseColor:Lerp(Color3.fromRGB(255, 255, 255), 0.68)
+			while badge.Parent ~= nil do
+				task.wait(5 + math.random() * 7)
+				if badge.Parent == nil then return end
+				for step = 1, 5 do
+					if badge.Parent == nil then return end
+					badge.Color = baseColor:Lerp(shimmerColor, math.sin(step / 5 * math.pi))
+					task.wait(0.04)
+				end
+				badge.Color = baseColor
+			end
+		end)
+		-- Silver shoulder plates completing the protective armor look
+		local shldColor = Color3.fromRGB(190, 196, 208)
+		local shldL = makePart(model, "ShldL", Vector3.new(0.52 * scale, 0.14 * scale, 0.64 * scale),
+			at * CFrame.new(-ax, th / 2 + 0.03 * scale, 0), shldColor)
+		shldL.Material = Enum.Material.Metal
+		local shldR = makePart(model, "ShldR", Vector3.new(0.52 * scale, 0.14 * scale, 0.64 * scale),
+			at * CFrame.new( ax, th / 2 + 0.03 * scale, 0), shldColor)
+		shldR.Material = Enum.Material.Metal
+	elseif roleName == "Medium" then
+		-- Glowing crystal orb at chest level
+		local orb = makePart(model, "CrystalOrb", Vector3.new(0.50 * scale, 0.50 * scale, 0.50 * scale),
+			at * CFrame.new(0, th / 2 - 0.5 * scale, -(td / 2 + 0.30 * scale)), Color3.fromRGB(170, 85, 245), Enum.PartType.Ball)
+		orb.Material = Enum.Material.Neon
+		orb.Transparency = 0.20
+		-- Neon summoning disc glowing below the orb
+		local aura = makePart(model, "OrbAura", Vector3.new(0.82 * scale, 0.05 * scale, 0.82 * scale),
+			at * CFrame.new(0, th / 2 - 0.67 * scale, -(td / 2 + 0.30 * scale)), Color3.fromRGB(200, 100, 255))
+		aura.Material = Enum.Material.Neon
+		aura.Transparency = 0.28
+		-- Mystical slow glow pulse — orb breathes between nearly opaque and bright
+		task.spawn(function()
+			local pt = 0
+			while orb.Parent ~= nil do
+				orb.Transparency = 0.10 + math.sin(pt * 1.75) * 0.15
+				pt += task.wait()
+			end
+		end)
+		-- Smaller satellite orb offset from the main crystal
+		local miniOrb = makePart(model, "MiniOrb",
+			Vector3.new(0.26 * scale, 0.26 * scale, 0.26 * scale),
+			at * CFrame.new(0.38 * scale, th / 2 - 0.38 * scale, -(td / 2 + 0.28 * scale)),
+			Color3.fromRGB(220, 140, 255), Enum.PartType.Ball)
+		miniOrb.Material = Enum.Material.Neon
+		miniOrb.Transparency = 0.30
+	elseif roleName == "Camper" then
+		-- Hiking backpack on the back
+		local packColor = Color3.fromRGB(60, 110, 55)
+		local strapColor = Color3.fromRGB(40, 75, 38)
+		local td2 = 1 * scale
+		makePart(model, "Backpack", Vector3.new(1.40 * scale, 1.60 * scale, 0.48 * scale),
+			at * CFrame.new(0, th / 2 - 0.80 * scale, td2 / 2 + 0.26 * scale), packColor)
+		makePart(model, "StrapL", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
+			at * CFrame.new(-0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
+		makePart(model, "StrapR", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
+			at * CFrame.new( 0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
+		-- Water bottle clipped to the right side of the pack
+		makePart(model, "WaterBottle", Vector3.new(0.22 * scale, 0.60 * scale, 0.22 * scale),
+			at * CFrame.new(0.76 * scale, th / 2 - 1.10 * scale, td2 / 2 + 0.26 * scale),
+			Color3.fromRGB(45, 125, 175))
+		makePart(model, "WBottleCap", Vector3.new(0.18 * scale, 0.08 * scale, 0.18 * scale),
+			at * CFrame.new(0.76 * scale, th / 2 - 0.78 * scale, td2 / 2 + 0.26 * scale),
+			Color3.fromRGB(22, 58, 80))
+		-- Brown hiking boots
+		local camperLS = model:FindFirstChild("LeftShoe") :: BasePart?
+		local camperRS = model:FindFirstChild("RightShoe") :: BasePart?
+		if camperLS then camperLS.Color = Color3.fromRGB(108, 72, 38) end
+		if camperRS then camperRS.Color = Color3.fromRGB(108, 72, 38) end
+		-- Camp snapback cap
+		local capColor     = Color3.fromRGB(36, 76, 40)
+		local capBandColor = Color3.fromRGB(22, 54, 28)
+		makePart(model, "CapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
+			at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), capColor)
+		makePart(model, "CapBand",  Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
+			at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), capBandColor)
+		-- Brass compass clipped to right chest
+		local compass = makePart(model, "Compass", Vector3.new(0.28 * scale, 0.28 * scale, 0.07 * scale),
+			at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.07)), Color3.fromRGB(166, 142, 78))
+		compass.Material = Enum.Material.Metal
+		makePart(model, "CompassNeedle", Vector3.new(0.04 * scale, 0.20 * scale, 0.06 * scale),
+			at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.095)), Color3.fromRGB(180, 45, 35))
+	end
+
+	labelModel(model, displayName, ROLE_DOT_COLORS[roleName or ""])
 	return model
 end
 
@@ -725,6 +1478,7 @@ function CharacterAssetService.new(): CharacterAssetService
 		monsterTrackPlayer = nil,
 		counselorModels = {},
 		botCharacterModels = {},
+		botHomePositions = {},
 		monsterAnimationTrack = nil,
 		monsterAnimationState = nil,
 		counselorAnimationTracks = {},
@@ -777,6 +1531,37 @@ function CharacterAssetService:SpawnCounselors()
 	end
 end
 
+-- Gentle breathing animation played while a character is standing idle.
+-- Runs for `duration` seconds then returns; exits early if the move token changes or model removed.
+function CharacterAssetService:_idleBreath(id: string, model: Model, duration: number)
+	local tokenBefore = self.counselorMoveTokens[id] or 0
+	local baseCF = model:GetPivot()
+	local began = os.clock()
+	while os.clock() - began < duration do
+		if model.Parent == nil then break end
+		if (self.counselorMoveTokens[id] or 0) ~= tokenBefore then break end
+		local t = os.clock() - began
+		local breathRate = 1.6 + (nameHash(id) % 5) * 0.10   -- 1.6–2.0 Hz, unique per character
+		local breathY  = math.sin(t * breathRate) * 0.028
+		local swayX    = math.sin(t * 0.52) * 0.016   -- slow side-to-side weight shift
+		local gazeYaw  = math.sin(t * 0.38) * 0.08    -- very slow gaze drift left/right
+		model:PivotTo(baseCF * CFrame.new(swayX, breathY, 0) * CFrame.Angles(0, gazeYaw, 0))
+		local pp = model.PrimaryPart
+		if pp then
+			applyArmSwing(model, pp.CFrame, math.sin(t * breathRate) * 0.07)
+		end
+		task.wait()
+	end
+	-- Restore neutral pose when idling ends normally (before the next move begins)
+	if model.Parent ~= nil and (self.counselorMoveTokens[id] or 0) == tokenBefore then
+		model:PivotTo(baseCF)
+		local pp = model.PrimaryPart
+		if pp then
+			applyArmSwing(model, pp.CFrame, 0)
+		end
+	end
+end
+
 -- Makes a counselor shuffle in a tiny radius around their spawn/location.
 -- Stops automatically when a location-change move fires (token increments).
 function CharacterAssetService:_startCounselorIdlePace(counselorId: string, model: Model)
@@ -787,16 +1572,43 @@ function CharacterAssetService:_startCounselorIdlePace(counselorId: string, mode
 		local MAX_WAIT = 7.0
 		while model.Parent ~= nil do
 			local tokenBefore = self.counselorMoveTokens[counselorId] or 0
-			task.wait(MIN_WAIT + math.random() * (MAX_WAIT - MIN_WAIT))
+			self:_idleBreath(counselorId, model, MIN_WAIT + math.random() * (MAX_WAIT - MIN_WAIT))
 			if model.Parent == nil then
 				break
 			end
 			if (self.counselorMoveTokens[counselorId] or 0) == tokenBefore then
 				local center = model:GetPivot()
-				local angle = math.random() * math.pi * 2
-				local r = 0.4 + math.random() * PACE_RADIUS
-				local target = center * CFrame.new(math.cos(angle) * r, 0, math.sin(angle) * r)
-				self:_smoothPivotCounselor(counselorId, model, target, 1.6)
+				-- Face a nearby player if one is within 9 studs -- counselors notice and watch players
+				local facedPlayer = false
+				for _, player in Players:GetPlayers() do
+					local char = player.Character
+					if char then
+						local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+						if hrp then
+							local diff = hrp.Position - center.Position
+							if Vector3.new(diff.X, 0, diff.Z).Magnitude < 9 then
+								local faceTarget = CFrame.new(center.Position)
+									* CFrame.Angles(0, math.atan2(-diff.X, -diff.Z), 0)
+								self:_smoothPivotCounselor(counselorId, model, faceTarget, 0.7)
+								facedPlayer = true
+								break
+							end
+						end
+					end
+				end
+				if not facedPlayer then
+					if math.random() < 0.28 then
+						-- Look around: turn in place toward a new facing direction
+						local yaw = (math.random() - 0.5) * math.pi * 0.8
+						local turnTarget = CFrame.new(center.Position) * CFrame.Angles(0, yaw, 0)
+						self:_smoothPivotCounselor(counselorId, model, turnTarget, 0.9)
+					else
+						local angle = math.random() * math.pi * 2
+						local r = 0.4 + math.random() * PACE_RADIUS
+						local target = center * CFrame.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+						self:_smoothPivotCounselor(counselorId, model, target, 1.6)
+					end
+				end
 			end
 		end
 	end)
@@ -812,6 +1624,7 @@ function CharacterAssetService:_smoothPivotCounselor(
 	self.counselorMoveTokens[counselorId] = token
 	task.spawn(function()
 		local start = model:GetPivot()
+		local travelDist = (target.Position - start.Position).Magnitude
 		local began = os.clock()
 		while self.counselorMoveTokens[counselorId] == token do
 			local elapsed = os.clock() - began
@@ -819,9 +1632,18 @@ function CharacterAssetService:_smoothPivotCounselor(
 				model:PivotTo(target)
 				break
 			end
-			local t = elapsed / duration
-			t = 1 - (1 - t) ^ 3
-			model:PivotTo(start:Lerp(target, t))
+			local rawT = elapsed / duration
+			local t = 1 - (1 - rawT) ^ 3
+			local phase = rawT * math.pi * 4
+			local bobY = math.abs(math.sin(phase)) * 0.06
+			-- Forward lean only when actually walking (not turning in place)
+			local leanScale = math.min(travelDist / 2.5, 1)
+			local leanAngle = math.sin(rawT * math.pi) * leanScale * -0.08
+			model:PivotTo(start:Lerp(target, t) * CFrame.new(0, bobY, 0) * CFrame.Angles(leanAngle, 0, 0))
+			local pp = model.PrimaryPart
+			if pp then
+				applyArmSwing(model, pp.CFrame, math.sin(phase) * 0.28)
+			end
 			task.wait()
 		end
 	end)
@@ -857,7 +1679,14 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 										~= locationId
 								then
 									self.counselorMoveTargets[counselorId] = locationId
-									self:_smoothPivotCounselor(counselorId, model, at, 3)
+									-- Face direction of travel so counselors look purposeful
+									local fromPos = model:GetPivot().Position
+									local toPos = at.Position
+									local travelDir = Vector3.new(toPos.X - fromPos.X, 0, toPos.Z - fromPos.Z)
+									local facingAt = if travelDir.Magnitude > 0.5
+										then CFrame.lookAt(toPos, toPos + travelDir.Unit)
+										else at
+									self:_smoothPivotCounselor(counselorId, model, facingAt, 3)
 								elseif not isThreat then
 									local tok = (self.counselorMoveTokens[counselorId] or 0) + 1
 									self.counselorMoveTokens[counselorId] = tok
@@ -986,10 +1815,10 @@ function CharacterAssetService:LungeMonsterToward(targetPosition: Vector3)
 	local resumePlayer = self.monsterTrackPlayer
 	self:StopMonsterTracking()
 	task.spawn(function()
-		local STEPS = 8
-		local STEP_TIME = 0.05
+		local STEPS = 10
+		local STEP_TIME = 0.035
 		local current = model:GetPivot()
-		local lungePos = current.Position:Lerp(targetPosition, 0.55)
+		local lungePos = current.Position:Lerp(targetPosition, 0.82)
 		local lookDir = Vector3.new(
 			targetPosition.X - current.Position.X,
 			0,
@@ -1000,9 +1829,13 @@ function CharacterAssetService:LungeMonsterToward(targetPosition: Vector3)
 			else CFrame.new(lungePos)
 		for i = 1, STEPS do
 			local t = i / STEPS
-			model:PivotTo(current:Lerp(lungeTarget, t * t))
+			-- Ease in fast (quadratic) then overshoot slightly on final step
+			local eased = if i == STEPS then 1.04 else t * t * (3 - 2 * t)
+			model:PivotTo(current:Lerp(lungeTarget, math.min(eased, 1.0)))
 			task.wait(STEP_TIME)
 		end
+		-- Dramatic pause before pulling back to orbit
+		task.wait(0.28)
 		if resumePlayer then
 			self:StartMonsterTracking(resumePlayer)
 		end
@@ -1011,10 +1844,45 @@ end
 
 -- Starts a loop that moves the monster model to orbit near the murderer's character.
 -- The monster slowly circles the murderer for an atmospheric stalking effect.
+-- When the monster is active, scan for bots nearby and push them away.
+-- Runs until the monster is cleared (monsterModel becomes nil).
+function CharacterAssetService:_startProximityFlee()
+	task.spawn(function()
+		local TICK = 1.2
+		local FLEE_RADIUS = 14       -- studs: bots within this range will flee
+		local FLEE_DISTANCE = 11     -- studs: how far to flee
+		local FLEE_DURATION = 2.2    -- seconds to complete the flee move
+		while self.monsterModel ~= nil do
+			local monster = self.monsterModel
+			if monster then
+				local monsterPos = monster:GetPivot().Position
+				for participantId, botModel in self.botCharacterModels do
+					if botModel.Parent ~= nil then
+						local botPos = botModel:GetPivot().Position
+						local diff = botPos - monsterPos
+						local dist = Vector3.new(diff.X, 0, diff.Z).Magnitude
+						if dist < FLEE_RADIUS then
+							local awayXZ = Vector3.new(diff.X, 0, diff.Z)
+							if awayXZ.Magnitude > 0.5 then
+								local fleeTarget = botPos
+									+ awayXZ.Unit * FLEE_DISTANCE
+									+ Vector3.new(0, 0, 0)
+								self:MoveBotCharacterToward(participantId, fleeTarget, FLEE_DURATION)
+							end
+						end
+					end
+				end
+			end
+			task.wait(TICK)
+		end
+	end)
+end
+
 function CharacterAssetService:StartMonsterTracking(murdererPlayer: Player)
 	self.monsterTrackPlayer = murdererPlayer
 	local token = self.monsterTrackToken + 1
 	self.monsterTrackToken = token
+	self:_startProximityFlee()
 	task.spawn(function()
 		local TICK = 0.08
 		local LERP_T = 0.05
@@ -1038,15 +1906,35 @@ function CharacterAssetService:StartMonsterTracking(murdererPlayer: Player)
 					local targetPos = hrp.Position + offset
 					local current = model:GetPivot()
 					local newPos = current.Position:Lerp(targetPos, LERP_T)
+					-- Undulating vertical bob gives the monster a predatory floating motion
+					local bobY = math.sin(orbitAngle * 3.5) * 0.42
+					local newPosB = Vector3.new(newPos.X, newPos.Y + bobY, newPos.Z)
 					local lookDir = Vector3.new(
-						hrp.Position.X - newPos.X,
+						hrp.Position.X - newPosB.X,
 						0,
-						hrp.Position.Z - newPos.Z
+						hrp.Position.Z - newPosB.Z
 					)
 					if lookDir.Magnitude > 0.05 then
-						model:PivotTo(CFrame.lookAt(newPos, newPos + lookDir.Unit))
+						model:PivotTo(CFrame.lookAt(newPosB, newPosB + lookDir.Unit))
 					else
-						model:PivotTo(current - current.Position + newPos)
+						model:PivotTo(current - current.Position + newPosB)
+					end
+					-- Animate limbs: they reach and grasp as the monster circles its prey
+					local rawLX  = model:GetAttribute("LimbShoulderLX")
+					local rawRX  = model:GetAttribute("LimbShoulderRX")
+					local rawY   = model:GetAttribute("LimbShoulderY")
+					local rawLen = model:GetAttribute("LimbLen")
+					if type(rawLX) == "number" and type(rawRX) == "number"
+						and type(rawY) == "number" and type(rawLen) == "number"
+					then
+						local leftLimb  = model:FindFirstChild("LeftLimb")  :: BasePart?
+						local rightLimb = model:FindFirstChild("RightLimb") :: BasePart?
+						if leftLimb and rightLimb then
+							local limbSwing = math.sin(orbitAngle * 2.4) * 0.28
+							local mCF = model:GetPivot()
+							leftLimb.CFrame  = (mCF * CFrame.new(rawLX, rawY, 0)) * CFrame.Angles(0, 0,  0.42 + limbSwing) * CFrame.new(0, -rawLen / 2, 0)
+							rightLimb.CFrame = (mCF * CFrame.new(rawRX, rawY, 0)) * CFrame.Angles(0, 0, -0.42 - limbSwing) * CFrame.new(0, -rawLen / 2, 0)
+						end
 					end
 				end
 			end
@@ -1073,6 +1961,48 @@ function CharacterAssetService:Destroy()
 	self.counselorModels = {}
 end
 
+-- Camp investigation positions: spread around the evidence-heavy areas of the camp.
+local INVESTIGATION_PATROL: { Vector3 } = {
+	Vector3.new(12, 3, 7),    -- evidence board
+	Vector3.new(-52, 3, 24),  -- nature lab
+	Vector3.new(51, 3, 24),   -- infirmary
+	Vector3.new(0, 3, 55),    -- lodge area
+	Vector3.new(65, 3, 45),   -- activity field
+	Vector3.new(-40, 3, 38),  -- trailhead side
+	Vector3.new(28, 3, 38),   -- mid-camp east
+	Vector3.new(-18, 3, 12),  -- camp center west
+}
+
+-- Disperses bots to spread across the camp's investigation area so they look
+-- like they are searching for clues rather than idling near spawn.
+function CharacterAssetService:ScatterBotsForInvestigation()
+	local i = 0
+	for participantId in self.botCharacterModels do
+		i += 1
+		local point = INVESTIGATION_PATROL[((i - 1) % #INVESTIGATION_PATROL) + 1]
+		local jitter = Vector3.new(
+			(math.random() - 0.5) * 7,
+			0,
+			(math.random() - 0.5) * 7
+		)
+		self:MoveBotCharacterToward(participantId, point + jitter, 4 + math.random() * 3)
+	end
+end
+
+-- Moves all bots toward a world-space position (e.g., campfire during vote phase).
+-- Each bot gets a slight random offset so they don't stack on top of each other.
+function CharacterAssetService:GatherBotsAt(position: Vector3, radius: number?)
+	local r = radius or 3.5
+	local i = 0
+	for participantId in self.botCharacterModels do
+		i += 1
+		local angle = (i - 1) * (math.pi * 2 / math.max(1, i)) + math.random() * 0.4
+		local dist = 0.6 + math.random() * r
+		local target = position + Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
+		self:MoveBotCharacterToward(participantId, target, 3 + math.random() * 2, position)
+	end
+end
+
 function CharacterAssetService:SpawnBotCharacter(
 	participantId: string,
 	displayName: string,
@@ -1095,6 +2025,7 @@ function CharacterAssetService:SpawnBotCharacter(
 	model:PivotTo(at)
 	model.Parent = self.container
 	self.botCharacterModels[participantId] = model
+	self.botHomePositions[participantId] = at.Position
 	return model
 end
 
@@ -1104,6 +2035,7 @@ function CharacterAssetService:ClearBotCharacter(participantId: string)
 		model:Destroy()
 		self.botCharacterModels[participantId] = nil
 	end
+	self.botHomePositions[participantId] = nil
 end
 
 -- Attaches a neon red indicator on the bot so observers know it was hurt.
@@ -1130,6 +2062,44 @@ function CharacterAssetService:ShowBotInjured(participantId: string)
 	)
 	ind.Material = Enum.Material.Neon
 	ind.Transparency = 0.25
+
+	-- Hit stagger: brief red flash + side tilt, then restore original pose and colors
+	local tokenSnap = self.counselorMoveTokens[participantId] or 0
+	local origColors: { [BasePart]: Color3 } = {}
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") and desc.Name ~= "InjuryIndicator" then
+			origColors[desc] = desc.Color
+		end
+	end
+	local pivot = model:GetPivot()
+	local side = if (nameHash(participantId) % 2 == 0) then 1.0 else -1.0
+	local tiltCF = pivot * CFrame.Angles(0, 0, side * 0.30)
+	task.spawn(function()
+		local STEPS = 10
+		for i = 1, STEPS do
+			if model.Parent == nil then return end
+			if (self.counselorMoveTokens[participantId] or 0) ~= tokenSnap then
+				for part, c in origColors do
+					if part.Parent ~= nil then part.Color = c end
+				end
+				return
+			end
+			local alpha = math.sin(i / STEPS * math.pi)
+			model:PivotTo(pivot:Lerp(tiltCF, alpha))
+			for part, c in origColors do
+				if part.Parent ~= nil then
+					part.Color = c:Lerp(Color3.fromRGB(220, 55, 55), alpha * 0.52)
+				end
+			end
+			task.wait(0.40 / STEPS)
+		end
+		if model.Parent ~= nil and (self.counselorMoveTokens[participantId] or 0) == tokenSnap then
+			model:PivotTo(pivot)
+			for part, c in origColors do
+				if part.Parent ~= nil then part.Color = c end
+			end
+		end
+	end)
 end
 
 -- Plays a fall-and-fade death animation for a bot character then removes its model.
@@ -1180,6 +2150,7 @@ function CharacterAssetService:ClearBotCharacters()
 		model:Destroy()
 	end
 	self.botCharacterModels = {}
+	self.botHomePositions = {}
 end
 
 function CharacterAssetService:GetBotCharacterPosition(participantId: string): Vector3?
@@ -1194,25 +2165,67 @@ end
 -- Starts a loop that makes a bot character wander randomly near their current position.
 -- Yields between steps; skips a step if a real action fired during the wait.
 function CharacterAssetService:StartBotIdleWander(participantId: string)
-	local RADIUS = 5
-	local MIN_PAUSE = 2.5
-	local MAX_PAUSE = 5.5
+	local RADIUS = 4.5
+	local MIN_PAUSE = 2.2
+	local MAX_PAUSE = 5.0
+	-- Step counter: every 4th step drift back toward spawn so bots stay clustered
+	local stepCount = 0
 	task.spawn(function()
 		task.wait(1 + math.random() * 2)
 		while self.botCharacterModels[participantId] do
+			local model2 = self.botCharacterModels[participantId]
+			if not model2 then break end
 			local tokenBefore = self.counselorMoveTokens[participantId] or 0
-			task.wait(MIN_PAUSE + math.random() * (MAX_PAUSE - MIN_PAUSE))
+			self:_idleBreath(participantId, model2, MIN_PAUSE + math.random() * (MAX_PAUSE - MIN_PAUSE))
 			if not self.botCharacterModels[participantId] then
 				break
 			end
 			if (self.counselorMoveTokens[participantId] or 0) == tokenBefore then
-				local center = self:GetBotCharacterPosition(participantId)
+				stepCount += 1
+				local home = self.botHomePositions[participantId]
+				local center: Vector3?
+				-- Every 4th step, drift back toward spawn to prevent spreading
+				if stepCount % 4 == 0 and home then
+					center = home
+				else
+					center = self:GetBotCharacterPosition(participantId)
+				end
 				if center then
-					local angle = math.random() * math.pi * 2
-					local radius = 1 + math.random() * RADIUS
-					local target = center
-						+ Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
-					self:MoveBotCharacterToward(participantId, target, 1.4 + math.random() * 0.6)
+					-- Face a nearby player if one is within 7 studs
+					local facedPlayer = false
+					for _, player in Players:GetPlayers() do
+						local char = player.Character
+						if char then
+							local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+							if hrp and model2.Parent ~= nil then
+								local diff = hrp.Position - model2:GetPivot().Position
+								if Vector3.new(diff.X, 0, diff.Z).Magnitude < 7 then
+									local faceTarget = CFrame.new(model2:GetPivot().Position)
+										* CFrame.Angles(0, math.atan2(-diff.X, -diff.Z), 0)
+									self:_smoothPivotCounselor(participantId, model2, faceTarget, 0.7)
+									facedPlayer = true
+									break
+								end
+							end
+						end
+					end
+					if not facedPlayer then
+						if math.random() < 0.22 then
+							-- Look around: turn in place toward a random new facing direction
+							if model2.Parent ~= nil then
+								local botPivot = model2:GetPivot()
+								local yaw = (math.random() - 0.5) * math.pi * 0.85
+								local turnTarget = CFrame.new(botPivot.Position) * CFrame.Angles(0, yaw, 0)
+								self:_smoothPivotCounselor(participantId, model2, turnTarget, 0.9)
+							end
+						else
+							local angle = math.random() * math.pi * 2
+							local radius = 0.8 + math.random() * RADIUS
+							local target = center
+								+ Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+							self:MoveBotCharacterToward(participantId, target, 1.4 + math.random() * 0.8)
+						end
+				end
 				end
 			end
 		end
@@ -1222,7 +2235,8 @@ end
 function CharacterAssetService:MoveBotCharacterToward(
 	participantId: string,
 	targetPosition: Vector3,
-	duration: number?
+	duration: number?,
+	facingTarget: Vector3?
 )
 	local model = self.botCharacterModels[participantId]
 	if not model then
@@ -1232,8 +2246,16 @@ function CharacterAssetService:MoveBotCharacterToward(
 	local current = model:GetPivot()
 	local dx = targetPosition.X - current.X
 	local dz = targetPosition.Z - current.Z
-	local targetCFrame = CFrame.new(targetPosition.X, current.Y, targetPosition.Z)
-		* CFrame.Angles(0, math.atan2(-dx, -dz), 0)
+	local targetCFrame: CFrame
+	if facingTarget then
+		local fdx = facingTarget.X - targetPosition.X
+		local fdz = facingTarget.Z - targetPosition.Z
+		targetCFrame = CFrame.new(targetPosition.X, current.Y, targetPosition.Z)
+			* CFrame.Angles(0, math.atan2(-fdx, -fdz), 0)
+	else
+		targetCFrame = CFrame.new(targetPosition.X, current.Y, targetPosition.Z)
+			* CFrame.Angles(0, math.atan2(-dx, -dz), 0)
+	end
 	local token = (self.counselorMoveTokens[participantId] or 0) + 1
 	self.counselorMoveTokens[participantId] = token
 	task.spawn(function()
@@ -1245,8 +2267,20 @@ function CharacterAssetService:MoveBotCharacterToward(
 				model:PivotTo(targetCFrame)
 				break
 			end
-			local t = 1 - (1 - elapsed / resolved) ^ 2
-			model:PivotTo(start:Lerp(targetCFrame, t))
+			local rawT = elapsed / resolved
+			local t = 1 - (1 - rawT) ^ 2
+			-- Faster moves (flee) get bigger bob, hop, lean, and wilder arm swing
+			local phase = rawT * math.pi * 4
+			local bobAmp = if resolved < 2.5 then 0.10 else 0.06
+			local hopY = if resolved < 2.5 then math.sin(math.min(elapsed / 0.28, 1) * math.pi) * 0.15 else 0
+			local bobY = math.abs(math.sin(phase)) * bobAmp + hopY
+			local leanAngle = math.sin(rawT * math.pi) * (if resolved < 2.5 then -0.13 else -0.09)
+			model:PivotTo(start:Lerp(targetCFrame, t) * CFrame.new(0, bobY, 0) * CFrame.Angles(leanAngle, 0, 0))
+			local pp = model.PrimaryPart
+			if pp then
+				local swingAmp = if resolved < 2.5 then 0.42 else 0.28
+				applyArmSwing(model, pp.CFrame, math.sin(phase) * swingAmp)
+			end
 			task.wait()
 		end
 	end)

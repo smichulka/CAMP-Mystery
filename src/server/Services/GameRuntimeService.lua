@@ -1167,10 +1167,14 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.world:SpawnEvidence()
 		self.monster:Activate(self.roundId)
 		self.characters:PlayMonsterState("Hunt", true)
+		-- Spread bots across the camp so they look like active investigators
+		self.characters:ScatterBotsForInvestigation()
 	elseif phase == "Campfire" then
 		self.world:ClearEvidence()
 		self.monster:CampfireStop(self.roundId)
 		self.characters:ClearMonster()
+		-- Draw bots toward the campfire for the vote so they look like participants
+		self.characters:GatherBotsAt(Vector3.new(0, 3, 7), 4)
 	elseif phase == "Resolution" then
 		if not self.winner then
 			self:_ResolveAccusation()
