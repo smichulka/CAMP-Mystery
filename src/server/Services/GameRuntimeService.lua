@@ -788,6 +788,26 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 			runtime.characters:PlayBotDeath(participantId)
 		end
 	end)
+	lifecycle:On("ParticipantInjured", function(event)
+		local runtime = runtimeRef
+		if not runtime then
+			return
+		end
+		local participantId = event.payload.participantId
+		if type(participantId) == "string" then
+			runtime.characters:ShowBotInjured(participantId)
+		end
+	end)
+	lifecycle:On("ParticipantCritical", function(event)
+		local runtime = runtimeRef
+		if not runtime then
+			return
+		end
+		local participantId = event.payload.participantId
+		if type(participantId) == "string" then
+			runtime.characters:ShowBotInjured(participantId)
+		end
+	end)
 	return self
 end
 

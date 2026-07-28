@@ -674,7 +674,9 @@ local function buildProceduralBotCharacter(
 	local bodyColor = if roleName then (BOT_BODY_COLORS[roleName] or Color3.fromRGB(55, 75, 65))
 		else COUNSELOR_COLORS[((colorIndex - 1) % #COUNSELOR_COLORS) + 1]
 	local skinColor = BOT_SKIN_TONES[(nameHash(displayName) % #BOT_SKIN_TONES) + 1]
-	local scale = 1.0
+	-- Slight height variation so bots look like a crowd of different players
+	local h = nameHash(displayName)
+	local scale = 0.94 + (h % 17) * 0.01   -- range ~0.94–1.10
 
 	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
 	model.PrimaryPart = root
@@ -1075,6 +1077,32 @@ function CharacterAssetService:ClearBotCharacter(participantId: string)
 		model:Destroy()
 		self.botCharacterModels[participantId] = nil
 	end
+end
+
+-- Attaches a neon red indicator on the bot so observers know it was hurt.
+function CharacterAssetService:ShowBotInjured(participantId: string)
+	local model = self.botCharacterModels[participantId]
+	if not model then
+		return
+	end
+	local existing = model:FindFirstChild("InjuryIndicator")
+	if existing then
+		existing:Destroy()
+	end
+	local root = model.PrimaryPart
+	if not root then
+		return
+	end
+	local ind = makePart(
+		model,
+		"InjuryIndicator",
+		Vector3.new(0.5, 0.5, 0.5),
+		root.CFrame * CFrame.new(0, 1.4, 0),
+		Color3.fromRGB(210, 25, 25),
+		Enum.PartType.Ball
+	)
+	ind.Material = Enum.Material.Neon
+	ind.Transparency = 0.25
 end
 
 -- Plays a fall-and-fade death animation for a bot character then removes its model.
