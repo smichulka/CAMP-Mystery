@@ -772,7 +772,34 @@ function CharacterAssetService:SpawnCounselors()
 			prompt:SetAttribute("CounselorId", definition.id)
 			prompt.Parent = primaryPart
 		end
+		-- Start idle pacing so counselors feel alive in the world
+		self:_startCounselorIdlePace(definition.id, model)
 	end
+end
+
+-- Makes a counselor shuffle in a tiny radius around their spawn/location.
+-- Stops automatically when a location-change move fires (token increments).
+function CharacterAssetService:_startCounselorIdlePace(counselorId: string, model: Model)
+	task.spawn(function()
+		task.wait(math.random() * 4)   -- stagger start so they don't all move together
+		local PACE_RADIUS = 1.2
+		local MIN_WAIT = 3.0
+		local MAX_WAIT = 7.0
+		while model.Parent ~= nil do
+			local tokenBefore = self.counselorMoveTokens[counselorId] or 0
+			task.wait(MIN_WAIT + math.random() * (MAX_WAIT - MIN_WAIT))
+			if model.Parent == nil then
+				break
+			end
+			if (self.counselorMoveTokens[counselorId] or 0) == tokenBefore then
+				local center = model:GetPivot()
+				local angle = math.random() * math.pi * 2
+				local r = 0.4 + math.random() * PACE_RADIUS
+				local target = center * CFrame.new(math.cos(angle) * r, 0, math.sin(angle) * r)
+				self:_smoothPivotCounselor(counselorId, model, target, 1.6)
+			end
+		end
+	end)
 end
 
 function CharacterAssetService:_smoothPivotCounselor(
