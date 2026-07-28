@@ -11,7 +11,6 @@ export type PhaseName =
 	| "Resolution"
 	| "Rewards"
 
-export type RoleName = "Camper" | "Murderer" | "Spectator"
 export type WinnerName = "Campers" | "Murderer"
 
 export type PhaseConfig = {
@@ -62,19 +61,6 @@ export type RoundSnapshot = {
 	winner: WinnerName?,
 	resultMessage: string?,
 	isNight: boolean,
-}
-
-export type PlayerSnapshot = {
-	role: RoleName,
-	roleDisplayName: string,
-	roleDescription: string,
-	alive: boolean,
-	isGhost: boolean,
-	objectivesCompleted: number,
-	evidenceCollected: number,
-	hasVoted: boolean,
-	voteTargetKey: string?,
-	statusMessage: string,
 }
 
 return {}
