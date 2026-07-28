@@ -19,7 +19,10 @@ export type MonsterId =
 type CharacterAssetServiceState = {
 	container: Folder,
 	monsterModel: Model?,
+	monsterTrackToken: number,
+	monsterTrackPlayer: Player?,
 	counselorModels: { Model },
+	botCharacterModels: { [string]: Model },
 	monsterAnimationTrack: AnimationTrack?,
 	monsterAnimationState: string?,
 	counselorAnimationTracks: { [string]: AnimationTrack },
@@ -113,6 +116,16 @@ local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(112, 84, 62),
 }
 
+local BOT_BODY_COLORS: { [string]: Color3 } = {
+	Murderer = Color3.fromRGB(110, 28, 28),
+	Detective = Color3.fromRGB(28, 52, 130),
+	Medic = Color3.fromRGB(30, 115, 70),
+	Guard = Color3.fromRGB(95, 75, 28),
+	Protector = Color3.fromRGB(72, 45, 98),
+	Medium = Color3.fromRGB(62, 28, 85),
+	Camper = Color3.fromRGB(55, 80, 60),
+}
+
 local APPROVED_ANIMATION_STATES: { [string]: boolean } = {
 	Idle = true,
 	Transform = true,
@@ -190,20 +203,23 @@ local function makePart(
 end
 
 local function labelModel(model: Model, text: string)
-	local root = model.PrimaryPart
-	if not root then
+	local headPart = model:FindFirstChild("Head")
+	local anchor: BasePart? = if headPart and headPart:IsA("BasePart")
+		then headPart :: BasePart
+		else model.PrimaryPart
+	if not anchor then
 		return
 	end
-	local previous = root:FindFirstChild("CharacterLabel")
+	local previous = anchor:FindFirstChild("CharacterLabel")
 	if previous then
 		previous:Destroy()
 	end
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "CharacterLabel"
 	billboard.Size = UDim2.fromOffset(220, 40)
-	billboard.StudsOffset = Vector3.new(0, root.Size.Y / 2 + 2.5, 0)
+	billboard.StudsOffset = Vector3.new(0, anchor.Size.Y / 2 + 1.8, 0)
 	billboard.AlwaysOnTop = true
-	billboard.Parent = root
+	billboard.Parent = anchor
 	local label = Instance.new("TextLabel")
 	label.BackgroundColor3 = Color3.fromRGB(12, 13, 17)
 	label.BackgroundTransparency = 0.2
@@ -310,139 +326,231 @@ local function loadAuthoredAnimation(
 	return track
 end
 
+-- Builds a humanoid-proportioned body (torso, head, arms, hands, legs, feet, face).
+-- All parts are Anchored; move the whole model with Model:PivotTo().
+-- Returns the invisible HumanoidRootPart which should be set as PrimaryPart.
+local function buildHumanoidBody(
+	model: Model,
+	at: CFrame,
+	bodyColor: Color3,
+	skinColor: Color3,
+	scale: number
+): Part
+	local tw = 2.5 * scale
+	local th = 3.0 * scale
+	local td = 1.4 * scale
+
+	local root = makePart(model, "HumanoidRootPart", Vector3.new(tw, th, td), at, Color3.fromRGB(0, 0, 0))
+	root.Transparency = 1
+	makePart(model, "Torso", Vector3.new(tw, th, td), at, bodyColor)
+
+	local hs = 2.0 * scale
+	local headY = th / 2 + hs / 2 + 0.08 * scale
+	makePart(model, "Head", Vector3.new(hs, hs, hs), at * CFrame.new(0, headY, 0), skinColor, Enum.PartType.Ball)
+
+	local eyeS = 0.38 * scale
+	local eyeY = headY + 0.06 * scale
+	local eyeZ = -(hs / 2 + 0.04)
+	local eyeX = 0.34 * scale
+	local le = makePart(model, "LeftEye", Vector3.new(eyeS, eyeS, 0.2 * scale), at * CFrame.new(-eyeX, eyeY, eyeZ), Color3.fromRGB(20, 35, 80), Enum.PartType.Ball)
+	le.Material = Enum.Material.SmoothPlastic
+	makePart(model, "RightEye", Vector3.new(eyeS, eyeS, 0.2 * scale), at * CFrame.new(eyeX, eyeY, eyeZ), Color3.fromRGB(20, 35, 80), Enum.PartType.Ball).Material = Enum.Material.SmoothPlastic
+
+	local browColor = Color3.fromRGB(58, 43, 28)
+	makePart(model, "LeftBrow", Vector3.new(0.48 * scale, 0.15 * scale, 0.1 * scale), at * CFrame.new(-eyeX, eyeY + 0.32 * scale, eyeZ + 0.03), browColor)
+	makePart(model, "RightBrow", Vector3.new(0.48 * scale, 0.15 * scale, 0.1 * scale), at * CFrame.new(eyeX, eyeY + 0.32 * scale, eyeZ + 0.03), browColor)
+	makePart(model, "Mouth", Vector3.new(0.56 * scale, 0.14 * scale, 0.09 * scale), at * CFrame.new(0, headY - 0.4 * scale, eyeZ + 0.03), Color3.fromRGB(140, 52, 57))
+
+	local aw = 0.82 * scale
+	local ah = th * 0.84
+	local ax = tw / 2 + aw / 2 + 0.05
+	makePart(model, "LeftArm", Vector3.new(aw, ah, aw), at * CFrame.new(-ax, 0.08 * scale, 0), skinColor)
+	makePart(model, "RightArm", Vector3.new(aw, ah, aw), at * CFrame.new(ax, 0.08 * scale, 0), skinColor)
+
+	local hS = aw * 1.06
+	local hY = 0.08 * scale - ah / 2 - hS * 0.42
+	makePart(model, "LeftHand", Vector3.new(hS, hS * 0.72, hS * 0.82), at * CFrame.new(-ax, hY, 0), skinColor, Enum.PartType.Ball)
+	makePart(model, "RightHand", Vector3.new(hS, hS * 0.72, hS * 0.82), at * CFrame.new(ax, hY, 0), skinColor, Enum.PartType.Ball)
+
+	local lw = 0.92 * scale
+	local lh = th * 0.88
+	local lx = 0.6 * scale
+	local ly = -(th / 2 + lh / 2)
+	makePart(model, "LeftLeg", Vector3.new(lw, lh, lw), at * CFrame.new(-lx, ly, 0), bodyColor)
+	makePart(model, "RightLeg", Vector3.new(lw, lh, lw), at * CFrame.new(lx, ly, 0), bodyColor)
+
+	local fw = lw * 1.16
+	local fh = 0.36 * scale
+	local fz = -0.2 * scale
+	local fy = ly - lh / 2 - fh / 2
+	local footColor = Color3.fromRGB(36, 30, 24)
+	makePart(model, "LeftFoot", Vector3.new(fw, fh, fw + 0.26 * scale), at * CFrame.new(-lx, fy, fz), footColor)
+	makePart(model, "RightFoot", Vector3.new(fw, fh, fw + 0.26 * scale), at * CFrame.new(lx, fy, fz), footColor)
+
+	return root
+end
+
 local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	local presentation = MONSTER_PRESENTATION[monsterId]
 	local model = Instance.new("Model")
 	model.Name = "ActiveMonster_" .. monsterId
 	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("MonsterId", monsterId)
-	local torsoSize = Vector3.new(4, 5, 3) * presentation.scale
+
+	local sc = presentation.scale
+	local torsoSize = Vector3.new(4, 5, 3) * sc
+	local headSize = Vector3.new(3.2, 3.2, 3.2) * sc
+	local headY = torsoSize.Y / 2 + 1.6
 	local root = makePart(model, "Root", torsoSize, at, presentation.color)
 	model.PrimaryPart = root
-	makePart(
-		model,
-		"Head",
-		Vector3.new(3.2, 3.2, 3.2) * presentation.scale,
-		at * CFrame.new(0, torsoSize.Y / 2 + 1.6, 0),
-		presentation.accent,
-		presentation.headShape
-	)
+	makePart(model, "Head", headSize, at * CFrame.new(0, headY, 0), presentation.accent, presentation.headShape)
+
+	-- Glowing eyes on all monsters that have heads (BabyAlien handles its own below)
+	if monsterId ~= "Dullahan" and monsterId ~= "BabyAlien" then
+		local eS = Vector3.new(0.55, 0.65, 0.38) * sc
+		local eX, eY, eZ = 0.62 * sc, headY + 0.1 * sc, -(headSize.Z / 2 + 0.06)
+		local lg = makePart(model, "LeftGlow", eS, at * CFrame.new(-eX, eY, eZ), presentation.accent, Enum.PartType.Ball)
+		lg.Material = Enum.Material.Neon
+		local rg = makePart(model, "RightGlow", eS, at * CFrame.new(eX, eY, eZ), presentation.accent, Enum.PartType.Ball)
+		rg.Material = Enum.Material.Neon
+	end
+
+	-- Elongated creature limbs (all monsters)
+	local limbLen = 4.2 * sc
+	local limbW = 0.58 * sc
+	makePart(model, "LeftLimb", Vector3.new(limbW, limbLen, limbW),
+		at * CFrame.new(-(torsoSize.X / 2 + limbLen * 0.16), -0.5 * sc, 0) * CFrame.Angles(0, 0, 0.42), presentation.accent)
+	makePart(model, "RightLimb", Vector3.new(limbW, limbLen, limbW),
+		at * CFrame.new(torsoSize.X / 2 + limbLen * 0.16, -0.5 * sc, 0) * CFrame.Angles(0, 0, -0.42), presentation.accent)
 
 	if monsterId == "BabyAlien" then
 		for side = -1, 1, 2 do
-			makePart(
-				model,
-				if side < 0 then "LeftEye" else "RightEye",
+			makePart(model, if side < 0 then "LeftEye" else "RightEye",
 				Vector3.new(0.8, 1.25, 0.35),
-				at * CFrame.new(side * 0.75, 3.4, -1.25),
-				presentation.accent,
-				Enum.PartType.Ball
-			).Material = Enum.Material.Neon
+				at * CFrame.new(side * 0.75, headY + 0.35, -(headSize.Z / 2)),
+				presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
 		end
-		makePart(
-			model,
-			"AcidSac",
-			Vector3.new(2.4, 1.2, 2.4),
-			at * CFrame.new(0, -1.7, 1.4),
-			presentation.accent,
-			Enum.PartType.Ball
-		).Transparency = 0.2
+		makePart(model, "AcidSac", Vector3.new(2.4, 1.2, 2.4), at * CFrame.new(0, -1.7, 1.4), presentation.accent, Enum.PartType.Ball).Transparency = 0.2
+		-- 4 spider legs radiating from the base
+		for i = 0, 3 do
+			local angle = (i / 4) * math.pi * 2 + math.pi / 4
+			makePart(model, "SpiderLeg" .. tostring(i + 1), Vector3.new(0.32, 2.6 * sc, 0.32),
+				at * CFrame.new(math.cos(angle) * 2.2 * sc, -(torsoSize.Y / 2 + 0.8 * sc), math.sin(angle) * 2.2 * sc)
+					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
+		end
 	elseif monsterId == "Screamer" then
-		local mouth = makePart(
-			model,
-			"ResonantMouth",
-			Vector3.new(2.2, 1.6, 0.5),
-			at * CFrame.new(0, 3.4, -1.45),
-			Color3.fromRGB(24, 10, 14)
-		)
+		local mouth = makePart(model, "ResonantMouth", Vector3.new(2.2, 1.6, 0.5),
+			at * CFrame.new(0, headY, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
 		mouth.Material = Enum.Material.Neon
 		for side = -1, 1, 2 do
-			makePart(
-				model,
-				if side < 0 then "LeftSoundSpine" else "RightSoundSpine",
+			makePart(model, if side < 0 then "LeftSoundSpine" else "RightSoundSpine",
 				Vector3.new(0.35, 4.5, 0.35),
-				at
-					* CFrame.new(side * 2.4, 1.2, 0)
-					* CFrame.Angles(0, 0, side * 0.35),
-				presentation.accent
-			)
+				at * CFrame.new(side * 2.4, 1.2, 0) * CFrame.Angles(0, 0, side * 0.35), presentation.accent)
+		end
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
+				Vector3.new(0.52, 3.4 * sc, 0.52),
+				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.4 * sc), 0) * CFrame.Angles(0, 0, side * 0.12),
+				presentation.accent)
 		end
 	elseif monsterId == "Wendigo" then
-		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, 6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
-		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, 6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
+		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
+		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
 		for side = -1, 1, 2 do
-			makePart(
-				model,
-				if side < 0 then "LeftClaw" else "RightClaw",
-				Vector3.new(0.45, 5.5, 0.45),
-				at * CFrame.new(side * 2.1, -0.5, -0.4),
-				presentation.accent
-			)
+			makePart(model, if side < 0 then "LeftClaw" else "RightClaw",
+				Vector3.new(0.45, 5.5, 0.45), at * CFrame.new(side * 2.1, -0.5, -0.4), presentation.accent)
+		end
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
+				Vector3.new(0.68, 4.2 * sc, 0.68),
+				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.7 * sc), 0), presentation.accent)
 		end
 	elseif monsterId == "ShadowMonster" then
 		for index = 1, 4 do
 			local angle = (index / 4) * math.pi * 2
-			local tendril = makePart(
-				model,
-				"ShadowTendril" .. tostring(index),
+			local tendril = makePart(model, "ShadowTendril" .. tostring(index),
 				Vector3.new(0.45, 5 + index * 0.45, 0.45),
-				at
-					* CFrame.new(math.cos(angle) * 2, -1.5, math.sin(angle) * 1.2)
-					* CFrame.Angles(math.sin(angle) * 0.35, 0, math.cos(angle) * 0.35),
-				presentation.accent
-			)
+				at * CFrame.new(math.cos(angle) * 2, -1.5, math.sin(angle) * 1.2)
+					* CFrame.Angles(math.sin(angle) * 0.35, 0, math.cos(angle) * 0.35), presentation.accent)
 			tendril.Material = Enum.Material.ForceField
 			tendril.Transparency = 0.3
 		end
+		-- Extra lower tendrils that act as floating legs
+		for index = 1, 3 do
+			local angle = ((index - 1) / 3) * math.pi * 2
+			local leg = makePart(model, "ShadowLeg" .. tostring(index),
+				Vector3.new(0.35, 3.5 * sc, 0.35),
+				at * CFrame.new(math.cos(angle) * 1.5, -(torsoSize.Y / 2 + 1.2 * sc), math.sin(angle) * 1.5)
+					* CFrame.Angles(math.cos(angle) * 0.3, 0, math.sin(angle) * 0.3), presentation.accent)
+			leg.Material = Enum.Material.ForceField
+			leg.Transparency = 0.5
+		end
 	elseif monsterId == "Chupacabra" then
 		for index = 1, 5 do
-			makePart(
-				model,
-				"BackSpine" .. tostring(index),
+			makePart(model, "BackSpine" .. tostring(index),
 				Vector3.new(0.35, 1.8, 0.7),
-				at * CFrame.new(0, 1.3, -1.5 + index * 0.7),
-				presentation.accent
-			).Material = Enum.Material.Neon
+				at * CFrame.new(0, 1.3, -1.5 + index * 0.7), presentation.accent).Material = Enum.Material.Neon
+		end
+		for side = -1, 1, 2 do
+			for fore = -1, 1, 2 do
+				local tag = (if side < 0 then "Left" else "Right") .. (if fore < 0 then "Front" else "Back")
+				makePart(model, tag .. "Leg", Vector3.new(0.58, 2.6 * sc, 0.58),
+					at * CFrame.new(side * 1.4 * sc, -(torsoSize.Y / 2 + 0.7 * sc), fore * 0.9 * sc)
+						* CFrame.Angles(fore * 0.28, 0, side * 0.1), presentation.accent)
+			end
 		end
 	elseif monsterId == "Dullahan" then
 		local head = model:FindFirstChild("Head")
 		if head then
 			head:Destroy()
 		end
-		makePart(model, "SpectralFlame", Vector3.new(2, 2, 2), at * CFrame.new(0, torsoSize.Y / 2 + 1.4, 0), presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
-		makePart(
-			model,
-			"HeadlessCollar",
-			Vector3.new(3.5, 0.7, 3),
-			at * CFrame.new(0, torsoSize.Y / 2, 0),
-			Color3.fromRGB(24, 31, 33)
-		)
+		local flame = makePart(model, "SpectralFlame", Vector3.new(2, 2, 2),
+			at * CFrame.new(0, torsoSize.Y / 2 + 1.4, 0), presentation.accent, Enum.PartType.Ball)
+		flame.Material = Enum.Material.Neon
+		makePart(model, "HeadlessCollar", Vector3.new(3.5, 0.7, 3),
+			at * CFrame.new(0, torsoSize.Y / 2, 0), Color3.fromRGB(24, 31, 33))
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
+				Vector3.new(0.88, 3.6 * sc, 0.88),
+				at * CFrame.new(side * sc, -(torsoSize.Y / 2 + 1.45 * sc), 0), presentation.color)
+		end
 	elseif monsterId == "Entity" then
 		root.Transparency = 0.25
 		for index = 1, 3 do
-			local orb = makePart(
-				model,
-				"AnchorOrb" .. tostring(index),
+			local orb = makePart(model, "AnchorOrb" .. tostring(index),
 				Vector3.new(0.9, 0.9, 0.9),
-				at * CFrame.new((index - 2) * 2.4, 1 + index % 2, -0.8),
-				presentation.accent,
-				Enum.PartType.Ball
-			)
+				at * CFrame.new((index - 2) * 2.4, 1 + index % 2, -0.8), presentation.accent, Enum.PartType.Ball)
 			orb.Material = Enum.Material.ForceField
 			orb.Transparency = 0.15
 		end
+		-- 3 ethereal trailing streams at the base
+		for index = 1, 3 do
+			local angle = ((index - 1) / 3) * math.pi * 2
+			local stream = makePart(model, "EtherStream" .. tostring(index),
+				Vector3.new(0.28, 3.2 * sc, 0.28),
+				at * CFrame.new(math.cos(angle) * 1.2, -(torsoSize.Y / 2 + sc), math.sin(angle) * 1.2)
+					* CFrame.Angles(math.cos(angle) * 0.2, 0, math.sin(angle) * 0.2), presentation.accent)
+			stream.Material = Enum.Material.ForceField
+			stream.Transparency = 0.4
+		end
 	elseif monsterId == "Banshee" then
 		root.Transparency = 0.25
-		local veil = makePart(
-			model,
-			"SpectralVeil",
-			Vector3.new(6, 6.5, 0.25),
-			at * CFrame.new(0, 0.3, 1.2),
-			presentation.accent
-		)
+		local veil = makePart(model, "SpectralVeil", Vector3.new(6, 6.5, 0.25),
+			at * CFrame.new(0, 0.3, 1.2), presentation.accent)
 		veil.Material = Enum.Material.ForceField
 		veil.Transparency = 0.55
+		-- Trailing wail streams
+		for index = 1, 3 do
+			local offset = (index - 2) * 1.8 * sc
+			local stream = makePart(model, "WailStream" .. tostring(index),
+				Vector3.new(0.3, 4.0 * sc, 0.3),
+				at * CFrame.new(offset, -(torsoSize.Y / 2 + 1.2 * sc), 0.4)
+					* CFrame.Angles(0.15, 0, (index - 2) * 0.08), presentation.accent)
+			stream.Material = Enum.Material.ForceField
+			stream.Transparency = 0.5
+		end
 	end
+
 	labelModel(model, MONSTER_DISPLAY_NAMES[monsterId])
 	return model
 end
@@ -458,36 +566,100 @@ local function buildProceduralCounselor(
 	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("CounselorIndex", index)
 	model:SetAttribute("CounselorId", counselorId)
-	local bodyScale = 1 + ((index - 1) % 3) * 0.12
-	local root = makePart(
-		model,
-		"Torso",
-		Vector3.new(3.5 * bodyScale, 5, 2.5),
-		at,
-		COUNSELOR_COLORS[index]
-	)
+
+	local scale = 1.08 + ((index - 1) % 3) * 0.08
+	local colorIdx = ((index - 1) % #COUNSELOR_COLORS) + 1
+	local bodyColor = COUNSELOR_COLORS[colorIdx]
+	local skinR = math.max(150, 196 - index * 5)
+	local skinG = math.max(100, 155 - index * 6)
+	local skinB = math.max(85, 125 - index * 4)
+	local skinColor = Color3.fromRGB(skinR, skinG, skinB)
+
+	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
 	model.PrimaryPart = root
-	makePart(
-		model,
-		"Head",
-		Vector3.new(3, 3, 3),
-		at * CFrame.new(0, 4, 0),
-		Color3.fromRGB(196, 155 - index * 5, 125 - index * 3),
-		Enum.PartType.Ball
-	)
+
+	local th = 3.0 * scale
+	local td = 1.4 * scale
+	local hs = 2.0 * scale
+	local headY = th / 2 + hs / 2 + 0.08 * scale
+	local aw = 0.82 * scale
+	local ax = 2.5 * scale / 2 + aw / 2 + 0.05
+
 	if index == 1 then
-		makePart(model, "FirstAidPack", Vector3.new(2.2, 2.6, 0.8), at * CFrame.new(0, 0.2, 1.6), Color3.fromRGB(180, 185, 171))
+		-- Medical pack on front of torso with red cross
+		makePart(model, "FirstAidPack", Vector3.new(2.0 * scale * 0.8, th * 0.5, 0.45),
+			at * CFrame.new(0, 0.1, -(td / 2 + 0.24)), Color3.fromRGB(180, 185, 171))
+		makePart(model, "CrossH", Vector3.new(2.0 * scale * 0.4, 0.18, 0.1),
+			at * CFrame.new(0, 0.3, -(td / 2 + 0.5)), Color3.fromRGB(210, 48, 48))
+		makePart(model, "CrossV", Vector3.new(0.18, th * 0.28, 0.1),
+			at * CFrame.new(0, 0.3, -(td / 2 + 0.5)), Color3.fromRGB(210, 48, 48))
 	elseif index == 2 then
-		makePart(model, "RangerHat", Vector3.new(4.2, 0.35, 4.2), at * CFrame.new(0, 5.35, 0), Color3.fromRGB(72, 54, 36))
+		-- Ranger hat
+		local hatBrimY = headY + hs / 2 + 0.15
+		makePart(model, "RangerBrim", Vector3.new(hs * 1.75, 0.26, hs * 1.75),
+			at * CFrame.new(0, hatBrimY, 0), Color3.fromRGB(72, 54, 36))
+		makePart(model, "RangerCrown", Vector3.new(hs * 1.1, hs * 0.6, hs * 1.1),
+			at * CFrame.new(0, hatBrimY + hs * 0.43, 0), Color3.fromRGB(82, 62, 42))
 	elseif index == 3 then
-		makePart(model, "Radio", Vector3.new(0.7, 1.4, 0.45), at * CFrame.new(1.8, 1, -1.1), Color3.fromRGB(34, 38, 42))
+		-- Radio on right side
+		makePart(model, "Radio", Vector3.new(0.55, scale, 0.35),
+			at * CFrame.new(ax + 0.26, 0.3 * scale, -(td / 2 + 0.09)), Color3.fromRGB(34, 38, 42))
+		makePart(model, "RadioAntenna", Vector3.new(0.09, 0.75 * scale, 0.09),
+			at * CFrame.new(ax + 0.46, 0.9 * scale, -(td / 2 + 0.09)), Color3.fromRGB(55, 60, 65))
 	elseif index == 4 then
-		makePart(model, "Whistle", Vector3.new(0.35, 0.55, 0.35), at * CFrame.new(0.7, 1.4, -1.4), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
+		-- Lanyard + whistle
+		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
+			at * CFrame.new(0, 0.1, -(td / 2 + 0.05)), Color3.fromRGB(218, 188, 68))
+		makePart(model, "Whistle", Vector3.new(0.32, 0.46, 0.32),
+			at * CFrame.new(0, -(th / 2 - 0.45), -(td / 2 + 0.28)), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
 	elseif index == 5 then
-		makePart(model, "ToolBelt", Vector3.new(4.1, 0.55, 2.9), at * CFrame.new(0, -1.5, 0), Color3.fromRGB(82, 61, 40))
+		-- Tool belt across waist
+		makePart(model, "ToolBelt", Vector3.new(2.5 * scale * 1.06, 0.42, td * 1.08),
+			at * CFrame.new(0, -(th / 2 - 0.2), 0), Color3.fromRGB(82, 61, 40))
+		for i = -1, 1 do
+			if i ~= 0 then
+				makePart(model, "ToolPouch" .. tostring(i + 2), Vector3.new(0.42, 0.66, 0.32),
+					at * CFrame.new(i * 0.6 * scale, -(th / 2 - 0.52), -(td / 2 + 0.17)), Color3.fromRGB(70, 52, 32))
+			end
+		end
 	else
-		makePart(model, "FieldJournal", Vector3.new(1.4, 1.8, 0.3), at * CFrame.new(-1.7, 0.5, -1.15), Color3.fromRGB(75, 97, 72))
+		-- Field journal tucked under left arm
+		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
+			at * CFrame.new(-(ax + 0.12), 0.0, -(td / 2 + 0.13)), Color3.fromRGB(75, 97, 72))
+		makePart(model, "Bookmark", Vector3.new(0.12, 0.55 * scale, 0.08),
+			at * CFrame.new(-(ax + 0.04), -(0.55 * scale), -(td / 2 + 0.13)), Color3.fromRGB(160, 48, 48))
 	end
+
+	labelModel(model, displayName)
+	return model
+end
+
+local function buildProceduralBotCharacter(
+	displayName: string,
+	roleName: string?,
+	at: CFrame,
+	colorIndex: number
+): Model
+	local model = Instance.new("Model")
+	model.Name = "BotCharacter"
+	model:SetAttribute("ProceduralFallback", true)
+	model:SetAttribute("BotDisplayName", displayName)
+
+	local bodyColor = if roleName then (BOT_BODY_COLORS[roleName] or Color3.fromRGB(55, 75, 65))
+		else COUNSELOR_COLORS[((colorIndex - 1) % #COUNSELOR_COLORS) + 1]
+	local skinColor = Color3.fromRGB(210, 168, 138)
+	local scale = 1.0
+
+	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
+	model.PrimaryPart = root
+
+	-- Glowing role badge on chest so bots are visually distinct
+	local td = 1.4 * scale
+	local th = 3.0 * scale
+	local badge = makePart(model, "RoleBadge", Vector3.new(0.65, 0.42, 0.1),
+		at * CFrame.new(0.42, th / 2 - 0.55, -(td / 2 + 0.06)), Color3.fromRGB(220, 220, 220))
+	badge.Material = Enum.Material.Neon
+
 	labelModel(model, displayName)
 	return model
 end
@@ -506,7 +678,10 @@ function CharacterAssetService.new(): CharacterAssetService
 	return setmetatable({
 		container = container,
 		monsterModel = nil,
+		monsterTrackToken = 0,
+		monsterTrackPlayer = nil,
 		counselorModels = {},
+		botCharacterModels = {},
 		monsterAnimationTrack = nil,
 		monsterAnimationState = nil,
 		counselorAnimationTracks = {},
@@ -717,6 +892,8 @@ function CharacterAssetService:PlayMonsterState(
 end
 
 function CharacterAssetService:ClearMonster()
+	self.monsterTrackPlayer = nil
+	self:StopMonsterTracking()
 	stopAnimationTrack(self.monsterAnimationTrack)
 	self.monsterAnimationTrack = nil
 	self.monsterAnimationState = nil
@@ -726,13 +903,97 @@ function CharacterAssetService:ClearMonster()
 	end
 end
 
+function CharacterAssetService:StopMonsterTracking()
+	self.monsterTrackToken = self.monsterTrackToken + 1
+end
+
+-- Briefly lunges the monster model toward a world position then resumes orbit tracking.
+function CharacterAssetService:LungeMonsterToward(targetPosition: Vector3)
+	local model = self.monsterModel
+	if not model then
+		return
+	end
+	local resumePlayer = self.monsterTrackPlayer
+	self:StopMonsterTracking()
+	task.spawn(function()
+		local STEPS = 8
+		local STEP_TIME = 0.05
+		local current = model:GetPivot()
+		local lungePos = current.Position:Lerp(targetPosition, 0.55)
+		local lookDir = Vector3.new(
+			targetPosition.X - current.Position.X,
+			0,
+			targetPosition.Z - current.Position.Z
+		)
+		local lungeTarget = if lookDir.Magnitude > 0.05
+			then CFrame.lookAt(lungePos, lungePos + lookDir.Unit)
+			else CFrame.new(lungePos)
+		for i = 1, STEPS do
+			local t = i / STEPS
+			model:PivotTo(current:Lerp(lungeTarget, t * t))
+			task.wait(STEP_TIME)
+		end
+		if resumePlayer then
+			self:StartMonsterTracking(resumePlayer)
+		end
+	end)
+end
+
+-- Starts a loop that moves the monster model to orbit near the murderer's character.
+-- The monster slowly circles the murderer for an atmospheric stalking effect.
+function CharacterAssetService:StartMonsterTracking(murdererPlayer: Player)
+	self.monsterTrackPlayer = murdererPlayer
+	local token = self.monsterTrackToken + 1
+	self.monsterTrackToken = token
+	task.spawn(function()
+		local TICK = 0.08
+		local LERP_T = 0.05
+		local ORBIT_RADIUS = 7
+		local orbitAngle = 0
+		while self.monsterTrackToken == token do
+			local model = self.monsterModel
+			if not model then
+				break
+			end
+			local char = murdererPlayer.Character
+			if char then
+				local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp then
+					orbitAngle = orbitAngle + TICK * 0.25
+					local offset = Vector3.new(
+						math.cos(orbitAngle) * ORBIT_RADIUS,
+						0,
+						math.sin(orbitAngle) * ORBIT_RADIUS
+					)
+					local targetPos = hrp.Position + offset
+					local current = model:GetPivot()
+					local newPos = current.Position:Lerp(targetPos, LERP_T)
+					local lookDir = Vector3.new(
+						hrp.Position.X - newPos.X,
+						0,
+						hrp.Position.Z - newPos.Z
+					)
+					if lookDir.Magnitude > 0.05 then
+						model:PivotTo(CFrame.lookAt(newPos, newPos + lookDir.Unit))
+					else
+						model:PivotTo(current - current.Position + newPos)
+					end
+				end
+			end
+			task.wait(TICK)
+		end
+	end)
+end
+
 function CharacterAssetService:Reset()
 	self:ClearMonster()
+	self:ClearBotCharacters()
 	self:SpawnCounselors()
 end
 
 function CharacterAssetService:Destroy()
 	self:ClearMonster()
+	self:ClearBotCharacters()
 	for _, track in self.counselorAnimationTracks do
 		stopAnimationTrack(track)
 	end
@@ -740,6 +1001,116 @@ function CharacterAssetService:Destroy()
 	self.counselorAnimationStates = {}
 	self.container:Destroy()
 	self.counselorModels = {}
+end
+
+function CharacterAssetService:SpawnBotCharacter(
+	participantId: string,
+	displayName: string,
+	roleName: string?,
+	at: CFrame
+): Model
+	self:ClearBotCharacter(participantId)
+	local colorIndex = 0
+	for _ in self.botCharacterModels do
+		colorIndex += 1
+	end
+	local asset = findAsset("BotCharacters", participantId)
+		or findAsset("BotCharacters", roleName or "")
+	local model = if asset
+		then asset:Clone()
+		else buildProceduralBotCharacter(displayName, roleName, at, colorIndex + 1)
+	model.Name = "BotCharacter_" .. participantId
+	model:SetAttribute("ParticipantId", participantId)
+	model:SetAttribute("RoleName", roleName or "")
+	model:PivotTo(at)
+	model.Parent = self.container
+	self.botCharacterModels[participantId] = model
+	return model
+end
+
+function CharacterAssetService:ClearBotCharacter(participantId: string)
+	local model = self.botCharacterModels[participantId]
+	if model then
+		model:Destroy()
+		self.botCharacterModels[participantId] = nil
+	end
+end
+
+function CharacterAssetService:ClearBotCharacters()
+	for _, model in self.botCharacterModels do
+		model:Destroy()
+	end
+	self.botCharacterModels = {}
+end
+
+function CharacterAssetService:GetBotCharacterPosition(participantId: string): Vector3?
+	local model = self.botCharacterModels[participantId]
+	if not model then
+		return nil
+	end
+	local primary = model.PrimaryPart
+	return if primary then primary.Position else model:GetPivot().Position
+end
+
+-- Starts a loop that makes a bot character wander randomly near their current position.
+-- Yields between steps; skips a step if a real action fired during the wait.
+function CharacterAssetService:StartBotIdleWander(participantId: string)
+	local RADIUS = 5
+	local MIN_PAUSE = 2.5
+	local MAX_PAUSE = 5.5
+	task.spawn(function()
+		task.wait(1 + math.random() * 2)
+		while self.botCharacterModels[participantId] do
+			local tokenBefore = self.counselorMoveTokens[participantId] or 0
+			task.wait(MIN_PAUSE + math.random() * (MAX_PAUSE - MIN_PAUSE))
+			if not self.botCharacterModels[participantId] then
+				break
+			end
+			if (self.counselorMoveTokens[participantId] or 0) == tokenBefore then
+				local center = self:GetBotCharacterPosition(participantId)
+				if center then
+					local angle = math.random() * math.pi * 2
+					local radius = 1 + math.random() * RADIUS
+					local target = center
+						+ Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+					self:MoveBotCharacterToward(participantId, target, 1.4 + math.random() * 0.6)
+				end
+			end
+		end
+	end)
+end
+
+function CharacterAssetService:MoveBotCharacterToward(
+	participantId: string,
+	targetPosition: Vector3,
+	duration: number?
+)
+	local model = self.botCharacterModels[participantId]
+	if not model then
+		return
+	end
+	local resolved = duration or 2.2
+	local current = model:GetPivot()
+	local dx = targetPosition.X - current.X
+	local dz = targetPosition.Z - current.Z
+	local targetCFrame = CFrame.new(targetPosition.X, current.Y, targetPosition.Z)
+		* CFrame.Angles(0, math.atan2(-dx, -dz), 0)
+	local token = (self.counselorMoveTokens[participantId] or 0) + 1
+	self.counselorMoveTokens[participantId] = token
+	task.spawn(function()
+		local start = model:GetPivot()
+		local began = os.clock()
+		while self.counselorMoveTokens[participantId] == token do
+			local elapsed = os.clock() - began
+			if elapsed >= resolved then
+				model:PivotTo(targetCFrame)
+				break
+			end
+			local t = 1 - (1 - elapsed / resolved) ^ 2
+			model:PivotTo(start:Lerp(targetCFrame, t))
+			task.wait()
+		end
+	end)
 end
 
 return CharacterAssetService

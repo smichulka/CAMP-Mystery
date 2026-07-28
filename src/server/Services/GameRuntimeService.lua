@@ -1063,6 +1063,33 @@ function GameRuntimeService:BeginRound(
 			return self.roundId
 		end
 	)
+
+	-- Spawn visible characters for each bot participant near the camp entrance
+	local botSpawnRing: { CFrame } = {
+		CFrame.new(-8, 3, 12),  CFrame.new(8, 3, 12),  CFrame.new(-5, 3, 18),
+		CFrame.new(5, 3, 18),   CFrame.new(-12, 3, 6), CFrame.new(12, 3, 6),
+		CFrame.new(0, 3, 22),   CFrame.new(-9, 3, 22), CFrame.new(9, 3, 22),
+		CFrame.new(-4, 3, 28),  CFrame.new(4, 3, 28),  CFrame.new(0, 3, 28),
+	}
+	local botSpawnIdx = 0
+	local lockedRoster = self.botRoster:GetLockedRoster()
+	if lockedRoster then
+		for _, botParticipantId in lockedRoster.botParticipantIds do
+			local participant = self.participants:GetById(botParticipantId)
+			if participant then
+				botSpawnIdx = (botSpawnIdx % #botSpawnRing) + 1
+				local spawnCF = botSpawnRing[botSpawnIdx]
+				self.characters:SpawnBotCharacter(
+					botParticipantId,
+					participant.displayName,
+					participant.role,
+					spawnCF
+				)
+				self.characters:StartBotIdleWander(botParticipantId)
+			end
+		end
+	end
+
 	local matchRoundId = self.activeMatchRoundId
 	if matchRoundId then
 		self.matchmaking:MarkRoundStarted(matchRoundId)
@@ -1098,6 +1125,13 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 				participantId,
 				CFrame.new(0, 4, -65)
 			)
+			local murdererParticipant = self.participants:GetById(participantId)
+			if murdererParticipant then
+				local murdererPlayer = findPlayerForParticipant(murdererParticipant)
+				if murdererPlayer then
+					self.characters:StartMonsterTracking(murdererPlayer)
+				end
+			end
 		end
 	elseif phase == "Investigation" then
 		self.world:SpawnEvidence()
@@ -1443,6 +1477,23 @@ function GameRuntimeService:_ApplyMonsterAttack(
 		position = nil,
 	})
 	if result.accepted then
+		local targetParticipant = self.participants:GetById(targetParticipantId)
+		if targetParticipant then
+			local targetPlayer = findPlayerForParticipant(targetParticipant)
+			local targetPos: Vector3? = nil
+			if targetPlayer and targetPlayer.Character then
+				local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp then
+					targetPos = hrp.Position
+				end
+			end
+			if not targetPos then
+				targetPos = self.characters:GetBotCharacterPosition(targetParticipantId)
+			end
+			if targetPos then
+				self.characters:LungeMonsterToward(targetPos)
+			end
+		end
 		local plan = self.murderPlan
 		local affectedCounselors = self.counselors:ReportThreat({
 			locationId = if plan then plan.locationId else "main-road-safe-entry",
@@ -2463,11 +2514,35 @@ function GameRuntimeService:_ExecuteBotAction(
 			then { "Suspicion", "Observation", "Schedule" }
 			else { "Observation", "Schedule", "Monster", "Suspicion" }
 		payload.topic = botTopics[math.random(1, #botTopics)]
+		task.spawn(function()
+			local pos = self.characters:GetCounselorPosition(candidate.counselorId)
+			if pos then
+				self.characters:MoveBotCharacterToward(participant.participantId, pos)
+			end
+		end)
 	elseif candidate.actionType == "Attack" then
 		local targetId = candidate.targetParticipantId
 		if not targetId then
 			return false
 		end
+		task.spawn(function()
+			local targetP = self.participants:GetById(targetId)
+			local botPos: Vector3? = nil
+			if targetP then
+				local targetPlayer = findPlayerForParticipant(targetP)
+				if targetPlayer and targetPlayer.Character then
+					local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+					if hrp then
+						botPos = hrp.Position
+					end
+				else
+					botPos = self.characters:GetBotCharacterPosition(targetId)
+				end
+			end
+			if botPos then
+				self.characters:MoveBotCharacterToward(participant.participantId, botPos)
+			end
+		end)
 		self:_ApplyMonsterAttack(participant.participantId, targetId, "BotAttack")
 		return true
 	elseif candidate.actionType == "Vote" then
@@ -2479,6 +2554,24 @@ function GameRuntimeService:_ExecuteBotAction(
 			if not targetId then
 				return false
 			end
+			task.spawn(function()
+				local targetP = self.participants:GetById(targetId)
+				local botPos: Vector3? = nil
+				if targetP then
+					local targetPlayer = findPlayerForParticipant(targetP)
+					if targetPlayer and targetPlayer.Character then
+						local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+						if hrp then
+							botPos = hrp.Position
+						end
+					else
+						botPos = self.characters:GetBotCharacterPosition(targetId)
+					end
+				end
+				if botPos then
+					self.characters:MoveBotCharacterToward(participant.participantId, botPos)
+				end
+			end)
 			for _, item in self.inventory:GetSnapshot(participant.participantId).items do
 				if item.equipmentId == "MedicalKit" then
 					self.inventory:Equip(participant.participantId, item.instanceId)
