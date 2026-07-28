@@ -126,6 +126,22 @@ local BOT_BODY_COLORS: { [string]: Color3 } = {
 	Camper = Color3.fromRGB(55, 80, 60),
 }
 
+local BOT_SKIN_TONES: { Color3 } = {
+	Color3.fromRGB(255, 218, 178),   -- very light
+	Color3.fromRGB(230, 194, 153),   -- light
+	Color3.fromRGB(204, 162, 121),   -- medium
+	Color3.fromRGB(172, 118, 80),    -- medium-dark
+	Color3.fromRGB(120, 72, 44),     -- dark
+}
+
+local function nameHash(s: string): number
+	local h = 5381
+	for i = 1, #s do
+		h = (h * 33 + string.byte(s, i)) % 997
+	end
+	return h
+end
+
 local APPROVED_ANIMATION_STATES: { [string]: boolean } = {
 	Idle = true,
 	Transform = true,
@@ -657,7 +673,7 @@ local function buildProceduralBotCharacter(
 
 	local bodyColor = if roleName then (BOT_BODY_COLORS[roleName] or Color3.fromRGB(55, 75, 65))
 		else COUNSELOR_COLORS[((colorIndex - 1) % #COUNSELOR_COLORS) + 1]
-	local skinColor = Color3.fromRGB(210, 168, 138)
+	local skinColor = BOT_SKIN_TONES[(nameHash(displayName) % #BOT_SKIN_TONES) + 1]
 	local scale = 1.0
 
 	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
@@ -666,9 +682,24 @@ local function buildProceduralBotCharacter(
 	-- Glowing role badge on chest so bots are visually distinct
 	local td = 1 * scale   -- matches buildHumanoidBody R6 depth
 	local th = 2 * scale   -- matches buildHumanoidBody R6 height
-	local badge = makePart(model, "RoleBadge", Vector3.new(0.65, 0.42, 0.1),
-		at * CFrame.new(0.42, th / 2 - 0.45, -(td / 2 + 0.06)), Color3.fromRGB(220, 220, 220))
+	local badgeColor = BOT_BODY_COLORS[roleName or ""] or Color3.fromRGB(180, 180, 180)
+	local badge = makePart(model, "RoleBadge", Vector3.new(0.65, 0.65, 0.1),
+		at * CFrame.new(0.42, th / 2 - 0.45, -(td / 2 + 0.06)), badgeColor)
 	badge.Material = Enum.Material.Neon
+	-- Short role label on badge face (SurfaceGui)
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Front
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	sg.PixelsPerStud = 80
+	sg.Parent = badge
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = string.upper(string.sub(roleName or "?", 1, 1))
+	lbl.TextColor3 = Color3.new(1, 1, 1)
+	lbl.TextScaled = true
+	lbl.Font = Enum.Font.GothamBold
+	lbl.Parent = sg
 
 	labelModel(model, displayName)
 	return model
@@ -1044,6 +1075,49 @@ function CharacterAssetService:ClearBotCharacter(participantId: string)
 		model:Destroy()
 		self.botCharacterModels[participantId] = nil
 	end
+end
+
+-- Plays a fall-and-fade death animation for a bot character then removes its model.
+function CharacterAssetService:PlayBotDeath(participantId: string)
+	local model = self.botCharacterModels[participantId]
+	if not model then
+		return
+	end
+	-- Cancel any movement so the bot stops where it is
+	local token = (self.counselorMoveTokens[participantId] or 0) + 1
+	self.counselorMoveTokens[participantId] = token
+	task.spawn(function()
+		-- Fall over: tilt 90° sideways over 0.5s
+		local startCF = model:GetPivot()
+		local fallCF = startCF * CFrame.Angles(0, 0, math.pi / 2)
+		local FALL_STEPS = 12
+		for i = 1, FALL_STEPS do
+			if self.counselorMoveTokens[participantId] ~= token or model.Parent == nil then
+				return
+			end
+			model:PivotTo(startCF:Lerp(fallCF, i / FALL_STEPS))
+			task.wait(0.5 / FALL_STEPS)
+		end
+		-- Brief pause lying down
+		task.wait(0.4)
+		-- Fade out with parts turning dark red
+		local FADE_STEPS = 18
+		local deadColor = Color3.fromRGB(60, 10, 10)
+		for i = 1, FADE_STEPS do
+			if model.Parent == nil then
+				return
+			end
+			local alpha = i / FADE_STEPS
+			for _, desc in model:GetDescendants() do
+				if desc:IsA("BasePart") then
+					desc.Color = desc.Color:Lerp(deadColor, alpha * 0.5)
+					desc.Transparency = alpha
+				end
+			end
+			task.wait(1.2 / FADE_STEPS)
+		end
+		self:ClearBotCharacter(participantId)
+	end)
 end
 
 function CharacterAssetService:ClearBotCharacters()

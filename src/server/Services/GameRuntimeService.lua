@@ -778,6 +778,16 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 			runtime:Broadcast()
 		end
 	end)
+	lifecycle:On("ParticipantEliminated", function(event)
+		local runtime = runtimeRef
+		if not runtime then
+			return
+		end
+		local participantId = event.payload.participantId
+		if type(participantId) == "string" then
+			runtime.characters:PlayBotDeath(participantId)
+		end
+	end)
 	return self
 end
 
