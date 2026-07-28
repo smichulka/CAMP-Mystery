@@ -6,6 +6,8 @@ export type LifecycleEventName =
 	"RoundStarted"
 	| "PhaseChanged"
 	| "ParticipantInjured"
+	| "ParticipantCritical"
+	| "ParticipantIncapacitated"
 	| "ParticipantEliminated"
 	| "ParticipantGhostTransition"
 	| "RoundEnded"
@@ -40,6 +42,8 @@ local EVENT_NAMES: { LifecycleEventName } = {
 	"RoundStarted",
 	"PhaseChanged",
 	"ParticipantInjured",
+	"ParticipantCritical",
+	"ParticipantIncapacitated",
 	"ParticipantEliminated",
 	"ParticipantGhostTransition",
 	"RoundEnded",

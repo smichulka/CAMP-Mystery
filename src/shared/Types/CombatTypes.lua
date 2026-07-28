@@ -4,7 +4,7 @@ export type AttackSource =
 	"MonsterAbility" | "MurderPlan" | "Trap" | "Environment"
 
 export type DefenseResult = "None" | "Blocked" | "Reduced"
-export type AttackOutcome = "Rejected" | "Blocked" | "Injured" | "Eliminated"
+export type AttackOutcome = "Rejected" | "Blocked" | "Injured" | "Critical" | "Incapacitated" | "Eliminated"
 
 export type AttackRequest = {
 	roundId: number,

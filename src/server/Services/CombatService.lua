@@ -114,7 +114,7 @@ function CombatService:Eliminate(
 	target.alive = false
 	target.healthState = "Dead"
 	target.health = 0
-	target.injuryLevel = 2
+	target.injuryLevel = 4
 	local dropped = self.inventory:DropAll(target.participantId)
 	self.revision += 1
 	self.lifecycle:Emit("ParticipantEliminated", {
@@ -151,8 +151,8 @@ function CombatService:Eliminate(
 end
 
 -- Applies one serious injury outside the normal monster attack request path. This is
--- used by authored hazards and role interception consequences. It deliberately keeps
--- the same two-injuries-to-death rule and lifecycle events as ApplyAttack.
+-- used by authored hazards and role interception consequences. The injury ladder is
+-- Injured → Critical → Incapacitated → Dead; each call advances one tier.
 function CombatService:ApplyInjury(
 	targetParticipantId: string,
 	reason: string,
@@ -166,9 +166,35 @@ function CombatService:ApplyInjury(
 		return false, "Target is not eligible"
 	end
 
-	if target.injuryLevel >= 1 then
+	if target.injuryLevel >= 3 then
 		self:Eliminate(target, reason, attackerParticipantId)
 		return true, "Eliminated"
+	end
+
+	if target.injuryLevel >= 2 then
+		target.injuryLevel = 3
+		target.healthState = "Incapacitated"
+		target.health = math.min(target.health, 10)
+		self.revision += 1
+		self.lifecycle:Emit("ParticipantIncapacitated", {
+			participantId = target.participantId,
+			attackerParticipantId = attackerParticipantId,
+			source = reason,
+		})
+		return true, "Incapacitated"
+	end
+
+	if target.injuryLevel >= 1 then
+		target.injuryLevel = 2
+		target.healthState = "Critical"
+		target.health = math.min(target.health, 25)
+		self.revision += 1
+		self.lifecycle:Emit("ParticipantCritical", {
+			participantId = target.participantId,
+			attackerParticipantId = attackerParticipantId,
+			source = reason,
+		})
+		return true, "Critical"
 	end
 
 	target.injuryLevel = 1
@@ -221,8 +247,10 @@ function CombatService:ApplyAttack(request: AttackRequest): AttackResult
 	end
 
 	local evidenceRisk = if defense == "Reduced" then 0.9 else 0.65
-	if target.injuryLevel >= 1 then
-		self:Eliminate(target, "Second serious injury", attacker.participantId)
+	local _, applyResult =
+		self:ApplyInjury(target.participantId, request.source, attacker.participantId)
+
+	if not target.alive then
 		self.emitEvidence("LethalAttack", attacker, target, request)
 		return {
 			accepted = true,
@@ -234,11 +262,14 @@ function CombatService:ApplyAttack(request: AttackRequest): AttackResult
 		}
 	end
 
-	self:ApplyInjury(target.participantId, request.source, attacker.participantId)
 	self.emitEvidence("Injury", attacker, target, request)
+	local outcome: AttackOutcome = if applyResult == "Critical"
+		then "Critical"
+		elseif applyResult == "Incapacitated" then "Incapacitated"
+		else "Injured"
 	return {
 		accepted = true,
-		outcome = "Injured",
+		outcome = outcome,
 		reason = nil,
 		targetParticipantId = target.participantId,
 		injuryLevel = target.injuryLevel,
@@ -292,7 +323,8 @@ function CombatService:GetSnapshot(participantId: string): CombatSnapshot?
 		isGhost = participant.isGhost,
 		healthState = participant.healthState,
 		injuryLevel = participant.injuryLevel,
-		movementMultiplier = if participant.healthState == "Incapacitated" then 0.25
+		movementMultiplier = if participant.healthState == "Incapacitated"
+			then 0.25
 			elseif participant.healthState == "Critical" then 0.45
 			elseif participant.healthState == "Injured" then 0.72
 			else 1,
