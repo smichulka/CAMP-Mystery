@@ -329,6 +329,8 @@ end
 -- Builds a humanoid-proportioned body (torso, head, arms, hands, legs, feet, face).
 -- All parts are Anchored; move the whole model with Model:PivotTo().
 -- Returns the invisible HumanoidRootPart which should be set as PrimaryPart.
+-- Builds a classic Roblox R6-proportioned humanoid body from anchored Parts.
+-- tw/th/td match standard R6: 2×2×1 torso; 1×2×1 arms and legs; 2×2×1 block head.
 local function buildHumanoidBody(
 	model: Model,
 	at: CFrame,
@@ -336,56 +338,63 @@ local function buildHumanoidBody(
 	skinColor: Color3,
 	scale: number
 ): Part
-	local tw = 2.5 * scale
-	local th = 3.0 * scale
-	local td = 1.4 * scale
+	local tw = 2 * scale   -- torso/root width
+	local th = 2 * scale   -- torso/root height
+	local td = 1 * scale   -- torso/root depth
 
+	-- Invisible root (PrimaryPart) exactly overlaps the torso
 	local root = makePart(model, "HumanoidRootPart", Vector3.new(tw, th, td), at, Color3.fromRGB(0, 0, 0))
 	root.Transparency = 1
 	makePart(model, "Torso", Vector3.new(tw, th, td), at, bodyColor)
 
-	local hs = 2.0 * scale
-	local headY = th / 2 + hs / 2 + 0.08 * scale
-	makePart(model, "Head", Vector3.new(hs, hs, hs), at * CFrame.new(0, headY, 0), skinColor, Enum.PartType.Ball)
+	-- Block head — 2×2×1 like classic Roblox R6
+	local hs = 2 * scale   -- head width & height (square front face)
+	local hd = 1 * scale   -- head depth
+	local headY = th / 2 + 0.15 * scale + hs / 2  -- small gap then head
+	local headCF = at * CFrame.new(0, headY, 0)
+	makePart(model, "Head", Vector3.new(hs, hs, hd), headCF, skinColor)
 
-	local eyeS = 0.38 * scale
-	local eyeY = headY + 0.06 * scale
-	local eyeZ = -(hs / 2 + 0.04)
-	local eyeX = 0.34 * scale
-	local le = makePart(model, "LeftEye", Vector3.new(eyeS, eyeS, 0.2 * scale), at * CFrame.new(-eyeX, eyeY, eyeZ), Color3.fromRGB(20, 35, 80), Enum.PartType.Ball)
-	le.Material = Enum.Material.SmoothPlastic
-	makePart(model, "RightEye", Vector3.new(eyeS, eyeS, 0.2 * scale), at * CFrame.new(eyeX, eyeY, eyeZ), Color3.fromRGB(20, 35, 80), Enum.PartType.Ball).Material = Enum.Material.SmoothPlastic
+	-- Face features: flat blocks on the front face (–Z)
+	local faceZ = -(hd / 2 + 0.05)   -- just proud of the head surface
+	local eyeW  = 0.42 * scale
+	local eyeH  = 0.44 * scale
+	local eyeD  = 0.07 * scale
+	local eyeY  = headY + 0.18 * scale
+	local eyeX  = 0.40 * scale
+	-- Eye whites
+	makePart(model, "LeftEyeW",  Vector3.new(eyeW, eyeH, eyeD), at * CFrame.new(-eyeX, eyeY, faceZ), Color3.fromRGB(242, 242, 242))
+	makePart(model, "RightEyeW", Vector3.new(eyeW, eyeH, eyeD), at * CFrame.new( eyeX, eyeY, faceZ), Color3.fromRGB(242, 242, 242))
+	-- Dark pupils (sit 0.04 in front of whites so they don't z-fight)
+	local pupilZ = faceZ - 0.04
+	makePart(model, "LeftPupil",  Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new(-eyeX, eyeY - 0.03 * scale, pupilZ), Color3.fromRGB(18, 20, 90))
+	makePart(model, "RightPupil", Vector3.new(0.21 * scale, 0.27 * scale, eyeD), at * CFrame.new( eyeX, eyeY - 0.03 * scale, pupilZ), Color3.fromRGB(18, 20, 90))
+	-- Eyebrows
+	local browColor = skinColor:Lerp(Color3.fromRGB(30, 18, 10), 0.65)
+	makePart(model, "LeftBrow",  Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new(-eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ), browColor)
+	makePart(model, "RightBrow", Vector3.new(eyeW * 0.9, 0.13 * scale, eyeD), at * CFrame.new( eyeX, eyeY + eyeH / 2 + 0.10 * scale, faceZ), browColor)
+	-- Mouth
+	makePart(model, "Mouth", Vector3.new(0.62 * scale, 0.16 * scale, eyeD), at * CFrame.new(0, headY - 0.42 * scale, faceZ), Color3.fromRGB(95, 42, 42))
 
-	local browColor = Color3.fromRGB(58, 43, 28)
-	makePart(model, "LeftBrow", Vector3.new(0.48 * scale, 0.15 * scale, 0.1 * scale), at * CFrame.new(-eyeX, eyeY + 0.32 * scale, eyeZ + 0.03), browColor)
-	makePart(model, "RightBrow", Vector3.new(0.48 * scale, 0.15 * scale, 0.1 * scale), at * CFrame.new(eyeX, eyeY + 0.32 * scale, eyeZ + 0.03), browColor)
-	makePart(model, "Mouth", Vector3.new(0.56 * scale, 0.14 * scale, 0.09 * scale), at * CFrame.new(0, headY - 0.4 * scale, eyeZ + 0.03), Color3.fromRGB(140, 52, 57))
+	-- Arms: R6 1×2×1, shirt-colored, flush with torso sides
+	local aw = 1 * scale
+	local ah = 2 * scale
+	local ax = tw / 2 + aw / 2   -- = 1.5 * scale
+	makePart(model, "LeftArm",  Vector3.new(aw, ah, aw), at * CFrame.new(-ax, 0, 0), bodyColor)
+	makePart(model, "RightArm", Vector3.new(aw, ah, aw), at * CFrame.new( ax, 0, 0), bodyColor)
+	-- Skin-colored lower cuff on each arm
+	local cuffH = 0.35 * scale
+	local cuffY = -(ah / 2 - cuffH / 2)
+	makePart(model, "LeftCuff",  Vector3.new(aw, cuffH, aw), at * CFrame.new(-ax, cuffY, 0), skinColor)
+	makePart(model, "RightCuff", Vector3.new(aw, cuffH, aw), at * CFrame.new( ax, cuffY, 0), skinColor)
 
-	local aw = 0.82 * scale
-	local ah = th * 0.84
-	local ax = tw / 2 + aw / 2 + 0.05
-	makePart(model, "LeftArm", Vector3.new(aw, ah, aw), at * CFrame.new(-ax, 0.08 * scale, 0), skinColor)
-	makePart(model, "RightArm", Vector3.new(aw, ah, aw), at * CFrame.new(ax, 0.08 * scale, 0), skinColor)
-
-	local hS = aw * 1.06
-	local hY = 0.08 * scale - ah / 2 - hS * 0.42
-	makePart(model, "LeftHand", Vector3.new(hS, hS * 0.72, hS * 0.82), at * CFrame.new(-ax, hY, 0), skinColor, Enum.PartType.Ball)
-	makePart(model, "RightHand", Vector3.new(hS, hS * 0.72, hS * 0.82), at * CFrame.new(ax, hY, 0), skinColor, Enum.PartType.Ball)
-
-	local lw = 0.92 * scale
-	local lh = th * 0.88
-	local lx = 0.6 * scale
+	-- Legs: R6 1×2×1, pants-colored (slightly darker body)
+	local lw = 1 * scale
+	local lh = 2 * scale
+	local lx = 0.5 * scale
 	local ly = -(th / 2 + lh / 2)
-	makePart(model, "LeftLeg", Vector3.new(lw, lh, lw), at * CFrame.new(-lx, ly, 0), bodyColor)
-	makePart(model, "RightLeg", Vector3.new(lw, lh, lw), at * CFrame.new(lx, ly, 0), bodyColor)
-
-	local fw = lw * 1.16
-	local fh = 0.36 * scale
-	local fz = -0.2 * scale
-	local fy = ly - lh / 2 - fh / 2
-	local footColor = Color3.fromRGB(36, 30, 24)
-	makePart(model, "LeftFoot", Vector3.new(fw, fh, fw + 0.26 * scale), at * CFrame.new(-lx, fy, fz), footColor)
-	makePart(model, "RightFoot", Vector3.new(fw, fh, fw + 0.26 * scale), at * CFrame.new(lx, fy, fz), footColor)
+	local pantsColor = bodyColor:Lerp(Color3.fromRGB(10, 10, 15), 0.18)
+	makePart(model, "LeftLeg",  Vector3.new(lw, lh, lw), at * CFrame.new(-lx, ly, 0), pantsColor)
+	makePart(model, "RightLeg", Vector3.new(lw, lh, lw), at * CFrame.new( lx, ly, 0), pantsColor)
 
 	return root
 end
@@ -578,12 +587,13 @@ local function buildProceduralCounselor(
 	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale)
 	model.PrimaryPart = root
 
-	local th = 3.0 * scale
-	local td = 1.4 * scale
-	local hs = 2.0 * scale
-	local headY = th / 2 + hs / 2 + 0.08 * scale
-	local aw = 0.82 * scale
-	local ax = 2.5 * scale / 2 + aw / 2 + 0.05
+	-- Match the R6 dims used inside buildHumanoidBody
+	local th = 2 * scale
+	local td = 1 * scale
+	local hs = 2 * scale
+	local headY = th / 2 + 0.15 * scale + hs / 2
+	local aw = 1 * scale
+	local ax = scale + aw / 2   -- tw/2 + aw/2 = scale + 0.5*scale
 
 	if index == 1 then
 		-- Medical pack on front of torso with red cross
@@ -614,7 +624,7 @@ local function buildProceduralCounselor(
 			at * CFrame.new(0, -(th / 2 - 0.45), -(td / 2 + 0.28)), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
 	elseif index == 5 then
 		-- Tool belt across waist
-		makePart(model, "ToolBelt", Vector3.new(2.5 * scale * 1.06, 0.42, td * 1.08),
+		makePart(model, "ToolBelt", Vector3.new(2 * scale * 1.06, 0.42, td * 1.08),
 			at * CFrame.new(0, -(th / 2 - 0.2), 0), Color3.fromRGB(82, 61, 40))
 		for i = -1, 1 do
 			if i ~= 0 then
@@ -654,10 +664,10 @@ local function buildProceduralBotCharacter(
 	model.PrimaryPart = root
 
 	-- Glowing role badge on chest so bots are visually distinct
-	local td = 1.4 * scale
-	local th = 3.0 * scale
+	local td = 1 * scale   -- matches buildHumanoidBody R6 depth
+	local th = 2 * scale   -- matches buildHumanoidBody R6 height
 	local badge = makePart(model, "RoleBadge", Vector3.new(0.65, 0.42, 0.1),
-		at * CFrame.new(0.42, th / 2 - 0.55, -(td / 2 + 0.06)), Color3.fromRGB(220, 220, 220))
+		at * CFrame.new(0.42, th / 2 - 0.45, -(td / 2 + 0.06)), Color3.fromRGB(220, 220, 220))
 	badge.Material = Enum.Material.Neon
 
 	labelModel(model, displayName)
