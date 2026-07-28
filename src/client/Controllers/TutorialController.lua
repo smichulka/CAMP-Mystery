@@ -281,6 +281,14 @@ function TutorialController:_allSeen(): boolean
 				continue
 			end
 		end
+		-- Spectators only pass through Lobby before getting the Spectator context;
+		-- all other step contexts are never returned for them by currentContext.
+		if role == "Spectator"
+			and step.id ~= TutorialController.StepIds.Lobby
+			and step.id ~= TutorialController.StepIds.Spectator
+		then
+			continue
+		end
 		local murdererStep = step.id == TutorialController.StepIds.MurderPlanningMurderer
 			or step.id == TutorialController.StepIds.NightTransformMurderer
 			or step.id == TutorialController.StepIds.InvestigationMurderer
@@ -290,6 +298,11 @@ function TutorialController:_allSeen(): boolean
 			or step.id == TutorialController.StepIds.Investigation
 			or step.id == TutorialController.StepIds.Vote
 		if (murdererStep and role ~= "Murderer") or (camperEquivalent and role == "Murderer") then
+			continue
+		end
+		-- currentContext returns InvestigationMurderer (not Evidence) for murderers,
+		-- so murderers will never see the evidence step.
+		if step.id == TutorialController.StepIds.Evidence and role == "Murderer" then
 			continue
 		end
 		if not self.seen[step.id] then

@@ -289,8 +289,8 @@ class GhostDreadTests(unittest.TestCase):
         self.assertIn("local HEALTH_SEVERITY: { [string]: number } = {", controller)
         self.assertIn("Healthy = 0,", controller)
         self.assertIn("Injured = 1,", controller)
-        self.assertIn("Incapacitated = 2,", controller)
         self.assertIn("Critical = 2,", controller)
+        self.assertIn("Incapacitated = 3,", controller)
         # healthImproved guard: only fires when actually healing, not on reconnect or round end
         self.assertIn(
             "local healthImproved = currentHealthState == \"Healthy\"",
@@ -313,9 +313,9 @@ class GhostDreadTests(unittest.TestCase):
         degrade_end = controller.index("if currentSeverity ~= lastHealthSeverity then", degrade_start)
         degrade_block = controller[degrade_start:degrade_end]
         self.assertIn("currentCinematics:PlayImpactFlash()", degrade_block)
-        # Incapacitated (severity >= 2): screen shake + Danger notification (red, plays "error")
-        self.assertIn("if currentSeverity >= 2 then", degrade_block)
-        self.assertIn("currentCinematics:PlayScreenShake(0.5)", degrade_block)
+        # Incapacitated (severity >= 2): accessibility-aware shake + Danger notification
+        self.assertIn("if currentSeverity >= 2 and currentAccessibility then", degrade_block)
+        self.assertIn("currentAccessibility:ShakeCamera(0.5, 0.4)", degrade_block)
         self.assertIn('"You\'re incapacitated"', degrade_block)
         self.assertIn('"Danger"', degrade_block)
         # Injured (severity < 2): Warning notification (also plays "error"), no extra shake
@@ -398,6 +398,7 @@ class GhostDreadTests(unittest.TestCase):
             'elseif healthState == "Injured" or healthState == "Critical"',
             roster_block,
         )
+        self.assertIn('"Incapacitated"', roster_block)
         self.assertIn("then Theme.Colors.Danger", roster_block)
         self.assertIn("else Theme.Colors.Success", roster_block)
         # Name label: ghost → Ghost, not alive → TextMuted + 0.5 transparency, else → Text

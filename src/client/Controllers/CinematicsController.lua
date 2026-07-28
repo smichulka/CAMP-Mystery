@@ -122,8 +122,7 @@ local function transitionMode(phaseName: string): TransitionMode?
 end
 
 local function phaseNightIntensity(phaseName: string): number
-	return if phaseName == "Night"
-			or phaseName == "MurderPlanning"
+	return if phaseName == "MurderPlanning"
 			or phaseName == "NightTransform"
 			or phaseName == "Investigation"
 		then 1

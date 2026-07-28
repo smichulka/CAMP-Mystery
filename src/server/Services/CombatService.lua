@@ -292,7 +292,10 @@ function CombatService:GetSnapshot(participantId: string): CombatSnapshot?
 		isGhost = participant.isGhost,
 		healthState = participant.healthState,
 		injuryLevel = participant.injuryLevel,
-		movementMultiplier = if participant.healthState == "Injured" then 0.72 else 1,
+		movementMultiplier = if participant.healthState == "Incapacitated" then 0.25
+			elseif participant.healthState == "Critical" then 0.45
+			elseif participant.healthState == "Injured" then 0.72
+			else 1,
 	}
 end
 

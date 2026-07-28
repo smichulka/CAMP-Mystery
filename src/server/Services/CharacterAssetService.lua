@@ -24,6 +24,8 @@ type CharacterAssetServiceState = {
 	monsterAnimationState: string?,
 	counselorAnimationTracks: { [string]: AnimationTrack },
 	counselorAnimationStates: { [string]: string },
+	counselorMoveTokens: { [string]: number },
+	counselorMoveTargets: { [string]: string },
 }
 
 local CharacterAssetService = {}
@@ -509,6 +511,8 @@ function CharacterAssetService.new(): CharacterAssetService
 		monsterAnimationState = nil,
 		counselorAnimationTracks = {},
 		counselorAnimationStates = {},
+		counselorMoveTokens = {},
+		counselorMoveTargets = {},
 	}, CharacterAssetService)
 end
 
@@ -539,7 +543,43 @@ function CharacterAssetService:SpawnCounselors()
 		labelModel(model, definition.displayName)
 		model.Parent = self.container
 		table.insert(self.counselorModels, model)
+		local primaryPart = model.PrimaryPart
+		if primaryPart and primaryPart:IsA("BasePart") then
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.ActionText = definition.displayName
+			prompt.ObjectText = "Talk"
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 10
+			prompt.RequiresLineOfSight = false
+			prompt:SetAttribute("CounselorId", definition.id)
+			prompt.Parent = primaryPart
+		end
 	end
+end
+
+function CharacterAssetService:_smoothPivotCounselor(
+	counselorId: string,
+	model: Model,
+	target: CFrame,
+	duration: number
+)
+	local token = (self.counselorMoveTokens[counselorId] or 0) + 1
+	self.counselorMoveTokens[counselorId] = token
+	task.spawn(function()
+		local start = model:GetPivot()
+		local began = os.clock()
+		while self.counselorMoveTokens[counselorId] == token do
+			local elapsed = os.clock() - began
+			if elapsed >= duration then
+				model:PivotTo(target)
+				break
+			end
+			local t = elapsed / duration
+			t = 1 - (1 - t) ^ 3
+			model:PivotTo(start:Lerp(target, t))
+			task.wait()
+		end
+	end)
 end
 
 function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
@@ -564,7 +604,21 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 							model:SetAttribute("LocationId", locationId)
 							local at = COUNSELOR_LOCATIONS[locationId]
 							if at then
-								model:PivotTo(at)
+								local isThreat = type(destinationId) == "string"
+									and destinationId ~= ""
+								if
+									isThreat
+									and self.counselorMoveTargets[counselorId]
+										~= locationId
+								then
+									self.counselorMoveTargets[counselorId] = locationId
+									self:_smoothPivotCounselor(counselorId, model, at, 3)
+								elseif not isThreat then
+									local tok = (self.counselorMoveTokens[counselorId] or 0) + 1
+									self.counselorMoveTokens[counselorId] = tok
+									self.counselorMoveTargets[counselorId] = locationId
+									model:PivotTo(at)
+								end
 							end
 						end
 						if type(displayName) == "string" then

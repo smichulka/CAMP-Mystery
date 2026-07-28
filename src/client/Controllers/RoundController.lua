@@ -127,12 +127,13 @@ local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastVoteCompleteRound: number? = nil
 local lastIsGhost: boolean? = nil
+local pendingActionName: string? = nil
 local lastHealthState: string? = nil
 local HEALTH_SEVERITY: { [string]: number } = {
 	Healthy = 0,
 	Injured = 1,
-	Incapacitated = 2,
 	Critical = 2,
+	Incapacitated = 3,
 }
 local lastHealthSeverity: number? = nil
 local lastConnectedState: { [string]: boolean } = {}
@@ -986,13 +987,15 @@ local function updateReleaseExperience(
 		local currentCinematics = cinematics
 		if currentCinematics then
 			currentCinematics:PlayImpactFlash()
-			if currentSeverity >= 2 then
-				currentCinematics:PlayScreenShake(0.5)
+			if currentSeverity >= 2 and currentAccessibility then
+				currentAccessibility:ShakeCamera(0.5, 0.4)
 			end
 		end
 		if currentView then
-			if currentSeverity >= 2 then
+			if currentSeverity >= 3 then
 				currentView:Notify("You're incapacitated", "You've been seriously wounded. You can barely move.", "Danger")
+			elseif currentSeverity >= 2 then
+				currentView:Notify("Critical injury", "You're badly hurt. Movement is severely limited.", "DangerBright")
 			else
 				currentView:Notify("You've been injured", "You're hurt. Find help before it gets worse.", "Warning")
 			end
@@ -1016,11 +1019,17 @@ local function updateReleaseExperience(
 					"Info"
 				)
 			end
-		elseif currentHealthState == "Critical" or currentHealthState == "Incapacitated" then
+		elseif currentHealthState == "Incapacitated" then
 			currentView:Notify(
 				"Reconnected — you're incapacitated",
 				string.format("Current phase: %s. You can barely move.", phaseName),
-				"Warning"
+				"Danger"
+			)
+		elseif currentHealthState == "Critical" then
+			currentView:Notify(
+				"Reconnected — critical injury",
+				string.format("Current phase: %s. Movement is severely limited.", phaseName),
+				"DangerBright"
 			)
 		elseif currentHealthState == "Injured" then
 			currentView:Notify(
@@ -1060,17 +1069,33 @@ local function updateReleaseExperience(
 					"Info"
 				)
 			elseif phaseName == "MurderPlanning" then
-				currentView:Notify(
-					"Reconnected",
-					string.format("Phase: %s. Follow the phase instructions.", phaseName),
-					"Info"
-				)
+				if roleName == "Murderer" then
+					currentView:Notify(
+						"Reconnected",
+						"Night is falling. Check your plan and prepare to strike.",
+						"Warning"
+					)
+				else
+					currentView:Notify(
+						"Reconnected",
+						"Night approaches. Watch for suspicious behaviour.",
+						"Info"
+					)
+				end
 			elseif phaseName == "NightTransform" then
-				currentView:Notify(
-					"Reconnected",
-					string.format("Phase: %s. Follow the phase instructions.", phaseName),
-					"Info"
-				)
+				if roleName == "Murderer" then
+					currentView:Notify(
+						"Reconnected",
+						"Your moment is now. Act fast.",
+						"DangerBright"
+					)
+				else
+					currentView:Notify(
+						"Reconnected",
+						"Something dark is happening. Stay alert.",
+						"Warning"
+					)
+				end
 			else
 				currentView:Notify(
 					"Reconnected",
@@ -1158,10 +1183,13 @@ local function requestAction(actionName: string, payload: any): (boolean, string
 	if not currentBridge then
 		return false, "The camp radio is not connected."
 	end
+	pendingActionName = actionName
 	return currentBridge:Request(actionName, payload)
 end
 
 local function handleActionResult(payload: any)
+	local actionName = pendingActionName
+	pendingActionName = nil
 	local currentView = view
 	if type(payload) ~= "table" then
 		if currentView then
@@ -1190,21 +1218,13 @@ local function handleActionResult(payload: any)
 					)
 				then
 					HapticController.Danger()
-				end
-			end
-			-- Impact flash on injury/critical.
-			if type(result.state) == "table" then
-				local pSnap = result.state.player
-				if type(pSnap) == "table"
-					and (
-						pSnap.healthState == "Critical"
-						or pSnap.healthState == "Incapacitated"
-					)
-				then
 					local currentCinematics = cinematics
 					if currentCinematics then
 						currentCinematics:PlayImpactFlash()
-						currentCinematics:PlayScreenShake(1.0)
+					end
+					local currentAcc = accessibility
+					if currentAcc then
+						currentAcc:ShakeCamera(1.0, 0.4)
 					end
 				end
 			end
@@ -1247,11 +1267,23 @@ local function handleActionResult(payload: any)
 					dialogueText
 				)
 			else
-				currentView:Notify(
-					"Action complete",
-					reason or "The server confirmed your action.",
-					"Success"
-				)
+				local toastTitle = if actionName == "Vote"
+					then "Vote cast"
+					elseif actionName == "BuyUpgrade"
+					then "Item acquired"
+					elseif actionName == "UseEquipment"
+					then "Equipment used"
+					elseif actionName == "UseRoleAbility"
+					then "Ability activated"
+					elseif actionName == "Investigate"
+					then "Investigation complete"
+					elseif actionName == "CompleteObjective"
+					then "Task complete"
+					elseif actionName == "HealPlayer"
+					then "Healed"
+					else "Action complete"
+				local toastBody = if reason and reason ~= "" then reason else "The server confirmed your action."
+				currentView:Notify(toastTitle, toastBody, "Success")
 			end
 		end
 	elseif currentView then
@@ -1482,7 +1514,37 @@ function RoundController.Start()
 			gameView:HideInteraction()
 		end,
 		triggered = function(actionText: string)
-			gameView:Notify("Interaction complete", actionText, "Success")
+			if actionText:sub(1, 10) == "counselor:" then
+				local counselorId = actionText:sub(11)
+				local roster = state and state.counselors
+				local counselors = roster and roster.counselors
+				if counselors then
+					for _, entry in counselors do
+						if entry.counselorId == counselorId then
+							if entry.interactionAllowed == true then
+								local name = readString(entry, "displayName", "Counselor")
+								gameView:ShowInterviewTopicPicker(
+									counselorId,
+									name,
+									entry.isWitness == true
+								)
+							else
+								local behavior = tostring(entry.behavior or "")
+								local msg = if behavior == "Fleeing"
+									then "They're running away!"
+									else if behavior == "Hiding"
+										then "They're hiding and won't talk."
+										else "They're not available right now."
+								gameView:Notify("Can't interview", msg, "Warning")
+							end
+							return
+						end
+					end
+				end
+				gameView:Notify("Can't interview", "They're not available right now.", "Warning")
+			else
+				gameView:Notify("Interaction complete", actionText, "Success")
+			end
 		end,
 	}, proximityController)
 

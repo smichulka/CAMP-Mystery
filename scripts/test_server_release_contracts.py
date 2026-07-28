@@ -1655,10 +1655,11 @@ class ServerReleaseContracts(unittest.TestCase):
         dot_block = update_block[dot_start:dot_end]
         # Ghost is first check
         self.assertIn("then Theme.Colors.Ghost", dot_block)
-        # Alive-and-injured/critical: Danger
+        # Alive-and-injured/critical/incapacitated: Danger
         self.assertIn(
-            'alive and (healthState == "Injured" or healthState == "Critical")', dot_block
+            'alive and (healthState == "Injured" or healthState == "Critical"', dot_block
         )
+        self.assertIn('"Incapacitated"', dot_block)
         self.assertIn("then Theme.Colors.Danger", dot_block)
         # Dead (not alive): TextMuted
         self.assertIn("elseif not alive then Theme.Colors.TextMuted", dot_block)
@@ -2841,11 +2842,13 @@ class ServerReleaseContracts(unittest.TestCase):
             "and (includeSelf or participantId ~= ownId)", func
         )
 
-        # Injured participants get Danger color; healthy get PanelSoft
+        # Injured/Critical/Incapacitated participants get Danger color; healthy get PanelSoft
         self.assertIn(
-            'if health == "Injured" then Theme.Colors.Danger else Theme.Colors.PanelSoft',
+            'if health == "Injured" or health == "Critical" or health == "Incapacitated"',
             func,
         )
+        self.assertIn("then Theme.Colors.Danger", func)
+        self.assertIn("else Theme.Colors.PanelSoft", func)
 
         # Payload receives targetParticipantId before _send is called
         self.assertIn("payload.targetParticipantId = participantId", func)

@@ -223,6 +223,31 @@ class ClientReleaseContractTests(unittest.TestCase):
         self.assertIn("assetController:Resolve(key)", controller)
         self.assertIn("uiAssets:Destroy()", controller)
 
+    def test_tutorial_all_seen_skips_unreachable_steps_per_role(self) -> None:
+        # Murderers never receive the "Evidence" context (currentContext returns
+        # "InvestigationMurderer" for them during Investigation), so _allSeen must
+        # skip that step for murderers or they can never complete the tutorial.
+        # Spectators never receive "Role"/"Day"/etc. contexts after Lobby, so all
+        # non-lobby, non-spectator steps must be skipped for them.
+        tutorial = read("src/client/Controllers/TutorialController.lua")
+
+        all_seen = re.search(
+            r"function TutorialController:_allSeen\(\)(?P<body>.*?)\nend",
+            tutorial,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(all_seen, "_allSeen function not found")
+        body = all_seen.group("body")  # type: ignore[union-attr]
+
+        # Evidence skip for murderers
+        self.assertIn("StepIds.Evidence", body)
+        self.assertIn('role == "Murderer"', body)
+
+        # Spectator skip for non-lobby, non-spectator steps
+        self.assertIn('role == "Spectator"', body)
+        self.assertIn("StepIds.Lobby", body)
+        self.assertIn("StepIds.Spectator", body)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

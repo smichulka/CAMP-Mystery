@@ -13,7 +13,7 @@ export type RoleName =
 
 export type TeamName = "Campers" | "Murderer" | "Observers"
 export type ControllerKind = "Human" | "Bot"
-export type HealthState = "Healthy" | "Injured" | "Incapacitated" | "Dead"
+export type HealthState = "Healthy" | "Injured" | "Critical" | "Incapacitated" | "Dead"
 
 export type HumanControllerMetadata = {
 	kind: "Human",

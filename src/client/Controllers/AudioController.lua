@@ -447,7 +447,6 @@ function AudioController:Update(state: any)
 				local phaseSubtitle: string? = if localRole == "Murderer"
 					then if phase == "Day" then "Daytime. Stay composed."
 						elseif phase == "Investigation" then "Investigation begun. Maintain your cover."
-						elseif phase == "Night" then "Night phase. Choose your moment."
 						elseif phase == "MurderPlanning" then "You chose your prey. Prepare before dawn."
 						elseif phase == "NightTransform" then "You are the monster. The hunt begins."
 						else nil
@@ -458,6 +457,9 @@ function AudioController:Update(state: any)
 	end
 
 	local evidenceFound = readEvidenceFound(state)
+	if evidenceFound < self.lastEvidenceFound then
+		self.lastEvidenceFound = 0
+	end
 	if evidenceFound > self.lastEvidenceFound then
 		local evidenceSubtitle = if localRole == "Murderer" then "Evidence found against you." else nil
 		self:PlayCue("EvidenceFound", evidenceSubtitle)

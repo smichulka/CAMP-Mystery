@@ -307,6 +307,9 @@ function EvidenceService:Verify(
 		then "VerifiedFake"
 		else "VerifiedReal"
 	record.verifiedByParticipantId = detectiveParticipantId
+	if not table.find(record.chainOfCustody, detectiveParticipantId) then
+		table.insert(record.chainOfCustody, detectiveParticipantId)
+	end
 	self.revision += 1
 	return true, nil
 end

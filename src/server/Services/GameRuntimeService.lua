@@ -2409,25 +2409,27 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				end
 			end
 		end
-		for _, suspect in self:_suspects() do
-			if suspect.key ~= participant.participantId then
-				local caseUtility = (publicSuspicion[suspect.key] or 0) * 4
-				if
-					participant.role == "Murderer"
-					and self.murderPlan
-					and self.murderPlan.frameParticipantId == suspect.key
-				then
-					caseUtility = 24
+		if not self.voting.votes[participant.participantId] then
+			for _, suspect in self:_suspects() do
+				if suspect.key ~= participant.participantId then
+					local caseUtility = (publicSuspicion[suspect.key] or 0) * 4
+					if
+						participant.role == "Murderer"
+						and self.murderPlan
+						and self.murderPlan.frameParticipantId == suspect.key
+					then
+						caseUtility = 24
+					end
+					table.insert(actions, {
+						id = "vote:" .. suspect.key,
+						actionType = "Vote",
+						baseUtility = 10 + caseUtility,
+						targetParticipantId = suspect.key,
+						risk = 0,
+						informationValue = 0.7,
+						teamValue = 1,
+					})
 				end
-				table.insert(actions, {
-					id = "vote:" .. suspect.key,
-					actionType = "Vote",
-					baseUtility = 10 + caseUtility,
-					targetParticipantId = suspect.key,
-					risk = 0,
-					informationValue = 0.7,
-					teamValue = 1,
-				})
 			end
 		end
 	end
@@ -2457,7 +2459,10 @@ function GameRuntimeService:_ExecuteBotAction(
 	elseif candidate.actionType == "InterviewCounselor" then
 		actionName = "InterviewCounselor"
 		payload.counselorId = candidate.counselorId
-		payload.topic = "Observation"
+		local botTopics: { string } = if participant.role == "Murderer"
+			then { "Suspicion", "Observation", "Schedule" }
+			else { "Observation", "Schedule", "Monster", "Suspicion" }
+		payload.topic = botTopics[math.random(1, #botTopics)]
 	elseif candidate.actionType == "Attack" then
 		local targetId = candidate.targetParticipantId
 		if not targetId then

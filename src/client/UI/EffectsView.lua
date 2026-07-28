@@ -128,12 +128,14 @@ local STATUS_COPY: { [string]: StatusPresentation } = {
 	Slowed = { label = "SLOWED", color = Theme.Colors.Info },
 	VisionDistortion = { label = "VISION DISTORTED", color = Theme.Colors.Ghost },
 	Injured = { label = "INJURED", color = Theme.Colors.Danger },
+	Critical = { label = "CRITICAL INJURY", color = Theme.Colors.DangerBright },
 	Incapacitated = { label = "INCAPACITATED", color = Theme.Colors.DangerBright },
 	Ghost = { label = "SPIRIT STATE", color = Theme.Colors.Ghost },
 }
 
 local PULSE_STATUSES: { [string]: boolean } = {
 	Injured = true,
+	Critical = true,
 	Incapacitated = true,
 	Bleeding = true,
 	Latched = true,
@@ -790,8 +792,7 @@ function EffectsView:Update(state: any)
 			self:ShowPhase(selected.title, selected.body)
 		end
 	end
-	local nightPhase = phase == "Night"
-		or phase == "MurderPlanning"
+	local nightPhase = phase == "MurderPlanning"
 		or phase == "NightTransform"
 		or phase == "Investigation"
 	self:SetNightIntensity(if nightPhase then 1 else 0)

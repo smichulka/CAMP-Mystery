@@ -173,7 +173,12 @@ function InteractionController.Start(
 		if part then
 			proximityController:SetProgress(part, 1)
 		end
-		callbacks.triggered(prompt.ActionText)
+		local counselorId = prompt:GetAttribute("CounselorId")
+		if type(counselorId) == "string" and counselorId ~= "" then
+			callbacks.triggered("counselor:" .. counselorId)
+		else
+			callbacks.triggered(prompt.ActionText)
+		end
 	end))
 
 	table.insert(connections, RunService.RenderStepped:Connect(function()

@@ -30,7 +30,7 @@ export type CombatSnapshot = {
 	participantId: string,
 	alive: boolean,
 	isGhost: boolean,
-	healthState: "Healthy" | "Injured" | "Incapacitated" | "Dead",
+	healthState: "Healthy" | "Injured" | "Critical" | "Incapacitated" | "Dead",
 	injuryLevel: number,
 	movementMultiplier: number,
 }

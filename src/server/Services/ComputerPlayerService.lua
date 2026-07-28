@@ -78,7 +78,6 @@ local ALLOWED_PHASES: { [ActionType]: { [PhaseName]: boolean } } = {
 	Discuss = {
 		Day = true,
 		Investigation = true,
-		Campfire = true,
 	},
 	Vote = {
 		Campfire = true,

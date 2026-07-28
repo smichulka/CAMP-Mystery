@@ -180,7 +180,7 @@ class PhaseCinematicsTests(unittest.TestCase):
         for token in (
             "function EffectsView:SetNightIntensity",
             "then 1 + (0.45 - 1) * resolved",
-            'phase == "Night"',
+            'phase == "MurderPlanning"',
             'phase == "Investigation"',
             "self:SetNightIntensity(if nightPhase then 1 else 0)",
             "self.vignetteTween:Cancel()",
@@ -656,7 +656,6 @@ class PhaseCinematicsTests(unittest.TestCase):
         for token in (
             '"Daytime. Stay composed."',
             '"Investigation begun. Maintain your cover."',
-            '"Night phase. Choose your moment."',
             '"You chose your prey. Prepare before dawn."',
             '"You are the monster. The hunt begins."',
         ):

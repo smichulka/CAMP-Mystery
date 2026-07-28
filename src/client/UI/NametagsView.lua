@@ -248,7 +248,7 @@ function NametagsView:Update(
 		entry.billboard.Enabled = true
 		entry.dot.BackgroundColor3 = if isGhost
 			then Theme.Colors.Ghost
-			elseif alive and (healthState == "Injured" or healthState == "Critical")
+			elseif alive and (healthState == "Injured" or healthState == "Critical" or healthState == "Incapacitated")
 				then Theme.Colors.Danger
 			elseif not alive then Theme.Colors.TextMuted
 			else Theme.Colors.Success

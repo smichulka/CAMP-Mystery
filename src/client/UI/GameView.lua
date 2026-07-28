@@ -98,7 +98,7 @@ type GameViewState = {
 	monsterNoteLabel: TextLabel?,
 	monsterPanelVisible: boolean,
 	rosterPanel: Frame?,
-	rosterScrollFrame: ScrollingFrame?,
+	rosterPanelVisible: boolean,
 	lastRosterSignature: string,
 	notebook: Frame,
 	evidenceList: ScrollingFrame,
@@ -106,6 +106,7 @@ type GameViewState = {
 	settings: Frame,
 	settingsList: ScrollingFrame,
 	voteModal: Frame,
+	voteModalTitleLabel: TextLabel?,
 	voteCountLabel: TextLabel?,
 	voteWarningLabel: TextLabel?,
 	voteList: ScrollingFrame,
@@ -1042,7 +1043,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		monsterNoteLabel = monsterNoteLabel,
 		monsterPanelVisible = false,
 		rosterPanel = rosterPanel,
-		rosterScrollFrame = nil,
+		rosterPanelVisible = false,
 		lastRosterSignature = "",
 		notebook = notebook,
 		evidenceList = nil :: any,
@@ -1050,6 +1051,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		settings = settings,
 		settingsList = nil :: any,
 		voteModal = voteModal,
+		voteModalTitleLabel = nil,
 		voteCountLabel = nil,
 		voteWarningLabel = nil,
 		voteList = nil :: any,
@@ -1795,12 +1797,17 @@ function GameView:_send(action: string, payload: { [string]: any }, control: Gui
 		Motion.Shake(self.lastActionControl :: GuiObject)
 		self.lastActionControl = nil
 		self:Notify("Action unavailable", reason or "The server cannot process that action.", "Warning")
+	elseif self.lastActionControl:IsA("TextButton") then
+		Components.SetButtonEnabled(self.lastActionControl :: TextButton, false)
 	end
 end
 
 function GameView:HandleActionResult(accepted: boolean)
 	local control = self.lastActionControl
 	if control and control.Parent then
+		if control:IsA("TextButton") then
+			Components.SetButtonEnabled(control :: TextButton, true)
+		end
 		if accepted then
 			HapticController.Impact()
 			Motion.PopIn(control, { duration = 0.12 })
@@ -1845,7 +1852,9 @@ function GameView:_chooseParticipant(
 					name = "Target_" .. participantId:gsub("[^%w]", "_"),
 					text = name .. "  -  " .. health,
 					size = UDim2.new(1, -8, 0, 48),
-					color = if health == "Injured" then Theme.Colors.Danger else Theme.Colors.PanelSoft,
+					color = if health == "Injured" or health == "Critical" or health == "Incapacitated"
+					then Theme.Colors.Danger
+					else Theme.Colors.PanelSoft,
 				})
 				button:SetAttribute("Generated", true)
 				button.Activated:Connect(function()
@@ -2286,7 +2295,7 @@ function GameView:_requestRoleAction()
 	elseif #abilities > 1 then
 		self:_chooseAbility("Role", abilities)
 	else
-		self:Notify("No active ability", "Your current role uses equipment and investigation.", "Info")
+		self:Notify("No active ability", "Your current role uses equipment and investigation.", "Warning")
 	end
 end
 
@@ -2476,7 +2485,7 @@ function GameView:_setSetting(key: string, value: any)
 	if not sent then
 		Motion.Shake(self.settings)
 		self.lastActionControl = nil
-		self:Notify("Saved on this device", reason or "Server profile sync is unavailable.", "Info")
+		self:Notify("Saved on this device", reason or "Server profile sync is unavailable.", "Warning")
 	end
 end
 
@@ -3097,6 +3106,14 @@ function GameView:ShowKeybindHint(phaseName: string)
 	end
 
 	if Motion.IsReducedMotion(self.root) then
+		local hintLines = hints
+		if #hintLines > 0 then
+			self:Notify(
+				"Phase controls",
+				table.concat(hintLines, "  ·  "),
+				"Info"
+			)
+		end
 		return
 	end
 
@@ -3474,11 +3491,28 @@ function GameView:_updateRoster(state: any)
 	local phase = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
-	if not phase or not ROSTER_PHASES[phase] then
-		panel.Visible = false
+	local shouldShowRoster = phase ~= nil and ROSTER_PHASES[phase] == true
+	if shouldShowRoster ~= self.rosterPanelVisible then
+		self.rosterPanelVisible = shouldShowRoster
+		Motion.Cancel(panel)
+		if shouldShowRoster then
+			panel.Visible = true
+			Motion.FadeIn(panel, { duration = 0.25 })
+		else
+			Motion.FadeOut(panel, {
+				duration = 0.2,
+				onComplete = function(completed: boolean)
+					if completed and not self.destroyed and not self.rosterPanelVisible and panel.Parent then
+						panel.Visible = false
+					end
+				end,
+			})
+			return
+		end
+	end
+	if not shouldShowRoster then
 		return
 	end
-	panel.Visible = true
 
 	-- Build signature to skip redraws when nothing changed
 	local participants = if type(state) == "table" then asTable(state.participants) else {}
@@ -3557,7 +3591,7 @@ function GameView:_updateRoster(state: any)
 		dot.BackgroundColor3 = if ghost
 			then Theme.Colors.Ghost
 			elseif not alive then Theme.Colors.TextMuted
-			elseif healthState == "Injured" or healthState == "Critical"
+			elseif healthState == "Injured" or healthState == "Critical" or healthState == "Incapacitated"
 				then Theme.Colors.Danger
 			else Theme.Colors.Success
 		dot.Parent = row
@@ -3664,7 +3698,7 @@ function GameView:_updateVote(round: any, player: any)
 				else
 					Motion.Shake(button)
 					self.lastActionControl = nil
-					self:Notify("Vote rejected", reason or "Your vote could not be recorded.", "Danger")
+					self:Notify("Vote rejected", reason or "Your vote could not be recorded.", "Warning")
 				end
 			end)
 		end
@@ -3702,6 +3736,7 @@ function GameView:SetGhostMode(active: boolean)
 		self.ghostBadge.Visible = active
 		self.ghostBadge.TextTransparency = 0
 		if active and not reducedMotion then
+			Motion.PopIn(self.ghostBadge, { duration = 0.2 })
 			local tween = TweenService:Create(
 				self.ghostBadge,
 				TweenInfo.new(
@@ -3788,7 +3823,7 @@ function GameView:_updatePhaseArc(state: any)
 	local phase = if type(round) == "table" and type(round.phase) == "string"
 		then round.phase
 		else nil
-	local visible = phase ~= nil and phase ~= "Lobby" and phase ~= "Rewards"
+	local visible = phase ~= nil and phase ~= "Lobby" and phase ~= "Rewards" and phase ~= "RoleReveal"
 	arc.Visible = visible
 	if not visible then
 		return
@@ -4446,7 +4481,12 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	end
 	if self.eliminatedBanner then
 		local inActivePhase = phase ~= "Lobby" and phase ~= "Rewards"
-		self.eliminatedBanner.Visible = (eliminated or observing) and inActivePhase
+		local shouldShowBanner = (eliminated or observing) and inActivePhase
+		local wasShowingBanner = self.eliminatedBanner.Visible
+		self.eliminatedBanner.Visible = shouldShowBanner
+		if shouldShowBanner and not wasShowingBanner and not Motion.IsReducedMotion(self.eliminatedBanner) then
+			Motion.FadeIn(self.eliminatedBanner, { duration = 0.4 })
+		end
 		if self.eliminatedBanner.Visible then
 			local titleLabel = self.eliminatedBanner:FindFirstChild("Title")
 			local subLabel = self.eliminatedBanner:FindFirstChild("Sub")
@@ -4473,7 +4513,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.roleTitle.TextColor3 = Theme.Colors.Ghost
 	elseif alive then
 		self.stateBadge.Text = string.upper(healthState)
-		self.stateBadge.BackgroundColor3 = if healthState == "Injured" then Theme.Colors.Danger else Theme.Colors.Success
+		self.stateBadge.BackgroundColor3 = if healthState == "Injured"
+			or healthState == "Critical"
+			or healthState == "Incapacitated"
+			then Theme.Colors.Danger else Theme.Colors.Success
 		self.roleTitle.TextColor3 = if role == "Murderer" then Theme.Colors.DangerBright else Theme.Colors.Gold
 	else
 		self.stateBadge.Text = "WAITING"
@@ -4494,7 +4537,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.healthFill.BackgroundColor3 = Theme.Colors.PanelSoft
 	else
 		self.healthText.Text = string.format("%s  %d/%d", string.upper(healthState), health, maxHealth)
-		self.healthFill.BackgroundColor3 = if healthState == "Injured" then Theme.Colors.Danger else Theme.Colors.Success
+		self.healthFill.BackgroundColor3 = if healthState == "Injured"
+			or healthState == "Critical"
+			or healthState == "Incapacitated"
+			then Theme.Colors.Danger else Theme.Colors.Success
 	end
 	self.healthFill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
 	-- Brief damage flash when health drops
@@ -4849,7 +4895,13 @@ function GameView:Tick()
 		local evidence = if type(player) == "table" and type(player.evidenceKnowledge) == "table"
 			then player.evidenceKnowledge
 			else {}
-		local newCount = math.max(0, #evidence - self.lastSeenEvidenceCount)
+		-- Reset the high-water mark when evidence shrinks (new round cleared the server list)
+		local evidenceCount = #evidence
+		if evidenceCount < self.lastSeenEvidenceCount then
+			self.lastSeenEvidenceCount = 0
+			self.lastEvidenceCountForPop = 0
+		end
+		local newCount = math.max(0, evidenceCount - self.lastSeenEvidenceCount)
 		if newCount > 0 and not modalTargetVisible(self.notebook) then
 			self.notebookBadge.Text = tostring(math.min(newCount, 9))
 			self.notebookBadge.Visible = true
@@ -4953,7 +5005,11 @@ function GameView:ShowInteraction(actionText: string, objectText: string, inputT
 	end
 	self.interactionKey.Text = inputText
 	self.interactionText.Text = actionText .. if objectText ~= "" then "\n" .. objectText else ""
+	local wasVisible = self.interaction.Visible
 	self.interaction.Visible = true
+	if not wasVisible and not Motion.IsReducedMotion(self.interaction) then
+		Motion.PopIn(self.interaction, { duration = 0.15 })
+	end
 end
 
 function GameView:HideInteraction()
@@ -5918,9 +5974,11 @@ function GameView:PlayRoundSummary(stats: RoundSummaryStats)
 			end
 		end)
 
-		if Motion.IsReducedMotion(self.root) then
-			overlay.GroupTransparency = 0
-		else
+		-- GroupTransparency must be at target value (0) before FadeIn so it
+		-- captures the correct target; without this, FadeIn captures 1 and the
+		-- overlay stays invisible for the entire round summary.
+		overlay.GroupTransparency = 0
+		if not Motion.IsReducedMotion(self.root) then
 			Motion.FadeIn(overlay)
 		end
 	end)
@@ -6193,7 +6251,7 @@ function GameView:PlayEvidenceDiscovery(evidenceName: string, evidenceDescriptio
 		then string.sub(evidenceDescription, 1, 240)
 		else "A new clue has been added to the evidence notebook."
 	if Motion.IsReducedMotion(self.root) then
-		self:Notify("Evidence found", safeName .. " — " .. safeDescription, "Info")
+		self:Notify("Evidence found", safeName .. " — " .. safeDescription, "Success")
 		return
 	end
 
@@ -6494,8 +6552,9 @@ function GameView:Notify(
 	end
 	local toast = Components.Panel(self.toastList, "Toast")
 	toast.Size = UDim2.new(1, 0, 0, 70)
-	toast.BackgroundColor3 = if kind == "Danger"
-		then Theme.Colors.Danger
+	toast.BackgroundColor3 = if kind == "DangerBright"
+		then Theme.Colors.DangerBright
+		elseif kind == "Danger" then Theme.Colors.Danger
 		elseif kind == "Warning" then Theme.Colors.Amber
 		elseif kind == "Success" then Theme.Colors.Success
 		else Theme.Colors.PanelRaised
@@ -6517,7 +6576,7 @@ function GameView:Notify(
 	)
 	body.Position = UDim2.fromOffset(12, 31)
 	body.Size = UDim2.new(1, -24, 0, 32)
-	if kind == "Danger" or kind == "Warning" then
+	if kind == "Danger" or kind == "DangerBright" or kind == "Warning" then
 		Components.PlayUISound("error")
 	elseif kind == "Success" then
 		Components.PlayUISound("success")
@@ -6581,6 +6640,7 @@ function GameView:Destroy()
 	self.monsterAbilityLabel = nil
 	self.monsterNoteLabel = nil
 	self.monsterPanelVisible = false
+	self.rosterPanelVisible = false
 	if self.phaseArc then
 		self.phaseArc:Destroy()
 		self.phaseArc = nil
@@ -6590,8 +6650,8 @@ function GameView:Destroy()
 		self.rosterPanel:Destroy()
 		self.rosterPanel = nil
 	end
-	self.rosterScrollFrame = nil
 	self.lastRosterSignature = ""
+	self.voteModalTitleLabel = nil
 	self.voteCountLabel = nil
 	self.voteWarningLabel = nil
 	self.localVoteHasLocked = false
