@@ -831,10 +831,16 @@ class ServerReleaseContracts(unittest.TestCase):
         # Self-attack rejected
         self.assertIn("attacker.participantId == target.participantId", attack_block)
         self.assertIn('"A participant cannot attack itself"', attack_block)
-        # Three outcomes
+        # Attack outcomes include the expanded injury ladder.
         self.assertIn('outcome = "Blocked"', attack_block)
         self.assertIn('outcome = "Eliminated"', attack_block)
-        self.assertIn('outcome = "Injured"', attack_block)
+        self.assertIn("local outcome: AttackOutcome", attack_block)
+        self.assertIn('applyResult == "Critical"', attack_block)
+        self.assertIn('then "Critical"', attack_block)
+        self.assertIn('applyResult == "Incapacitated"', attack_block)
+        self.assertIn('then "Incapacitated"', attack_block)
+        self.assertIn('else "Injured"', attack_block)
+        self.assertIn("outcome = outcome", attack_block)
         # Blocked: lowest evidence risk (attack was interrupted)
         self.assertIn("evidenceRisk = 0.8", attack_block)
         # Reduced defense raises evidence risk vs full attack
