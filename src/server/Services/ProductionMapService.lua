@@ -734,6 +734,16 @@ local function createBuilding(
 			Enum.Material.WoodPlanks
 		)
 	end
+	-- Crumbling plaster patches: exposed dark brick where facade has fallen off (Old Town 2/3 reference)
+	local damageC = Color3.fromRGB(46, 40, 35)
+	local fZ = -size.Z / 2 - 0.14
+	local function dmgPatch(nm, partSize, offset)
+		local p = createPart(model, nm, partSize, CFrame.new(position + offset), damageC, Enum.Material.Concrete)
+		p.CanCollide = false
+	end
+	dmgPatch("DamagePatch1", Vector3.new(3.8, 3.2, 0.18), Vector3.new(-size.X * 0.29, size.Y * 0.72, fZ))
+	dmgPatch("DamagePatch2", Vector3.new(2.6, 4.0, 0.18), Vector3.new( size.X * 0.27, size.Y * 0.81, fZ))
+	dmgPatch("DamagePatch3", Vector3.new(0.18, 3.6, 5.0), Vector3.new(-size.X / 2 - 0.12, size.Y * 0.60, size.Z * 0.12))
 	local interiorCounter = createPart(
 		model,
 		"SearchCounter",
