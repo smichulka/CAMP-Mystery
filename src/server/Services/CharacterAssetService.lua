@@ -1032,6 +1032,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 						* CFrame.Angles(0.18 * (f - 2), 0, side * 0.08), presentation.accent)
 			end
 		end
+		-- Exposed viscera hanging from lower torso (prominent in reference image)
+		local visceraC = Color3.fromRGB(120, 28, 38)
+		local visOffsets = {{-0.55, -1.0}, {0.10, -1.4}, {-0.20, -1.8}}
+		for vi, vOff in ipairs(visOffsets) do
+			local vis = makePart(model, "Viscera" .. vi,
+				Vector3.new(0.62 * sx, 0.48 * sy, 0.50 * sz),
+				at * CFrame.new(vOff[1] * sx, -(torsoSize.Y * 0.40) + vOff[2] * sy, 0),
+				visceraC, Enum.PartType.Ball)
+			vis.Material = Enum.Material.SmoothPlastic
+			vis.Transparency = 0.18
+		end
 	elseif monsterId == "Wendigo" then
 		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
 		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
@@ -1060,6 +1071,25 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			local ribW  = torsoSize.X * (0.55 + r * 0.06)
 			makePart(model, "Rib" .. tostring(r), Vector3.new(ribW, 0.20, 0.14),
 				at * CFrame.new(0, ribY, -(torsoSize.Z / 2 + 0.06)), ribColor)
+		end
+		-- Twisted vine/bark strips wound around the torso (core reference-image feature)
+		local barkColor = Color3.fromRGB(52, 36, 18)
+		local vineAngles = {0.62, -0.48, 0.80, -0.72}
+		local vineYOffsets = {torsoSize.Y * 0.30, torsoSize.Y * 0.05, -torsoSize.Y * 0.18, -torsoSize.Y * 0.38}
+		for v = 1, 4 do
+			local vine = makePart(model, "VineStrip" .. v,
+				Vector3.new(torsoSize.X * 1.18, 0.28 * sy, 0.22),
+				at * CFrame.new(0, vineYOffsets[v], -(torsoSize.Z / 2 + 0.03))
+					* CFrame.Angles(0, 0, vineAngles[v]), barkColor)
+			vine.Material = Enum.Material.WoodPlanks
+		end
+		-- Bark shard protrusions from each side of the torso
+		for side = -1, 1, 2 do
+			local shard = makePart(model, "BarkShard" .. (if side < 0 then "L" else "R"),
+				Vector3.new(0.38 * sx, 1.20 * sy, 0.20),
+				at * CFrame.new(side * (torsoSize.X * 0.62), 0.10 * sy, 0)
+					* CFrame.Angles(0.22, 0, side * 0.55), barkColor)
+			shard.Material = Enum.Material.WoodPlanks
 		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftClaw" else "RightClaw",
