@@ -973,11 +973,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			at * CFrame.new(0, headY + headSize.Y * 0.28, 0),
 			presentation.color, Enum.PartType.Ball)
 		cranium.Transparency = 0.04
-		-- Large dark teardrop eyes: close-set and dominating the face (matching reference)
+		-- Large dark teardrop eyes: wide-set on the cranium surface (reference: eyes at cranium sides)
+		local craniumFrontZ = -(headSize.Z * 0.725 + 0.08)
+		local craniumCenterY = headY + headSize.Y * 0.22
 		for side = -1, 1, 2 do
 			local eye = makePart(model, if side < 0 then "LeftEye" else "RightEye",
-				Vector3.new(1.30, 1.85, 0.62),
-				at * CFrame.new(side * 0.50, headY + 0.08, -(headSize.Z / 2 + 0.10)),
+				Vector3.new(1.45 * sx, 2.05 * sy, 0.55 * sz),
+				at * CFrame.new(side * headSize.X * 0.72, craniumCenterY, craniumFrontZ),
 				Color3.fromRGB(5, 4, 6), Enum.PartType.Ball)
 			eye.Material = Enum.Material.SmoothPlastic
 		end
