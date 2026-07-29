@@ -506,6 +506,20 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(bX, (1.1 + railY) / 2, -12)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
+	-- Side lean-to: small open-sided shelter attached to the right cabin wall (Cabin 3 reference)
+	local leanW, leanD = 9, 10
+	local leanHi, leanLo = 8.5, 5.0
+	createWedge(model, "LeanToRoof",
+		Vector3.new(leanW, leanHi - leanLo, leanD + 0.5),
+		CFrame.new(position + Vector3.new(width / 2 + leanW / 2, leanLo + (leanHi - leanLo) / 2, 2))
+			* CFrame.Angles(0, math.pi / 2, 0),
+		tinRoof, Enum.Material.CorrodedMetal)
+	for lSide = -1, 1, 2 do
+		createPart(model, "LeanToPost" .. (if lSide < 0 then "F" else "B"),
+			Vector3.new(0.45, leanLo, 0.45),
+			CFrame.new(position + Vector3.new(width / 2 + leanW - 0.25, leanLo / 2, 2 + lSide * (leanD / 2 - 0.25))),
+			trimColor, Enum.Material.WoodPlanks)
+	end
 	-- Simple wooden porch chair on one side (Cabin 2 reference: chair visible on porch)
 	local chairColor = Color3.fromRGB(68, 46, 28)
 	createPart(model, "ChairSeat", Vector3.new(1.7, 0.28, 1.5),
@@ -1641,6 +1655,28 @@ function ProductionMapService:Build()
 				scrubColor, Enum.Material.Grass)
 			scrub.Shape = Enum.PartType.Ball
 			scrub.CanCollide = false
+		end
+		-- Autumn leaf drifts on the road and curbs (Old Town 2 reference: fallen leaves cover the ground)
+		local leafData = {
+			{ 4, -122, 0.22, Color3.fromRGB(118, 72, 22) },
+			{ -18, -145, 0.18, Color3.fromRGB(138, 88, 18) },
+			{ 28, -168, 0.24, Color3.fromRGB(105, 60, 15) },
+			{ -8, -195, 0.20, Color3.fromRGB(120, 75, 20) },
+			{ 20, -225, 0.22, Color3.fromRGB(110, 65, 18) },
+			{ -30, -252, 0.18, Color3.fromRGB(130, 82, 16) },
+			{ 14, -278, 0.20, Color3.fromRGB(100, 58, 14) },
+			{ -4, -315, 0.22, Color3.fromRGB(115, 70, 20) },
+			{ 32, -342, 0.18, Color3.fromRGB(108, 64, 16) },
+			{ -22, -385, 0.20, Color3.fromRGB(122, 76, 18) },
+		}
+		for i, ld in ipairs(leafData) do
+			local leafSz = 2.2 + (i % 3) * 0.8
+			local leaf = createPart(self.nightTown, "LeafDrift" .. i,
+				Vector3.new(leafSz, ld[3], leafSz * 0.85),
+				CFrame.new(ld[1], ld[3] / 2, ld[2]) * CFrame.Angles(0, i * 0.7, 0),
+				ld[4], Enum.Material.Grass)
+			leaf.Shape = Enum.PartType.Ball
+			leaf.CanCollide = false
 		end
 	end
 
