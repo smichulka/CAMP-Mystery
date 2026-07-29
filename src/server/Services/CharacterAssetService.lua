@@ -1360,6 +1360,23 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * (cloakW / 2 + 0.12), -torsoSize.Y * 0.16, 0)
 					* CFrame.Angles(0, 0, side * 0.10), cloakColor)
 		end
+		-- Deep drooping hood: empty cowl covering the headless neck/head area (reference: hooded figure)
+		local hoodW = cloakW * 0.68
+		local hoodH = 4.5 * sy
+		local hoodBotY = torsoSize.Y / 2 - 0.4
+		local hoodCY = hoodBotY + hoodH * 0.5
+		makePart(model, "HoodBack", Vector3.new(hoodW, hoodH, 0.22),
+			at * CFrame.new(0, hoodCY, torsoSize.Z / 2 + 0.14), cloakColor)
+		makePart(model, "HoodFront", Vector3.new(hoodW * 0.86, hoodH * 0.88, 0.20),
+			at * CFrame.new(0, hoodCY - hoodH * 0.06, -(torsoSize.Z / 2 + 0.14))
+				* CFrame.Angles(-0.12, 0, 0), cloakColor)
+		for hSide = -1, 1, 2 do
+			makePart(model, "HoodSide" .. (if hSide < 0 then "L" else "R"),
+				Vector3.new(0.24, hoodH, torsoSize.Z + 0.28),
+				at * CFrame.new(hSide * (hoodW * 0.5 + 0.12), hoodCY, 0), cloakColor)
+		end
+		makePart(model, "HoodTop", Vector3.new(hoodW + 0.44, 0.28, torsoSize.Z + 0.30),
+			at * CFrame.new(0, hoodBotY + hoodH + 0.14, 0), cloakColor)
 		-- Bottom hem flare: wide skirt that fans out at base for bell-shaped silhouette from reference
 		local hemW = cloakW * 1.45
 		local hemH = cloakH * 0.28
