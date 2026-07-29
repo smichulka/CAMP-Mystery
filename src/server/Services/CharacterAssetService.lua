@@ -124,7 +124,7 @@ local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(155, 118, 58),    -- warm khaki/trail tan   (Reed      – Outdoor Skills)
 	Color3.fromRGB(168, 88, 65),     -- terracotta/rust        (Brooks    – Arts & Activities)
 	Color3.fromRGB(62, 128, 78),     -- forest green           (Chen      – Nature & Science)
-	Color3.fromRGB(48, 78, 135),     -- navy waterfront blue   (Finch     – Waterfront/Logistics)
+	Color3.fromRGB(22, 22, 26),      -- near-black             (Finch     – Contractor)
 }
 
 local BOT_BODY_COLORS: { [string]: Color3 } = {
