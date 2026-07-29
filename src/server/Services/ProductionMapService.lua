@@ -1656,6 +1656,31 @@ function ProductionMapService:Build()
 			scrub.Shape = Enum.PartType.Ball
 			scrub.CanCollide = false
 		end
+		-- Golden autumn bushes: bright yellow shrubs against bare trees (Old Town 3 reference)
+		local goldenBushData = {
+			{ -78, -168, 2.8 }, { 80, -225, 3.2 }, { -82, -310, 2.5 }, { 78, -375, 3.0 },
+		}
+		for i, gb in ipairs(goldenBushData) do
+			local gBush = createPart(self.nightTown, "GoldenBush" .. i,
+				Vector3.new(gb[3] * 1.15, gb[3] * 0.88, gb[3]),
+				CFrame.new(gb[1], gb[3] * 0.44, gb[2]),
+				Color3.fromRGB(198, 165, 32), Enum.Material.Grass)
+			gBush.Shape = Enum.PartType.Ball
+			gBush.CanCollide = false
+		end
+		-- Road puddles: flat dark reflective patches on the dirt road (Old Town 3 reference)
+		local puddleData = {
+			{ 6, -138, 3.2, 2.4 }, { -4, -195, 4.0, 2.8 }, { 8, -268, 2.8, 2.0 }, { -6, -342, 3.5, 2.5 },
+		}
+		for i, pd in ipairs(puddleData) do
+			local puddle = createPart(self.nightTown, "Puddle" .. i,
+				Vector3.new(pd[3], 0.07, pd[4]),
+				CFrame.new(pd[1], 0.04, pd[2]),
+				Color3.fromRGB(22, 28, 38), Enum.Material.SmoothPlastic)
+			puddle.Shape = Enum.PartType.Ball
+			puddle.Transparency = 0.25
+			puddle.CanCollide = false
+		end
 		-- Autumn leaf drifts on the road and curbs (Old Town 2 reference: fallen leaves cover the ground)
 		local leafData = {
 			{ 4, -122, 0.22, Color3.fromRGB(118, 72, 22) },
