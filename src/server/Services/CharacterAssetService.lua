@@ -1232,6 +1232,27 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			orb.Material = Enum.Material.Neon
 			orb.Transparency = 0.08
 		end
+		-- Mechanical pressure gauge on front of body (distinctive reference-image feature)
+		local gaugeC = Color3.fromRGB(52, 52, 56)
+		local gaugeFace = makePart(model, "GaugeFace",
+			Vector3.new(1.40 * sx, 1.40 * sy, 0.18),
+			at * CFrame.new(0, torsoSize.Y * 0.24, -(torsoSize.Z / 2 + 0.10)),
+			gaugeC, Enum.PartType.Ball)
+		gaugeFace.Material = Enum.Material.Metal
+		-- Gauge needle pointer
+		makePart(model, "GaugeNeedle",
+			Vector3.new(0.08, 0.62 * sy, 0.10),
+			at * CFrame.new(0.16 * sx, torsoSize.Y * 0.24, -(torsoSize.Z / 2 + 0.20))
+				* CFrame.Angles(0, 0, -0.60),
+			Color3.fromRGB(195, 38, 38))
+		-- Extra body-surface eye organs (reference shows 4+ eyes distributed on body)
+		for i, eyeOff in ipairs({{-1.1, -0.2}, {1.1, 0.35}}) do
+			local bodyEye = makePart(model, "BodyEye" .. i,
+				Vector3.new(0.55 * sx, 0.55 * sy, 0.28),
+				at * CFrame.new(eyeOff[1] * sx, eyeOff[2] * sy, -(torsoSize.Z / 2 + 0.06)),
+				Color3.fromRGB(6, 6, 10), Enum.PartType.Ball)
+			bodyEye.Material = Enum.Material.Neon
+		end
 		-- 8 tentacles radiating from the base (octopus reference)
 		for index = 1, 8 do
 			local angle = ((index - 1) / 8) * math.pi * 2
