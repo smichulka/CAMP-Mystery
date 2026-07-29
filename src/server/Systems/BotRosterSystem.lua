@@ -24,6 +24,10 @@ export type LockedRoster = {
 	targetSize: number,
 	participantIds: { string },
 	botParticipantIds: { string },
+	-- Every profile issued this round, including benched replacements; a
+	-- profile is never re-issued within one round so a benched bot's stale
+	-- state and id can't be conflated with a new roster slot.
+	usedProfileIds: { [string]: boolean },
 }
 
 type BotRosterSystemState = {
@@ -46,6 +50,7 @@ local function copyLockedRoster(roster: LockedRoster): LockedRoster
 		targetSize = roster.targetSize,
 		participantIds = table.clone(roster.participantIds),
 		botParticipantIds = table.clone(roster.botParticipantIds),
+		usedProfileIds = table.clone(roster.usedProfileIds),
 	}
 end
 
@@ -141,10 +146,13 @@ function BotRosterSystem:FillEmptySlots(
 	local availableProfiles = self:_AvailableProfiles({})
 	assert(#availableProfiles >= emptySlotCount, "Not enough unique bot profiles to fill the roster")
 	local bots: { RosterParticipant } = {}
+	local usedProfileIds: { [string]: boolean } = {}
 	for index = 1, emptySlotCount do
-		local rosterBot = self:_CreateRosterBot(availableProfiles[index])
+		local profile = availableProfiles[index]
+		local rosterBot = self:_CreateRosterBot(profile)
 		assert(not seenParticipantIds[rosterBot.participantId], "Bot participant ID collides with roster")
 		seenParticipantIds[rosterBot.participantId] = true
+		usedProfileIds[profile.id] = true
 		table.insert(bots, rosterBot)
 		table.insert(participantIds, rosterBot.participantId)
 		table.insert(botParticipantIds, rosterBot.participantId)
@@ -155,6 +163,7 @@ function BotRosterSystem:FillEmptySlots(
 		targetSize = #humans + emptySlotCount,
 		participantIds = participantIds,
 		botParticipantIds = botParticipantIds,
+		usedProfileIds = usedProfileIds,
 	}
 	return bots
 end
@@ -175,7 +184,10 @@ function BotRosterSystem:FillReplacement(
 		return nil, "DepartedParticipantNotInRoster"
 	end
 
-	local excluded: { [string]: boolean } = {}
+	-- Exclude every profile issued this round (including benched replacement
+	-- bots), not just the bots currently in the roster; re-issuing a benched
+	-- profile would resurrect its stale participant state under the same id.
+	local excluded: { [string]: boolean } = table.clone(roster.usedProfileIds)
 	for _, botParticipantId in roster.botParticipantIds do
 		local bot = self.participantService:GetById(botParticipantId)
 		if bot and bot.controller.kind == "Bot" then
@@ -188,6 +200,7 @@ function BotRosterSystem:FillReplacement(
 		return nil, "NoBotProfileAvailable"
 	end
 
+	roster.usedProfileIds[profile.id] = true
 	local replacement = self:_CreateRosterBot(profile)
 	roster.participantIds[departedIndex] = replacement.participantId
 	table.insert(roster.botParticipantIds, replacement.participantId)
@@ -206,6 +219,15 @@ function BotRosterSystem:RestoreHuman(
 	local replacementIndex = table.find(roster.participantIds, replacementParticipantId)
 	local botIndex = table.find(roster.botParticipantIds, replacementParticipantId)
 	if not replacementIndex or not botIndex then
+		return false
+	end
+	-- Reject unknown, non-human, or already-rostered ids: writing one into
+	-- participantIds would crash the next ResetRound's roster validation.
+	local human = self.participantService:GetById(humanParticipantId)
+	if not human or human.controller.kind ~= "Human" then
+		return false
+	end
+	if table.find(roster.participantIds, humanParticipantId) then
 		return false
 	end
 	roster.participantIds[replacementIndex] = humanParticipantId

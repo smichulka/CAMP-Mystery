@@ -1478,8 +1478,14 @@ function GameRuntimeService:_CreateAttackEvidence(
 		self.murderPlan and self.murderPlan.locationId or "attack-site",
 		evidenceKind == "LethalAttack"
 	)
-	self.evidenceLocationById[record.evidenceId] =
-		self.murderPlan and self.murderPlan.locationId or SEARCH_LOCATIONS[1]
+	-- The default murder-plan location ("industrial-factory-monster") is a
+	-- monster spawn, not a search socket; evidence must map to a real socket
+	-- or no search prompt can ever reach it.
+	local planLocation = if self.murderPlan then self.murderPlan.locationId else nil
+	self.evidenceLocationById[record.evidenceId] = if planLocation
+			and table.find(SEARCH_LOCATIONS, planLocation)
+		then planLocation
+		else SEARCH_LOCATIONS[((self.roundId - 1) % #SEARCH_LOCATIONS) + 1]
 	if not target.alive then
 		self.victimName = target.displayName
 	end

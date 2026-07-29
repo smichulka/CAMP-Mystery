@@ -98,7 +98,9 @@ function RoundLifecycle:On(eventName: LifecycleEventName, listener: Listener): (
 		end
 	end
 
-	self.cleanup:Add(disconnect)
+	-- Not registered with self.cleanup: Destroy() clears the listener tables
+	-- directly, and accumulating one closure per subscription for the server
+	-- lifetime leaked every disconnected listener and its upvalues.
 	return disconnect
 end
 

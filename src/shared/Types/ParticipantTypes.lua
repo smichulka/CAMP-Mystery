@@ -114,6 +114,7 @@ export type PrivateParticipantSnapshot = {
 	inventoryCapacity: number,
 	evidenceKnowledge: { EvidenceKnowledge },
 	vote: VoteState,
+	abilityCooldownEndsAt: { [string]: number },
 }
 
 export type RandomSource = {

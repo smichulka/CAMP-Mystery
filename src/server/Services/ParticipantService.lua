@@ -153,18 +153,25 @@ function ParticipantService:CreateBot(
 ): ParticipantState
 	assert(displayName ~= "", "Bot display name cannot be empty")
 	local participantId = botParticipantId(botId)
-	local existing = self.participantsById[participantId]
-	if existing then
-		existing.displayName = displayName
-		existing.controller.connected = true
-		return existing
-	end
-
 	local resolvedDifficulty = difficulty or 1
 	assert(
 		resolvedDifficulty >= 0 and resolvedDifficulty <= 1,
 		"Bot difficulty must be between 0 and 1"
 	)
+	local existing = self.participantsById[participantId]
+	if existing then
+		existing.displayName = displayName
+		existing.controller.connected = true
+		-- A reused bot must adopt the new roster's tuning, not keep whatever
+		-- profile/difficulty it was created with in an earlier round.
+		if existing.controller.kind == "Bot" then
+			existing.controller.profileId = profileId or existing.controller.profileId
+			if difficulty ~= nil then
+				existing.controller.difficulty = resolvedDifficulty
+			end
+		end
+		return existing
+	end
 	local state: ParticipantState = {
 		participantId = participantId,
 		displayName = displayName,
