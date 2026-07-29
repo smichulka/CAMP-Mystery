@@ -2033,9 +2033,20 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.62)), tacOlive)
 
 		elseif styleSlot == 8 then
-			-- Flannel & Headphones: white sneakers, teal headphones
+			-- Flannel & Headphones: white sneakers, teal headphones, white inner hoodie
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			-- White inner hoodie panel visible where flannel opens (reference: white hoodie under plaid)
+			makePart(model, "InnerHoodie", Vector3.new(1.20 * scale, th * 0.96, 0.09),
+				at * CFrame.new(0, 0, -(td / 2 + 0.08)), Color3.fromRGB(238, 236, 232))
+			-- Hoodie drawstrings hanging from neck
+			local cordC = Color3.fromRGB(195, 192, 188)
+			makePart(model, "DrawL", Vector3.new(0.06, th * 0.52, 0.06),
+				at * CFrame.new(-0.22 * scale, -(th * 0.06), -(td / 2 + 0.09))
+					* CFrame.Angles(0.22, 0, -0.08), cordC)
+			makePart(model, "DrawR", Vector3.new(0.06, th * 0.52, 0.06),
+				at * CFrame.new( 0.22 * scale, -(th * 0.06), -(td / 2 + 0.09))
+					* CFrame.Angles(0.22, 0,  0.08), cordC)
 			local hpC = Color3.fromRGB(72, 192, 214)
 			makePart(model, "HPArc", Vector3.new(0.14 * scale, hs * 0.60, 0.14 * scale),
 				at * CFrame.new(0, headY + hs * 0.45, 0), hpC)
@@ -2097,7 +2108,7 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, th * 0.04 - 0.30 * scale, -(td / 2 + 0.09)), pxD)
 
 		else -- styleSlot == 11
-			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim
+			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim + front pockets
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
 			local visor = makePart(model, "HoloVisor", Vector3.new(hs * 1.05, hs * 0.25, 0.10),
@@ -2111,6 +2122,13 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, 0, -(td / 2 + 0.08)), roseGold)
 			makePart(model, "HoodieHem", Vector3.new(2.02 * scale, 0.16 * scale, 0.10),
 				at * CFrame.new(0, -(th / 2 - 0.09 * scale), -(td / 2 + 0.08)), roseGold)
+			-- Two front hoodie pockets (clearly visible in Boy Camper 5 reference)
+			local pocketC = bodyColor:Lerp(Color3.fromRGB(0, 0, 0), 0.22)
+			for side = -1, 1, 2 do
+				makePart(model, "HoodiePocket" .. (if side < 0 then "L" else "R"),
+					Vector3.new(0.74 * scale, 0.52 * scale, 0.10),
+					at * CFrame.new(side * 0.54 * scale, -(th * 0.26), -(td / 2 + 0.09)), pocketC)
+			end
 			task.spawn(function()
 				local holoColors = {
 					Color3.fromRGB(120, 190, 255),
