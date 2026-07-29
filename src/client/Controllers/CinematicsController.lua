@@ -480,10 +480,28 @@ function CinematicsController:PlayPhaseFlash()
 end
 
 function CinematicsController:PlayPhaseTransition(phaseName: string)
+	-- The server owns ClockTime/Atmosphere between cinematics (SetNight), so
+	-- re-baseline from the current server-authoritative state each phase.
+	-- Capture BEFORE _cancelActive, whose cleanup rewrites these properties
+	-- from the previous phase's (now stale) baseline.
+	local currentClockTime = Lighting.ClockTime
+	local currentAtmosphereDensity = self.atmosphere.Density
 	self:_cancelActive()
 	if self.destroyed then
 		return
 	end
+	self.baselineClockTime = readNumberAttribute(
+		Lighting,
+		CinematicsController.AttributeNames.ClockTime,
+		currentClockTime
+	)
+	self.baselineAtmosphereDensity = readNumberAttribute(
+		Lighting,
+		CinematicsController.AttributeNames.AtmosphereDensity,
+		currentAtmosphereDensity
+	)
+	Lighting.ClockTime = self.baselineClockTime
+	self.atmosphere.Density = self.baselineAtmosphereDensity
 	self.phaseBaselineSaturation = readNumberAttribute(
 		Lighting,
 		CinematicsController.AttributeNames.Saturation,
