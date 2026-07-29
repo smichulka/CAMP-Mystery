@@ -17,7 +17,7 @@ local phases: { PhaseConfig } = {
 		name = "RoleReveal",
 		displayName = "Roles Revealed",
 		durationSeconds = 15,
-		studioDurationSeconds = 38,
+		studioDurationSeconds = 8,
 	},
 	{
 		name = "Day",
@@ -35,7 +35,7 @@ local phases: { PhaseConfig } = {
 		name = "NightTransform",
 		displayName = "The Town Is Appearing",
 		durationSeconds = 20,
-		studioDurationSeconds = 36,
+		studioDurationSeconds = 10,
 	},
 	{
 		name = "Investigation",
@@ -53,13 +53,13 @@ local phases: { PhaseConfig } = {
 		name = "Resolution",
 		displayName = "Mystery Resolution",
 		durationSeconds = 30,
-		studioDurationSeconds = 40,
+		studioDurationSeconds = 12,
 	},
 	{
 		name = "Rewards",
 		displayName = "Round Rewards",
 		durationSeconds = 20,
-		studioDurationSeconds = 38,
+		studioDurationSeconds = 10,
 	},
 }
 

@@ -2459,6 +2459,20 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 					teamValue = 1,
 				})
 			end
+		elseif participant.role == "Detective" then
+			for _, record in self.evidence:GetAllServer() do
+				if record.posted and record.verificationState == "Unverified" then
+					table.insert(actions, {
+						id = "verify:" .. record.evidenceId,
+						actionType = "VerifyEvidence",
+						baseUtility = 18,
+						evidenceId = record.evidenceId,
+						risk = 0,
+						informationValue = 0.9,
+						teamValue = 0.9,
+					})
+				end
+			end
 		end
 		if participant.role == "Protector" and otherCamperId then
 			addRoleAction("role:protect-night", "protect-participant", otherCamperId, 27)
@@ -2472,6 +2486,12 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			addRoleAction("role:spirit", "spirit-sense", nil, 24)
 		elseif participant.role == "Medic" and injuredCamperId then
 			addRoleAction("role:treat-night", "field-treatment", injuredCamperId, 32)
+		end
+		if participant.isGhost and participant.role == "Protector" and otherCamperId then
+			local ghostSnap = self.roleAbilities:GetPrivateSnapshot(participant.participantId)
+			if ghostSnap.ghostInterventionAvailable then
+				addRoleAction("ghost-protect:" .. otherCamperId, "protect-participant", otherCamperId, 50)
+			end
 		end
 	elseif phase == "Campfire" then
 		local publicSuspicion: { [string]: number } = {}
@@ -2513,6 +2533,22 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 						risk = 0,
 						informationValue = 0.7,
 						teamValue = 1,
+					})
+				end
+			end
+		end
+		if self.mysteryReady then
+			local campfirePrivate = self.mystery:GetPrivateSnapshot()
+			for _, account in campfirePrivate.witnessAccounts do
+				if not account.revealed then
+					table.insert(actions, {
+						id = "campfire-interview:" .. account.counselorId,
+						actionType = "InterviewCounselor",
+						baseUtility = 7,
+						counselorId = account.counselorId,
+						risk = 0.05,
+						informationValue = 0.7,
+						teamValue = 0.5,
 					})
 				end
 			end
@@ -2579,6 +2615,9 @@ function GameRuntimeService:_ExecuteBotAction(
 		end)
 		self:_ApplyMonsterAttack(participant.participantId, targetId, "BotAttack")
 		return true
+	elseif candidate.actionType == "VerifyEvidence" then
+		actionName = "VerifyEvidence"
+		payload.evidenceId = candidate.evidenceId
 	elseif candidate.actionType == "Vote" then
 		actionName = "Vote"
 		payload.targetParticipantId = candidate.targetParticipantId
@@ -2680,6 +2719,9 @@ function GameRuntimeService:_recoverRoundFailure(generation: number, failure: un
 		self.monster:Reset(self.roundId)
 	end)
 	pcall(function()
+		self.characters:ClearMonster()
+	end)
+	pcall(function()
 		self.lifecycle:Emit("RoundReset", {
 			reason = "RuntimeFailure",
 		})
@@ -2778,6 +2820,14 @@ function GameRuntimeService:Start()
 			end
 		end)
 	end
+	task.spawn(function()
+		while self.running and self.generation == generation do
+			task.wait(3)
+			if self.running and self.generation == generation and self.phase ~= "Lobby" then
+				self:Broadcast()
+			end
+		end
+	end)
 end
 
 function GameRuntimeService:Stop()

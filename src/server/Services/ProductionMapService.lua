@@ -337,8 +337,16 @@ local function createCabin(
 	model.Name = name
 	model.Parent = parent
 
-	local wallColor = Color3.fromRGB(83, 59, 42)
-	local trimColor = Color3.fromRGB(54, 37, 27)
+	local wallColor  = Color3.fromRGB(94, 68, 46)   -- aged timber
+	local trimColor  = Color3.fromRGB(46, 32, 22)
+	local tinRoof    = Color3.fromRGB(88, 84, 76)    -- weathered corrugated tin
+	local stoneColor = Color3.fromRGB(72, 68, 62)    -- mossy stone foundation
+
+	-- Stone foundation strip around the base
+	createPart(model, "Foundation", Vector3.new(width + 1.2, 1.8, 17.4),
+		CFrame.new(position + Vector3.new(0, -0.55, 0)),
+		stoneColor, Enum.Material.SmoothPlastic)
+
 	local floor = createPart(
 		model,
 		"Floor",
@@ -389,14 +397,15 @@ local function createCabin(
 		wallColor,
 		Enum.Material.WoodPlanks
 	)
+	-- Corrugated tin roof panels (two sloped halves)
 	createPart(
 		model,
 		"RoofLeft",
 		Vector3.new(width / 2 + 2, 1.1, 19),
 		CFrame.new(position + Vector3.new(-width / 4, 11.1, 0))
 			* CFrame.Angles(0, 0, math.rad(-13)),
-		Color3.fromRGB(46, 42, 39),
-		Enum.Material.Slate
+		tinRoof,
+		Enum.Material.CorrodedMetal
 	)
 	createPart(
 		model,
@@ -404,9 +413,21 @@ local function createCabin(
 		Vector3.new(width / 2 + 2, 1.1, 19),
 		CFrame.new(position + Vector3.new(width / 4, 11.1, 0))
 			* CFrame.Angles(0, 0, math.rad(13)),
-		Color3.fromRGB(46, 42, 39),
-		Enum.Material.Slate
+		tinRoof,
+		Enum.Material.CorrodedMetal
 	)
+	-- Roof ridge cap along the peak
+	createPart(model, "RoofRidge", Vector3.new(1.2, 1.2, 19),
+		CFrame.new(position + Vector3.new(0, 12.2, 0)),
+		Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
+	-- Chimney on the back wall
+	createPart(model, "ChimneyBase", Vector3.new(2.4, 6, 2.4),
+		CFrame.new(position + Vector3.new(width * 0.28, 13, 6.5)),
+		stoneColor, Enum.Material.SmoothPlastic)
+	createPart(model, "ChimneyTop", Vector3.new(2.8, 0.5, 2.8),
+		CFrame.new(position + Vector3.new(width * 0.28, 16.25, 6.5)),
+		Color3.fromRGB(54, 50, 46), Enum.Material.Concrete)
+	-- Porch with posts
 	createPart(
 		model,
 		"Porch",
@@ -415,6 +436,16 @@ local function createCabin(
 		Color3.fromRGB(77, 54, 37),
 		Enum.Material.WoodPlanks
 	)
+	-- Porch roof
+	createPart(model, "PorchRoof", Vector3.new(width - 2, 0.35, 5.5),
+		CFrame.new(position + Vector3.new(0, 9.35, -10.25)),
+		tinRoof, Enum.Material.CorrodedMetal)
+	-- Porch posts at each corner
+	for side = -1, 1, 2 do
+		createPart(model, "PorchPost", Vector3.new(0.45, 8.8, 0.45),
+			CFrame.new(position + Vector3.new(side * (width / 2 - 1.5), 4.5, -12)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
 	local doorState = createInteractiveDoor(
 		model,
 		"Door",
@@ -699,6 +730,110 @@ local function createPineTree(
 	end
 end
 
+local function createBareTree(parent: Instance, position: Vector3, height: number)
+	local trunk = createCylinder(parent, "BareTrunk",
+		Vector3.new(height, 1.6, 1.6),
+		CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(52, 44, 36), Enum.Material.Wood)
+	trunk:SetAttribute("Occluder", true)
+	-- A few dead angular branches
+	for b = 1, 4 do
+		local branchAngle = (b / 4) * math.pi * 2
+		local branchH = height * (0.45 + b * 0.09)
+		local branchLen = 4 + b % 3
+		createPart(parent, "Branch",
+			Vector3.new(0.4, branchLen, 0.4),
+			CFrame.new(position + Vector3.new(
+				math.cos(branchAngle) * 1.1,
+				branchH,
+				math.sin(branchAngle) * 1.1
+			)) * CFrame.Angles(math.cos(branchAngle) * 0.65, 0, math.sin(branchAngle) * 0.65),
+			Color3.fromRGB(44, 36, 28), Enum.Material.Wood)
+	end
+end
+
+local function buildWaterTower(parent: Instance, position: Vector3)
+	local metalColor  = Color3.fromRGB(63, 72, 75)    -- weathered CorrodedMetal
+	local legColor    = Color3.fromRGB(52, 58, 60)
+	local tankHeight  = 18
+	local legH        = 20
+
+	-- Tank (cylinder lying on its side, so PartType.Cylinder rotated 90°)
+	local tank = createCylinder(parent, "WaterTankBody",
+		Vector3.new(tankHeight, 14, 14),
+		CFrame.new(position + Vector3.new(0, legH + tankHeight / 2, 0))
+			* CFrame.Angles(0, 0, math.rad(90)),
+		metalColor, Enum.Material.CorrodedMetal)
+	tank.Shape = Enum.PartType.Cylinder
+
+	-- Tank bands / hoops
+	for ring = 1, 4 do
+		local ringY = legH + (ring / 5) * tankHeight
+		local band = createCylinder(parent, "TankBand",
+			Vector3.new(0.55, 14.4, 14.4),
+			CFrame.new(position + Vector3.new(0, ringY, 0))
+				* CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(44, 52, 55), Enum.Material.CorrodedMetal)
+		band.Shape = Enum.PartType.Cylinder
+	end
+
+	-- Top cap
+	createPart(parent, "TankCap",
+		Vector3.new(14.5, 1.2, 14.5),
+		CFrame.new(position + Vector3.new(0, legH + tankHeight + 0.6, 0)),
+		legColor, Enum.Material.CorrodedMetal)
+
+	-- Four support legs with X-braces
+	for i = 0, 3 do
+		local legAngle = (i / 4) * math.pi * 2
+		local lx = math.cos(legAngle) * 5
+		local lz = math.sin(legAngle) * 5
+		createPart(parent, "WTLeg",
+			Vector3.new(0.9, legH, 0.9),
+			CFrame.new(position + Vector3.new(lx, legH / 2, lz)),
+			legColor, Enum.Material.Metal)
+	end
+	-- Cross-braces at mid-height between adjacent legs
+	for i = 0, 3 do
+		local a1 = (i / 4) * math.pi * 2
+		local a2 = ((i + 1) / 4) * math.pi * 2
+		local x1, z1 = math.cos(a1) * 5, math.sin(a1) * 5
+		local x2, z2 = math.cos(a2) * 5, math.sin(a2) * 5
+		local mx, mz = (x1 + x2) / 2, (z1 + z2) / 2
+		local braceLen = math.sqrt((x2 - x1) ^ 2 + (z2 - z1) ^ 2)
+		local braceAngle = math.atan2(z2 - z1, x2 - x1)
+		createPart(parent, "WTBrace",
+			Vector3.new(braceLen, 0.55, 0.55),
+			CFrame.new(position + Vector3.new(mx, legH * 0.55, mz))
+				* CFrame.Angles(0, -braceAngle, 0),
+			legColor, Enum.Material.Metal)
+	end
+
+	-- Platform deck just below the tank
+	createPart(parent, "WTPlatform",
+		Vector3.new(16, 0.55, 16),
+		CFrame.new(position + Vector3.new(0, legH - 0.3, 0)),
+		Color3.fromRGB(52, 48, 44), Enum.Material.Metal)
+	-- Platform railing posts (4 sides)
+	for side = -1, 1, 2 do
+		createPart(parent, "WTRailH",
+			Vector3.new(16.5, 0.35, 0.35),
+			CFrame.new(position + Vector3.new(0, legH + 1.8, side * 8)),
+			legColor, Enum.Material.Metal)
+		createPart(parent, "WTRailV",
+			Vector3.new(0.35, 0.35, 16.5),
+			CFrame.new(position + Vector3.new(side * 8, legH + 1.8, 0)),
+			legColor, Enum.Material.Metal)
+	end
+
+	-- "WATER" lettering sign on the tank side (SurfaceGui on a thin plate)
+	local signPlate = createPart(parent, "WTSign",
+		Vector3.new(8, 2.5, 0.25),
+		CFrame.new(position + Vector3.new(0, legH + tankHeight * 0.5, -7.2)),
+		Color3.fromRGB(40, 48, 50), Enum.Material.SmoothPlastic)
+	createSign(signPlate, "WATER", Color3.fromRGB(148, 158, 148))
+end
+
 local function configureLighting()
 	Lighting.GlobalShadows = true
 	Lighting.ShadowSoftness = 0.32
@@ -714,12 +849,12 @@ local function configureLighting()
 		atmosphere.Name = "CampAtmosphere"
 		atmosphere.Parent = Lighting
 	end
-	atmosphere.Density = 0.22
+	atmosphere.Density = 0.28
 	atmosphere.Offset = 0.05
-	atmosphere.Color = Color3.fromRGB(199, 213, 200)
-	atmosphere.Decay = Color3.fromRGB(92, 111, 98)
-	atmosphere.Glare = 0.08
-	atmosphere.Haze = 1.15
+	atmosphere.Color = Color3.fromRGB(192, 208, 196)
+	atmosphere.Decay = Color3.fromRGB(88, 108, 95)
+	atmosphere.Glare = 0.06
+	atmosphere.Haze = 1.85
 
 	local color = Lighting:FindFirstChild("CampColor")
 	if not color or not color:IsA("ColorCorrectionEffect") then
@@ -1140,17 +1275,32 @@ function ProductionMapService:Build()
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Factory", Vector3.new(-100, 0, -275), Vector3.new(48, 28, 45), Color3.fromRGB(64, 69, 70), "MILL NO. 7"))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE"))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE"))
-		local tower = createPart(
-			self.nightTown,
-			"WaterTower",
-			Vector3.new(25, 16, 16),
-			CFrame.new(110, 22, -292) * CFrame.Angles(0, 0, math.rad(90)),
-			Color3.fromRGB(63, 72, 75),
-			Enum.Material.CorrodedMetal
-		)
-		tower.Shape = Enum.PartType.Cylinder
+		buildWaterTower(self.nightTown, Vector3.new(110, 0, -292))
 		for index = 1, 9 do
 			createStreetlight(self.nightTown, Vector3.new(if index % 2 == 0 then 18 else -18, 0, -62 - index * 38))
+		end
+		-- Dead/bare trees scattered around the outskirts for atmosphere
+		local bareTreePositions = {
+			Vector3.new(-135, 0, -150), Vector3.new(-140, 0, -340),
+			Vector3.new(-130, 0, -408), Vector3.new(130, 0, -265),
+			Vector3.new(130, 0, -380), Vector3.new(-22, 0, -415),
+			Vector3.new(48, 0, -95),   Vector3.new(-48, 0, -95),
+		}
+		for idx, treePos in bareTreePositions do
+			createBareTree(self.nightTown, treePos, 14 + (idx % 3) * 3)
+		end
+		-- Rusted metal fence along the left sidewalk edge of main road
+		for section = 0, 9 do
+			createPart(self.nightTown, "FencePost",
+				Vector3.new(0.35, 3.2, 0.35),
+				CFrame.new(-36, 1.6, -78 - section * 34),
+				Color3.fromRGB(64, 58, 52), Enum.Material.CorrodedMetal)
+			if section < 9 then
+				createPart(self.nightTown, "FenceRail",
+					Vector3.new(0.2, 0.2, 33.5),
+					CFrame.new(-36, 2.8, -95 - section * 34),
+					Color3.fromRGB(60, 54, 48), Enum.Material.CorrodedMetal)
+			end
 		end
 	end
 
@@ -1199,29 +1349,29 @@ function ProductionMapService:SetNight(isNight: boolean)
 	if isNight then
 		Lighting.ClockTime = 1.25
 		TweenService:Create(Lighting, transition, {
-			Brightness = 0.72,
+			Brightness = 0.62,
 			Ambient = NIGHT_AMBIENT,
-			OutdoorAmbient = Color3.fromRGB(15, 19, 31),
-			FogColor = Color3.fromRGB(39, 48, 59),
-			FogStart = 18,
-			FogEnd = 235,
+			OutdoorAmbient = Color3.fromRGB(12, 16, 28),
+			FogColor = Color3.fromRGB(34, 42, 54),
+			FogStart = 14,
+			FogEnd = 165,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = 0.43,
-				Offset = -0.08,
-				Color = Color3.fromRGB(91, 111, 125),
-				Decay = Color3.fromRGB(24, 29, 46),
+				Density = 0.58,
+				Offset = -0.12,
+				Color = Color3.fromRGB(82, 98, 112),
+				Decay = Color3.fromRGB(20, 26, 42),
 				Glare = 0,
-				Haze = 2.35,
+				Haze = 3.5,
 			}):Play()
 		end
 		if color and color:IsA("ColorCorrectionEffect") then
 			TweenService:Create(color, transition, {
-				Brightness = -0.09,
-				Contrast = 0.22,
-				Saturation = -0.32,
-				TintColor = Color3.fromRGB(154, 181, 205),
+				Brightness = -0.12,
+				Contrast = 0.28,
+				Saturation = -0.42,
+				TintColor = Color3.fromRGB(142, 168, 198),
 			}):Play()
 		end
 		if bloom and bloom:IsA("BloomEffect") then

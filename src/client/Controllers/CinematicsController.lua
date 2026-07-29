@@ -53,13 +53,13 @@ local LONG_TRANSITION_DURATION = 3.5
 local SHORT_TRANSITION_DURATION = 1.5
 local NIGHT_CLOCK_TIME = 21
 local DAY_CLOCK_TIME = 8
-local NIGHT_ATMOSPHERE_DENSITY = 0.45
+local NIGHT_ATMOSPHERE_DENSITY = 0.68
 local DESATURATED = -0.7
-local PARTIAL_RECOVERY = -0.35
+local PARTIAL_RECOVERY = -0.45
 local DREAD_TWEEN_DURATION = 0.35
 local DREAD_PULSE_STEP = 1.2
-local GHOST_TINT = Color3.fromRGB(200, 220, 255)
-local DEFAULT_TINT = Color3.fromRGB(255, 255, 255)
+local GHOST_TINT = Color3.fromRGB(195, 208, 215)
+local DEFAULT_TINT = Color3.fromRGB(255, 248, 232)
 
 local function readNumberAttribute(instance: Instance, name: string, fallback: number): number
 	local value = instance:GetAttribute(name)

@@ -238,16 +238,16 @@ local MONSTER_PLAN_ORDER: { string } = {
 	"Banshee",
 }
 
--- One-line tagline for each monster shown in the planning UI
+-- One-line taglines shown in the planning UI — visual identity + core threat
 local MONSTER_TAGLINES: { [string]: string } = {
-	BabyAlien = "Burst leaps · close ambush · weak in open light",
-	Screamer = "Scream disorients · disrupts all equipment",
-	Wendigo = "Mimicry lures · forest charge to kill",
-	ShadowMonster = "Travels shadow nodes · strongest near dead lights",
-	Chupacabra = "Blood tracker · pounces over distance · latches",
-	Dullahan = "Accelerates on sustained sight · fear status",
-	Entity = "Anchor teleport · distorts victim perception",
-	Banshee = "Wail attack senses · marks vulnerable campers",
+	BabyAlien    = "Pink fleshy crawler · burst leaps · weak in open light",
+	Screamer     = "Bone-pale hulk with hollow maw · scream disrupts all equipment",
+	Wendigo      = "Towering deer skull · mimicry lures · charges in a straight line",
+	ShadowMonster = "Smoky silhouette · travels dark nodes · weakens in direct light",
+	Chupacabra   = "Spined grey stalker · blood tracker · pounces and latches",
+	Dullahan     = "Headless cloaked figure · accelerates on sustained sight",
+	Entity       = "Deep-sea apparition · anchor teleport · distorts perception",
+	Banshee      = "Silver wailing spectre · marks campers · wail attacks the senses",
 }
 
 local VOLUME_SETTING_KEYS: { [string]: boolean } = {
@@ -2026,6 +2026,17 @@ function GameView:_buildLobby()
 	lobby.AnchorPoint = Vector2.new(0.5, 0.5)
 	lobby.Position = UDim2.fromScale(0.5, 0.56)
 	lobby.Size = UDim2.fromOffset(520, 520)
+	-- Rustic cabin-wood header strip across the top of the lobby panel
+	local headerStrip = Instance.new("Frame")
+	headerStrip.Name = "HeaderStrip"
+	headerStrip.Size = UDim2.new(1, 0, 0, 44)
+	headerStrip.Position = UDim2.fromOffset(0, 0)
+	headerStrip.BackgroundColor3 = Theme.Colors.WoodRust
+	headerStrip.BackgroundTransparency = 0.30
+	headerStrip.BorderSizePixel = 0
+	headerStrip.ZIndex = 1
+	headerStrip.Parent = lobby
+	Components.Corner(headerStrip)
 	local text = Components.Label(
 		lobby,
 		"LobbyText",
@@ -2037,6 +2048,7 @@ function GameView:_buildLobby()
 	text.Size = UDim2.new(1, -36, 0, 34)
 	text.TextXAlignment = Enum.TextXAlignment.Center
 	text.TextColor3 = Theme.Colors.Gold
+	text.ZIndex = 2
 
 	local roster = Instance.new("ScrollingFrame")
 	roster.Name = "Roster"
@@ -2053,7 +2065,7 @@ function GameView:_buildLobby()
 	local tip = Components.Panel(lobby, "CampTip")
 	tip.Position = UDim2.fromOffset(18, 312)
 	tip.Size = UDim2.new(1, -36, 0, 118)
-	tip.BackgroundColor3 = Theme.Colors.PanelRaised
+	tip.BackgroundColor3 = Theme.Colors.MossStone
 	local tipCategory = Components.Label(
 		tip,
 		"Category",

@@ -558,7 +558,11 @@ local function updateReleaseExperience(
 		and not isGhost
 		and roleName ~= "Spectator"
 		and not reconnect
-		and phaseName == "Day"
+		and (
+			phaseName == "Day"
+			or phaseName == "Investigation"
+			or phaseName == "Campfire"
+		)
 		and currentView
 	then
 		if roleName == "Murderer" then
@@ -1269,18 +1273,18 @@ local function handleActionResult(payload: any)
 			else
 				local toastTitle = if actionName == "Vote"
 					then "Vote cast"
-					elseif actionName == "BuyUpgrade"
-					then "Item acquired"
-					elseif actionName == "UseEquipment"
-					then "Equipment used"
-					elseif actionName == "UseRoleAbility"
+					elseif actionName == "UseItem" or actionName == "EquipItem"
+					then "Item used"
+					elseif actionName == "UseRoleAbility" or actionName == "UseMonsterAbility"
 					then "Ability activated"
-					elseif actionName == "Investigate"
-					then "Investigation complete"
 					elseif actionName == "CompleteObjective"
 					then "Task complete"
-					elseif actionName == "HealPlayer"
-					then "Healed"
+					elseif actionName == "DiscoverEvidence"
+					then "Evidence discovered"
+					elseif actionName == "AddEvidenceNote"
+					then "Note added"
+					elseif actionName == "VerifyEvidence"
+					then "Evidence verified"
 					else "Action complete"
 				local toastBody = if reason and reason ~= "" then reason else "The server confirmed your action."
 				currentView:Notify(toastTitle, toastBody, "Success")

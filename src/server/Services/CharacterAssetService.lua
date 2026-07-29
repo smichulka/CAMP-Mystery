@@ -49,50 +49,58 @@ local MONSTER_PRESENTATION: {
 	},
 } = {
 	BabyAlien = {
-		color = Color3.fromRGB(105, 142, 99),
-		accent = Color3.fromRGB(192, 238, 125),
+		-- Pink fleshy silicone body, large dark eyes (reference: alien baby crawling)
+		color = Color3.fromRGB(215, 158, 135),
+		accent = Color3.fromRGB(22, 16, 20),
 		scale = Vector3.new(0.8, 0.55, 1.25),
 		headShape = Enum.PartType.Ball,
 	},
 	Screamer = {
-		color = Color3.fromRGB(117, 92, 91),
-		accent = Color3.fromRGB(245, 92, 108),
+		-- Bone-ash pale humanoid with hollow dark maw (reference: gaunt clawed figure)
+		color = Color3.fromRGB(188, 175, 160),
+		accent = Color3.fromRGB(28, 14, 12),
 		scale = Vector3.new(1, 1.25, 0.9),
 		headShape = Enum.PartType.Block,
 	},
 	Wendigo = {
-		color = Color3.fromRGB(91, 78, 65),
-		accent = Color3.fromRGB(207, 190, 154),
+		-- Dark earth brown, bone antler accent (reference: deer skull + root body)
+		color = Color3.fromRGB(80, 62, 44),
+		accent = Color3.fromRGB(195, 172, 125),
 		scale = Vector3.new(0.9, 1.65, 0.85),
 		headShape = Enum.PartType.Ball,
 	},
 	ShadowMonster = {
-		color = Color3.fromRGB(23, 24, 35),
-		accent = Color3.fromRGB(105, 92, 166),
+		-- Near-black silhouette with deep purple aura (reference: shadow people infographic)
+		color = Color3.fromRGB(18, 20, 32),
+		accent = Color3.fromRGB(112, 95, 178),
 		scale = Vector3.new(1.15, 1.45, 0.8),
 		headShape = Enum.PartType.Ball,
 	},
 	Chupacabra = {
-		color = Color3.fromRGB(86, 74, 78),
-		accent = Color3.fromRGB(178, 61, 76),
+		-- Dark grey-brown with blood-red spine accents (reference: parchment spiny creature)
+		color = Color3.fromRGB(66, 52, 56),
+		accent = Color3.fromRGB(145, 40, 52),
 		scale = Vector3.new(1.1, 0.75, 1.35),
 		headShape = Enum.PartType.Block,
 	},
 	Dullahan = {
-		color = Color3.fromRGB(51, 63, 66),
-		accent = Color3.fromRGB(84, 188, 193),
+		-- Near-black cloak with spectral teal glow (reference: headless hooded figure)
+		color = Color3.fromRGB(18, 22, 26),
+		accent = Color3.fromRGB(52, 168, 178),
 		scale = Vector3.new(1.15, 1.55, 1),
 		headShape = Enum.PartType.Block,
 	},
 	Entity = {
-		color = Color3.fromRGB(82, 91, 123),
-		accent = Color3.fromRGB(150, 225, 255),
+		-- Deep ocean blue with bioluminescent light (reference: Cthulhu/octopus ink art)
+		color = Color3.fromRGB(52, 65, 108),
+		accent = Color3.fromRGB(108, 198, 248),
 		scale = Vector3.new(0.85, 1.4, 0.8),
 		headShape = Enum.PartType.Ball,
 	},
 	Banshee = {
-		color = Color3.fromRGB(144, 151, 168),
-		accent = Color3.fromRGB(218, 234, 255),
+		-- Silver-white spectral with icy ethereal glow (reference: wailing ghostly woman)
+		color = Color3.fromRGB(185, 188, 205),
+		accent = Color3.fromRGB(232, 242, 255),
 		scale = Vector3.new(0.9, 1.5, 0.75),
 		headShape = Enum.PartType.Ball,
 	},
@@ -110,22 +118,38 @@ local MONSTER_DISPLAY_NAMES: { [MonsterId]: string } = {
 }
 
 local COUNSELOR_COLORS: { Color3 } = {
-	Color3.fromRGB(66, 105, 155),
-	Color3.fromRGB(126, 76, 139),
-	Color3.fromRGB(190, 72, 116),
-	Color3.fromRGB(69, 135, 89),
-	Color3.fromRGB(183, 120, 55),
-	Color3.fromRGB(112, 84, 62),
+	Color3.fromRGB(55, 62, 72),      -- dark authority slate   (Holloway  – Director)
+	Color3.fromRGB(192, 190, 192),   -- clinical white-grey    (Ortiz     – Health & Safety)
+	Color3.fromRGB(155, 118, 58),    -- warm khaki/trail tan   (Reed      – Outdoor Skills)
+	Color3.fromRGB(168, 88, 65),     -- terracotta/rust        (Brooks    – Arts & Activities)
+	Color3.fromRGB(62, 128, 78),     -- forest green           (Chen      – Nature & Science)
+	Color3.fromRGB(48, 78, 135),     -- navy waterfront blue   (Finch     – Waterfront/Logistics)
 }
 
 local BOT_BODY_COLORS: { [string]: Color3 } = {
-	Murderer = Color3.fromRGB(110, 28, 28),
+	Murderer  = Color3.fromRGB(110, 28, 28),
 	Detective = Color3.fromRGB(28, 52, 130),
-	Medic = Color3.fromRGB(30, 115, 70),
-	Guard = Color3.fromRGB(95, 75, 28),
+	Medic     = Color3.fromRGB(30, 115, 70),
+	Guard     = Color3.fromRGB(95, 75, 28),
 	Protector = Color3.fromRGB(72, 45, 98),
-	Medium = Color3.fromRGB(62, 28, 85),
-	Camper = Color3.fromRGB(55, 80, 60),
+	Medium    = Color3.fromRGB(62, 28, 85),
+}
+
+-- Varied outfit palette for Camper-role bots, cycling by display name hash.
+-- Colors drawn from the 12 reference camper images.
+local CAMPER_OUTFIT_PALETTE: { Color3 } = {
+	Color3.fromRGB(45,  160, 150),   -- teal/mint        (classic girl camper)
+	Color3.fromRGB(205, 108, 148),   -- rose pink        (glitter bow girl)
+	Color3.fromRGB(182,  72, 102),   -- deep Roblox pink (crop-top girl)
+	Color3.fromRGB(68,  105, 168),   -- denim blue       (overalls girl)
+	Color3.fromRGB(228, 232, 218),   -- white/sage       (frog-hoodie girl)
+	Color3.fromRGB(145,  90,  58),   -- warm brown       (cat-onesie girl)
+	Color3.fromRGB(218, 222, 228),   -- white jacket     (axolotl boy)
+	Color3.fromRGB(202, 142,  42),   -- orange-yellow    (tactical vest boy)
+	Color3.fromRGB(78,  108, 165),   -- plaid blue       (flannel headphones boy)
+	Color3.fromRGB(68,  132,  68),   -- hoodie green     (backwards-cap boy)
+	Color3.fromRGB(88,  158,  55),   -- creeper green    (Minecraft boy)
+	Color3.fromRGB(45,   50,  68),   -- dark charcoal    (holographic visor boy)
 }
 
 local BOT_SKIN_TONES: { Color3 } = {
@@ -145,6 +169,8 @@ local HAIR_COLORS: { Color3 } = {
 	Color3.fromRGB(220, 206, 148),   -- blonde
 	Color3.fromRGB(140, 36, 36),     -- auburn
 	Color3.fromRGB(168, 168, 168),   -- grey
+	Color3.fromRGB(218, 148, 178),   -- light pink  (glitter-bow camper reference)
+	Color3.fromRGB(118, 162, 125),   -- sage green  (bucket-hat camper reference)
 }
 
 local EYE_COLORS: { Color3 } = {
@@ -955,8 +981,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
 		end
 	elseif monsterId == "Screamer" then
-		local mouth = makePart(model, "ResonantMouth", Vector3.new(2.2, 1.6, 0.5),
-			at * CFrame.new(0, headY, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
+		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 2.2, 0.6),
+			at * CFrame.new(0, headY - 0.1, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
 		mouth.Material = Enum.Material.Neon
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftSoundSpine" else "RightSoundSpine",
@@ -968,6 +994,18 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Vector3.new(0.52, 3.4 * sy, 0.52),
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
 				presentation.accent)
+		end
+		-- Impossibly long fingered claws extending below each arm — key reference-image feature
+		for side = -1, 1, 2 do
+			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
+			local clawBaseY = limbShoulderY - limbLen * 0.5
+			for f = 1, 3 do
+				local spread = (f - 2) * 0.18 * sx
+				makePart(model, (if side < 0 then "LClaw" else "RClaw") .. tostring(f),
+					Vector3.new(0.12, 2.2 * sy, 0.12),
+					at * CFrame.new(clawBaseX + spread, clawBaseY - limbLen * 0.5, 0)
+						* CFrame.Angles(0.18 * (f - 2), 0, side * 0.08), presentation.accent)
+			end
 		end
 	elseif monsterId == "Wendigo" then
 		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
@@ -982,6 +1020,14 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.7 * sy), 0), presentation.accent)
 		end
 	elseif monsterId == "ShadowMonster" then
+		-- Body and head are semi-transparent smoke — ForceField gives the right smoky shimmer
+		root.Material = Enum.Material.ForceField
+		root.Transparency = 0.38
+		local smHead = model:FindFirstChild("Head") :: BasePart?
+		if smHead then
+			smHead.Material = Enum.Material.ForceField
+			smHead.Transparency = 0.42
+		end
 		for index = 1, 4 do
 			local angle = (index / 4) * math.pi * 2
 			local tendril = makePart(model, "ShadowTendril" .. tostring(index),
@@ -1003,9 +1049,10 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		end
 	elseif monsterId == "Chupacabra" then
 		for index = 1, 5 do
-			makePart(model, "BackSpine" .. tostring(index),
-				Vector3.new(0.35, 1.8, 0.7),
-				at * CFrame.new(0, 1.3, -1.5 + index * 0.7), presentation.accent).Material = Enum.Material.Neon
+			local spine = makePart(model, "BackSpine" .. tostring(index),
+				Vector3.new(0.28, 2.2 + index * 0.18, 0.55),
+				at * CFrame.new(0, 1.5, -1.5 + index * 0.7) * CFrame.Angles(-0.12, 0, 0), presentation.accent)
+			spine.Material = Enum.Material.SmoothPlastic
 		end
 		for side = -1, 1, 2 do
 			for fore = -1, 1, 2 do
@@ -1025,6 +1072,16 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		flame.Material = Enum.Material.Neon
 		makePart(model, "HeadlessCollar", Vector3.new(3.5, 0.7, 3),
 			at * CFrame.new(0, torsoSize.Y / 2, 0), Color3.fromRGB(24, 31, 33))
+		-- Flowing cloak: back panel + two angled side panels for the robed silhouette
+		local cloakColor = Color3.fromRGB(14, 17, 22)
+		makePart(model, "CloakBack", Vector3.new(torsoSize.X * 1.35, torsoSize.Y * 1.55, 0.22),
+			at * CFrame.new(0, -torsoSize.Y * 0.12, torsoSize.Z / 2 + 0.12), cloakColor)
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "CloakL" else "CloakR",
+				Vector3.new(0.28, torsoSize.Y * 1.45, 0.22),
+				at * CFrame.new(side * (torsoSize.X / 2 + 0.14), -torsoSize.Y * 0.16, 0)
+					* CFrame.Angles(0, 0, side * 0.14), cloakColor)
+		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
 				Vector3.new(0.88, 3.6 * sy, 0.88),
@@ -1055,6 +1112,16 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			at * CFrame.new(0, 0.3, 1.2), presentation.accent)
 		veil.Material = Enum.Material.ForceField
 		veil.Transparency = 0.55
+		-- Long silver-white hair streams flowing back from the head
+		for index = 1, 5 do
+			local spread = (index - 3) * 0.55 * sx
+			local hairWisp = makePart(model, "HairWisp" .. tostring(index),
+				Vector3.new(0.22, 3.2 * sy + index * 0.3, 0.14),
+				at * CFrame.new(spread, headY - 0.4 * sy, 0.9 + index * 0.18)
+					* CFrame.Angles(-0.35, 0, (index - 3) * 0.06), presentation.accent)
+			hairWisp.Material = Enum.Material.ForceField
+			hairWisp.Transparency = 0.35 + index * 0.06
+		end
 		-- Trailing wail streams
 		for index = 1, 3 do
 			local offset = (index - 2) * 1.8 * sx
@@ -1113,34 +1180,62 @@ local function buildProceduralCounselor(
 		at * CFrame.new( ax, bandY, 0), bandColor)
 
 	if index == 1 then
-		-- Medical pack on front of torso with red cross
+		-- Radio clipped to hip: Director Holloway coordinates staff by radio
+		makePart(model, "Radio", Vector3.new(0.55, scale, 0.35),
+			at * CFrame.new(ax + 0.26, 0.3 * scale, -(td / 2 + 0.09)), Color3.fromRGB(34, 38, 42))
+		makePart(model, "RadioAntenna", Vector3.new(0.09, 0.75 * scale, 0.09),
+			at * CFrame.new(ax + 0.46, 0.9 * scale, -(td / 2 + 0.09)), Color3.fromRGB(55, 60, 65))
+	elseif index == 2 then
+		-- Medical pack + red cross on torso: Ortiz is Health & Safety
 		makePart(model, "FirstAidPack", Vector3.new(2.0 * scale * 0.8, th * 0.5, 0.45),
 			at * CFrame.new(0, 0.1, -(td / 2 + 0.24)), Color3.fromRGB(180, 185, 171))
 		makePart(model, "CrossH", Vector3.new(2.0 * scale * 0.4, 0.18, 0.1),
 			at * CFrame.new(0, 0.3, -(td / 2 + 0.5)), Color3.fromRGB(210, 48, 48))
 		makePart(model, "CrossV", Vector3.new(0.18, th * 0.28, 0.1),
 			at * CFrame.new(0, 0.3, -(td / 2 + 0.5)), Color3.fromRGB(210, 48, 48))
-	elseif index == 2 then
-		-- Ranger hat
+		-- Stethoscope: tube looped over the neck, disc resting on the chest
+		local sColor = Color3.fromRGB(105, 105, 112)
+		makePart(model, "StethoTubeL", Vector3.new(0.09, 0.75 * scale, 0.09),
+			at * CFrame.new(-0.22 * scale, th / 2 - 0.28 * scale, -(td / 2 + 0.08))
+				* CFrame.Angles(0.35, 0, -0.18), sColor)
+		makePart(model, "StethoTubeR", Vector3.new(0.09, 0.75 * scale, 0.09),
+			at * CFrame.new( 0.22 * scale, th / 2 - 0.28 * scale, -(td / 2 + 0.08))
+				* CFrame.Angles(0.35, 0,  0.18), sColor)
+		local disc = makePart(model, "StethoDisc", Vector3.new(0.26 * scale, 0.26 * scale, 0.08),
+			at * CFrame.new(0, th / 2 - 0.72 * scale, -(td / 2 + 0.09)),
+			Color3.fromRGB(78, 78, 85), Enum.PartType.Ball)
+		disc.Material = Enum.Material.Metal
+	elseif index == 3 then
+		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15
 		makePart(model, "RangerBrim", Vector3.new(hs * 1.75, 0.26, hs * 1.75),
 			at * CFrame.new(0, hatBrimY, 0), Color3.fromRGB(72, 54, 36))
 		makePart(model, "RangerCrown", Vector3.new(hs * 1.1, hs * 0.6, hs * 1.1),
 			at * CFrame.new(0, hatBrimY + hs * 0.43, 0), Color3.fromRGB(82, 62, 42))
-	elseif index == 3 then
-		-- Radio on right side
-		makePart(model, "Radio", Vector3.new(0.55, scale, 0.35),
-			at * CFrame.new(ax + 0.26, 0.3 * scale, -(td / 2 + 0.09)), Color3.fromRGB(34, 38, 42))
-		makePart(model, "RadioAntenna", Vector3.new(0.09, 0.75 * scale, 0.09),
-			at * CFrame.new(ax + 0.46, 0.9 * scale, -(td / 2 + 0.09)), Color3.fromRGB(55, 60, 65))
 	elseif index == 4 then
-		-- Lanyard + whistle
+		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
 			at * CFrame.new(0, 0.1, -(td / 2 + 0.05)), Color3.fromRGB(218, 188, 68))
 		makePart(model, "Whistle", Vector3.new(0.32, 0.46, 0.32),
 			at * CFrame.new(0, -(th / 2 - 0.45), -(td / 2 + 0.28)), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
 	elseif index == 5 then
-		-- Tool belt across waist
+		-- Field journal tucked under left arm: Chen logs nature observations
+		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
+			at * CFrame.new(-(ax + 0.12), 0.0, -(td / 2 + 0.13)), Color3.fromRGB(75, 97, 72))
+		makePart(model, "Bookmark", Vector3.new(0.12, 0.55 * scale, 0.08),
+			at * CFrame.new(-(ax + 0.04), -(0.55 * scale), -(td / 2 + 0.13)), Color3.fromRGB(160, 48, 48))
+		-- Wire-rimmed glasses: two round lenses + a thin bridge
+		local glassColor = Color3.fromRGB(88, 72, 48)
+		local lensGY = headY + 0.08 * scale
+		local lensGZ = -(hs / 2 + 0.04)
+		makePart(model, "GlassLensL", Vector3.new(0.48 * scale, 0.38 * scale, 0.05),
+			at * CFrame.new(-0.30 * scale, lensGY, lensGZ), glassColor, Enum.PartType.Ball).Transparency = 0.75
+		makePart(model, "GlassLensR", Vector3.new(0.48 * scale, 0.38 * scale, 0.05),
+			at * CFrame.new( 0.30 * scale, lensGY, lensGZ), glassColor, Enum.PartType.Ball).Transparency = 0.75
+		makePart(model, "GlassBridge", Vector3.new(0.22 * scale, 0.07, 0.05),
+			at * CFrame.new(0, lensGY, lensGZ), glassColor)
+	else
+		-- Tool belt across waist: Finch handles waterfront gear and logistics
 		makePart(model, "ToolBelt", Vector3.new(2 * scale * 1.06, 0.42, td * 1.08),
 			at * CFrame.new(0, -(th / 2 - 0.2), 0), Color3.fromRGB(82, 61, 40))
 		for i = -1, 1 do
@@ -1149,12 +1244,6 @@ local function buildProceduralCounselor(
 					at * CFrame.new(i * 0.6 * scale, -(th / 2 - 0.52), -(td / 2 + 0.17)), Color3.fromRGB(70, 52, 32))
 			end
 		end
-	else
-		-- Field journal tucked under left arm
-		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
-			at * CFrame.new(-(ax + 0.12), 0.0, -(td / 2 + 0.13)), Color3.fromRGB(75, 97, 72))
-		makePart(model, "Bookmark", Vector3.new(0.12, 0.55 * scale, 0.08),
-			at * CFrame.new(-(ax + 0.04), -(0.55 * scale), -(td / 2 + 0.13)), Color3.fromRGB(160, 48, 48))
 	end
 
 	-- Staff ID badge: colored card on a short cord around the neck
@@ -1180,8 +1269,11 @@ local function buildProceduralBotCharacter(
 	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("BotDisplayName", displayName)
 
-	local bodyColor = if roleName then (BOT_BODY_COLORS[roleName] or Color3.fromRGB(55, 75, 65))
-		else COUNSELOR_COLORS[((colorIndex - 1) % #COUNSELOR_COLORS) + 1]
+	local bodyColor = if roleName then (
+		if roleName == "Camper"
+			then CAMPER_OUTFIT_PALETTE[(nameHash(displayName) % #CAMPER_OUTFIT_PALETTE) + 1]
+			else (BOT_BODY_COLORS[roleName] or Color3.fromRGB(55, 75, 65))
+	) else COUNSELOR_COLORS[((colorIndex - 1) % #COUNSELOR_COLORS) + 1]
 	local skinColor = BOT_SKIN_TONES[(nameHash(displayName) % #BOT_SKIN_TONES) + 1]
 	-- Slight height variation so bots look like a crowd of different players
 	local h = nameHash(displayName)
@@ -1419,41 +1511,222 @@ local function buildProceduralBotCharacter(
 		miniOrb.Material = Enum.Material.Neon
 		miniOrb.Transparency = 0.30
 	elseif roleName == "Camper" then
-		-- Hiking backpack on the back
-		local packColor = Color3.fromRGB(60, 110, 55)
-		local strapColor = Color3.fromRGB(40, 75, 38)
-		local td2 = 1 * scale
-		makePart(model, "Backpack", Vector3.new(1.40 * scale, 1.60 * scale, 0.48 * scale),
-			at * CFrame.new(0, th / 2 - 0.80 * scale, td2 / 2 + 0.26 * scale), packColor)
-		makePart(model, "StrapL", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
-			at * CFrame.new(-0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
-		makePart(model, "StrapR", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
-			at * CFrame.new( 0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
-		-- Water bottle clipped to the right side of the pack
-		makePart(model, "WaterBottle", Vector3.new(0.22 * scale, 0.60 * scale, 0.22 * scale),
-			at * CFrame.new(0.76 * scale, th / 2 - 1.10 * scale, td2 / 2 + 0.26 * scale),
-			Color3.fromRGB(45, 125, 175))
-		makePart(model, "WBottleCap", Vector3.new(0.18 * scale, 0.08 * scale, 0.18 * scale),
-			at * CFrame.new(0.76 * scale, th / 2 - 0.78 * scale, td2 / 2 + 0.26 * scale),
-			Color3.fromRGB(22, 58, 80))
-		-- Brown hiking boots
-		local camperLS = model:FindFirstChild("LeftShoe") :: BasePart?
-		local camperRS = model:FindFirstChild("RightShoe") :: BasePart?
-		if camperLS then camperLS.Color = Color3.fromRGB(108, 72, 38) end
-		if camperRS then camperRS.Color = Color3.fromRGB(108, 72, 38) end
-		-- Camp snapback cap
-		local capColor     = Color3.fromRGB(36, 76, 40)
-		local capBandColor = Color3.fromRGB(22, 54, 28)
-		makePart(model, "CapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
-			at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), capColor)
-		makePart(model, "CapBand",  Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
-			at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), capBandColor)
-		-- Brass compass clipped to right chest
-		local compass = makePart(model, "Compass", Vector3.new(0.28 * scale, 0.28 * scale, 0.07 * scale),
-			at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.07)), Color3.fromRGB(166, 142, 78))
-		compass.Material = Enum.Material.Metal
-		makePart(model, "CompassNeedle", Vector3.new(0.04 * scale, 0.20 * scale, 0.06 * scale),
-			at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.095)), Color3.fromRGB(180, 45, 35))
+		-- styleSlot is the same index used to pick bodyColor from CAMPER_OUTFIT_PALETTE,
+		-- so accessories always match the outfit colour.
+		local styleSlot = nameHash(displayName) % 12
+		local cLS = model:FindFirstChild("LeftShoe")  :: BasePart?
+		local cRS = model:FindFirstChild("RightShoe") :: BasePart?
+
+		-- Shared: backpack tinted to the outfit colour (skipped for Pixel Creeper who goes full-costume)
+		if styleSlot ~= 10 then
+			local packColor  = bodyColor:Lerp(Color3.fromRGB(30, 30, 30), 0.35)
+			local strapColor = bodyColor:Lerp(Color3.fromRGB(15, 15, 15), 0.50)
+			makePart(model, "Backpack", Vector3.new(1.40 * scale, 1.60 * scale, 0.48 * scale),
+				at * CFrame.new(0, th / 2 - 0.80 * scale, td / 2 + 0.26 * scale), packColor)
+			makePart(model, "StrapL", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
+				at * CFrame.new(-0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
+			makePart(model, "StrapR", Vector3.new(0.14 * scale, 1.60 * scale, 0.10 * scale),
+				at * CFrame.new( 0.44 * scale, th / 2 - 0.80 * scale, 0.10 * scale), strapColor)
+			makePart(model, "WaterBottle", Vector3.new(0.22 * scale, 0.60 * scale, 0.22 * scale),
+				at * CFrame.new(0.76 * scale, th / 2 - 1.10 * scale, td / 2 + 0.26 * scale),
+				Color3.fromRGB(45, 125, 175))
+			makePart(model, "WBottleCap", Vector3.new(0.18 * scale, 0.08 * scale, 0.18 * scale),
+				at * CFrame.new(0.76 * scale, th / 2 - 0.78 * scale, td / 2 + 0.26 * scale),
+				Color3.fromRGB(22, 58, 80))
+		end
+
+		if styleSlot == 0 then
+			-- Teal Classic: mint sneakers, simple teal snapback
+			if cLS then cLS.Color = Color3.fromRGB(45, 160, 150) end
+			if cRS then cRS.Color = Color3.fromRGB(45, 160, 150) end
+			makePart(model, "CapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
+				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), Color3.fromRGB(35, 128, 118))
+			makePart(model, "CapBand", Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(22, 90, 82))
+
+		elseif styleSlot == 1 then
+			-- Glitter Bow: white high-tops + oversized bow on head
+			if cLS then cLS.Color = Color3.fromRGB(232, 230, 235) end
+			if cRS then cRS.Color = Color3.fromRGB(232, 230, 235) end
+			local bowPink = Color3.fromRGB(238, 128, 175)
+			makePart(model, "BowL", Vector3.new(0.58 * scale, 0.48 * scale, 0.18 * scale),
+				at * CFrame.new(-0.30 * scale, headY + hs * 0.60, -hs * 0.08)
+					* CFrame.Angles(0, 0, 0.42), bowPink)
+			makePart(model, "BowR", Vector3.new(0.58 * scale, 0.48 * scale, 0.18 * scale),
+				at * CFrame.new( 0.30 * scale, headY + hs * 0.60, -hs * 0.08)
+					* CFrame.Angles(0, 0, -0.42), bowPink)
+			makePart(model, "BowKnot", Vector3.new(0.20 * scale, 0.20 * scale, 0.20 * scale),
+				at * CFrame.new(0, headY + hs * 0.62, -hs * 0.08),
+				Color3.fromRGB(255, 160, 200), Enum.PartType.Ball)
+
+		elseif styleSlot == 2 then
+			-- Deep Pink: black-pink high-tops, rose hair clip
+			if cLS then cLS.Color = Color3.fromRGB(22, 18, 22) end
+			if cRS then cRS.Color = Color3.fromRGB(22, 18, 22) end
+			-- Small rose-shaped clip on the left side of the head
+			makePart(model, "HairClipOuter", Vector3.new(0.36 * scale, 0.36 * scale, 0.12),
+				at * CFrame.new(-(hs / 2 + 0.08), headY + hs * 0.22, -hs * 0.12),
+				Color3.fromRGB(228, 60, 120), Enum.PartType.Ball)
+			makePart(model, "HairClipInner", Vector3.new(0.18 * scale, 0.18 * scale, 0.14),
+				at * CFrame.new(-(hs / 2 + 0.06), headY + hs * 0.22, -hs * 0.12),
+				Color3.fromRGB(255, 128, 178), Enum.PartType.Ball)
+
+		elseif styleSlot == 3 then
+			-- Denim Overalls: white sneakers, gold sun pendant
+			if cLS then cLS.Color = Color3.fromRGB(235, 232, 228) end
+			if cRS then cRS.Color = Color3.fromRGB(235, 232, 228) end
+			local sun = makePart(model, "SunPendant", Vector3.new(0.26 * scale, 0.26 * scale, 0.07),
+				at * CFrame.new(0, th / 2 - 0.38 * scale, -(td / 2 + 0.09)),
+				Color3.fromRGB(220, 188, 58))
+			sun.Material = Enum.Material.Metal
+
+		elseif styleSlot == 4 then
+			-- Frog Hoodie: green-grey sneakers + floral bucket hat
+			if cLS then cLS.Color = Color3.fromRGB(90, 115, 88) end
+			if cRS then cRS.Color = Color3.fromRGB(90, 115, 88) end
+			local brimC = Color3.fromRGB(145, 168, 138)
+			makePart(model, "BucketBrim", Vector3.new(hs * 1.55, 0.14 * scale, hs * 1.55),
+				at * CFrame.new(0, headY + hs / 2 + 0.08, 0), brimC)
+			makePart(model, "BucketCrown", Vector3.new(hs * 1.02, hs * 0.55, hs * 1.00),
+				at * CFrame.new(0, headY + hs / 2 + 0.08 + hs * 0.33, 0), Color3.fromRGB(158, 182, 152))
+			local flw = makePart(model, "HatFlower", Vector3.new(0.22 * scale, 0.22 * scale, 0.14),
+				at * CFrame.new(-0.42 * scale, headY + hs / 2 + 0.14, -(hs * 0.60)),
+				Color3.fromRGB(255, 195, 95), Enum.PartType.Ball)
+			flw.Material = Enum.Material.Neon
+			flw.Transparency = 0.35
+
+		elseif styleSlot == 5 then
+			-- Cat Onesie: white sneakers, cat ears on head
+			if cLS then cLS.Color = Color3.fromRGB(228, 222, 215) end
+			if cRS then cRS.Color = Color3.fromRGB(228, 222, 215) end
+			makePart(model, "CatEarL", Vector3.new(0.32 * scale, 0.44 * scale, 0.14),
+				at * CFrame.new(-0.44 * scale, headY + hs * 0.68, 0), bodyColor)
+			makePart(model, "CatEarR", Vector3.new(0.32 * scale, 0.44 * scale, 0.14),
+				at * CFrame.new( 0.44 * scale, headY + hs * 0.68, 0), bodyColor)
+			makePart(model, "CatEarInL", Vector3.new(0.16 * scale, 0.24 * scale, 0.12),
+				at * CFrame.new(-0.44 * scale, headY + hs * 0.68, -0.04),
+				Color3.fromRGB(235, 165, 188))
+			makePart(model, "CatEarInR", Vector3.new(0.16 * scale, 0.24 * scale, 0.12),
+				at * CFrame.new( 0.44 * scale, headY + hs * 0.68, -0.04),
+				Color3.fromRGB(235, 165, 188))
+
+		elseif styleSlot == 6 then
+			-- Axolotl Explorer: purple shoes, pink axolotl hat with gills
+			if cLS then cLS.Color = Color3.fromRGB(118, 98, 198) end
+			if cRS then cRS.Color = Color3.fromRGB(118, 98, 198) end
+			local axPink = Color3.fromRGB(255, 168, 198)
+			makePart(model, "AxolotlBody", Vector3.new(hs * 1.10, hs * 0.62, hs * 1.05),
+				at * CFrame.new(0, headY + hs * 0.55, 0), axPink, Enum.PartType.Ball)
+			makePart(model, "AxolotlGillL", Vector3.new(0.22 * scale, 0.44 * scale, 0.15),
+				at * CFrame.new(-hs * 0.58, headY + hs * 0.70, 0), axPink)
+			makePart(model, "AxolotlGillR", Vector3.new(0.22 * scale, 0.44 * scale, 0.15),
+				at * CFrame.new( hs * 0.58, headY + hs * 0.70, 0), axPink)
+			makePart(model, "AxolotlEyeL", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
+				at * CFrame.new(-0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
+				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
+			makePart(model, "AxolotlEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
+				at * CFrame.new( 0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
+				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
+
+		elseif styleSlot == 7 then
+			-- Tactical Vest: dark boots, layered vest panels on chest, patrol cap
+			if cLS then cLS.Color = Color3.fromRGB(52, 38, 25) end
+			if cRS then cRS.Color = Color3.fromRGB(52, 38, 25) end
+			makePart(model, "VestFront", Vector3.new(2.0 * scale * 0.85, th * 0.65, 0.12),
+				at * CFrame.new(0, 0.15, -(td / 2 + 0.08)), Color3.fromRGB(75, 80, 72))
+			makePart(model, "VestPouchL", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
+				at * CFrame.new(-0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
+			makePart(model, "VestPouchR", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
+				at * CFrame.new( 0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
+			-- Olive patrol cap with a short forward bill
+			local tacOlive = Color3.fromRGB(62, 68, 52)
+			makePart(model, "PatrolCrown", Vector3.new(hs * 1.02, 0.28 * scale, hs * 0.96),
+				at * CFrame.new(0, headY + hs / 2 + 0.14 * scale, 0), tacOlive)
+			makePart(model, "PatrolBand", Vector3.new(hs * 1.04, 0.10 * scale, hs * 0.98),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(48, 52, 40))
+			makePart(model, "PatrolBill", Vector3.new(hs * 1.04, 0.08 * scale, 0.42 * scale),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.62)), tacOlive)
+
+		elseif styleSlot == 8 then
+			-- Flannel & Headphones: white sneakers, blue headphones
+			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
+			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			local hpC = Color3.fromRGB(42, 70, 145)
+			makePart(model, "HPArc", Vector3.new(0.14 * scale, hs * 0.60, 0.14 * scale),
+				at * CFrame.new(0, headY + hs * 0.45, 0), hpC)
+			makePart(model, "HPCupL", Vector3.new(0.40 * scale, 0.52 * scale, 0.32 * scale),
+				at * CFrame.new(-(hs / 2 + 0.22 * scale), headY + hs * 0.08, 0),
+				hpC, Enum.PartType.Ball)
+			makePart(model, "HPCupR", Vector3.new(0.40 * scale, 0.52 * scale, 0.32 * scale),
+				at * CFrame.new( (hs / 2 + 0.22 * scale), headY + hs * 0.08, 0),
+				hpC, Enum.PartType.Ball)
+
+		elseif styleSlot == 9 then
+			-- Backwards Cap: dark sneakers, backwards snapback
+			if cLS then cLS.Color = Color3.fromRGB(35, 32, 38) end
+			if cRS then cRS.Color = Color3.fromRGB(35, 32, 38) end
+			local bCC = Color3.fromRGB(20, 20, 26)
+			makePart(model, "BCapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
+				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), bCC)
+			makePart(model, "BCapBand", Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(14, 14, 18))
+			-- Bill faces backward (positive Z in local space)
+			makePart(model, "BCapBill", Vector3.new(hs * 1.06, 0.10 * scale, 0.55 * scale),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, hs * 0.68), bCC)
+
+		elseif styleSlot == 10 then
+			-- Pixel Creeper: full-green pixel costume with block-head mask
+			if cLS then cLS.Color = Color3.fromRGB(88, 158, 55) end
+			if cRS then cRS.Color = Color3.fromRGB(88, 158, 55) end
+			local pxG = Color3.fromRGB(88, 158, 55)
+			local pxD = Color3.fromRGB(40, 85, 25)
+			-- Block mask sits over the head giving the iconic square pixel look
+			makePart(model, "PixBlockHead", Vector3.new(hs * 1.12, hs * 1.08, hs * 1.08),
+				at * CFrame.new(0, headY, 0), pxG)
+			-- Dark pixel face markings on the front face of the block
+			makePart(model, "PixEyeL", Vector3.new(0.44 * scale, 0.42 * scale, 0.10),
+				at * CFrame.new(-0.30 * scale, headY + 0.10 * scale, -(hs / 2 + 0.58)), pxD)
+			makePart(model, "PixEyeR", Vector3.new(0.44 * scale, 0.42 * scale, 0.10),
+				at * CFrame.new( 0.30 * scale, headY + 0.10 * scale, -(hs / 2 + 0.58)), pxD)
+			makePart(model, "PixMthL", Vector3.new(0.24 * scale, 0.20 * scale, 0.10),
+				at * CFrame.new(-0.26 * scale, headY - 0.26 * scale, -(hs / 2 + 0.58)), pxD)
+			makePart(model, "PixMthR", Vector3.new(0.24 * scale, 0.20 * scale, 0.10),
+				at * CFrame.new( 0.26 * scale, headY - 0.26 * scale, -(hs / 2 + 0.58)), pxD)
+
+		else -- styleSlot == 11
+			-- Holo Visor: dark sneakers, colour-shifting iridescent visor
+			if cLS then cLS.Color = Color3.fromRGB(30, 30, 42) end
+			if cRS then cRS.Color = Color3.fromRGB(30, 30, 42) end
+			local visor = makePart(model, "HoloVisor", Vector3.new(hs * 1.05, hs * 0.25, 0.10),
+				at * CFrame.new(0, headY + hs * 0.08, -(hs / 2 + 0.06)),
+				Color3.fromRGB(120, 190, 255))
+			visor.Material = Enum.Material.Neon
+			visor.Transparency = 0.28
+			task.spawn(function()
+				local holoColors = {
+					Color3.fromRGB(120, 190, 255),
+					Color3.fromRGB(180, 130, 255),
+					Color3.fromRGB(100, 220, 210),
+				}
+				local ci = 1
+				while visor.Parent ~= nil do
+					ci = (ci % #holoColors) + 1
+					visor.Color = holoColors[ci]
+					task.wait(0.8 + math.random() * 0.4)
+				end
+			end)
+		end
+
+		-- Brass compass on chest for all styles except the Pixel Creeper full-costume
+		if styleSlot ~= 10 then
+			local compass = makePart(model, "Compass", Vector3.new(0.28 * scale, 0.28 * scale, 0.07 * scale),
+				at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.07)),
+				Color3.fromRGB(166, 142, 78))
+			compass.Material = Enum.Material.Metal
+			makePart(model, "CompassNeedle", Vector3.new(0.04 * scale, 0.20 * scale, 0.06 * scale),
+				at * CFrame.new(0.32 * scale, th / 2 - 0.50 * scale, -(td / 2 + 0.095)),
+				Color3.fromRGB(180, 45, 35))
+		end
 	end
 
 	labelModel(model, displayName, ROLE_DOT_COLORS[roleName or ""])

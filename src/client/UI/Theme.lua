@@ -2,6 +2,7 @@
 
 local Theme = {
 	Colors = {
+		-- Core UI palette
 		Background = Color3.fromRGB(8, 12, 14),
 		Panel = Color3.fromRGB(16, 22, 23),
 		PanelRaised = Color3.fromRGB(24, 31, 31),
@@ -18,6 +19,13 @@ local Theme = {
 		Ghost = Color3.fromRGB(126, 184, 203),
 		White = Color3.fromRGB(255, 255, 255),
 		Black = Color3.fromRGB(0, 0, 0),
+		-- Environment-specific accents (drawn from cabin & old-town reference images)
+		WoodRust = Color3.fromRGB(112, 78, 45),     -- weathered log cabin timber
+		MossStone = Color3.fromRGB(68, 88, 60),     -- mossy cabin walls
+		TinRoof = Color3.fromRGB(105, 102, 88),     -- corrugated tin roof grey
+		FogMist = Color3.fromRGB(148, 158, 162),    -- abandoned town fog atmosphere
+		RustedIron = Color3.fromRGB(130, 82, 42),   -- rusted water tower / old iron
+		GhostTown = Color3.fromRGB(88, 90, 95),     -- desolate street pavement
 	},
 	CornerRadius = 10,
 	SmallCornerRadius = 6,

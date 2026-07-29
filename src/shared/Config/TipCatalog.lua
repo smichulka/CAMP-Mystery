@@ -50,6 +50,16 @@ local definitions: { Tip } = {
 	{ category = "STRATEGY", body = "Vote last when possible — watch where suspicion falls before committing your vote.", includeRoles = { "Murderer" } },
 	{ category = "STRATEGY", body = "Keep up with camp tasks. An idle Murderer stands out; participation builds trust.", includeRoles = { "Murderer" } },
 	{ category = "STRATEGY", body = "If evidence mounts against you, redirect — point to contradictions in the clues and cast doubt on the accuser.", includeRoles = { "Murderer" } },
+
+	-- Atmosphere / visual identification tips
+	{ category = "MONSTERS", body = "The Baby Alien is small, pink, and low to the ground — a crawling shape in the dark. Get to open, lit space before it reaches leaping distance.", excludeRoles = { "Murderer" } },
+	{ category = "MONSTERS", body = "The Screamer is a pale, gaunt humanoid with a hollow maw where a face should be. If you see those long dark claws, you are already too close.", excludeRoles = { "Murderer" } },
+	{ category = "MONSTERS", body = "The Wendigo wears a deer skull and stands twice your height. Antlers scraping trees and mimicked voices are your first warning.", excludeRoles = { "Murderer" } },
+	{ category = "MONSTERS", body = "The Dullahan has no head. If a cloaked figure is rushing you and the speed feels wrong, break line of sight immediately.", excludeRoles = { "Murderer" } },
+	{ category = "MONSTERS", body = "The Banshee appears as a silver-white spectral woman. When she opens her mouth, move away before the wail builds to full intensity.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "The old town beyond camp is foggy and abandoned — rusted water towers, crumbling buildings, muddy roads. Cover is plentiful but exits are limited.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Cabin interiors are dark and cluttered. Flashlights are essential once natural light drops at nightfall.", excludeRoles = { "Murderer" } },
+	{ category = "COUNSELORS", body = "Each counselor has a distinct role you can recognise by their look — a wide ranger hat, a medical pack, a tool belt. Their accessories hint at what they know.", excludeRoles = { "Murderer" } },
 }
 
 return table.freeze({
