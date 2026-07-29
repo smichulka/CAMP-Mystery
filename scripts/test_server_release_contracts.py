@@ -1715,8 +1715,8 @@ class ServerReleaseContracts(unittest.TestCase):
             self.assertIn(f'"{monster_id}"', view)
 
         # MONSTER_TAGLINES: each monster has a one-line tagline for the planning UI
-        self.assertIn("Burst leaps · close ambush · weak in open light", view)
-        self.assertIn("Wail attack senses · marks vulnerable campers", view)
+        self.assertIn("Pink fleshy crawler · burst leaps · weak in open light", view)
+        self.assertIn("Silver wailing spectre · marks campers · wail attacks the senses", view)
 
         # MONSTER_ABILITIES: all 8 monsters have two named abilities
         for pair in (

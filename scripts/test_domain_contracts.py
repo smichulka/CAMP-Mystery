@@ -201,8 +201,8 @@ class DomainContractTests(unittest.TestCase):
         ]
         self.assertGreaterEqual(sum(production), 15 * 60)
         self.assertLessEqual(sum(production), 20 * 60)
-        self.assertEqual(studio, [40, 38, 75, 40, 36, 90, 60, 40, 38])
-        self.assertEqual(sum(studio), 7 * 60 + 37)
+        self.assertEqual(studio, [40, 8, 75, 40, 10, 90, 60, 12, 10])
+        self.assertEqual(sum(studio), 5 * 60 + 45)
 
 
 if __name__ == "__main__":

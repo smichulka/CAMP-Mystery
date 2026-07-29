@@ -147,7 +147,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Low Three-Toed Tracks",
 				publicDescription = "Tiny tracks cross beneath a collapsed barrier where a human-sized pursuer could not fit.",
-				locationIds = { "residential-bedroom-clue", "main-road-clue-a" },
+				locationIds = { "residential-bedroom-clue", "main-road-clue-a", "outskirts-company-house-clue" },
 				monsterCandidates = { "BabyAlien", "Chupacabra", "ShadowMonster" },
 			},
 			{

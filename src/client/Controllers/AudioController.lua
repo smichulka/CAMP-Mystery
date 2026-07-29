@@ -397,11 +397,9 @@ function AudioController:SetHeartbeatIntensity(fraction: number)
 	if not heartbeat then
 		return
 	end
-	local effectsVolume = clampVolume(
-		self.settings.effectsVolume,
-		DEFAULT_SETTINGS.effectsVolume
-	)
-	heartbeat.Volume = resolved * effectsVolume
+	-- The Effects SoundGroup already applies master * effectsVolume;
+	-- multiplying again here would square the effects setting.
+	heartbeat.Volume = resolved
 	if resolved > 0.3 and self:_configured(heartbeat) then
 		if not heartbeat.IsPlaying then
 			heartbeat:Play()

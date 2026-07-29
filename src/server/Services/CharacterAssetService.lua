@@ -2119,13 +2119,13 @@ end
 -- The monster slowly circles the murderer for an atmospheric stalking effect.
 -- When the monster is active, scan for bots nearby and push them away.
 -- Runs until the monster is cleared (monsterModel becomes nil).
-function CharacterAssetService:_startProximityFlee()
+function CharacterAssetService:_startProximityFlee(token: number)
 	task.spawn(function()
 		local TICK = 1.2
 		local FLEE_RADIUS = 14       -- studs: bots within this range will flee
 		local FLEE_DISTANCE = 11     -- studs: how far to flee
 		local FLEE_DURATION = 2.2    -- seconds to complete the flee move
-		while self.monsterModel ~= nil do
+		while self.monsterTrackToken == token and self.monsterModel ~= nil do
 			local monster = self.monsterModel
 			if monster then
 				local monsterPos = monster:GetPivot().Position
@@ -2155,7 +2155,7 @@ function CharacterAssetService:StartMonsterTracking(murdererPlayer: Player)
 	self.monsterTrackPlayer = murdererPlayer
 	local token = self.monsterTrackToken + 1
 	self.monsterTrackToken = token
-	self:_startProximityFlee()
+	self:_startProximityFlee(token)
 	task.spawn(function()
 		local TICK = 0.08
 		local LERP_T = 0.05
@@ -2266,10 +2266,14 @@ end
 -- Each bot gets a slight random offset so they don't stack on top of each other.
 function CharacterAssetService:GatherBotsAt(position: Vector3, radius: number?)
 	local r = radius or 3.5
+	local total = 0
+	for _ in self.botCharacterModels do
+		total += 1
+	end
 	local i = 0
 	for participantId in self.botCharacterModels do
 		i += 1
-		local angle = (i - 1) * (math.pi * 2 / math.max(1, i)) + math.random() * 0.4
+		local angle = (i - 1) * (math.pi * 2 / math.max(1, total)) + math.random() * 0.4
 		local dist = 0.6 + math.random() * r
 		local target = position + Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
 		self:MoveBotCharacterToward(participantId, target, 3 + math.random() * 2, position)

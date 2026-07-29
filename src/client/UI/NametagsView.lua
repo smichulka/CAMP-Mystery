@@ -219,7 +219,10 @@ function NametagsView:Update(
 		end
 
 		local participantId = readString(participant, "participantId", "")
-		local userId = tonumber(participantId)
+		-- Server participantIds for humans use the "human:<userId>" format
+		local userId = tonumber(
+			string.match(participantId, "^human:(.+)$") or participantId
+		)
 		if not userId
 			or userId ~= userId
 			or math.abs(userId) == math.huge

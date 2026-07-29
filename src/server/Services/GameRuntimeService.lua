@@ -1631,6 +1631,9 @@ function GameRuntimeService:_discoverEvidence(
 				break
 			end
 		end
+		-- Attack and device evidence created mid-round has no socket alias;
+		-- fall back to its assigned search location for the proximity check.
+		aliasId = aliasId or self.evidenceLocationById[record.evidenceId]
 		if
 			not aliasId
 			or not self:_isNearPart(participant, self:_evidencePart(aliasId), 14)
@@ -1639,28 +1642,46 @@ function GameRuntimeService:_discoverEvidence(
 		end
 	end
 	local locationId = self.evidenceLocationById[record.evidenceId] or requestedEvidenceId
-	local discovered, reason = self.evidence:Discover(
-		participant.participantId,
-		record.evidenceId,
-		locationId,
-		now()
-	)
-	if not discovered then
-		return actionRejected(reason or "Evidence discovery failed")
+	local function discoverRecord(evidenceId: string, displayName: string): (boolean, string?)
+		local discovered, reason = self.evidence:Discover(
+			participant.participantId,
+			evidenceId,
+			locationId,
+			now()
+		)
+		if not discovered then
+			return false, reason
+		end
+		self.participants:RecordEvidenceKnowledge(participant.participantId, {
+			evidenceId = evidenceId,
+			displayName = displayName,
+			confidence = 0.65,
+			isShared = true,
+			learnedAt = now(),
+		})
+		self.evidenceByParticipantId[participant.participantId] =
+			(self.evidenceByParticipantId[participant.participantId] or 0) + 1
+		return true, nil
 	end
-	self.participants:RecordEvidenceKnowledge(participant.participantId, {
-		evidenceId = record.evidenceId,
-		displayName = record.displayName,
-		confidence = 0.65,
-		isShared = true,
-		learnedAt = now(),
-	})
-	self.evidenceByParticipantId[participant.participantId] =
-		(self.evidenceByParticipantId[participant.participantId] or 0) + 1
+	local discovered, reason = discoverRecord(record.evidenceId, record.displayName)
+	-- One search uncovers every undiscovered record assigned to this location,
+	-- so attack traces and device readings sharing a socket are reachable too.
+	for _, extra in self.evidence:GetUndiscoveredServer() do
+		if
+			extra.evidenceId ~= record.evidenceId
+			and self.evidenceLocationById[extra.evidenceId] == locationId
+		then
+			local extraDiscovered = discoverRecord(extra.evidenceId, extra.displayName)
+			discovered = discovered or extraDiscovered
+		end
+	end
 	local mysteryClues = self:_discoverMysteryAtLocation(
 		participant.participantId,
 		locationId
 	)
+	if not discovered and #mysteryClues == 0 then
+		return actionRejected(reason or "Evidence was already discovered")
+	end
 	local mysterySnapshot = if self.mysteryReady
 		then self.mystery:GetPublicSnapshot()
 		else nil

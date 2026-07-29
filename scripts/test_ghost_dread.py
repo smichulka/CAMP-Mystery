@@ -116,7 +116,9 @@ class GhostDreadTests(unittest.TestCase):
             'name = "MonsterActive"',
             "looped = true",
             "function AudioController:SetHeartbeatIntensity(fraction: number)",
-            "heartbeat.Volume = resolved * effectsVolume",
+            # Effects SoundGroup already applies master * effectsVolume;
+            # the source must not multiply the setting in again.
+            "heartbeat.Volume = resolved\n",
             "if resolved > 0.3 and self:_configured(heartbeat) then",
             "heartbeat:Stop()",
         ):
@@ -482,7 +484,7 @@ class GhostDreadTests(unittest.TestCase):
         )
         # CinematicsController: GHOST_TINT color, saturation offset, and transition timing
         cinematic = read("src/client/Controllers/CinematicsController.lua")
-        self.assertIn("local GHOST_TINT = Color3.fromRGB(200, 220, 255)", cinematic)
+        self.assertIn("local GHOST_TINT = Color3.fromRGB(195, 208, 215)", cinematic)
         cin_ghost_start = cinematic.index(
             "function CinematicsController:SetGhostMode(active: boolean)"
         )

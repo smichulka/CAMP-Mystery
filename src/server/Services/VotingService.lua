@@ -107,6 +107,9 @@ function VotingService:CastVote(
 	if not target.alive or target.isGhost or target.role == "Spectator" then
 		return false, "Suspect is not eligible"
 	end
+	if participantId == targetParticipantId then
+		return false, "You cannot vote for yourself"
+	end
 	if self.votes[participantId] then
 		return false, "Vote is already locked"
 	end

@@ -45,9 +45,9 @@ class PhaseCinematicsTests(unittest.TestCase):
             'normalized == "campfire" or normalized == "resolution"',
             "NIGHT_CLOCK_TIME = 21",
             "DAY_CLOCK_TIME = 8",
-            "NIGHT_ATMOSPHERE_DENSITY = 0.45",
+            "NIGHT_ATMOSPHERE_DENSITY = 0.68",
             "DESATURATED = -0.7",
-            "PARTIAL_RECOVERY = -0.35",
+            "PARTIAL_RECOVERY = -0.45",
             "Motion.IsReducedMotion(self.motionTarget)",
         ):
             self.assertIn(token, controller)
@@ -401,13 +401,12 @@ class PhaseCinematicsTests(unittest.TestCase):
             "Both snapshot and interpolated timer paths must use Murderer urgency",
         )
         self.assertIn(
-            "if seconds <= dangerThreshold then\n"
-            "\t\t\tself.timerFill.BackgroundColor3 = Theme.Colors.DangerBright",
+            "local fillColor = if seconds <= dangerThreshold\n"
+            "\t\t\tthen Theme.Colors.DangerBright",
             view,
         )
         self.assertIn(
-            "elseif seconds <= amberThreshold then\n"
-            "\t\t\tself.timerFill.BackgroundColor3 = Theme.Colors.Amber",
+            "elseif seconds <= amberThreshold then Theme.Colors.Amber",
             view,
         )
 
