@@ -1691,12 +1691,13 @@ local function buildProceduralCounselor(
 		makePart(model, "RangerCrown", Vector3.new(hs * 1.1, hs * 0.6, hs * 1.1),
 			at * CFrame.new(0, hatBrimY + hs * 0.43, 0), Color3.fromRGB(82, 62, 42))
 		-- Survival pack on back + shoulder straps: matches hiker/explorer reference images
-		local bpColor = Color3.fromRGB(80, 66, 42)
+		-- References 1-3 all show a forest/military green pack, not warm brown
+		local bpColor = Color3.fromRGB(54, 72, 48)
 		makePart(model, "BackpackBody", Vector3.new(1.28 * scale, 1.55 * scale, 0.55),
 			at * CFrame.new(0, 0.12 * scale, td / 2 + 0.30), bpColor)
 		makePart(model, "BackpackFlap", Vector3.new(1.14 * scale, 0.42 * scale, 0.52),
 			at * CFrame.new(0, 0.12 * scale + 0.99 * scale, td / 2 + 0.28),
-			Color3.fromRGB(68, 54, 34))
+			Color3.fromRGB(42, 58, 36))
 		makePart(model, "BpStrapL", Vector3.new(0.17, 1.26 * scale, 0.13),
 			at * CFrame.new(-0.34 * scale, 0.10 * scale, -(td / 2 + 0.07))
 			* CFrame.Angles(0.16, 0, 0.08), bpColor)
