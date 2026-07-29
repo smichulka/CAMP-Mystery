@@ -1747,7 +1747,7 @@ local function buildProceduralCounselor(
 			at * CFrame.new(-(ax + 0.12), 0.0, -(td / 2 + 0.13)), Color3.fromRGB(75, 97, 72))
 		makePart(model, "Bookmark", Vector3.new(0.12, 0.55 * scale, 0.08),
 			at * CFrame.new(-(ax + 0.04), -(0.55 * scale), -(td / 2 + 0.13)), Color3.fromRGB(160, 48, 48))
-		-- Wire-rimmed glasses: two round lenses + a thin bridge
+		-- Wire-rimmed round glasses: lenses + bridge + temples
 		local glassColor = Color3.fromRGB(88, 72, 48)
 		local lensGY = headY + 0.08 * scale
 		local lensGZ = -(hs / 2 + 0.04)
@@ -1757,6 +1757,46 @@ local function buildProceduralCounselor(
 			at * CFrame.new( 0.30 * scale, lensGY, lensGZ), glassColor, Enum.PartType.Ball).Transparency = 0.75
 		makePart(model, "GlassBridge", Vector3.new(0.22 * scale, 0.07, 0.05),
 			at * CFrame.new(0, lensGY, lensGZ), glassColor)
+		for gSide = -1, 1, 2 do
+			makePart(model, "GlassTemple" .. (if gSide < 0 then "L" else "R"),
+				Vector3.new(0.05, 0.44 * scale, 0.05),
+				at * CFrame.new(gSide * 0.62 * scale, lensGY, lensGZ + 0.20), glassColor)
+		end
+		-- Wide-brim khaki sun hat: field scientist working outdoors
+		local hatKhaki = Color3.fromRGB(165, 148, 102)
+		local hatBrimGY = headY + hs / 2 + 0.14
+		makePart(model, "SunHatBrim", Vector3.new(hs * 1.80, 0.22 * scale, hs * 1.78),
+			at * CFrame.new(0, hatBrimGY, 0), hatKhaki)
+		makePart(model, "SunHatCrown", Vector3.new(hs * 1.05, hs * 0.52, hs * 1.05),
+			at * CFrame.new(0, hatBrimGY + hs * 0.38, 0), Color3.fromRGB(148, 132, 88))
+		-- Magnifying glass held in right hand: field examination tool
+		local magC = Color3.fromRGB(88, 72, 48)
+		local magX = ax + 0.18
+		local magY = -0.05 * scale
+		local magZ = -(td / 2 + 0.14)
+		makePart(model, "MagHandle", Vector3.new(0.10, 0.70 * scale, 0.10),
+			at * CFrame.new(magX, magY - 0.22 * scale, magZ)
+				* CFrame.Angles(0, 0, 0.30), magC)
+		local magRing = makePart(model, "MagRing", Vector3.new(0.50 * scale, 0.50 * scale, 0.08),
+			at * CFrame.new(magX, magY + 0.18 * scale, magZ)
+				* CFrame.Angles(0, 0, 0.30), magC, Enum.PartType.Ball)
+		magRing.Transparency = 0.80
+		local magLens = makePart(model, "MagLens", Vector3.new(0.38 * scale, 0.38 * scale, 0.05),
+			at * CFrame.new(magX, magY + 0.18 * scale, magZ)
+				* CFrame.Angles(0, 0, 0.30), Color3.fromRGB(190, 220, 205), Enum.PartType.Ball)
+		magLens.Material = Enum.Material.Glass
+		magLens.Transparency = 0.52
+		-- Small specimen collection jar clipped to belt: "cataloging field samples"
+		local jarC = Color3.fromRGB(175, 200, 192)
+		local jarY5 = -(th / 2 - 0.42 * scale)
+		local jarX5 = 0.62 * scale
+		local jarZ5 = -(td / 2 + 0.20)
+		local jarBody = makePart(model, "SpecimenJar", Vector3.new(0.36 * scale, 0.52 * scale, 0.36 * scale),
+			at * CFrame.new(jarX5, jarY5, jarZ5), jarC, Enum.PartType.Ball)
+		jarBody.Material = Enum.Material.Glass
+		jarBody.Transparency = 0.55
+		makePart(model, "JarLid", Vector3.new(0.38 * scale, 0.12 * scale, 0.38 * scale),
+			at * CFrame.new(jarX5, jarY5 + 0.32 * scale, jarZ5), Color3.fromRGB(52, 82, 68))
 	else
 		-- Tool belt across waist: Finch handles waterfront gear and logistics
 		makePart(model, "ToolBelt", Vector3.new(2 * scale * 1.06, 0.42, td * 1.08),

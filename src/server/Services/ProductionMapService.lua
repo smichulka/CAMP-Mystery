@@ -1141,7 +1141,7 @@ function ProductionMapService:Build()
 		for _, child in ipairs(authoredCamp:GetDescendants()) do
 			if child:IsA("Model") and cabinSet[child.Name] then
 				for _, part in ipairs(child:GetDescendants()) do
-					if part:IsA("BasePart") and (part.Name == "ChimneyBase" or part.Name == "ChimneyTop") then
+					if part:IsA("BasePart") and part.Name:lower():find("chimney") then
 						part:Destroy()
 					end
 				end
@@ -1280,6 +1280,34 @@ function ProductionMapService:Build()
 				Enum.Material.Slate
 			)
 			rock.CanCollide = false
+		end
+	end
+
+	-- Strip any surviving brick chimneys (from authored place-file content or ServerStorage models)
+	-- and add stovepipes if missing — runs unconditionally after both the authored and procedural paths
+	local cabinNames = { PineCabin = true, CreekCabin = true, CounselorLodge = true, SupplyCabin = true }
+	for _, child in ipairs(self.dayCamp:GetDescendants()) do
+		if child:IsA("Model") and cabinNames[child.Name] then
+			for _, part in ipairs(child:GetDescendants()) do
+				if part:IsA("BasePart") and part.Name:lower():find("chimney") then
+					part:Destroy()
+				end
+			end
+			if not child:FindFirstChild("Stovepipe") then
+				local floor = child:FindFirstChild("Floor")
+				if floor then
+					local pos = floor.Position - Vector3.new(0, 0.35, 0)
+					local w = floor.Size.X
+					createCylinder(child, "Stovepipe",
+						Vector3.new(8, 0.52, 0.52),
+						CFrame.new(pos + Vector3.new(w * 0.28, 14.0, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+						Color3.fromRGB(40, 36, 32), Enum.Material.Metal)
+					createCylinder(child, "StovepipeCap",
+						Vector3.new(0.55, 0.80, 0.80),
+						CFrame.new(pos + Vector3.new(w * 0.28, 18.3, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+						Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
+				end
+			end
 		end
 	end
 
