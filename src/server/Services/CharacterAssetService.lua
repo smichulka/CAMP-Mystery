@@ -2055,11 +2055,14 @@ local function buildProceduralBotCharacter(
 			makePart(model, "CropTrim1", Vector3.new(1.86 * scale, 0.14 * scale, 0.10),
 				at * CFrame.new(0, th * 0.14 - th * 0.22 - 0.07 * scale, -(td / 2 + 0.08)),
 				Color3.fromRGB(225, 80, 155))
-			-- Denim cutoff shorts: legs colored denim (Girl Camper 2 shows denim shorts)
+			-- Skin legs: Girl Camper 2 shows bare thighs above short denim cutoffs
 			local ll1 = model:FindFirstChild("LeftLeg")  :: BasePart?
 			local rl1 = model:FindFirstChild("RightLeg") :: BasePart?
-			if ll1 then ll1.Color = Color3.fromRGB(118, 142, 182) end
-			if rl1 then rl1.Color = Color3.fromRGB(118, 142, 182) end
+			if ll1 then ll1.Color = skinColor end
+			if rl1 then rl1.Color = skinColor end
+			-- Denim waistband to suggest the cutoff shorts at hip level
+			makePart(model, "DenimWaist", Vector3.new(2.04 * scale, 0.28 * scale, td * 1.06),
+				at * CFrame.new(0, -(th / 2 - 0.14 * scale), 0), Color3.fromRGB(118, 142, 182))
 			-- Striped knee socks: pink/blue/white bands (very prominent in Girl Camper 2 reference)
 			local sock1Y = -(th / 2 + 1.08 * scale)
 			local lx1 = 0.5 * scale
@@ -2081,31 +2084,17 @@ local function buildProceduralBotCharacter(
 			-- Flower Crown Girl: black high-tops, floral crown + gold earrings
 			if cLS then cLS.Color = Color3.fromRGB(22, 18, 22) end
 			if cRS then cRS.Color = Color3.fromRGB(22, 18, 22) end
-			-- Thin green vine band circling the top of the head
-			local vineGreen = Color3.fromRGB(62, 108, 45)
-			makePart(model, "CrownBand", Vector3.new(hs * 1.10, 0.18 * scale, hs * 1.10),
-				at * CFrame.new(0, headY + hs * 0.42, 0), vineGreen)
-			-- Pink rose blossoms at front-left, front-right, back-left, back-right
-			local r = hs * 0.50
-			local rosePos = {
-				{ -r * 0.78,  0, -r * 0.62 },
-				{  r * 0.78,  0, -r * 0.62 },
-				{ -r * 0.62,  0,  r * 0.60 },
-				{  r * 0.62,  0,  r * 0.60 },
-			}
-			for i, rp in ipairs(rosePos) do
-				local rose = makePart(model, "Rose" .. i, Vector3.new(0.28 * scale, 0.28 * scale, 0.22 * scale),
-					at * CFrame.new(rp[1], headY + hs * 0.44, rp[3]),
-					Color3.fromRGB(222, 88, 138), Enum.PartType.Ball)
-				rose.Material = Enum.Material.SmoothPlastic
-			end
-			-- White daisy accents at pure-front and pure-right positions
-			for i, dp in ipairs({ { 0, 0, -r * 0.80 }, { r * 0.82, 0, 0 } }) do
-				local daisy = makePart(model, "CrownDaisy" .. i,
-					Vector3.new(0.20 * scale, 0.20 * scale, 0.16 * scale),
-					at * CFrame.new(dp[1], headY + hs * 0.45, dp[3]),
-					Color3.fromRGB(250, 248, 242), Enum.PartType.Ball)
-				daisy.Material = Enum.Material.SmoothPlastic
+			-- Pink + daisy flower hair clips on each side of head (Girl Camper 3 reference: not a crown)
+			local clipPink = Color3.fromRGB(228, 95, 148)
+			for hSide = -1, 1, 2 do
+				local clipX = hSide * (hs / 2 + 0.06)
+				local clipFlower = makePart(model, "HairClip" .. (if hSide < 0 then "L" else "R"),
+					Vector3.new(0.30 * scale, 0.30 * scale, 0.20),
+					at * CFrame.new(clipX, headY + hs * 0.20, 0), clipPink, Enum.PartType.Ball)
+				clipFlower.Material = Enum.Material.SmoothPlastic
+				makePart(model, "ClipCenter" .. (if hSide < 0 then "L" else "R"),
+					Vector3.new(0.13 * scale, 0.13 * scale, 0.16),
+					at * CFrame.new(clipX, headY + hs * 0.20, 0), Color3.fromRGB(252, 248, 238), Enum.PartType.Ball)
 			end
 			-- Gold drop earrings at ear positions
 			for side = -1, 1, 2 do
@@ -2118,14 +2107,24 @@ local function buildProceduralBotCharacter(
 			-- Pink crop top panel (reference: pink "RoBlux" short crop tee)
 			makePart(model, "PinkCropTop", Vector3.new(1.76 * scale, th * 0.38, 0.08),
 				at * CFrame.new(0, th * 0.20, -(td / 2 + 0.07)), Color3.fromRGB(228, 128, 162))
-			-- Dark floral mini skirt (defining garment: near-black skirt with rose print + white ruffle)
+			-- Skin-colored legs: Girl Camper 3 shows bare thighs under short floral skirt
+			local ll2 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl2 = model:FindFirstChild("RightLeg") :: BasePart?
+			if ll2 then ll2.Color = skinColor end
+			if rl2 then rl2.Color = skinColor end
+			-- Dark floral mini skirt: front + back panels (poofy wrap-around look)
 			local skirtDark = Color3.fromRGB(26, 18, 24)
 			local skirtCY = -(th / 2 + 0.30 * scale)
-			makePart(model, "SkirtMain", Vector3.new(2.06 * scale, 0.72 * scale, 0.10),
-				at * CFrame.new(0, skirtCY, -(td / 2 + 0.08)), skirtDark)
-			makePart(model, "SkirtRuffle", Vector3.new(2.14 * scale, 0.17 * scale, 0.10),
-				at * CFrame.new(0, skirtCY - 0.38 * scale - 0.09 * scale, -(td / 2 + 0.09)),
-				Color3.fromRGB(238, 232, 236))
+			local skirtRuffleWhite = Color3.fromRGB(238, 232, 236)
+			for _, skZ in ipairs({ -(td / 2 + 0.08), (td / 2 + 0.08) }) do
+				makePart(model, "SkirtPanel" .. tostring(skZ > 0),
+					Vector3.new(2.06 * scale, 0.72 * scale, 0.10),
+					at * CFrame.new(0, skirtCY, skZ), skirtDark)
+				makePart(model, "SkirtRuffle" .. tostring(skZ > 0),
+					Vector3.new(2.14 * scale, 0.17 * scale, 0.10),
+					at * CFrame.new(0, skirtCY - 0.47 * scale, skZ + (if skZ < 0 then -0.01 else 0.01)),
+					skirtRuffleWhite)
+			end
 			for side2 = -1, 1, 2 do
 				local rose2 = makePart(model, "SkirtRose" .. (if side2 < 0 then "L" else "R"),
 					Vector3.new(0.22 * scale, 0.22 * scale, 0.10),
