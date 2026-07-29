@@ -1916,6 +1916,18 @@ local function buildProceduralBotCharacter(
 			makePart(model, "BowKnot", Vector3.new(0.28 * scale, 0.28 * scale, 0.24 * scale),
 				at * CFrame.new(0, headY + hs * 0.62, -hs * 0.08),
 				Color3.fromRGB(255, 138, 195), Enum.PartType.Ball)
+			-- Gold layered chain necklace (Girl Camper 2 reference: prominent stacked chains)
+			local gcGold = Color3.fromRGB(212, 176, 42)
+			local gcY = th / 2 + 0.04 * scale
+			local gcO = makePart(model, "ChainOuter", Vector3.new(1.14 * scale, 0.07 * scale, 1.00 * scale),
+				at * CFrame.new(0, gcY, 0), gcGold)
+			gcO.Material = Enum.Material.Metal
+			local gcI = makePart(model, "ChainInner", Vector3.new(0.86 * scale, 0.06 * scale, 0.70 * scale),
+				at * CFrame.new(0, gcY - 0.16 * scale, 0), gcGold)
+			gcI.Material = Enum.Material.Metal
+			local gcP = makePart(model, "ChainPendant", Vector3.new(0.16 * scale, 0.20 * scale, 0.07),
+				at * CFrame.new(0, gcY - 0.34 * scale, -(td / 2 + 0.07)), gcGold, Enum.PartType.Ball)
+			gcP.Material = Enum.Material.Metal
 
 		elseif styleSlot == 2 then
 			-- Flower Crown Girl: black high-tops, floral crown + gold earrings
@@ -1955,6 +1967,34 @@ local function buildProceduralBotCharacter(
 					Color3.fromRGB(212, 170, 36), Enum.PartType.Ball)
 				earring.Material = Enum.Material.Metal
 			end
+			-- Pink crop top panel (reference: pink "RoBlux" short crop tee)
+			makePart(model, "PinkCropTop", Vector3.new(1.76 * scale, th * 0.38, 0.08),
+				at * CFrame.new(0, th * 0.20, -(td / 2 + 0.07)), Color3.fromRGB(228, 128, 162))
+			-- Dark floral mini skirt (defining garment: near-black skirt with rose print + white ruffle)
+			local skirtDark = Color3.fromRGB(26, 18, 24)
+			local skirtCY = -(th / 2 + 0.30 * scale)
+			makePart(model, "SkirtMain", Vector3.new(2.06 * scale, 0.72 * scale, 0.10),
+				at * CFrame.new(0, skirtCY, -(td / 2 + 0.08)), skirtDark)
+			makePart(model, "SkirtRuffle", Vector3.new(2.14 * scale, 0.17 * scale, 0.10),
+				at * CFrame.new(0, skirtCY - 0.38 * scale - 0.09 * scale, -(td / 2 + 0.09)),
+				Color3.fromRGB(238, 232, 236))
+			for side2 = -1, 1, 2 do
+				local rose2 = makePart(model, "SkirtRose" .. (if side2 < 0 then "L" else "R"),
+					Vector3.new(0.22 * scale, 0.22 * scale, 0.10),
+					at * CFrame.new(side2 * 0.42 * scale, skirtCY + 0.04 * scale, -(td / 2 + 0.10)),
+					Color3.fromRGB(205, 80, 125), Enum.PartType.Ball)
+				rose2.Material = Enum.Material.SmoothPlastic
+			end
+			-- Black/white striped knee socks visible above shoes
+			local sockY2 = -(th / 2 + 1.15 * scale)
+			local lxS2 = 0.5 * scale
+			for band = 0, 1 do
+				local bC2 = if band == 0 then Color3.fromRGB(20, 16, 20) else Color3.fromRGB(232, 228, 232)
+				makePart(model, "SockL" .. band, Vector3.new(1.12 * scale, 0.19 * scale, 1.12 * scale),
+					at * CFrame.new(-lxS2, sockY2 - band * 0.21 * scale, 0), bC2)
+				makePart(model, "SockR" .. band, Vector3.new(1.12 * scale, 0.19 * scale, 1.12 * scale),
+					at * CFrame.new( lxS2, sockY2 - band * 0.21 * scale, 0), bC2)
+			end
 
 		elseif styleSlot == 3 then
 			-- Denim Overalls: denim-blue sneakers, overall bib + suspenders, sun pendant
@@ -1975,9 +2015,9 @@ local function buildProceduralBotCharacter(
 			sun.Material = Enum.Material.Metal
 
 		elseif styleSlot == 4 then
-			-- Frog Hoodie: bright green sneakers + daisy-print bucket hat + frog chest emblem
-			if cLS then cLS.Color = Color3.fromRGB(52, 158, 62) end
-			if cRS then cRS.Color = Color3.fromRGB(52, 158, 62) end
+			-- Frog Hoodie: white sneakers + daisy-print bucket hat + frog chest emblem + green socks
+			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
+			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
 			local frogGreen = Color3.fromRGB(42, 148, 52)
 			makePart(model, "BucketBrim", Vector3.new(hs * 1.55, 0.14 * scale, hs * 1.55),
 				at * CFrame.new(0, headY + hs / 2 + 0.08, 0), frogGreen)
@@ -2000,6 +2040,22 @@ local function buildProceduralBotCharacter(
 			makePart(model, "FrogEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
 				at * CFrame.new( 0.14 * scale, th * 0.22, -(td / 2 + 0.14)),
 				Color3.fromRGB(18, 18, 18), Enum.PartType.Ball)
+			-- Green + white knee-high socks (prominent in Girl Camper 5 reference image)
+			local frogSockG = Color3.fromRGB(62, 168, 72)
+			local sockTopY4 = -(th / 2 + 1.10 * scale)
+			local lxS4 = 0.5 * scale
+			for side4 = -1, 1, 2 do
+				local sLx4 = side4 * lxS4
+				makePart(model, "KSockTop" .. (if side4 < 0 then "L" else "R"),
+					Vector3.new(1.12 * scale, 0.22 * scale, 1.12 * scale),
+					at * CFrame.new(sLx4, sockTopY4, 0), frogSockG)
+				makePart(model, "KSockMid" .. (if side4 < 0 then "L" else "R"),
+					Vector3.new(1.12 * scale, 0.20 * scale, 1.12 * scale),
+					at * CFrame.new(sLx4, sockTopY4 - 0.22 * scale, 0), Color3.fromRGB(232, 232, 236))
+				makePart(model, "KSockBot" .. (if side4 < 0 then "L" else "R"),
+					Vector3.new(1.12 * scale, 0.18 * scale, 1.12 * scale),
+					at * CFrame.new(sLx4, sockTopY4 - 0.42 * scale, 0), frogSockG)
+			end
 
 		elseif styleSlot == 5 then
 			-- Cat Onesie: white sneakers, full cat hood with face + ear + stripe details
@@ -2084,9 +2140,9 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new( 0.42 * scale, -(th * 0.26), -(td / 2 + 0.11)), Color3.fromRGB(215, 132, 38))
 
 		elseif styleSlot == 7 then
-			-- Tactical Vest: dark boots, layered vest panels on chest, patrol cap
-			if cLS then cLS.Color = Color3.fromRGB(52, 38, 25) end
-			if cRS then cRS.Color = Color3.fromRGB(52, 38, 25) end
+			-- Tactical Vest: amber work boots, layered vest panels on chest, patrol cap
+			if cLS then cLS.Color = Color3.fromRGB(195, 138, 48) end
+			if cRS then cRS.Color = Color3.fromRGB(195, 138, 48) end
 			makePart(model, "VestFront", Vector3.new(2.0 * scale * 0.85, th * 0.65, 0.12),
 				at * CFrame.new(0, 0.15, -(td / 2 + 0.08)), Color3.fromRGB(75, 80, 72))
 			makePart(model, "VestPouchL", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
@@ -2110,6 +2166,17 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(48, 52, 40))
 			makePart(model, "PatrolBill", Vector3.new(hs * 1.04, 0.08 * scale, 0.42 * scale),
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.62)), tacOlive)
+			-- Black tactical glove on left hand (Boy Camper 1 reference detail)
+			makePart(model, "TacGloveL", Vector3.new(0.88 * scale, 0.66 * scale, 0.88 * scale),
+				at * CFrame.new(-ax, -(th / 2 + 0.46 * scale), 0), Color3.fromRGB(14, 14, 18))
+			-- Dark teardrop pendant on a cord (reference: black pendant at chest center)
+			local pendC7 = Color3.fromRGB(16, 16, 20)
+			local pendY7 = th / 2 - 0.40 * scale
+			makePart(model, "TacCord", Vector3.new(0.05 * scale, 0.52 * scale, 0.05 * scale),
+				at * CFrame.new(0, pendY7, -(td / 2 + 0.08)), pendC7)
+			local pendant7 = makePart(model, "TacPendant", Vector3.new(0.18 * scale, 0.26 * scale, 0.12),
+				at * CFrame.new(0, pendY7 - 0.30 * scale, -(td / 2 + 0.08)), pendC7, Enum.PartType.Ball)
+			pendant7.Material = Enum.Material.SmoothPlastic
 
 		elseif styleSlot == 8 then
 			-- Flannel & Headphones: white sneakers, teal headphones, white inner hoodie
@@ -2118,6 +2185,20 @@ local function buildProceduralBotCharacter(
 			-- White inner hoodie panel visible where flannel opens (reference: white hoodie under plaid)
 			makePart(model, "InnerHoodie", Vector3.new(1.20 * scale, th * 0.96, 0.09),
 				at * CFrame.new(0, 0, -(td / 2 + 0.08)), Color3.fromRGB(238, 236, 232))
+			-- Teal plaid flannel overlay: horizontal teal + cream stripes across the outer torso
+			local plaidTeal = Color3.fromRGB(68, 158, 182)
+			local plaidCream = Color3.fromRGB(228, 222, 208)
+			local stripeH = 0.20 * scale
+			local stripeYs = { th * 0.35, th * 0.10, -(th * 0.15), -(th * 0.40) }
+			local stripeCols = { plaidTeal, plaidCream, plaidTeal, plaidCream }
+			for si, syv in ipairs(stripeYs) do
+				makePart(model, "PlaidStripe" .. si,
+					Vector3.new(2.02 * scale, stripeH, 0.08),
+					at * CFrame.new(0, syv, -(td / 2 + 0.10)), stripeCols[si])
+			end
+			-- Vertical plaid bar (crosshatch) running down left side of flannel
+			makePart(model, "PlaidBarL", Vector3.new(0.18 * scale, th * 0.90, 0.08),
+				at * CFrame.new(-0.72 * scale, 0, -(td / 2 + 0.11)), plaidTeal)
 			-- Hoodie drawstrings hanging from neck
 			local cordC = Color3.fromRGB(195, 192, 188)
 			makePart(model, "DrawL", Vector3.new(0.06, th * 0.52, 0.06),
