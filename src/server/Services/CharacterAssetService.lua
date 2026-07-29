@@ -1023,6 +1023,11 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		local scEyeR = model:FindFirstChild("RightGlow") :: BasePart?
 		if scEyeL then scEyeL.Transparency = 1 end
 		if scEyeR then scEyeR.Transparency = 1 end
+		-- Arms are near-black (dark charcoal) while upper torso/head stays pale — reference clearly shows this
+		local scLL = model:FindFirstChild("LeftLimb") :: BasePart?
+		local scRL = model:FindFirstChild("RightLimb") :: BasePart?
+		if scLL then scLL.Color = presentation.accent end
+		if scRL then scRL.Color = presentation.accent end
 		-- Square mouth reads as circular from front — lamprey reference
 		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 3.0, 0.6),
 			at * CFrame.new(0, headY - 0.1, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
