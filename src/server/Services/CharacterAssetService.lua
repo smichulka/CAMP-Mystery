@@ -2115,6 +2115,17 @@ local function buildProceduralBotCharacter(
 			makePart(model, "FrogEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
 				at * CFrame.new( 0.14 * scale, th * 0.22, -(td / 2 + 0.14)),
 				Color3.fromRGB(18, 18, 18), Enum.PartType.Ball)
+			-- Grey cuffed shorts: Girl Camper 5 reference shows light-grey shorts, not green legs
+			local llFrog = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rlFrog = model:FindFirstChild("RightLeg") :: BasePart?
+			local greyShort = Color3.fromRGB(175, 175, 180)
+			if llFrog then llFrog.Color = greyShort end
+			if rlFrog then rlFrog.Color = greyShort end
+			-- Gold chain necklace: Girl Camper 5 reference shows thin gold chain at neck
+			local frogChain = makePart(model, "FrogNecklace",
+				Vector3.new(0.82 * scale, 0.07 * scale, 0.78 * scale),
+				at * CFrame.new(0, th / 2 - 0.36 * scale, 0), Color3.fromRGB(195, 162, 42))
+			frogChain.Material = Enum.Material.Metal
 			-- Green + white knee-high socks (prominent in Girl Camper 5 reference image)
 			local frogSockG = Color3.fromRGB(62, 168, 72)
 			local sockTopY4 = -(th / 2 + 1.10 * scale)
@@ -2133,9 +2144,9 @@ local function buildProceduralBotCharacter(
 			end
 
 		elseif styleSlot == 5 then
-			-- Cat Onesie: white sneakers, full cat hood with face + ear + stripe details
-			if cLS then cLS.Color = Color3.fromRGB(228, 222, 215) end
-			if cRS then cRS.Color = Color3.fromRGB(228, 222, 215) end
+			-- Cat Onesie: onesie-color shoes + full cat hood with face + ear + stripe details
+			if cLS then cLS.Color = bodyColor end
+			if cRS then cRS.Color = bodyColor end
 			-- Full cat hood dome enclosing head
 			makePart(model, "CatHood", Vector3.new(hs * 1.14, hs * 1.08, hs * 1.08),
 				at * CFrame.new(0, headY, 0), bodyColor, Enum.PartType.Ball)
@@ -2168,6 +2179,19 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, -(th * 0.08), -(td / 2 + 0.09)), catDark)
 			makePart(model, "CatStripe2", Vector3.new(1.78 * scale, 0.14, 0.10),
 				at * CFrame.new(0, -(th * 0.30), -(td / 2 + 0.09)), catDark)
+			-- Tabby stripe rings on legs: Girl Camper 6 reference shows stripes extending down legs
+			-- lh = 2*scale, ly = -(th/2 + lh/2) = -(2*scale); mirroring buildHumanoidBody dims
+			local catLy = -(th / 2 + 1 * scale)
+			local catLx = 0.5 * scale
+			local catLsw = 1.08 * scale
+			for side5 = -1, 1, 2 do
+				local sX5 = side5 * catLx
+				for si5, yOff5 in ipairs({ 0.60, 0, -0.55 }) do
+					makePart(model, "CatLegStr" .. (if side5 < 0 then "L" else "R") .. si5,
+						Vector3.new(catLsw, 0.14, catLsw),
+						at * CFrame.new(sX5, catLy + yOff5 * scale, 0), catDark)
+				end
+			end
 
 		elseif styleSlot == 6 then
 			-- Axolotl Hood: purple shoes, pink hood with fan gills, white hoodie body + navy accents
@@ -2308,6 +2332,19 @@ local function buildProceduralBotCharacter(
 			makePart(model, "KangarooPocket", Vector3.new(1.32 * scale, 0.50 * scale, 0.10),
 				at * CFrame.new(0, -(th * 0.28), -(td / 2 + 0.09)),
 				Color3.fromRGB(52, 108, 52))
+			-- Black joggers: Boy Camper 3 reference clearly shows black pants under green hoodie
+			local ll9 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl9 = model:FindFirstChild("RightLeg") :: BasePart?
+			local blackJog = Color3.fromRGB(22, 20, 28)
+			if ll9 then ll9.Color = blackJog end
+			if rl9 then rl9.Color = blackJog end
+			-- Drawstring detail on hoodie front
+			makePart(model, "DrawstringL", Vector3.new(0.06, 0.62 * scale, 0.06),
+				at * CFrame.new(-0.16 * scale, th * 0.02, -(td / 2 + 0.10)),
+				Color3.fromRGB(18, 18, 22))
+			makePart(model, "DrawstringR", Vector3.new(0.06, 0.62 * scale, 0.06),
+				at * CFrame.new( 0.16 * scale, th * 0.02, -(td / 2 + 0.10)),
+				Color3.fromRGB(18, 18, 22))
 
 		elseif styleSlot == 10 then
 			-- Pixel Creeper: full-green pixel costume with block-head mask + chest face
@@ -2363,6 +2400,13 @@ local function buildProceduralBotCharacter(
 				makePart(model, "HoodiePocket" .. (if side < 0 then "L" else "R"),
 					Vector3.new(0.74 * scale, 0.52 * scale, 0.10),
 					at * CFrame.new(side * 0.54 * scale, -(th * 0.26), -(td / 2 + 0.09)), pocketC)
+			end
+			-- Rose-gold cuff bands at sleeve ends: Boy Camper 5 reference shows rose-gold accents
+			local cuffY = -(th / 2 - 0.24 * scale)
+			for side = -1, 1, 2 do
+				makePart(model, "HoodieCuff" .. (if side < 0 then "L" else "R"),
+					Vector3.new(1.10 * scale, 0.18 * scale, 1.06 * scale),
+					at * CFrame.new(side * ax, cuffY, 0), roseGold)
 			end
 			task.spawn(function()
 				local holoColors = {
