@@ -981,13 +981,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Color3.fromRGB(5, 4, 6), Enum.PartType.Ball)
 			eye.Material = Enum.Material.SmoothPlastic
 		end
-		makePart(model, "AcidSac", Vector3.new(2.4, 1.2, 2.4), at * CFrame.new(0, -1.7, 1.4), presentation.accent, Enum.PartType.Ball).Transparency = 0.2
-		-- 4 spider legs radiating from the base
-		for i = 0, 3 do
-			local angle = (i / 4) * math.pi * 2 + math.pi / 4
-			makePart(model, "SpiderLeg" .. tostring(i + 1), Vector3.new(0.32, 2.6 * sy, 0.32),
-				at * CFrame.new(math.cos(angle) * 2.2 * sx, -(torsoSize.Y / 2 + 0.8 * sy), math.sin(angle) * 2.2 * sx)
-					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
+		-- Override generic near-black arm limbs to flesh pink (reference: uniformly fleshy creature)
+		local baLL = model:FindFirstChild("LeftLimb") :: BasePart?
+		local baRL = model:FindFirstChild("RightLimb") :: BasePart?
+		if baLL then baLL.Color = presentation.color end
+		if baRL then baRL.Color = presentation.color end
+		-- 2 humanoid legs, angled forward in crawling pose (reference: baby alien lying/crawling)
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
+				Vector3.new(0.50 * sx, 2.4 * sy, 0.50 * sz),
+				at * CFrame.new(side * 0.85 * sx, -(torsoSize.Y / 2 + 0.9 * sy), 0.7 * sz)
+					* CFrame.Angles(-0.30, 0, side * 0.08), presentation.color)
 		end
 		-- Grasping claw fingers on each arm (3 elongated tapered fingers per hand, matching reference)
 		for side = -1, 1, 2 do
@@ -1207,6 +1211,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		local rl = model:FindFirstChild("RightLimb")
 		if ll then ll.Transparency = 1; (ll :: BasePart).CanCollide = false end
 		if rl then rl.Transparency = 1; (rl :: BasePart).CanCollide = false end
+		-- Reference: large dark insect eyes (not blood-red glow) — override generic Neon eyes
+		local chEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
+		local chEyeR = model:FindFirstChild("RightGlow") :: BasePart?
+		if chEyeL then
+			chEyeL.Color = Color3.fromRGB(6, 5, 7)
+			chEyeL.Material = Enum.Material.SmoothPlastic
+			chEyeL.Size = chEyeL.Size * 1.40
+		end
+		if chEyeR then
+			chEyeR.Color = Color3.fromRGB(6, 5, 7)
+			chEyeR.Material = Enum.Material.SmoothPlastic
+			chEyeR.Size = chEyeR.Size * 1.40
+		end
 		for index = 1, 5 do
 			local spine = makePart(model, "BackSpine" .. tostring(index),
 				Vector3.new(0.28, 2.2 + index * 0.18, 0.55),
@@ -1415,6 +1432,15 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(0.15, 0, (index - 2) * 0.08), presentation.accent)
 			stream.Material = Enum.Material.ForceField
 			stream.Transparency = 0.5
+		end
+		-- Ornate corset bodice: structured metallic banding across the torso midsection
+		local corsetC = Color3.fromRGB(88, 102, 122)
+		for b = 1, 3 do
+			local band = makePart(model, "CorsetBand" .. b,
+				Vector3.new(torsoSize.X * 0.80, 0.28 * sy, torsoSize.Z + 0.10),
+				at * CFrame.new(0, torsoSize.Y * (0.20 - b * 0.09), 0),
+				corsetC)
+			band.Material = Enum.Material.Metal
 		end
 		-- Chest brooch/medallion: ornate decorative piece prominent in reference image
 		local brooch = makePart(model, "ChestBrooch",
