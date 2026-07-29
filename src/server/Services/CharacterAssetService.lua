@@ -2163,9 +2163,12 @@ local function buildProceduralBotCharacter(
 			if rl0 then rl0.Color = denimGrey end
 
 		elseif styleSlot == 1 then
-			-- Glitter Bow: white high-tops + oversized bow on head
+			-- Glitter Bow: white high-tops + oversized bow on head (Girl Camper 2: blush-pink hair)
 			if cLS then cLS.Color = Color3.fromRGB(232, 230, 235) end
 			if cRS then cRS.Color = Color3.fromRGB(232, 230, 235) end
+			-- Blush pink/cream hair matching Girl Camper 2 reference
+			local hairPart1 = model:FindFirstChild("Hair") :: BasePart?
+			if hairPart1 then hairPart1.Color = Color3.fromRGB(238, 208, 215) end
 			local bowPink = Color3.fromRGB(238, 88, 168)
 			makePart(model, "BowL", Vector3.new(0.90 * scale, 0.70 * scale, 0.22 * scale),
 				at * CFrame.new(-0.54 * scale, headY + hs * 0.60, -hs * 0.08)
@@ -2199,9 +2202,12 @@ local function buildProceduralBotCharacter(
 			local rl1 = model:FindFirstChild("RightLeg") :: BasePart?
 			if ll1 then ll1.Color = skinColor end
 			if rl1 then rl1.Color = skinColor end
-			-- Denim waistband to suggest the cutoff shorts at hip level
+			-- Denim cutoff shorts: waistband + short panel below (Girl Camper 2: visible denim shorts)
+			local denimBlue = Color3.fromRGB(118, 142, 182)
 			makePart(model, "DenimWaist", Vector3.new(2.04 * scale, 0.28 * scale, td * 1.06),
-				at * CFrame.new(0, -(th / 2 - 0.14 * scale), 0), Color3.fromRGB(118, 142, 182))
+				at * CFrame.new(0, -(th / 2 - 0.14 * scale), 0), denimBlue)
+			makePart(model, "DenimShort", Vector3.new(1.98 * scale, 0.52 * scale, td * 1.04),
+				at * CFrame.new(0, -(th / 2 + 0.26 * scale), 0), Color3.fromRGB(105, 128, 168))
 			-- Striped knee socks: pink/blue/white bands (very prominent in Girl Camper 2 reference)
 			local sock1Y = -(th / 2 + 1.08 * scale)
 			local lx1 = 0.5 * scale
@@ -2478,6 +2484,14 @@ local function buildProceduralBotCharacter(
 					axSpotPink, Enum.PartType.Ball)
 				axSpot.Transparency = 0.18
 			end
+			-- Cute squiggle smile mouth (Boy Camper.jpg: happy ":)" face on the axolotl hood)
+			local axMouthC = Color3.fromRGB(188, 85, 115)
+			for smSide = -1, 1, 2 do
+				makePart(model, "AxMouth" .. (if smSide < 0 then "L" else "R"),
+					Vector3.new(0.22 * scale, 0.10 * scale, 0.08),
+					at * CFrame.new(smSide * 0.16 * scale, headY - hs * 0.18, -(hs * 0.54))
+						* CFrame.Angles(0, 0, smSide * 0.36), axMouthC)
+			end
 			-- White hoodie body with navy side accents + orange pockets
 			local navyBlue = Color3.fromRGB(38, 58, 128)
 			makePart(model, "HoodieFront", Vector3.new(1.78 * scale, th * 0.90, 0.11),
@@ -2506,32 +2520,28 @@ local function buildProceduralBotCharacter(
 					* CFrame.Angles(0.20, 0,  0.06), axCordC)
 
 		elseif styleSlot == 7 then
-			-- Tactical Vest: amber work boots, layered vest panels on chest, patrol cap
+			-- Tactical Vest: amber work boots, grey vest over orange shirt (Boy Camper 1 reference — no hat)
 			if cLS then cLS.Color = Color3.fromRGB(195, 138, 48) end
 			if cRS then cRS.Color = Color3.fromRGB(195, 138, 48) end
-			makePart(model, "VestFront", Vector3.new(2.0 * scale * 0.85, th * 0.65, 0.12),
-				at * CFrame.new(0, 0.15, -(td / 2 + 0.08)), Color3.fromRGB(75, 80, 72))
+			-- Orange shirt base layer visible at collar and vest sides (reference shows orange shirt under grey vest)
+			makePart(model, "OrangeShirt", Vector3.new(2.0 * scale, th * 0.78, 0.10),
+				at * CFrame.new(0, 0.08, -(td / 2 + 0.07)), Color3.fromRGB(218, 138, 28))
+			-- Grey tactical vest narrower than shirt so orange shows on sides (reference: open-front vest)
+			makePart(model, "VestFront", Vector3.new(2.0 * scale * 0.72, th * 0.65, 0.12),
+				at * CFrame.new(0, 0.15, -(td / 2 + 0.09)), Color3.fromRGB(75, 80, 72))
 			makePart(model, "VestPouchL", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
-				at * CFrame.new(-0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
+				at * CFrame.new(-0.52 * scale, 0.32, -(td / 2 + 0.17)), Color3.fromRGB(58, 62, 55))
 			makePart(model, "VestPouchR", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
-				at * CFrame.new( 0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
+				at * CFrame.new( 0.52 * scale, 0.32, -(td / 2 + 0.17)), Color3.fromRGB(58, 62, 55))
 			-- Action camera clipped to left chest vest panel (matching Boy Camper 1 reference)
 			local camC = Color3.fromRGB(22, 22, 22)
 			local gopro = makePart(model, "ActionCam", Vector3.new(0.34 * scale, 0.26 * scale, 0.20),
-				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.22)), camC)
+				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.23)), camC)
 			gopro.Material = Enum.Material.SmoothPlastic
 			local goproLens = makePart(model, "CamLens", Vector3.new(0.16 * scale, 0.16 * scale, 0.08),
-				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.32)),
+				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.33)),
 				Color3.fromRGB(12, 12, 20), Enum.PartType.Ball)
 			goproLens.Material = Enum.Material.Glass
-			-- Olive patrol cap with a short forward bill
-			local tacOlive = Color3.fromRGB(62, 68, 52)
-			makePart(model, "PatrolCrown", Vector3.new(hs * 1.02, 0.28 * scale, hs * 0.96),
-				at * CFrame.new(0, headY + hs / 2 + 0.14 * scale, 0), tacOlive)
-			makePart(model, "PatrolBand", Vector3.new(hs * 1.04, 0.10 * scale, hs * 0.98),
-				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(48, 52, 40))
-			makePart(model, "PatrolBill", Vector3.new(hs * 1.04, 0.08 * scale, 0.42 * scale),
-				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.62)), tacOlive)
 			-- Black tactical glove on left hand (Boy Camper 1 reference detail)
 			makePart(model, "TacGloveL", Vector3.new(0.88 * scale, 0.66 * scale, 0.88 * scale),
 				at * CFrame.new(-ax, -(th / 2 + 0.46 * scale), 0), Color3.fromRGB(14, 14, 18))
