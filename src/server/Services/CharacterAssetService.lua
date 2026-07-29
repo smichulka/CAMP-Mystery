@@ -1445,6 +1445,14 @@ local function buildProceduralCounselor(
 		makePart(model, "ClipPage", Vector3.new(0.90 * scale, 1.20 * scale, 0.07),
 			at * CFrame.new(-(ax + 0.16), -0.06 * scale, -(td / 2 + 0.14))
 				* CFrame.Angles(0, 0.10, 0.14), Color3.fromRGB(235, 228, 215))
+		-- Achievement medal on chest: Counslor 5 reference — director authority symbol
+		makePart(model, "MedalRibbon", Vector3.new(0.18 * scale, 0.44 * scale, 0.06),
+			at * CFrame.new(0.20 * scale, th / 2 - 0.44 * scale, -(td / 2 + 0.09)),
+			Color3.fromRGB(175, 42, 42))
+		local mdl = makePart(model, "Medal", Vector3.new(0.36 * scale, 0.36 * scale, 0.08),
+			at * CFrame.new(0.20 * scale, th / 2 - 0.78 * scale, -(td / 2 + 0.09)),
+			Color3.fromRGB(212, 178, 42), Enum.PartType.Ball)
+		mdl.Material = Enum.Material.Metal
 	elseif index == 2 then
 		-- Medical pack + red cross on torso: Ortiz is Health & Safety
 		makePart(model, "FirstAidPack", Vector3.new(2.0 * scale * 0.8, th * 0.5, 0.45),
@@ -1500,6 +1508,19 @@ local function buildProceduralCounselor(
 		local badgeC = Color3.fromRGB(218, 218, 228)
 		makePart(model, "RNBadge", Vector3.new(0.36 * scale, 0.46 * scale, 0.06),
 			at * CFrame.new(0.32 * scale, th / 2 - 0.52 * scale, -(td / 2 + 0.09)), badgeC)
+		-- Blue/gold striped knit scarf: Counslor 6 reference — Ortiz wears scarf draped over shoulders
+		local scarfNavy = Color3.fromRGB(28, 52, 128)
+		local scarfGold = Color3.fromRGB(198, 162, 38)
+		local scarfTopY = th / 2 - 0.10 * scale
+		makePart(model, "ScarfNavy1", Vector3.new(1.08 * scale, 0.18 * scale, 0.08),
+			at * CFrame.new(0, scarfTopY, -(td / 2 + 0.12)), scarfNavy)
+		makePart(model, "ScarfGold1", Vector3.new(1.06 * scale, 0.16 * scale, 0.08),
+			at * CFrame.new(0, scarfTopY - 0.20 * scale, -(td / 2 + 0.12)), scarfGold)
+		makePart(model, "ScarfNavy2", Vector3.new(1.04 * scale, 0.18 * scale, 0.08),
+			at * CFrame.new(0, scarfTopY - 0.40 * scale, -(td / 2 + 0.12)), scarfNavy)
+		makePart(model, "ScarfTailL", Vector3.new(0.22 * scale, 0.80 * scale, 0.07),
+			at * CFrame.new(-0.56 * scale, scarfTopY - 0.60 * scale, -(td / 2 + 0.10))
+				* CFrame.Angles(0.08, 0, 0.12), scarfNavy)
 	elseif index == 3 then
 		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15
@@ -1542,6 +1563,18 @@ local function buildProceduralCounselor(
 			at * CFrame.new(-0.28 * scale, -0.30 * scale, -(td / 2 + 0.36)), Color3.fromRGB(12, 12, 18),
 			Enum.PartType.Ball)
 		camLens.Material = Enum.Material.Glass
+		-- Horizontal tank-top stripes: Counslor 4 reference — navy/red/white striped tank
+		local stripeColors4 = {
+			Color3.fromRGB(42, 58, 98),
+			Color3.fromRGB(185, 50, 45),
+			Color3.fromRGB(232, 228, 224),
+		}
+		local stripeYs4 = { th * 0.30, th * 0.05, -(th * 0.20) }
+		for si = 1, 3 do
+			makePart(model, "TankStripe" .. si,
+				Vector3.new(1.72 * scale, 0.17 * scale, 0.06),
+				at * CFrame.new(0, stripeYs4[si], -(td / 2 + 0.07)), stripeColors4[si])
+		end
 		-- Colorful beaded necklace (bohemian free-spirit reference)
 		local beadColors = {
 			Color3.fromRGB(215, 65, 65),
@@ -1558,6 +1591,30 @@ local function buildProceduralCounselor(
 				beadColors[i], Enum.PartType.Ball)
 			bead.Material = Enum.Material.SmoothPlastic
 		end
+		-- Second bead strand (lower row): multi-strand necklace from Counslor 4 reference
+		for i = 1, #beadColors do
+			local bXOff2 = (i - 3) * 0.26 * scale
+			local b2 = makePart(model, "Bead2x" .. i,
+				Vector3.new(0.17, 0.17, 0.12),
+				at * CFrame.new(bXOff2, th / 2 - 0.55 * scale, -(td / 2 + 0.10)),
+				beadColors[i], Enum.PartType.Ball)
+			b2.Material = Enum.Material.SmoothPlastic
+		end
+		-- Amethyst crystal cluster in right hand: Counslor 4 reference — held purple crystal
+		local cryst = makePart(model, "CrystalCluster",
+			Vector3.new(0.44 * scale, 0.54 * scale, 0.30 * scale),
+			at * CFrame.new(ax + 0.14, -0.14 * scale, -(td / 2 + 0.14))
+				* CFrame.Angles(0, 0, -0.28),
+			Color3.fromRGB(148, 68, 195))
+		cryst.Material = Enum.Material.Neon
+		cryst.Transparency = 0.22
+		local cryst2 = makePart(model, "CrystalShard",
+			Vector3.new(0.22 * scale, 0.34 * scale, 0.17 * scale),
+			at * CFrame.new(ax + 0.30, -0.04 * scale, -(td / 2 + 0.12))
+				* CFrame.Angles(0, 0, -0.58),
+			Color3.fromRGB(168, 88, 210))
+		cryst2.Material = Enum.Material.Neon
+		cryst2.Transparency = 0.25
 	elseif index == 5 then
 		-- Field journal tucked under left arm: Chen logs nature observations
 		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
@@ -1602,6 +1659,24 @@ local function buildProceduralCounselor(
 			at * CFrame.new(-(ax + 0.08), 0.10 * scale + 0.31 * scale, -(td / 2 + 0.12)),
 			Color3.fromRGB(42, 26, 12))
 		mugTop.Material = Enum.Material.SmoothPlastic
+		-- Wristwatch on left wrist: Counslor 8 reference — contractor wears watch
+		local wristY = -(th / 2 - 0.26 * scale)
+		makePart(model, "WatchFace", Vector3.new(0.32 * scale, 0.26 * scale, 0.32 * scale),
+			at * CFrame.new(-ax, wristY, 0), Color3.fromRGB(24, 22, 30))
+		makePart(model, "WatchBandT", Vector3.new(0.22 * scale, 0.12 * scale, 0.28 * scale),
+			at * CFrame.new(-ax, wristY + 0.19 * scale, 0), Color3.fromRGB(28, 22, 18))
+		makePart(model, "WatchBandB", Vector3.new(0.22 * scale, 0.12 * scale, 0.28 * scale),
+			at * CFrame.new(-ax, wristY - 0.19 * scale, 0), Color3.fromRGB(28, 22, 18))
+		-- Yellow tape measure on belt: Counslor 8 reference — DeWalt yellow tools
+		local tapeMeas = makePart(model, "TapeMeasure", Vector3.new(0.38, 0.38, 0.26),
+			at * CFrame.new(-0.68 * scale, -(th / 2 - 0.46), -(td / 2 + 0.22)),
+			Color3.fromRGB(205, 165, 42))
+		tapeMeas.Material = Enum.Material.SmoothPlastic
+		-- Gold chain necklace: Counslor 8 reference — contractor wears gold chain
+		local chn = makePart(model, "GoldChain",
+			Vector3.new(0.88 * scale, 0.07 * scale, 0.80 * scale),
+			at * CFrame.new(0, th / 2 - 0.36 * scale, 0), Color3.fromRGB(195, 158, 42))
+		chn.Material = Enum.Material.Metal
 	end
 
 	-- Staff ID badge: colored card on a short cord around the neck
