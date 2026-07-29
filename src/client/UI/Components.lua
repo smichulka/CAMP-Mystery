@@ -107,7 +107,9 @@ function Components.Label(
 	label.Text = text
 	label.TextColor3 = Theme.Colors.Text
 	label.TextSize = textSize
-	if string.match(name, "Title$") or string.match(name, "Header$") then
+	-- Heading defaults apply only when the caller did not choose a font;
+	-- explicit font/size parameters must never be silently overridden.
+	if font == nil and (string.match(name, "Title$") or string.match(name, "Header$")) then
 		label.Font = Theme.Typography.HeadingFont
 		label.TextSize = Theme.Typography.SubheadingSize
 	end
@@ -137,8 +139,9 @@ function Components.LetterspacedText(value: string, spacing: number?): string
 		resolvedSpacing
 	)
 	local characters: { string } = {}
-	for index = 1, #value do
-		table.insert(characters, escapeRichText(string.sub(value, index, index)))
+	-- Iterate graphemes, not bytes, so multi-byte UTF-8 text survives spacing
+	for first, last in utf8.graphemes(value) do
+		table.insert(characters, escapeRichText(string.sub(value, first, last)))
 	end
 	return table.concat(characters, spacer)
 end

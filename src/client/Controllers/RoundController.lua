@@ -127,7 +127,10 @@ local lastRoleRevealRound: number? = nil
 local lastWinnerAnnounced: string? = nil
 local lastVoteCompleteRound: number? = nil
 local lastIsGhost: boolean? = nil
-local pendingActionName: string? = nil
+-- FIFO of in-flight action names; results arrive in request order, so the
+-- oldest entry always corresponds to the next result (a single slot would
+-- mislabel results when two actions overlap in flight).
+local pendingActionNames: { string } = {}
 local lastHealthState: string? = nil
 local HEALTH_SEVERITY: { [string]: number } = {
 	Healthy = 0,
@@ -1187,13 +1190,17 @@ local function requestAction(actionName: string, payload: any): (boolean, string
 	if not currentBridge then
 		return false, "The camp radio is not connected."
 	end
-	pendingActionName = actionName
-	return currentBridge:Request(actionName, payload)
+	table.insert(pendingActionNames, actionName)
+	local sent, reason = currentBridge:Request(actionName, payload)
+	if not sent then
+		-- The request never left the client, so no result will arrive for it
+		table.remove(pendingActionNames)
+	end
+	return sent, reason
 end
 
 local function handleActionResult(payload: any)
-	local actionName = pendingActionName
-	pendingActionName = nil
+	local actionName: string? = table.remove(pendingActionNames, 1)
 	local currentView = view
 	if type(payload) ~= "table" then
 		if currentView then
@@ -1650,6 +1657,7 @@ function RoundController.Stop()
 	lastHintRound = nil
 	lastToastedRound = nil
 	sentUrgencyWarning = false
+	table.clear(pendingActionNames)
 	table.clear(seenHintPhases)
 end
 

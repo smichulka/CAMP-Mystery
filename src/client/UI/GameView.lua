@@ -265,10 +265,10 @@ local ROSTER_PHASES: { [string]: boolean } = {
 }
 
 local PHASE_ARC_ORDER: { string } = {
+	"Day",
 	"MurderPlanning",
 	"NightTransform",
 	"Investigation",
-	"Day",
 	"Campfire",
 	"Resolution",
 }
@@ -1804,10 +1804,10 @@ end
 
 function GameView:HandleActionResult(accepted: boolean)
 	local control = self.lastActionControl
-	if control and control.Parent then
-		if control:IsA("TextButton") then
-			Components.SetButtonEnabled(control :: TextButton, true)
-		end
+	-- Feedback animations are for buttons only; playing PopIn on a modal
+	-- frame can cancel its close animation and strand it visible.
+	if control and control.Parent and control:IsA("TextButton") then
+		Components.SetButtonEnabled(control :: TextButton, true)
 		if accepted then
 			HapticController.Impact()
 			Motion.PopIn(control, { duration = 0.12 })
@@ -2411,6 +2411,27 @@ function GameView:_settingRow(
 			then
 				dragging = true
 				applyFraction(fractionAt(input.Position.X))
+				-- GuiObject.InputEnded only fires while the pointer is over the
+				-- track, so watch the input object itself: releasing anywhere
+				-- ends the drag and commits the value.
+				local changedConn: RBXScriptConnection? = nil
+				changedConn = input.Changed:Connect(function()
+					if input.UserInputState ~= Enum.UserInputState.End then
+						return
+					end
+					if changedConn then
+						changedConn:Disconnect()
+						changedConn = nil
+					end
+					if not dragging then
+						return
+					end
+					dragging = false
+					local finalFraction = fractionAt(input.Position.X)
+					applyFraction(finalFraction)
+					local rawValue = minValue + finalFraction * (maxValue - minValue)
+					self:_setSetting(key, math.round(rawValue * 10) / 10)
+				end)
 			end
 		end)
 		sliderTrack.InputChanged:Connect(function(input: InputObject)
@@ -2422,18 +2443,6 @@ function GameView:_settingRow(
 				)
 			then
 				applyFraction(fractionAt(input.Position.X))
-			end
-		end)
-		sliderTrack.InputEnded:Connect(function(input: InputObject)
-			local inputType = input.UserInputType
-			if inputType == Enum.UserInputType.MouseButton1
-				or inputType == Enum.UserInputType.Touch
-			then
-				dragging = false
-				local finalFraction = fractionAt(input.Position.X)
-				applyFraction(finalFraction)
-				local rawValue = minValue + finalFraction * (maxValue - minValue)
-				self:_setSetting(key, math.round(rawValue * 10) / 10)
 			end
 		end)
 	end
@@ -2490,13 +2499,14 @@ function GameView:_setSetting(key: string, value: any)
 		audioCallback(key, value)
 	end
 	self:_rebuildSettings()
-	self.lastActionControl = self.settings
+	-- Never register the settings modal as the pending action control: the
+	-- ack's Motion.PopIn would cancel an in-flight close animation and leave
+	-- the modal visibly stuck open with its visibility attribute false.
 	local sent, reason = self.actionHandler("SetSettings", {
 		settings = { [key] = value },
 	})
 	if not sent then
 		Motion.Shake(self.settings)
-		self.lastActionControl = nil
 		self:Notify("Saved on this device", reason or "Server profile sync is unavailable.", "Warning")
 	end
 end
@@ -3691,7 +3701,8 @@ function GameView:_updateVote(round: any, player: any)
 					else Theme.Colors.Danger,
 			})
 			button:SetAttribute("Generated", true)
-			Components.SetButtonEnabled(button, not hasVoted)
+			-- The server rejects self-votes, so never offer yourself as a live choice
+			Components.SetButtonEnabled(button, not hasVoted and not isSelf)
 			if isOtherVote then
 				button.BackgroundTransparency = 0.7
 			elseif isMyVote then
@@ -6598,16 +6609,17 @@ function GameView:Notify(
 	if self.destroyed then
 		return
 	end
-	local existingToasts = self.toastList:GetChildren()
-	local toastCount = 0
-	for _, child in existingToasts do
+	local existingToasts: { GuiObject } = {}
+	for _, child in self.toastList:GetChildren() do
 		if child:IsA("GuiObject") and child.Name == "Toast" then
-			toastCount += 1
-			if toastCount > 3 then
-				Motion.Cancel(child)
-				child:Destroy()
-			end
+			table.insert(existingToasts, child)
 		end
+	end
+	-- Evict the oldest toasts first so the most recent information stays visible
+	for index = 1, #existingToasts - 3 do
+		local stale = existingToasts[index]
+		Motion.Cancel(stale)
+		stale:Destroy()
 	end
 	local toast = Components.Panel(self.toastList, "Toast")
 	toast.Size = UDim2.new(1, 0, 0, 70)

@@ -89,6 +89,13 @@ local function finish(record: TransitionRecord, completed: boolean)
 		connection:Disconnect()
 	end
 	table.clear(record.connections)
+	-- Stop every remaining tween: when one tween of a record ends early the
+	-- others would keep playing with their listeners disconnected, overwriting
+	-- the resting values cleanup() just restored.
+	for _, tween in record.tweens do
+		tween:Cancel()
+	end
+	table.clear(record.tweens)
 	if activeTransitions[record.target] == record then
 		activeTransitions[record.target] = nil
 	end
@@ -329,6 +336,9 @@ local function pop(
 		if reduced then Theme.Motion.ReducedFadeDuration else Theme.Motion.PopDuration
 	)
 	local popScale = safeScale(resolved.scale, Theme.Motion.PopScale)
+	-- Cancel any in-flight transition BEFORE capturing resting values, so its
+	-- cleanup restores the true baseline instead of a mid-animation snapshot.
+	Motion.Cancel(target)
 	local properties = fadeProperties(target)
 	local scale = motionScale(target)
 	local record = begin(target, resolved.onComplete, function()
@@ -401,6 +411,8 @@ local function slide(
 
 	local duration = safeDuration(resolved.duration, Theme.Motion.SlideDuration)
 	local distance = safeDistance(resolved.distance, Theme.Motion.SlideOffset)
+	-- Cancel first so the captured Position/fade values are the true baseline
+	Motion.Cancel(target)
 	local restingPosition = target.Position
 	local properties = fadeProperties(target)
 	local record = begin(target, resolved.onComplete, function()
@@ -448,6 +460,8 @@ local function fade(
 		resolved.duration,
 		if reduced then Theme.Motion.ReducedFadeDuration else Theme.Motion.FadeDuration
 	)
+	-- Cancel first so the captured fade values are the true baseline
+	Motion.Cancel(target)
 	local properties = fadeProperties(target)
 	local record = begin(target, resolved.onComplete, function()
 		setFade(properties, false)
@@ -481,6 +495,8 @@ function Motion.Shake(target: GuiObject, config: TransitionConfig?): RBXScriptSi
 		return play(record)
 	end
 
+	-- Cancel first so the captured Position is the true resting baseline
+	Motion.Cancel(target)
 	local restingPosition = target.Position
 	local distance = safeDistance(resolved.distance, Theme.Motion.ShakeDistance)
 	local duration = safeDuration(resolved.duration, Theme.Motion.ShakeStepDuration)
@@ -534,6 +550,9 @@ end
 
 function Motion.StaggerChildren(container: GuiObject, config: StaggerConfig?): RBXScriptSignal
 	local resolved = config or {}
+	-- Cancel a running stagger first: its cleanup re-shows children it had
+	-- hidden, so the visibility capture below sees the full set.
+	Motion.Cancel(container)
 	local children = visibleChildren(container)
 	local reduced = Motion.IsReducedMotion(container, resolved.reducedMotion)
 	local step = safeDuration(resolved.step, Theme.Motion.StaggerDelay)

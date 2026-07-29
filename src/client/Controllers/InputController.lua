@@ -85,11 +85,13 @@ function InputController.Start(callbacks: InputCallbacks)
 		Enum.KeyCode.ButtonStart
 	)
 
+	-- Escape is reserved by the Roblox core menu and never reaches
+	-- ContextActionService, so keyboard close uses X instead.
 	ContextActionService:BindAction(
 		ACTION_CLOSE,
 		activate(callbacks.closeModal),
 		false,
-		Enum.KeyCode.Escape,
+		Enum.KeyCode.X,
 		Enum.KeyCode.ButtonB
 	)
 

@@ -527,7 +527,7 @@ function EffectsView:SetMonsterMode(active: boolean)
 end
 
 function EffectsView:FlashEvidenceFound()
-	if self.destroyed then
+	if self.destroyed or self.reducedMotion then
 		return
 	end
 

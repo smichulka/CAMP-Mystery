@@ -3056,8 +3056,9 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("return escapeRichText(value)", lsp_fn)
         # Spacer is an invisible font element
         self.assertIn('<font size="%d" transparency="1">.</font>', lsp_fn)
-        # Per-character escaping
-        self.assertIn("escapeRichText(string.sub(value, index, index))", lsp_fn)
+        # Per-grapheme escaping (UTF-8 safe)
+        self.assertIn("for first, last in utf8.graphemes(value) do", lsp_fn)
+        self.assertIn("escapeRichText(string.sub(value, first, last))", lsp_fn)
         # Joined by spacer
         self.assertIn("table.concat(characters, spacer)", lsp_fn)
 

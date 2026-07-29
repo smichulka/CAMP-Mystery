@@ -14,14 +14,22 @@ local function isSupported(motor: Enum.VibrationMotor): boolean
 	return ok and result == true
 end
 
+local generationByMotor: { [Enum.VibrationMotor]: number } = {}
+
 local function vibrate(motor: Enum.VibrationMotor, amplitude: number, duration: number)
 	if not isSupported(motor) then
 		return
 	end
+	local generation = (generationByMotor[motor] or 0) + 1
+	generationByMotor[motor] = generation
 	pcall(function()
 		HapticService:SetMotor(INPUT_TYPE, motor, amplitude)
 	end)
 	task.delay(duration, function()
+		-- A newer pulse owns this motor now; let it finish on its own clock
+		if generationByMotor[motor] ~= generation then
+			return
+		end
 		pcall(function()
 			HapticService:SetMotor(INPUT_TYPE, motor, 0)
 		end)
