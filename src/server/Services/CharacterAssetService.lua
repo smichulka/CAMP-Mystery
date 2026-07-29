@@ -1113,6 +1113,30 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(0.22, 0, side * 0.55), barkColor)
 			shard.Material = Enum.Material.WoodPlanks
 		end
+		-- Wide bark-wing panels extending from each shoulder (Wendigo's defining silhouette feature:
+		-- the creature appears far wider than its torso because of large spreading branch slabs)
+		local darkBark = Color3.fromRGB(38, 26, 12)
+		for side = -1, 1, 2 do
+			local wx = side * (torsoSize.X / 2 + limbLen * 0.28)
+			-- Upper wing slab: large flat bark panel fanning outward from shoulder
+			local wingUp = makePart(model, (if side < 0 then "WingUpL" else "WingUpR"),
+				Vector3.new(0.30, 4.2 * sy, 1.80 * sz),
+				at * CFrame.new(wx, 0.6 * sy, 0)
+					* CFrame.Angles(0.12, 0, side * 0.62), darkBark)
+			wingUp.Material = Enum.Material.WoodPlanks
+			-- Lower wing slab: angled further downward and outward
+			local wingLo = makePart(model, (if side < 0 then "WingLoL" else "WingLoR"),
+				Vector3.new(0.26, 3.6 * sy, 1.30 * sz),
+				at * CFrame.new(wx + side * 1.40, -1.8 * sy, 0.25)
+					* CFrame.Angles(0.22, 0, side * 0.90), darkBark)
+			wingLo.Material = Enum.Material.WoodPlanks
+			-- Tip branch: tapered twig at the wing end for organic complexity
+			local wingTip = makePart(model, (if side < 0 then "WingTipL" else "WingTipR"),
+				Vector3.new(0.20, 2.0 * sy, 0.20),
+				at * CFrame.new(wx + side * 3.0, -2.8 * sy, 0.5)
+					* CFrame.Angles(0.30, 0.15, side * 1.10), darkBark)
+			wingTip.Material = Enum.Material.WoodPlanks
+		end
 		-- Root-arm claws reaching toward the ground with multi-finger spread (key reference feature)
 		local clawBase = Color3.fromRGB(38, 26, 12)
 		for side = -1, 1, 2 do
