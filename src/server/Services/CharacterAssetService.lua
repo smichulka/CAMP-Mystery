@@ -1004,6 +1004,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			end
 		end
 	elseif monsterId == "Screamer" then
+		-- Reference: pale bone-white skull dome with no eyes — override generic near-black accent head
+		local scHead = model:FindFirstChild("Head") :: BasePart?
+		if scHead then scHead.Color = presentation.color end
+		local scEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
+		local scEyeR = model:FindFirstChild("RightGlow") :: BasePart?
+		if scEyeL then scEyeL.Transparency = 1 end
+		if scEyeR then scEyeR.Transparency = 1 end
 		-- Square mouth reads as circular from front — lamprey reference
 		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 3.0, 0.6),
 			at * CFrame.new(0, headY - 0.1, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
