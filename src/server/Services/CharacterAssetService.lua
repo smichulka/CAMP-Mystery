@@ -1253,6 +1253,23 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 						* CFrame.Angles(fore * 0.28, 0, side * 0.1), presentation.accent)
 			end
 		end
+		-- Three-toed claws at each foot — hooked bone-ivory talons from the parchment reference
+		local clawC = Color3.fromRGB(188, 172, 140)
+		for side = -1, 1, 2 do
+			for fore = -1, 1, 2 do
+				local tag = (if side < 0 then "L" else "R") .. (if fore < 0 then "F" else "B")
+				local footX = side * 1.4 * sx
+				local footY = -(torsoSize.Y / 2 + 2.0 * sy) - 0.08 * sy
+				local footZ = fore * 1.05 * sz
+				for t = -1, 1 do
+					local claw = makePart(model, "Claw" .. tag .. tostring(t + 2),
+						Vector3.new(0.18 * sx, 0.15 * sy, 0.60 * sz),
+						at * CFrame.new(footX + t * 0.22 * sx, footY, footZ + fore * 0.20 * sz),
+						clawC)
+					claw.Material = Enum.Material.SmoothPlastic
+				end
+			end
+		end
 		-- Curved whip tail arcing behind and upward: defining feature in reference image
 		for s = 1, 5 do
 			local tFrac = s / 5

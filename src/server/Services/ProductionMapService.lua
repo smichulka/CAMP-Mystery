@@ -490,12 +490,22 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(side * (width / 2 - 1.5), 4.5, -12)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
-	-- Two wooden steps up to porch (Cabin 2 reference: steps leading up from ground)
-	local stepColor = Color3.fromRGB(60, 42, 28)
-	createPart(model, "PorchStep1", Vector3.new(4.5, 0.55, 1.1),
-		CFrame.new(position + Vector3.new(0, 0.28, -14.1)), stepColor, Enum.Material.WoodPlanks)
-	createPart(model, "PorchStep2", Vector3.new(4.5, 0.55, 1.1),
-		CFrame.new(position + Vector3.new(0, 0.83, -13.0)), stepColor, Enum.Material.WoodPlanks)
+	-- Porch railing: front rail + side returns + balusters between corner posts (Cabin 4 reference)
+	local railY = 4.0
+	createPart(model, "PorchRailFront", Vector3.new(width - 4.0, 0.28, 0.22),
+		CFrame.new(position + Vector3.new(0, railY, -12)), trimColor, Enum.Material.WoodPlanks)
+	for side = -1, 1, 2 do
+		createPart(model, "PorchRailSide" .. (if side < 0 then "L" else "R"),
+			Vector3.new(0.22, 0.28, 3.5),
+			CFrame.new(position + Vector3.new(side * (width / 2 - 1.5), railY, -10.25)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
+	for b = 1, 3 do
+		local bX = -(width / 2 - 2.5) + (width - 5.0) / 4 * b
+		createPart(model, "PorchBaluster" .. tostring(b), Vector3.new(0.20, railY - 1.1, 0.20),
+			CFrame.new(position + Vector3.new(bX, (1.1 + railY) / 2, -12)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
 	-- Simple wooden porch chair on one side (Cabin 2 reference: chair visible on porch)
 	local chairColor = Color3.fromRGB(68, 46, 28)
 	createPart(model, "ChairSeat", Vector3.new(1.7, 0.28, 1.5),
