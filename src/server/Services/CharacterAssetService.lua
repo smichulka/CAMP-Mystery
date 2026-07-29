@@ -2231,6 +2231,12 @@ local function buildProceduralBotCharacter(
 			-- Flower Crown Girl: black high-tops, floral crown + gold earrings
 			if cLS then cLS.Color = Color3.fromRGB(22, 18, 22) end
 			if cRS then cRS.Color = Color3.fromRGB(22, 18, 22) end
+			-- Very dark chocolate-brown hair (Girl Camper 3 reference: deep dark-brown long hair)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(48, 24, 8)
+				end
+			end
 			-- Pink + daisy flower hair clips on each side of head (Girl Camper 3 reference: not a crown)
 			local clipPink = Color3.fromRGB(228, 95, 148)
 			for hSide = -1, 1, 2 do
@@ -2302,6 +2308,12 @@ local function buildProceduralBotCharacter(
 			-- Denim Overalls: denim-blue sneakers, overall bib + suspenders, sun pendant
 			if cLS then cLS.Color = Color3.fromRGB(105, 132, 168) end
 			if cRS then cRS.Color = Color3.fromRGB(105, 132, 168) end
+			-- Sandy-blonde hair (Girl Camper 4 reference: warm sandy/cream hair)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(192, 160, 95)
+				end
+			end
 			-- Washed denim (lighter than body color, matching Girl Camper 4 reference)
 			local denimBlue = Color3.fromRGB(132, 165, 200)
 			-- White/grey striped under-shirt visible at torso sides (Girl Camper 4 ref)
@@ -2340,11 +2352,25 @@ local function buildProceduralBotCharacter(
 			local rl3 = model:FindFirstChild("RightLeg") :: BasePart?
 			if ll3 then ll3.Color = skinColor end
 			if rl3 then rl3.Color = skinColor end
+			-- Denim overall short leg panels (sitting over skin-colored legs, mid-thigh length)
+			local overLegH = 0.80 * scale
+			local overLegY = -(th / 2 + overLegH / 2 + 0.04 * scale)
+			local lx3 = 0.50 * scale
+			makePart(model, "OverLegL", Vector3.new(1.05 * scale, overLegH, 1.05 * scale),
+				at * CFrame.new(-lx3, overLegY, 0), denimBlue)
+			makePart(model, "OverLegR", Vector3.new(1.05 * scale, overLegH, 1.05 * scale),
+				at * CFrame.new( lx3, overLegY, 0), denimBlue)
 
 		elseif styleSlot == 4 then
 			-- Frog Hoodie: white sneakers + daisy-print bucket hat + frog chest emblem + green socks
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			-- Sage/mint green hair (Girl Camper 5 reference: distinctive sage-green wavy hair)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(110, 162, 115)
+				end
+			end
 			local frogGreen = Color3.fromRGB(42, 148, 52)
 			makePart(model, "BucketBrim", Vector3.new(hs * 1.55, 0.14 * scale, hs * 1.55),
 				at * CFrame.new(0, headY + hs / 2 + 0.08, 0), frogGreen)
