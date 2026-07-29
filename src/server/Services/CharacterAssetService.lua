@@ -2304,15 +2304,15 @@ local function buildProceduralBotCharacter(
 			if cLS then cLS.Color = Color3.fromRGB(118, 98, 198) end
 			if cRS then cRS.Color = Color3.fromRGB(118, 98, 198) end
 			local axPink = Color3.fromRGB(255, 168, 198)
-			-- Main axolotl hood dome
-			makePart(model, "AxolotlBody", Vector3.new(hs * 1.10, hs * 0.62, hs * 1.05),
-				at * CFrame.new(0, headY + hs * 0.55, 0), axPink, Enum.PartType.Ball)
-			-- 4 gill fins per side, fanning outward with increasing spread
+			-- Main axolotl hood dome — centered on head so it wraps all the way to chin
+			makePart(model, "AxolotlBody", Vector3.new(hs * 1.14, hs * 1.10, hs * 1.08),
+				at * CFrame.new(0, headY, 0), axPink, Enum.PartType.Ball)
+			-- 4 gill fins per side, fanning upward from about eye-level (corrected from old above-head pos)
 			local gillData = {
-				{x = 0.50, y = 0.48, angZ = -0.18},
-				{x = 0.60, y = 0.64, angZ = -0.44},
-				{x = 0.60, y = 0.78, angZ = -0.68},
-				{x = 0.46, y = 0.88, angZ = -0.92},
+				{x = 0.52, y = 0.08, angZ = -0.18},
+				{x = 0.60, y = 0.24, angZ = -0.44},
+				{x = 0.58, y = 0.40, angZ = -0.68},
+				{x = 0.46, y = 0.54, angZ = -0.92},
 			}
 			for i, g in ipairs(gillData) do
 				local sz = Vector3.new(0.20 * scale, (0.46 - i * 0.05) * scale, 0.10)
@@ -2324,13 +2324,22 @@ local function buildProceduralBotCharacter(
 					at * CFrame.new( hs * g.x, headY + hs * g.y, 0) * CFrame.Angles(0, 0, -g.angZ), axPink)
 				gR.Transparency = gt
 			end
-			-- Axolotl hood eyes
+			-- Axolotl hood eyes (on front face of the hood, corrected Y to match new dome center)
 			makePart(model, "AxolotlEyeL", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
-				at * CFrame.new(-0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
+				at * CFrame.new(-0.28 * scale, headY + hs * 0.18, -(hs * 0.52)),
 				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
 			makePart(model, "AxolotlEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
-				at * CFrame.new( 0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
+				at * CFrame.new( 0.28 * scale, headY + hs * 0.18, -(hs * 0.52)),
 				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
+			-- Pink blush spots on axolotl cheeks (visible in reference image)
+			local axSpotPink = Color3.fromRGB(228, 108, 148)
+			for spSide = -1, 1, 2 do
+				local axSpot = makePart(model, "AxSpot" .. (if spSide < 0 then "L" else "R"),
+					Vector3.new(0.20 * scale, 0.20 * scale, 0.08),
+					at * CFrame.new(spSide * 0.38 * scale, headY - hs * 0.06, -(hs * 0.53)),
+					axSpotPink, Enum.PartType.Ball)
+				axSpot.Transparency = 0.18
+			end
 			-- White hoodie body with navy side accents + orange pockets
 			local navyBlue = Color3.fromRGB(38, 58, 128)
 			makePart(model, "HoodieFront", Vector3.new(1.78 * scale, th * 0.90, 0.11),
@@ -2427,14 +2436,20 @@ local function buildProceduralBotCharacter(
 			local stripeH = 0.20 * scale
 			local stripeYs = { th * 0.35, th * 0.10, -(th * 0.15), -(th * 0.40) }
 			local stripeCols = { plaidTeal, plaidCream, plaidTeal, plaidCream }
+			-- Split left+right panels so the inner white hoodie shows through the open centre
 			for si, syv in ipairs(stripeYs) do
-				makePart(model, "PlaidStripe" .. si,
-					Vector3.new(2.02 * scale, stripeH, 0.08),
-					at * CFrame.new(0, syv, -(td / 2 + 0.10)), stripeCols[si])
+				for pSide = -1, 1, 2 do
+					makePart(model, "PlaidStripe" .. si .. (if pSide < 0 then "L" else "R"),
+						Vector3.new(0.76 * scale, stripeH, 0.08),
+						at * CFrame.new(pSide * 0.64 * scale, syv, -(td / 2 + 0.10)), stripeCols[si])
+				end
 			end
-			-- Vertical plaid bar (crosshatch) running down left side of flannel
-			makePart(model, "PlaidBarL", Vector3.new(0.18 * scale, th * 0.90, 0.08),
-				at * CFrame.new(-0.72 * scale, 0, -(td / 2 + 0.11)), plaidTeal)
+			-- Vertical plaid bar (crosshatch) on each side panel
+			for bSide = -1, 1, 2 do
+				makePart(model, "PlaidBar" .. (if bSide < 0 then "L" else "R"),
+					Vector3.new(0.18 * scale, th * 0.90, 0.08),
+					at * CFrame.new(bSide * 0.72 * scale, 0, -(td / 2 + 0.11)), plaidTeal)
+			end
 			-- Hoodie drawstrings hanging from neck
 			local cordC = Color3.fromRGB(195, 192, 188)
 			makePart(model, "DrawL", Vector3.new(0.06, th * 0.52, 0.06),
@@ -2527,6 +2542,11 @@ local function buildProceduralBotCharacter(
 			-- Mouth row 2: centre indent (zig-zag)
 			makePart(model, "MthC2", Vector3.new(0.30 * scale, 0.26 * scale, 0.10),
 				at * CFrame.new(0, th * 0.04 - 0.30 * scale, -(td / 2 + 0.09)), pxD)
+			-- Full-body green: legs are also Creeper green (Boy Camper 4 reference: full green suit)
+			local ll10 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl10 = model:FindFirstChild("RightLeg") :: BasePart?
+			if ll10 then ll10.Color = pxG end
+			if rl10 then rl10.Color = pxG end
 
 		else -- styleSlot == 11
 			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim + front pockets
