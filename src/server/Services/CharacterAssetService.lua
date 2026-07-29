@@ -1152,20 +1152,29 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		flame.Material = Enum.Material.Neon
 		makePart(model, "HeadlessCollar", Vector3.new(3.5, 0.7, 3),
 			at * CFrame.new(0, torsoSize.Y / 2, 0), Color3.fromRGB(24, 31, 33))
-		-- Flowing cloak: back panel + two angled side panels for the robed silhouette
+		-- Wide flowing cloak wrapping all sides: bell-shaped robed silhouette from reference
 		local cloakColor = Color3.fromRGB(14, 17, 22)
-		makePart(model, "CloakBack", Vector3.new(torsoSize.X * 1.35, torsoSize.Y * 1.55, 0.22),
-			at * CFrame.new(0, -torsoSize.Y * 0.12, torsoSize.Z / 2 + 0.12), cloakColor)
+		local cloakW = torsoSize.X * 2.10
+		local cloakH = torsoSize.Y * 1.65
+		-- Back panel
+		makePart(model, "CloakBack", Vector3.new(cloakW, cloakH, 0.22),
+			at * CFrame.new(0, -torsoSize.Y * 0.14, torsoSize.Z / 2 + 0.14), cloakColor)
+		-- Front panel: closes the robe so no body shows through
+		makePart(model, "CloakFront", Vector3.new(cloakW * 0.88, cloakH * 0.92, 0.20),
+			at * CFrame.new(0, -torsoSize.Y * 0.18, -(torsoSize.Z / 2 + 0.14)), cloakColor)
+		-- Side panels flared out (wide to match bell silhouette)
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "CloakL" else "CloakR",
-				Vector3.new(0.28, torsoSize.Y * 1.45, 0.22),
-				at * CFrame.new(side * (torsoSize.X / 2 + 0.14), -torsoSize.Y * 0.16, 0)
-					* CFrame.Angles(0, 0, side * 0.14), cloakColor)
+				Vector3.new(0.24, cloakH, torsoSize.Z * 1.22),
+				at * CFrame.new(side * (cloakW / 2 + 0.12), -torsoSize.Y * 0.16, 0)
+					* CFrame.Angles(0, 0, side * 0.10), cloakColor)
 		end
+		-- Legs hidden under cloak
 		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
+			local leg = makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
 				Vector3.new(0.88, 3.6 * sy, 0.88),
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.45 * sy), 0), presentation.color)
+			leg.Transparency = 0.8
 		end
 	elseif monsterId == "Entity" then
 		-- Cthulhu/octopus body — semi-transparent deep ocean mantle
@@ -1239,6 +1248,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			stream.Material = Enum.Material.ForceField
 			stream.Transparency = 0.5
 		end
+		-- Chest brooch/medallion: ornate decorative piece prominent in reference image
+		local brooch = makePart(model, "ChestBrooch",
+			Vector3.new(0.58 * sx, 0.58 * sy, 0.20),
+			at * CFrame.new(0, 0.55 * sy, -(torsoSize.Z / 2 + 0.11)),
+			Color3.fromRGB(210, 225, 248), Enum.PartType.Ball)
+		brooch.Material = Enum.Material.Neon
+		brooch.Transparency = 0.10
 		-- Ethereal sword raised in right-hand position — key visual from reference
 		local blade = makePart(model, "SwordBlade", Vector3.new(0.22 * sx, 4.2 * sy, 0.1 * sz),
 			at * CFrame.new(2.6 * sx, -1.2 * sy, -0.4 * sz) * CFrame.Angles(0.2, 0.1, -0.3), presentation.accent)
