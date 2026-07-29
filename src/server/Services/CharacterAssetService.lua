@@ -1058,6 +1058,20 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
 				presentation.accent)
 		end
+		-- 4 talon-toes per foot fanning forward (reference shows bird-like claw feet)
+		local footY = -(torsoSize.Y / 2 + 3.1 * sy)
+		for side = -1, 1, 2 do
+			local fx = side * sx
+			for t = 1, 4 do
+				local tLen = (1.70 - math.abs(t - 2.5) * 0.25) * sy
+				local spread = (t - 2.5) * 0.42 * sx
+				makePart(model, (if side < 0 then "LToe" else "RToe") .. tostring(t),
+					Vector3.new(0.12, tLen, 0.12),
+					at * CFrame.new(fx + spread, footY - tLen * 0.5, -(0.20 * sz))
+						* CFrame.Angles(-0.44, 0, (t - 2.5) * 0.18),
+					presentation.accent)
+			end
+		end
 		-- 5-fingered claw hands extending below each arm (reference shows dramatically splayed talons)
 		for side = -1, 1, 2 do
 			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
