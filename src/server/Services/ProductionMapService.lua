@@ -1625,6 +1625,23 @@ function ProductionMapService:Build()
 				rubbleC, Enum.Material.Concrete)
 			chunk.CanCollide = false
 		end
+		-- Dried scrub-brush clumps scattered around town (Old Town 4 aerial reference shows pervasive scrub)
+		local scrubColor = Color3.fromRGB(56, 64, 36)
+		local scrubPositions = {
+			{-55, -112}, {-68, -158}, {-56, -200}, {-72, -245}, {-60, -292},
+			{ 58, -128}, { 66, -172}, { 54, -218}, { 70, -260}, { 60, -308},
+			{-38, -245}, { 38, -248}, {-22, -308}, { 30, -355},
+			{-46, -422}, { 42, -428}, { 18, -440},
+		}
+		for i, pos in ipairs(scrubPositions) do
+			local sz = 1.3 + (i % 3) * 0.55
+			local scrub = createPart(self.nightTown, "Scrub" .. i,
+				Vector3.new(sz * 1.1, sz * 0.72, sz * 0.95),
+				CFrame.new(pos[1], sz * 0.36, pos[2]),
+				scrubColor, Enum.Material.Grass)
+			scrub.Shape = Enum.PartType.Ball
+			scrub.CanCollide = false
+		end
 	end
 
 	for _, definition in SEARCH_TARGETS do
