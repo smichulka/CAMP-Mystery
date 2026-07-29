@@ -1091,26 +1091,25 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		-- Elongated skull snout / muzzle protruding from the lower face
 		makePart(model, "SkullSnout", Vector3.new(0.55 * sx, 0.52 * sy, 1.05 * sz),
 			at * CFrame.new(0, headY - 0.22 * sy, -(headSize.Z / 2 + 0.54 * sz)), presentation.accent)
-		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
-		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
+		-- Main antler beams: sy-scaled so they tower above the tall skull (reference: massive rack)
+		local aBY = headY + 1.8 * sy
+		makePart(model, "LeftAntler", Vector3.new(0.35*sx, 4.2*sy, 0.35*sx),
+			at * CFrame.new(-1.6*sx, aBY, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
+		makePart(model, "RightAntler", Vector3.new(0.35*sx, 4.2*sy, 0.35*sx),
+			at * CFrame.new( 1.6*sx, aBY, 0) * CFrame.Angles(0, 0,  0.45), presentation.accent)
 		-- Branching tines off each main antler beam (reference shows 5-7 tines per side)
-		local antlerCY = headY + 1.6
-		makePart(model, "LeftAntlerTine1", Vector3.new(0.22, 1.8, 0.22),
-			at * CFrame.new(-1.15, antlerCY + 0.72, 0.15) * CFrame.Angles(0.1, 0, -1.25), presentation.accent)
-		makePart(model, "LeftAntlerTine2", Vector3.new(0.20, 1.4, 0.20),
-			at * CFrame.new(-0.82, antlerCY + 1.5, -0.2) * CFrame.Angles(-0.15, 0, -0.7), presentation.accent)
-		makePart(model, "LeftAntlerTine3", Vector3.new(0.18, 1.1, 0.18),
-			at * CFrame.new(-0.55, antlerCY + 2.2, 0.12) * CFrame.Angles(0.1, 0, -1.55), presentation.accent)
-		makePart(model, "LeftAntlerTine4", Vector3.new(0.16, 0.9, 0.16),
-			at * CFrame.new(-1.35, antlerCY + 2.6, -0.1) * CFrame.Angles(0.2, 0, -0.45), presentation.accent)
-		makePart(model, "RightAntlerTine1", Vector3.new(0.22, 1.8, 0.22),
-			at * CFrame.new(1.15, antlerCY + 0.72, 0.15) * CFrame.Angles(0.1, 0, 1.25), presentation.accent)
-		makePart(model, "RightAntlerTine2", Vector3.new(0.20, 1.4, 0.20),
-			at * CFrame.new(0.82, antlerCY + 1.5, -0.2) * CFrame.Angles(-0.15, 0, 0.7), presentation.accent)
-		makePart(model, "RightAntlerTine3", Vector3.new(0.18, 1.1, 0.18),
-			at * CFrame.new(0.55, antlerCY + 2.2, 0.12) * CFrame.Angles(0.1, 0, 1.55), presentation.accent)
-		makePart(model, "RightAntlerTine4", Vector3.new(0.16, 0.9, 0.16),
-			at * CFrame.new(1.35, antlerCY + 2.6, -0.1) * CFrame.Angles(0.2, 0, 0.45), presentation.accent)
+		for aSide = -1, 1, 2 do
+			local tag = if aSide < 0 then "Left" else "Right"
+			local bx = aSide * 1.6 * sx
+			makePart(model, tag .. "AntlerTine1", Vector3.new(0.22*sx, 1.8*sy, 0.22*sx),
+				at * CFrame.new(bx - aSide*0.4*sx, aBY + 0.72*sy, 0.15) * CFrame.Angles(0.1, 0, aSide*(-1.25)), presentation.accent)
+			makePart(model, tag .. "AntlerTine2", Vector3.new(0.20*sx, 1.4*sy, 0.20*sx),
+				at * CFrame.new(bx - aSide*0.68*sx, aBY + 1.5*sy, -0.2) * CFrame.Angles(-0.15, 0, aSide*(-0.7)), presentation.accent)
+			makePart(model, tag .. "AntlerTine3", Vector3.new(0.18*sx, 1.1*sy, 0.18*sx),
+				at * CFrame.new(bx - aSide*0.95*sx, aBY + 2.2*sy, 0.12) * CFrame.Angles(0.1, 0, aSide*(-1.55)), presentation.accent)
+			makePart(model, tag .. "AntlerTine4", Vector3.new(0.16*sx, 0.9*sy, 0.16*sx),
+				at * CFrame.new(bx - aSide*0.15*sx, aBY + 2.6*sy, -0.1) * CFrame.Angles(0.2, 0, aSide*(-0.45)), presentation.accent)
+		end
 		-- Exposed ribcage on the torso front (reference shows skeletal chest)
 		local ribColor = presentation.accent:Lerp(Color3.fromRGB(200, 190, 165), 0.4)
 		for r = 1, 4 do
