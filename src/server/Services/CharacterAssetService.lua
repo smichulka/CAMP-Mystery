@@ -1421,6 +1421,14 @@ local function buildProceduralCounselor(
 				Vector3.new(0.05, 0.46 * scale, 0.05),
 				at * CFrame.new(side * 0.62 * scale, lensY, lensZ + 0.22), gfC)
 		end
+		-- Digital thermometer held at right side (Counselor 6 reference: Ortiz holds thermometer)
+		local thermoC = Color3.fromRGB(238, 236, 232)
+		makePart(model, "Thermometer", Vector3.new(0.12, 0.78 * scale, 0.12),
+			at * CFrame.new(ax + 0.22, 0.18 * scale, -(td / 2 + 0.10))
+				* CFrame.Angles(0, 0, 0.22), thermoC)
+		makePart(model, "ThermoTip", Vector3.new(0.11, 0.20 * scale, 0.11),
+			at * CFrame.new(ax + 0.27, 0.60 * scale, -(td / 2 + 0.11))
+				* CFrame.Angles(0, 0, 0.22), Color3.fromRGB(210, 42, 42))
 	elseif index == 3 then
 		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15
