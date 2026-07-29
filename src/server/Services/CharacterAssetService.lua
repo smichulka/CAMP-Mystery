@@ -1976,6 +1976,12 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), Color3.fromRGB(35, 128, 118))
 			makePart(model, "CapBand", Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, 0), Color3.fromRGB(22, 90, 82))
+			-- Denim shorts: Girl Camper.jpg reference shows blue-grey denim shorts on legs
+			local ll0 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl0 = model:FindFirstChild("RightLeg") :: BasePart?
+			local denimGrey = Color3.fromRGB(105, 118, 148)
+			if ll0 then ll0.Color = denimGrey end
+			if rl0 then rl0.Color = denimGrey end
 
 		elseif styleSlot == 1 then
 			-- Glitter Bow: white high-tops + oversized bow on head
@@ -2265,6 +2271,20 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(-0.42 * scale, -(th * 0.26), -(td / 2 + 0.11)), Color3.fromRGB(215, 132, 38))
 			makePart(model, "PocketR", Vector3.new(0.44 * scale, 0.38 * scale, 0.12),
 				at * CFrame.new( 0.42 * scale, -(th * 0.26), -(td / 2 + 0.11)), Color3.fromRGB(215, 132, 38))
+			-- Dark brown pants: Boy Camper.jpg reference shows maroon/dark-brown legs below hoodie
+			local ll6 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl6 = model:FindFirstChild("RightLeg") :: BasePart?
+			local axBrown = Color3.fromRGB(82, 48, 38)
+			if ll6 then ll6.Color = axBrown end
+			if rl6 then rl6.Color = axBrown end
+			-- Pink hoodie drawstring from axolotl hood (Boy Camper.jpg: visible pink cord)
+			local axCordC = Color3.fromRGB(238, 138, 178)
+			makePart(model, "AxDrawL", Vector3.new(0.07, th * 0.56, 0.07),
+				at * CFrame.new(-0.18 * scale, -(th * 0.08), -(td / 2 + 0.10))
+					* CFrame.Angles(0.20, 0, -0.06), axCordC)
+			makePart(model, "AxDrawR", Vector3.new(0.07, th * 0.56, 0.07),
+				at * CFrame.new( 0.18 * scale, -(th * 0.08), -(td / 2 + 0.10))
+					* CFrame.Angles(0.20, 0,  0.06), axCordC)
 
 		elseif styleSlot == 7 then
 			-- Tactical Vest: amber work boots, layered vest panels on chest, patrol cap
@@ -2304,6 +2324,15 @@ local function buildProceduralBotCharacter(
 			local pendant7 = makePart(model, "TacPendant", Vector3.new(0.18 * scale, 0.26 * scale, 0.12),
 				at * CFrame.new(0, pendY7 - 0.30 * scale, -(td / 2 + 0.08)), pendC7, Enum.PartType.Ball)
 			pendant7.Material = Enum.Material.SmoothPlastic
+			-- Black tactical pants: Boy Camper 1 reference shows black pants under orange shirt
+			local ll7 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl7 = model:FindFirstChild("RightLeg") :: BasePart?
+			local tacBlack = Color3.fromRGB(24, 22, 28)
+			if ll7 then ll7.Color = tacBlack end
+			if rl7 then rl7.Color = tacBlack end
+			-- Right wrist guard band (Boy Camper 1 ref: black strap on right wrist)
+			makePart(model, "WristGuard", Vector3.new(0.90 * scale, 0.26 * scale, 0.90 * scale),
+				at * CFrame.new(ax, -(th / 2 - 0.20 * scale), 0), Color3.fromRGB(18, 18, 22))
 
 		elseif styleSlot == 8 then
 			-- Flannel & Headphones: white sneakers, teal headphones, white inner hoodie
@@ -2343,6 +2372,12 @@ local function buildProceduralBotCharacter(
 			makePart(model, "HPCupR", Vector3.new(0.40 * scale, 0.52 * scale, 0.32 * scale),
 				at * CFrame.new( (hs / 2 + 0.22 * scale), headY + hs * 0.08, 0),
 				hpC, Enum.PartType.Ball)
+			-- Black cargo pants: Boy Camper 2 reference shows black pants under flannel
+			local ll8 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl8 = model:FindFirstChild("RightLeg") :: BasePart?
+			local flannelBlack = Color3.fromRGB(22, 20, 26)
+			if ll8 then ll8.Color = flannelBlack end
+			if rl8 then rl8.Color = flannelBlack end
 
 		elseif styleSlot == 9 then
 			-- Backwards Cap: white sneakers, backwards snapback, kangaroo hoodie pocket
