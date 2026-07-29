@@ -900,7 +900,7 @@ Each role has one launch upgrade with a catalog cap of rank 3.
 
 | Role | Upgrade | Base / added cost | Required mastery | Implemented runtime effect |
 |---|---|---:|---:|---|
-| Camper | Resourceful Packing | 100 / +75 | 1 | Presentation/catalog only; no role-ability modifier currently wired |
+| Camper | Resourceful Packing | 100 / +75 | 1 | Starting loadout gains one FlareLantern per rank (self-cleanse Fear/VisionDistortion; no role-gated use path) |
 | Medic | Steady Hands | 125 / +90 | 1 | Treatment cooldown −1s per rank |
 | Trapper | Careful Reset | 125 / +90 | 1 | Trap cooldown −1s/rank; improves deterministic trap recovery |
 | Medium | Clear Signal | 125 / +90 | 1 | Spirit Sense cooldown −2s/rank |

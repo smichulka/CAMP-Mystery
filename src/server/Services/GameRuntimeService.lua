@@ -927,6 +927,11 @@ function GameRuntimeService:_grantLoadout(participant: ParticipantState)
 		table.insert(loadout, "FlareLantern")
 	elseif participant.role == "Camper" then
 		table.insert(loadout, "EMFReader")
+		-- Resourceful Packing: FlareLantern is the only starting supply without a
+		-- role-gated use path, so extra ranks stay an ordinary-item benefit.
+		for _ = 1, self:_getUpgradeRank(participant.participantId, "resourceful-packing") do
+			table.insert(loadout, "FlareLantern")
+		end
 	end
 
 	for _, equipmentId in loadout do
