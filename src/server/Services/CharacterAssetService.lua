@@ -1589,6 +1589,20 @@ local function buildProceduralCounselor(
 				at * CFrame.new(vSide * 0.46 * scale, 0.22 * scale, -(td / 2 + 0.16)),
 				Color3.fromRGB(44, 50, 40))
 		end
+		-- Rope coil clipped to top of backpack (Counslor 3 reference: coiled manila rope)
+		local ropeC = Color3.fromRGB(188, 155, 78)
+		local ropeY = 0.12 * scale + 0.99 * scale + 0.20
+		local ropeZ = td / 2 + 0.30
+		-- Outer ring of the coil (flat disc with axis pointing back)
+		local ropeOuter = makePart(model, "RopeCoilOuter", Vector3.new(1.04 * scale, 0.36 * scale, 1.04 * scale),
+			at * CFrame.new(-0.52 * scale, ropeY, ropeZ) * CFrame.Angles(math.rad(90), 0, 0),
+			ropeC, Enum.PartType.Cylinder)
+		ropeOuter.Material = Enum.Material.SmoothPlastic
+		-- Darker inner fill to imply the hollow centre of the coil
+		local ropeInner = makePart(model, "RopeCoilInner", Vector3.new(0.58 * scale, 0.38 * scale, 0.58 * scale),
+			at * CFrame.new(-0.52 * scale, ropeY, ropeZ) * CFrame.Angles(math.rad(90), 0, 0),
+			Color3.fromRGB(82, 62, 34), Enum.PartType.Cylinder)
+		ropeInner.Material = Enum.Material.SmoothPlastic
 	elseif index == 4 then
 		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
