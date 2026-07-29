@@ -2560,6 +2560,12 @@ local function buildProceduralBotCharacter(
 			-- Tactical Vest: amber work boots, grey vest over orange shirt (Boy Camper 1 reference — no hat)
 			if cLS then cLS.Color = Color3.fromRGB(195, 138, 48) end
 			if cRS then cRS.Color = Color3.fromRGB(195, 138, 48) end
+			-- Medium brown hair (Boy Camper 1 reference: clearly visible brown hair, no hat)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(88, 48, 18)
+				end
+			end
 			-- Orange shirt base layer visible at collar and vest sides (reference shows orange shirt under grey vest)
 			makePart(model, "OrangeShirt", Vector3.new(2.0 * scale, th * 0.78, 0.10),
 				at * CFrame.new(0, 0.08, -(td / 2 + 0.07)), Color3.fromRGB(218, 138, 28))
@@ -2612,6 +2618,12 @@ local function buildProceduralBotCharacter(
 			-- Flannel & Headphones: white sneakers, teal headphones, white inner hoodie
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			-- Dark brown wavy hair (Boy Camper 2 reference: brown hair visible around headphones)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(75, 38, 14)
+				end
+			end
 			-- White inner hoodie panel visible where flannel opens (reference: white hoodie under plaid)
 			makePart(model, "InnerHoodie", Vector3.new(1.20 * scale, th * 0.96, 0.09),
 				at * CFrame.new(0, 0, -(td / 2 + 0.08)), Color3.fromRGB(238, 236, 232))
@@ -2753,6 +2765,12 @@ local function buildProceduralBotCharacter(
 			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim + front pockets
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			-- Medium-dark brown spikey hair (Boy Camper 5 reference: brown hair above visor)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(80, 42, 12)
+				end
+			end
 			local visor = makePart(model, "HoloVisor", Vector3.new(hs * 1.05, hs * 0.25, 0.10),
 				at * CFrame.new(0, headY + hs * 0.08, -(hs / 2 + 0.06)),
 				Color3.fromRGB(120, 190, 255))
