@@ -1577,6 +1577,18 @@ local function buildProceduralCounselor(
 			at * CFrame.new(0, -(th / 2 - 0.24 * scale), -(td / 2 + 0.08)),
 			Color3.fromRGB(172, 138, 44))
 		reedBkl.Material = Enum.Material.Metal
+		-- Dark explorer vest over khaki shirt (Counslor 3: open field vest with chest pockets)
+		local vestC3 = Color3.fromRGB(52, 58, 48)
+		makePart(model, "VestL", Vector3.new(0.70 * scale, th * 0.82, 0.10),
+			at * CFrame.new(-0.60 * scale, 0.06 * scale, -(td / 2 + 0.09)), vestC3)
+		makePart(model, "VestR", Vector3.new(0.70 * scale, th * 0.82, 0.10),
+			at * CFrame.new( 0.60 * scale, 0.06 * scale, -(td / 2 + 0.09)), vestC3)
+		for vSide = -1, 1, 2 do
+			makePart(model, "VestPocket" .. (if vSide < 0 then "L" else "R"),
+				Vector3.new(0.40 * scale, 0.36 * scale, 0.12),
+				at * CFrame.new(vSide * 0.46 * scale, 0.22 * scale, -(td / 2 + 0.16)),
+				Color3.fromRGB(44, 50, 40))
+		end
 	elseif index == 4 then
 		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
@@ -2469,13 +2481,19 @@ local function buildProceduralBotCharacter(
 			local blackJog = Color3.fromRGB(22, 20, 28)
 			if ll9 then ll9.Color = blackJog end
 			if rl9 then rl9.Color = blackJog end
-			-- Drawstring detail on hoodie front
+			-- Drawstring detail on hoodie front (Boy Camper 3: light cream-grey cords)
+			local dsCord = Color3.fromRGB(195, 192, 188)
 			makePart(model, "DrawstringL", Vector3.new(0.06, 0.62 * scale, 0.06),
-				at * CFrame.new(-0.16 * scale, th * 0.02, -(td / 2 + 0.10)),
-				Color3.fromRGB(18, 18, 22))
+				at * CFrame.new(-0.16 * scale, th * 0.02, -(td / 2 + 0.10)), dsCord)
 			makePart(model, "DrawstringR", Vector3.new(0.06, 0.62 * scale, 0.06),
-				at * CFrame.new( 0.16 * scale, th * 0.02, -(td / 2 + 0.10)),
-				Color3.fromRGB(18, 18, 22))
+				at * CFrame.new( 0.16 * scale, th * 0.02, -(td / 2 + 0.10)), dsCord)
+			-- Black waist belt + silver buckle (very prominent in Boy Camper 3 reference)
+			local beltY9 = -(th / 2 - 0.20 * scale)
+			makePart(model, "WaistBelt", Vector3.new(2.10 * scale, 0.22 * scale, td * 1.08),
+				at * CFrame.new(0, beltY9, 0), Color3.fromRGB(20, 18, 22))
+			local bkl9 = makePart(model, "BeltBuckle", Vector3.new(0.42 * scale, 0.30 * scale, 0.12),
+				at * CFrame.new(0, beltY9, -(td / 2 + 0.07)), Color3.fromRGB(82, 82, 92))
+			bkl9.Material = Enum.Material.Metal
 
 		elseif styleSlot == 10 then
 			-- Pixel Creeper: full-green pixel costume with block-head mask + chest face
