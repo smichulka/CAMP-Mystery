@@ -1336,6 +1336,21 @@ local function buildProceduralCounselor(
 			at * CFrame.new(0, th / 2 - 0.72 * scale, -(td / 2 + 0.09)),
 			Color3.fromRGB(78, 78, 85), Enum.PartType.Ball)
 		disc.Material = Enum.Material.Metal
+		-- Square-framed glasses matching the nurse reference image
+		local gfC = Color3.fromRGB(30, 28, 36)
+		local lensY = headY + 0.08 * scale
+		local lensZ = -(hs / 2 + 0.04)
+		makePart(model, "GlassLensL", Vector3.new(0.50 * scale, 0.34 * scale, 0.05),
+			at * CFrame.new(-0.30 * scale, lensY, lensZ), gfC).Transparency = 0.72
+		makePart(model, "GlassLensR", Vector3.new(0.50 * scale, 0.34 * scale, 0.05),
+			at * CFrame.new( 0.30 * scale, lensY, lensZ), gfC).Transparency = 0.72
+		makePart(model, "GlassBridge", Vector3.new(0.18 * scale, 0.06, 0.05),
+			at * CFrame.new(0, lensY, lensZ), gfC)
+		for side = -1, 1, 2 do
+			makePart(model, "GlassTemple" .. (if side < 0 then "L" else "R"),
+				Vector3.new(0.05, 0.46 * scale, 0.05),
+				at * CFrame.new(side * 0.62 * scale, lensY, lensZ + 0.22), gfC)
+		end
 	elseif index == 3 then
 		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15
@@ -1356,6 +1371,14 @@ local function buildProceduralCounselor(
 		makePart(model, "BpStrapR", Vector3.new(0.17, 1.26 * scale, 0.13),
 			at * CFrame.new( 0.34 * scale, 0.10 * scale, -(td / 2 + 0.07))
 			* CFrame.Angles(0.16, 0, -0.08), bpColor)
+		-- Folded trail map held at the side: Reed is always reading the terrain
+		local mapColor = Color3.fromRGB(212, 192, 128)
+		makePart(model, "TrailMap", Vector3.new(1.10 * scale, 0.90 * scale, 0.06),
+			at * CFrame.new(ax + 0.18, 0.0 * scale, -(td / 2 + 0.12))
+				* CFrame.Angles(0, 0.12, 0.18), mapColor)
+		makePart(model, "MapFold", Vector3.new(0.06, 0.90 * scale, 0.08),
+			at * CFrame.new(ax + 0.18, 0.0 * scale, -(td / 2 + 0.12))
+				* CFrame.Angles(0, 0.12, 0.18), Color3.fromRGB(168, 148, 88))
 	elseif index == 4 then
 		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
