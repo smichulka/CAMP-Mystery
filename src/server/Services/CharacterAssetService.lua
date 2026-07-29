@@ -1181,6 +1181,22 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Vector3.new(0.68, 4.2 * sy, 0.68),
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.7 * sy), 0), presentation.accent)
 		end
+		-- Root-tendril toes at each leg tip: mirrors the arm root fingers (reference shows taloned feet)
+		local toeAngles = {-0.48, -0.14, 0.14, 0.48}
+		for side = -1, 1, 2 do
+			local fx = side * sx
+			local footY = -(torsoSize.Y / 2 + 3.8 * sy)
+			for f, fAng in ipairs(toeAngles) do
+				local tLen = (1.10 - math.abs(fAng) * 0.28) * sy
+				local toe = makePart(model,
+					(if side < 0 then "LToe" else "RToe") .. tostring(f),
+					Vector3.new(0.18, tLen, 0.18),
+					at * CFrame.new(fx + fAng * 0.70, footY - tLen * 0.5, fAng * 0.28)
+						* CFrame.Angles(0.22, 0, side * fAng * 0.42),
+					clawBase)
+				toe.Material = Enum.Material.WoodPlanks
+			end
+		end
 	elseif monsterId == "ShadowMonster" then
 		-- Body and head are semi-transparent smoke — ForceField gives the right smoky shimmer
 		root.Material = Enum.Material.ForceField
@@ -1474,6 +1490,18 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				corsetC)
 			band.Material = Enum.Material.Metal
 		end
+		-- Flowing spectral gown from mid-torso downward (reference: long ethereal dress)
+		local gownC = presentation.accent
+		local gownUp = makePart(model, "GownUpper",
+			Vector3.new(torsoSize.X * 1.20, torsoSize.Y * 0.58, torsoSize.Z * 1.14),
+			at * CFrame.new(0, -(torsoSize.Y * 0.24), 0), gownC)
+		gownUp.Material = Enum.Material.ForceField
+		gownUp.Transparency = 0.44
+		local gownLo = makePart(model, "GownLower",
+			Vector3.new(torsoSize.X * 1.55, 2.6 * sy, torsoSize.Z * 1.38),
+			at * CFrame.new(0, -(torsoSize.Y / 2 + 1.3 * sy), 0), gownC)
+		gownLo.Material = Enum.Material.ForceField
+		gownLo.Transparency = 0.58
 		-- Chest brooch/medallion: ornate decorative piece prominent in reference image
 		local brooch = makePart(model, "ChestBrooch",
 			Vector3.new(0.58 * sx, 0.58 * sy, 0.20),
