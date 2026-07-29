@@ -995,13 +995,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * 0.85 * sx, -(torsoSize.Y / 2 + 0.9 * sy), 0.7 * sz)
 					* CFrame.Angles(-0.30, 0, side * 0.08), presentation.color)
 		end
-		-- Grasping claw fingers on each arm (3 elongated tapered fingers per hand, matching reference)
+		-- Small depressed mouth on lower face (reference: visible pursed opening below the eyes)
+		local mouthPart = makePart(model, "Mouth",
+			Vector3.new(0.55 * sx, 0.20 * sy, 0.28),
+			at * CFrame.new(0, headY - headSize.Y * 0.24, -(headSize.Z / 2 + 0.04)),
+			Color3.fromRGB(28, 14, 16), Enum.PartType.Ball)
+		mouthPart.Material = Enum.Material.SmoothPlastic
+		-- Grasping claw fingers on each arm (4 elongated fingers per hand — reference shows 4 clearly)
 		for side = -1, 1, 2 do
 			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
 			local clawBaseY = limbShoulderY - limbLen * 0.9
-			for f = 1, 3 do
-				local spread = (f - 2) * 0.22 * sx
-				local fLen = 1.10 * sy - (f - 1) * 0.08 * sy
+			for f = 1, 4 do
+				local spread = (f - 2.5) * 0.20 * sx
+				local fLen = (1.10 - math.abs(f - 2.5) * 0.06) * sy
 				local finger = makePart(model, (if side < 0 then "LFinger" else "RFinger") .. tostring(f),
 					Vector3.new(0.13, fLen, 0.13),
 					at * CFrame.new(clawBaseX + spread, clawBaseY - fLen * 0.5, -(headSize.Z * 0.10))
@@ -2479,6 +2485,12 @@ local function buildProceduralBotCharacter(
 			-- Cat Onesie: onesie-color shoes + full cat hood with face + ear + stripe details
 			if cLS then cLS.Color = bodyColor end
 			if cRS then cRS.Color = bodyColor end
+			-- Dark chocolate-brown hair visible below/around hood (Girl Camper 6 reference)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(68, 38, 12)
+				end
+			end
 			-- Full cat hood dome enclosing head
 			makePart(model, "CatHood", Vector3.new(hs * 1.14, hs * 1.08, hs * 1.08),
 				at * CFrame.new(0, headY, 0), bodyColor, Enum.PartType.Ball)
