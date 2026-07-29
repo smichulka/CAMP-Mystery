@@ -1047,17 +1047,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
 				presentation.accent)
 		end
-		-- 5-fingered claw hands extending below each arm (matching Screamer reference exactly)
+		-- 5-fingered claw hands extending below each arm (reference shows dramatically splayed talons)
 		for side = -1, 1, 2 do
 			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
 			local clawBaseY = limbShoulderY - limbLen * 0.5
 			for f = 1, 5 do
-				local spread = (f - 3) * 0.16 * sx
+				local spread = (f - 3) * 0.42 * sx
 				local clawLen = (2.2 - math.abs(f - 3) * 0.22) * sy
 				makePart(model, (if side < 0 then "LClaw" else "RClaw") .. tostring(f),
 					Vector3.new(0.11, clawLen, 0.11),
 					at * CFrame.new(clawBaseX + spread, clawBaseY - limbLen * 0.5, 0)
-						* CFrame.Angles(0.16 * (f - 3), 0, side * 0.10), presentation.accent)
+						* CFrame.Angles(0.22 * (f - 3), 0, side * (0.14 + math.abs(f - 3) * 0.10)), presentation.accent)
 			end
 		end
 		-- Exposed viscera hanging from lower torso (prominent in reference image)
