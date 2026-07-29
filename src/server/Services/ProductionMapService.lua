@@ -605,10 +605,21 @@ local function createCabin(
 		string.upper(string.gsub(name, "(%l)(%u)", "%1 %2")),
 		Color3.fromRGB(226, 190, 114)
 	)
-	-- Wooden step down from porch (Cabin 2 reference)
-	createPart(model, "PorchStep", Vector3.new(4.2, 0.38, 1.5),
+	-- Two-step approach from porch down to ground (Cabin 2/4 reference: raised porch feel)
+	createPart(model, "PorchStep1", Vector3.new(4.2, 0.38, 1.5),
 		CFrame.new(position + Vector3.new(0, 0.19, -13.4)),
 		Color3.fromRGB(72, 50, 32), Enum.Material.WoodPlanks)
+	createPart(model, "PorchStep2", Vector3.new(4.6, 0.20, 1.4),
+		CFrame.new(position + Vector3.new(0, 0.10, -14.9)),
+		Color3.fromRGB(62, 44, 28), Enum.Material.WoodPlanks)
+	-- Wooden bench on left porch side (Cabin 4 reference: low bench/railing against left wall)
+	createPart(model, "BenchSeat", Vector3.new(3.4, 0.28, 1.8),
+		CFrame.new(position + Vector3.new(-(width / 2 - 3.2), 1.52, -10.4)),
+		Color3.fromRGB(68, 48, 32), Enum.Material.WoodPlanks)
+	local benchBack = createPart(model, "BenchBack", Vector3.new(3.4, 1.4, 0.18),
+		CFrame.new(position + Vector3.new(-(width / 2 - 3.2), 2.22, -11.2)),
+		Color3.fromRGB(62, 44, 28), Enum.Material.WoodPlanks)
+	benchBack.CanCollide = false
 	-- Firewood stack beside the right porch post (Cabin 4 reference)
 	local logColor  = Color3.fromRGB(82, 55, 34)
 	local logDark   = Color3.fromRGB(58, 38, 22)
