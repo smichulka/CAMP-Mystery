@@ -749,6 +749,27 @@ local function createStreetlight(parent: Instance, position: Vector3)
 	pole:SetAttribute("ShadowNode", true)
 end
 
+local function createUtilityPole(parent: Instance, position: Vector3)
+	local poleColor = Color3.fromRGB(50, 38, 26)
+	-- Vertical shaft (~22 studs tall)
+	createCylinder(parent, "UtilityShaft",
+		Vector3.new(22, 0.46, 0.46),
+		CFrame.new(position + Vector3.new(0, 11, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		poleColor, Enum.Material.WoodPlanks)
+	-- Horizontal crossarm near the top
+	createPart(parent, "UtilityCrossarm",
+		Vector3.new(5.6, 0.30, 0.30),
+		CFrame.new(position + Vector3.new(0, 20.6, 0)),
+		poleColor, Enum.Material.WoodPlanks)
+	-- Ceramic insulator knobs at each end of the crossarm
+	for side = -1, 1, 2 do
+		createCylinder(parent, "UtilityInsulator",
+			Vector3.new(0.38, 0.42, 0.42),
+			CFrame.new(position + Vector3.new(side * 2.4, 20.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(55, 74, 72), Enum.Material.SmoothPlastic)
+	end
+end
+
 local function createPineTree(
 	parent: Instance,
 	position: Vector3,
@@ -1382,6 +1403,10 @@ function ProductionMapService:Build()
 			Vector3.new(0.22, 8.2, 8.2),
 			CFrame.new(-52, 0.18, -220) * CFrame.Angles(0, 0, math.rad(90)),
 			wheelColor, Enum.Material.Wood)
+		-- Utility poles along the right side of the main road (prominent in both old-town references)
+		for p = 1, 5 do
+			createUtilityPole(self.nightTown, Vector3.new(32, 0, -118 - (p - 1) * 58))
+		end
 		-- Rusted metal fence along the left sidewalk edge of main road
 		for section = 0, 9 do
 			createPart(self.nightTown, "FencePost",
