@@ -605,6 +605,29 @@ local function createCabin(
 		string.upper(string.gsub(name, "(%l)(%u)", "%1 %2")),
 		Color3.fromRGB(226, 190, 114)
 	)
+	-- Wooden step down from porch (Cabin 2 reference)
+	createPart(model, "PorchStep", Vector3.new(4.2, 0.38, 1.5),
+		CFrame.new(position + Vector3.new(0, 0.19, -13.4)),
+		Color3.fromRGB(72, 50, 32), Enum.Material.WoodPlanks)
+	-- Firewood stack beside the right porch post (Cabin 4 reference)
+	local logColor  = Color3.fromRGB(82, 55, 34)
+	local logDark   = Color3.fromRGB(58, 38, 22)
+	createPart(model, "WoodPileBase", Vector3.new(5.2, 1.5, 2.8),
+		CFrame.new(position + Vector3.new(width / 2 + 3.6, 0.75, -11.0)),
+		logColor, Enum.Material.WoodPlanks)
+	createPart(model, "WoodPileMid", Vector3.new(4.8, 1.2, 2.6),
+		CFrame.new(position + Vector3.new(width / 2 + 3.6, 2.1, -11.0)),
+		logDark, Enum.Material.WoodPlanks)
+	createPart(model, "WoodPileTop", Vector3.new(4.2, 1.0, 2.4),
+		CFrame.new(position + Vector3.new(width / 2 + 3.6, 3.2, -11.0)),
+		logColor, Enum.Material.WoodPlanks)
+	-- Two loose cross-logs resting on the pile top
+	createPart(model, "LogA", Vector3.new(0.75, 0.75, 3.8),
+		CFrame.new(position + Vector3.new(width / 2 + 2.6, 3.85, -11.0)),
+		logDark, Enum.Material.WoodPlanks)
+	createPart(model, "LogB", Vector3.new(0.75, 0.75, 3.8),
+		CFrame.new(position + Vector3.new(width / 2 + 4.6, 3.85, -11.0)),
+		logDark, Enum.Material.WoodPlanks)
 	return doorState
 end
 

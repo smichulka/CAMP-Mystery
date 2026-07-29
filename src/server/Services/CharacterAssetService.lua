@@ -1375,6 +1375,17 @@ local function buildProceduralCounselor(
 		makePart(model, "MicBoom", Vector3.new(0.07, 0.38 * scale, 0.07),
 			at * CFrame.new(-(hs / 2 + 0.02), headY - 0.22 * scale, -(hs * 0.42)),
 			hsetC)
+		-- Clipboard with duty roster held at left side (Counselor 5 reference)
+		local cbColor = Color3.fromRGB(148, 102, 58)
+		makePart(model, "ClipBoard", Vector3.new(1.05 * scale, 1.45 * scale, 0.09),
+			at * CFrame.new(-(ax + 0.16), 0.0 * scale, -(td / 2 + 0.10))
+				* CFrame.Angles(0, 0.10, 0.14), cbColor)
+		makePart(model, "ClipMetal", Vector3.new(0.52 * scale, 0.20 * scale, 0.12),
+			at * CFrame.new(-(ax + 0.16), 0.76 * scale, -(td / 2 + 0.12))
+				* CFrame.Angles(0, 0.10, 0.14), Color3.fromRGB(90, 92, 98))
+		makePart(model, "ClipPage", Vector3.new(0.90 * scale, 1.20 * scale, 0.07),
+			at * CFrame.new(-(ax + 0.16), -0.06 * scale, -(td / 2 + 0.14))
+				* CFrame.Angles(0, 0.10, 0.14), Color3.fromRGB(235, 228, 215))
 	elseif index == 2 then
 		-- Medical pack + red cross on torso: Ortiz is Health & Safety
 		makePart(model, "FirstAidPack", Vector3.new(2.0 * scale * 0.8, th * 0.5, 0.45),
@@ -1502,6 +1513,16 @@ local function buildProceduralCounselor(
 		local wrJaw = makePart(model, "WrenchJaw", Vector3.new(0.32, 0.18, 0.12),
 			at * CFrame.new(0.66 * scale, -(th / 2 - 0.58 * scale) + 0.37 * scale, -(td / 2 + 0.21)), wrenchColor)
 		wrJaw.Material = Enum.Material.Metal
+		-- Coffee mug held in left hand (Counselor 8 reference: contractor with mug)
+		local mugC = Color3.fromRGB(232, 228, 220)
+		makePart(model, "CoffeeMug", Vector3.new(0.44 * scale, 0.56 * scale, 0.44 * scale),
+			at * CFrame.new(-(ax + 0.08), 0.10 * scale, -(td / 2 + 0.12)), mugC)
+		makePart(model, "MugHandle", Vector3.new(0.12, 0.32 * scale, 0.08),
+			at * CFrame.new(-(ax + 0.08) - 0.28 * scale, 0.10 * scale, -(td / 2 + 0.12)), mugC)
+		local mugTop = makePart(model, "CoffeeSurface", Vector3.new(0.36 * scale, 0.06, 0.36 * scale),
+			at * CFrame.new(-(ax + 0.08), 0.10 * scale + 0.31 * scale, -(td / 2 + 0.12)),
+			Color3.fromRGB(42, 26, 12))
+		mugTop.Material = Enum.Material.SmoothPlastic
 	end
 
 	-- Staff ID badge: colored card on a short cord around the neck
@@ -1818,16 +1839,43 @@ local function buildProceduralBotCharacter(
 				Color3.fromRGB(255, 138, 195), Enum.PartType.Ball)
 
 		elseif styleSlot == 2 then
-			-- Deep Pink: black-pink high-tops, rose hair clip
+			-- Flower Crown Girl: black high-tops, floral crown + gold earrings
 			if cLS then cLS.Color = Color3.fromRGB(22, 18, 22) end
 			if cRS then cRS.Color = Color3.fromRGB(22, 18, 22) end
-			-- Small rose-shaped clip on the left side of the head
-			makePart(model, "HairClipOuter", Vector3.new(0.36 * scale, 0.36 * scale, 0.12),
-				at * CFrame.new(-(hs / 2 + 0.08), headY + hs * 0.22, -hs * 0.12),
-				Color3.fromRGB(228, 60, 120), Enum.PartType.Ball)
-			makePart(model, "HairClipInner", Vector3.new(0.18 * scale, 0.18 * scale, 0.14),
-				at * CFrame.new(-(hs / 2 + 0.06), headY + hs * 0.22, -hs * 0.12),
-				Color3.fromRGB(255, 128, 178), Enum.PartType.Ball)
+			-- Thin green vine band circling the top of the head
+			local vineGreen = Color3.fromRGB(62, 108, 45)
+			makePart(model, "CrownBand", Vector3.new(hs * 1.10, 0.18 * scale, hs * 1.10),
+				at * CFrame.new(0, headY + hs * 0.42, 0), vineGreen)
+			-- Pink rose blossoms at front-left, front-right, back-left, back-right
+			local r = hs * 0.50
+			local rosePos = {
+				{ -r * 0.78,  0, -r * 0.62 },
+				{  r * 0.78,  0, -r * 0.62 },
+				{ -r * 0.62,  0,  r * 0.60 },
+				{  r * 0.62,  0,  r * 0.60 },
+			}
+			for i, rp in ipairs(rosePos) do
+				local rose = makePart(model, "Rose" .. i, Vector3.new(0.28 * scale, 0.28 * scale, 0.22 * scale),
+					at * CFrame.new(rp[1], headY + hs * 0.44, rp[3]),
+					Color3.fromRGB(222, 88, 138), Enum.PartType.Ball)
+				rose.Material = Enum.Material.SmoothPlastic
+			end
+			-- White daisy accents at pure-front and pure-right positions
+			for i, dp in ipairs({ { 0, 0, -r * 0.80 }, { r * 0.82, 0, 0 } }) do
+				local daisy = makePart(model, "CrownDaisy" .. i,
+					Vector3.new(0.20 * scale, 0.20 * scale, 0.16 * scale),
+					at * CFrame.new(dp[1], headY + hs * 0.45, dp[3]),
+					Color3.fromRGB(250, 248, 242), Enum.PartType.Ball)
+				daisy.Material = Enum.Material.SmoothPlastic
+			end
+			-- Gold drop earrings at ear positions
+			for side = -1, 1, 2 do
+				local earring = makePart(model, "Earring" .. (if side < 0 then "L" else "R"),
+					Vector3.new(0.15, 0.22 * scale, 0.13),
+					at * CFrame.new(side * (hs / 2 + 0.06), headY - hs * 0.14, -hs * 0.18),
+					Color3.fromRGB(212, 170, 36), Enum.PartType.Ball)
+				earring.Material = Enum.Material.Metal
+			end
 
 		elseif styleSlot == 3 then
 			-- Denim Overalls: denim-blue sneakers, overall bib + suspenders, sun pendant
@@ -2016,7 +2064,7 @@ local function buildProceduralBotCharacter(
 				Color3.fromRGB(52, 108, 52))
 
 		elseif styleSlot == 10 then
-			-- Pixel Creeper: full-green pixel costume with block-head mask
+			-- Pixel Creeper: full-green pixel costume with block-head mask + chest face
 			if cLS then cLS.Color = Color3.fromRGB(88, 158, 55) end
 			if cRS then cRS.Color = Color3.fromRGB(88, 158, 55) end
 			local pxG = Color3.fromRGB(88, 158, 55)
@@ -2033,6 +2081,20 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(-0.26 * scale, headY - 0.26 * scale, -(hs / 2 + 0.58)), pxD)
 			makePart(model, "PixMthR", Vector3.new(0.24 * scale, 0.20 * scale, 0.10),
 				at * CFrame.new( 0.26 * scale, headY - 0.26 * scale, -(hs / 2 + 0.58)), pxD)
+			-- Creeper face on hoodie chest: two pixel "eyes" + zig-zag "mouth" rows
+			-- Matches the hoodie-print creeper face visible on the torso in the reference
+			makePart(model, "ChestEyeL", Vector3.new(0.52 * scale, 0.38 * scale, 0.10),
+				at * CFrame.new(-0.38 * scale, th * 0.22, -(td / 2 + 0.09)), pxD)
+			makePart(model, "ChestEyeR", Vector3.new(0.52 * scale, 0.38 * scale, 0.10),
+				at * CFrame.new( 0.38 * scale, th * 0.22, -(td / 2 + 0.09)), pxD)
+			-- Mouth row 1: three blocks
+			makePart(model, "MthC1L", Vector3.new(0.28 * scale, 0.28 * scale, 0.10),
+				at * CFrame.new(-0.52 * scale, th * 0.04, -(td / 2 + 0.09)), pxD)
+			makePart(model, "MthC1R", Vector3.new(0.28 * scale, 0.28 * scale, 0.10),
+				at * CFrame.new( 0.52 * scale, th * 0.04, -(td / 2 + 0.09)), pxD)
+			-- Mouth row 2: centre indent (zig-zag)
+			makePart(model, "MthC2", Vector3.new(0.30 * scale, 0.26 * scale, 0.10),
+				at * CFrame.new(0, th * 0.04 - 0.30 * scale, -(td / 2 + 0.09)), pxD)
 
 		else -- styleSlot == 11
 			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim
