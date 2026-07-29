@@ -1324,6 +1324,18 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Vector3.new(0.38, 0.38, 0.38),
 				at * CFrame.new(splayX * 0.55 + cosA * tLen * 0.42, -(torsoSize.Y / 2 + tLen * 0.84), splayZ * 0.55 + sinA * tLen * 0.42),
 				presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
+			-- Sucker rings at 3 intervals along the tentacle (octopus reference: sucker disc rows)
+			for si, f in ipairs({ 0.20, 0.50, 0.80 }) do
+				local srX = splayX * 0.55 + cosA * tLen * 0.42 * f
+				local srY = -(torsoSize.Y / 2 + tLen * 0.42 * (1 + f))
+				local srZ = splayZ * 0.55 + sinA * tLen * 0.42 * f
+				local ring = makePart(model, "SuckerRing" .. index .. "_" .. si,
+					Vector3.new(0.65, 0.09, 0.65),
+					at * CFrame.new(srX, srY, srZ) * CFrame.Angles(cosA * 0.5, 0, sinA * 0.5),
+					presentation.accent, Enum.PartType.Cylinder)
+				ring.Material = Enum.Material.Neon
+				ring.Transparency = 0.30
+			end
 		end
 	elseif monsterId == "Banshee" then
 		root.Transparency = 0.25
@@ -2009,6 +2021,33 @@ local function buildProceduralBotCharacter(
 			local gcP = makePart(model, "ChainPendant", Vector3.new(0.16 * scale, 0.20 * scale, 0.07),
 				at * CFrame.new(0, gcY - 0.34 * scale, -(td / 2 + 0.07)), gcGold, Enum.PartType.Ball)
 			gcP.Material = Enum.Material.Metal
+			-- White crop top with pink trim band (Girl Camper 2 reference)
+			makePart(model, "CropTop1", Vector3.new(1.84 * scale, th * 0.44, 0.09),
+				at * CFrame.new(0, th * 0.14, -(td / 2 + 0.07)), Color3.fromRGB(238, 234, 240))
+			makePart(model, "CropTrim1", Vector3.new(1.86 * scale, 0.14 * scale, 0.10),
+				at * CFrame.new(0, th * 0.14 - th * 0.22 - 0.07 * scale, -(td / 2 + 0.08)),
+				Color3.fromRGB(225, 80, 155))
+			-- Denim cutoff shorts: legs colored denim (Girl Camper 2 shows denim shorts)
+			local ll1 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl1 = model:FindFirstChild("RightLeg") :: BasePart?
+			if ll1 then ll1.Color = Color3.fromRGB(118, 142, 182) end
+			if rl1 then rl1.Color = Color3.fromRGB(118, 142, 182) end
+			-- Striped knee socks: pink/blue/white bands (very prominent in Girl Camper 2 reference)
+			local sock1Y = -(th / 2 + 1.08 * scale)
+			local lx1 = 0.5 * scale
+			local sockColors1 = {
+				Color3.fromRGB(218, 82, 148),
+				Color3.fromRGB(78, 98, 195),
+				Color3.fromRGB(232, 228, 235),
+			}
+			for side1 = -1, 1, 2 do
+				local sx1 = side1 * lx1
+				for bi, bc in ipairs(sockColors1) do
+					makePart(model, "GlitterSock" .. (if side1 < 0 then "L" else "R") .. bi,
+						Vector3.new(1.12 * scale, 0.19 * scale, 1.12 * scale),
+						at * CFrame.new(sx1, sock1Y - (bi - 1) * 0.20 * scale, 0), bc)
+				end
+			end
 
 		elseif styleSlot == 2 then
 			-- Flower Crown Girl: black high-tops, floral crown + gold earrings
@@ -2122,6 +2161,11 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, th / 2 - 0.38 * scale, -(td / 2 + 0.09)),
 				Color3.fromRGB(220, 188, 58))
 			sun.Material = Enum.Material.Metal
+			-- Bare skin legs below denim shorts (Girl Camper 4: shorts-length overalls)
+			local ll3 = model:FindFirstChild("LeftLeg")  :: BasePart?
+			local rl3 = model:FindFirstChild("RightLeg") :: BasePart?
+			if ll3 then ll3.Color = skinColor end
+			if rl3 then rl3.Color = skinColor end
 
 		elseif styleSlot == 4 then
 			-- Frog Hoodie: white sneakers + daisy-print bucket hat + frog chest emblem + green socks
