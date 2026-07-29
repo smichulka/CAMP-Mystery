@@ -989,6 +989,20 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(math.cos(angle) * 2.2 * sx, -(torsoSize.Y / 2 + 0.8 * sy), math.sin(angle) * 2.2 * sx)
 					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
 		end
+		-- Grasping claw fingers on each arm (3 elongated tapered fingers per hand, matching reference)
+		for side = -1, 1, 2 do
+			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
+			local clawBaseY = limbShoulderY - limbLen * 0.9
+			for f = 1, 3 do
+				local spread = (f - 2) * 0.22 * sx
+				local fLen = 1.10 * sy - (f - 1) * 0.08 * sy
+				local finger = makePart(model, (if side < 0 then "LFinger" else "RFinger") .. tostring(f),
+					Vector3.new(0.13, fLen, 0.13),
+					at * CFrame.new(clawBaseX + spread, clawBaseY - fLen * 0.5, -(headSize.Z * 0.10))
+						* CFrame.Angles(0.22, 0, side * 0.06), presentation.color)
+				finger.Material = Enum.Material.SmoothPlastic
+			end
+		end
 	elseif monsterId == "Screamer" then
 		-- Square mouth reads as circular from front — lamprey reference
 		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 3.0, 0.6),
@@ -1020,16 +1034,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
 				presentation.accent)
 		end
-		-- Impossibly long fingered claws extending below each arm — key reference-image feature
+		-- 5-fingered claw hands extending below each arm (matching Screamer reference exactly)
 		for side = -1, 1, 2 do
 			local clawBaseX = limbShoulderLX * (if side < 0 then 1 else -1)
 			local clawBaseY = limbShoulderY - limbLen * 0.5
-			for f = 1, 3 do
-				local spread = (f - 2) * 0.18 * sx
+			for f = 1, 5 do
+				local spread = (f - 3) * 0.16 * sx
+				local clawLen = (2.2 - math.abs(f - 3) * 0.22) * sy
 				makePart(model, (if side < 0 then "LClaw" else "RClaw") .. tostring(f),
-					Vector3.new(0.12, 2.2 * sy, 0.12),
+					Vector3.new(0.11, clawLen, 0.11),
 					at * CFrame.new(clawBaseX + spread, clawBaseY - limbLen * 0.5, 0)
-						* CFrame.Angles(0.18 * (f - 2), 0, side * 0.08), presentation.accent)
+						* CFrame.Angles(0.16 * (f - 3), 0, side * 0.10), presentation.accent)
 			end
 		end
 		-- Exposed viscera hanging from lower torso (prominent in reference image)
@@ -1091,9 +1106,25 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(0.22, 0, side * 0.55), barkColor)
 			shard.Material = Enum.Material.WoodPlanks
 		end
+		-- Root-arm claws reaching toward the ground with multi-finger spread (key reference feature)
+		local clawBase = Color3.fromRGB(38, 26, 12)
 		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftClaw" else "RightClaw",
-				Vector3.new(0.45, 5.5, 0.45), at * CFrame.new(side * 2.1, -0.5, -0.4), presentation.accent)
+			local cx = side * 2.1
+			-- Main arm tendril
+			local claw = makePart(model, if side < 0 then "LeftClaw" else "RightClaw",
+				Vector3.new(0.45, 5.5, 0.45), at * CFrame.new(cx, -0.5, -0.4)
+					* CFrame.Angles(0.18, 0, side * 0.18), clawBase)
+			claw.Material = Enum.Material.WoodPlanks
+			-- 4 root fingers fanning from the arm tip
+			local fingerAngles = {-0.60, -0.20, 0.20, 0.60}
+			for f, fAng in ipairs(fingerAngles) do
+				local fLen = (1.40 - math.abs(fAng) * 0.35) * sy
+				local finger = makePart(model, (if side < 0 then "LRootFinger" else "RRootFinger") .. f,
+					Vector3.new(0.20, fLen, 0.20),
+					at * CFrame.new(cx + fAng * 0.9 * sx, -3.40 - fLen * 0.5, -0.40)
+						* CFrame.Angles(0.28, 0, side * fAng * 0.5), clawBase)
+				finger.Material = Enum.Material.WoodPlanks
+			end
 		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
@@ -1172,6 +1203,15 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				presentation.accent)
 			chuTail.Material = Enum.Material.SmoothPlastic
 		end
+		-- Protruding saber fangs curling from lower jaw (prominent in reference parchment drawing)
+		local fangC = Color3.fromRGB(215, 208, 185)
+		for side = -1, 1, 2 do
+			local fang = makePart(model, "Fang" .. (if side < 0 then "L" else "R"),
+				Vector3.new(0.28 * sx, 0.72 * sy, 0.22 * sx),
+				at * CFrame.new(side * 0.38 * sx, headY - headSize.Y * 0.42, -(headSize.Z / 2 + 0.22))
+					* CFrame.Angles(0.28, 0, side * 0.16), fangC)
+			fang.Material = Enum.Material.SmoothPlastic
+		end
 	elseif monsterId == "Dullahan" then
 		local head = model:FindFirstChild("Head")
 		if head then
@@ -1198,6 +1238,18 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Vector3.new(0.24, cloakH, torsoSize.Z * 1.22),
 				at * CFrame.new(side * (cloakW / 2 + 0.12), -torsoSize.Y * 0.16, 0)
 					* CFrame.Angles(0, 0, side * 0.10), cloakColor)
+		end
+		-- Bottom hem flare: wide skirt that fans out at base for bell-shaped silhouette from reference
+		local hemW = cloakW * 1.45
+		local hemH = cloakH * 0.28
+		makePart(model, "CloakHemFront", Vector3.new(hemW, hemH, 0.22),
+			at * CFrame.new(0, -(torsoSize.Y * 0.14 + cloakH * 0.58), -(torsoSize.Z / 2 + 0.14)), cloakColor)
+		makePart(model, "CloakHemBack", Vector3.new(hemW, hemH, 0.22),
+			at * CFrame.new(0, -(torsoSize.Y * 0.14 + cloakH * 0.58), torsoSize.Z / 2 + 0.14), cloakColor)
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "CloakHemL" else "CloakHemR",
+				Vector3.new(0.22, hemH, torsoSize.Z * 1.50),
+				at * CFrame.new(side * (hemW / 2 + 0.12), -(torsoSize.Y * 0.14 + cloakH * 0.58), 0), cloakColor)
 		end
 		-- Legs hidden under cloak
 		for side = -1, 1, 2 do
@@ -1275,6 +1327,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		end
 	elseif monsterId == "Banshee" then
 		root.Transparency = 0.25
+		-- Open wailing mouth — the defining Banshee feature from the reference (large O scream)
+		local mouthGlow = makePart(model, "WailMouth",
+			Vector3.new(1.10 * sx, 1.40 * sy, 0.35 * sz),
+			at * CFrame.new(0, headY - headSize.Y * 0.28, -(headSize.Z / 2 + 0.10)),
+			Color3.fromRGB(12, 6, 14), Enum.PartType.Ball)
+		mouthGlow.Material = Enum.Material.Neon
+		mouthGlow.Transparency = 0.08
 		local veil = makePart(model, "SpectralVeil", Vector3.new(6, 6.5, 0.25),
 			at * CFrame.new(0, 0.3, 1.2), presentation.accent)
 		veil.Material = Enum.Material.ForceField
@@ -1429,6 +1488,18 @@ local function buildProceduralCounselor(
 		makePart(model, "ThermoTip", Vector3.new(0.11, 0.20 * scale, 0.11),
 			at * CFrame.new(ax + 0.27, 0.60 * scale, -(td / 2 + 0.11))
 				* CFrame.Angles(0, 0, 0.22), Color3.fromRGB(210, 42, 42))
+		-- Nurse Notes clipboard held at left side (Counselor 6 reference)
+		local nbC = Color3.fromRGB(42, 74, 145)
+		makePart(model, "NurseClipboard", Vector3.new(1.00 * scale, 1.35 * scale, 0.09),
+			at * CFrame.new(-(ax + 0.14), 0.02 * scale, -(td / 2 + 0.10))
+				* CFrame.Angles(0, -0.10, 0.12), nbC)
+		makePart(model, "NurseClipMetal", Vector3.new(0.48 * scale, 0.18 * scale, 0.12),
+			at * CFrame.new(-(ax + 0.14), 0.74 * scale, -(td / 2 + 0.12))
+				* CFrame.Angles(0, -0.10, 0.12), Color3.fromRGB(88, 90, 96))
+		-- RN badge lanyard clipped to chest
+		local badgeC = Color3.fromRGB(218, 218, 228)
+		makePart(model, "RNBadge", Vector3.new(0.36 * scale, 0.46 * scale, 0.06),
+			at * CFrame.new(0.32 * scale, th / 2 - 0.52 * scale, -(td / 2 + 0.09)), badgeC)
 	elseif index == 3 then
 		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15

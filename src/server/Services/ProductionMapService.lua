@@ -1115,6 +1115,32 @@ function ProductionMapService:Build()
 	if authoredCamp then
 		authoredCamp.Name = "AuthoredCamp"
 		authoredCamp.Parent = self.dayCamp
+		-- Strip legacy brick chimneys and add stovepipes to authored cabin models
+		local cabinSet = { PineCabin = true, CreekCabin = true, CounselorLodge = true, SupplyCabin = true }
+		for _, child in ipairs(authoredCamp:GetDescendants()) do
+			if child:IsA("Model") and cabinSet[child.Name] then
+				for _, part in ipairs(child:GetDescendants()) do
+					if part:IsA("BasePart") and (part.Name == "ChimneyBase" or part.Name == "ChimneyTop") then
+						part:Destroy()
+					end
+				end
+				if not child:FindFirstChild("Stovepipe") then
+					local floor = child:FindFirstChild("Floor")
+					if floor then
+						local pos = floor.Position - Vector3.new(0, 0.35, 0)
+						local w = floor.Size.X
+						createCylinder(child, "Stovepipe",
+							Vector3.new(8, 0.52, 0.52),
+							CFrame.new(pos + Vector3.new(w * 0.28, 14.0, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+							Color3.fromRGB(40, 36, 32), Enum.Material.Metal)
+						createCylinder(child, "StovepipeCap",
+							Vector3.new(0.55, 0.80, 0.80),
+							CFrame.new(pos + Vector3.new(w * 0.28, 18.3, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+							Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
+					end
+				end
+			end
+		end
 	else
 		buildCampTerrain(self.dayCamp)
 		local spawn = Instance.new("SpawnLocation")
@@ -1391,6 +1417,56 @@ function ProductionMapService:Build()
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE"))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE"))
 		buildWaterTower(self.nightTown, Vector3.new(110, 0, -292))
+		-- Abandoned church at the far end of the road (prominent in Old Town 4 aerial reference)
+		do
+			local cPos = Vector3.new(0, 0, -455)
+			local cW, cH, cD = 28, 20, 36
+			local churchColor = Color3.fromRGB(68, 63, 56)
+			local churchModel = Instance.new("Model")
+			churchModel.Name = "AbandonedChurch"
+			churchModel.Parent = self.nightTown
+			createPart(churchModel, "ChurchFloor", Vector3.new(cW, 0.8, cD), CFrame.new(cPos + Vector3.new(0, 0.4, 0)), churchColor, Enum.Material.Concrete)
+			createPart(churchModel, "ChurchBackWall", Vector3.new(cW, cH, 1), CFrame.new(cPos + Vector3.new(0, cH / 2, cD / 2 - 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchSideL", Vector3.new(1, cH, cD), CFrame.new(cPos + Vector3.new(-cW / 2 + 0.5, cH / 2, 0)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchSideR", Vector3.new(1, cH, cD), CFrame.new(cPos + Vector3.new(cW / 2 - 0.5, cH / 2, 0)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchFrontL", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new(-(4 + (cW - 8) / 4), cH / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchFrontR", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new( (4 + (cW - 8) / 4), cH / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchArchHeader", Vector3.new(8, cH - 9, 1), CFrame.new(cPos + Vector3.new(0, 9 + (cH - 9) / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
+			-- Peaked roof slopes
+			local roofC = Color3.fromRGB(42, 40, 38)
+			local roofL = Instance.new("WedgePart")
+			roofL.Name = "ChurchRoofL"
+			roofL.Size = Vector3.new(cW + 2, 8, cD / 2 + 1)
+			roofL.CFrame = CFrame.new(cPos + Vector3.new(0, cH + 4, cD / 4)) * CFrame.Angles(0, math.rad(180), 0)
+			roofL.Color = roofC
+			roofL.Material = Enum.Material.Slate
+			roofL.Anchored = true
+			roofL.Parent = churchModel
+			local roofR = Instance.new("WedgePart")
+			roofR.Name = "ChurchRoofR"
+			roofR.Size = Vector3.new(cW + 2, 8, cD / 2 + 1)
+			roofR.CFrame = CFrame.new(cPos + Vector3.new(0, cH + 4, -cD / 4))
+			roofR.Color = roofC
+			roofR.Material = Enum.Material.Slate
+			roofR.Anchored = true
+			roofR.Parent = churchModel
+			-- Steeple base tower on front-center
+			local spX, spZ = 0, -cD / 2 + 4
+			createPart(churchModel, "SteepleBase", Vector3.new(7, cH + 4, 7), CFrame.new(cPos + Vector3.new(spX, (cH + 4) / 2, spZ)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "SteepleSpire", Vector3.new(6, 18, 6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 9, spZ)), roofC, Enum.Material.Slate)
+			-- Cross at the top of the steeple
+			createPart(churchModel, "CrossV", Vector3.new(0.6, 5, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 18 + 2.5, spZ)), Color3.fromRGB(72, 65, 55))
+			createPart(churchModel, "CrossH", Vector3.new(3.5, 0.6, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 20, spZ)), Color3.fromRGB(72, 65, 55))
+			-- Arched windows on side walls
+			for wSide = -1, 1, 2 do
+				for wn = 1, 2 do
+					createPart(churchModel, "ChurchWin" .. tostring(wSide) .. wn,
+						Vector3.new(3.5, 5.5, 0.5),
+						CFrame.new(cPos + Vector3.new(wSide * (cW / 2 - 0.25), cH * 0.62, (wn - 1.5) * cD * 0.30)),
+						Color3.fromRGB(48, 55, 62), Enum.Material.SmoothPlastic)
+				end
+			end
+		end
 		for index = 1, 9 do
 			createStreetlight(self.nightTown, Vector3.new(if index % 2 == 0 then 18 else -18, 0, -62 - index * 38))
 		end
