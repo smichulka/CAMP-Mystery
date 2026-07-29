@@ -1099,6 +1099,11 @@ end
 
 local function buildCampTerrain(parent: Instance)
 	local terrain = Workspace.Terrain
+	-- Animated grass everywhere on grass terrain, cut short so porches/props stay visible
+	terrain.Decoration = true
+	pcall(function()
+		terrain.GrassLength = 0.3
+	end)
 	terrain:FillBlock(
 		CFrame.new(0, -3.5, 12),
 		Vector3.new(250, 8, 205),
