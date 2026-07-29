@@ -142,6 +142,27 @@ local function createCylinder(
 	return cylinder
 end
 
+local function createWedge(
+	parent: Instance,
+	name: string,
+	size: Vector3,
+	cframe: CFrame,
+	color: Color3,
+	material: Enum.Material
+): WedgePart
+	local wedge = Instance.new("WedgePart")
+	wedge.Name = name
+	wedge.Anchored = true
+	wedge.Size = size
+	wedge.CFrame = cframe
+	wedge.Color = color
+	wedge.Material = material
+	wedge.TopSurface = Enum.SurfaceType.Smooth
+	wedge.BottomSurface = Enum.SurfaceType.Smooth
+	wedge.Parent = parent
+	return wedge
+end
+
 local function createPrompt(
 	parent: BasePart,
 	actionText: string,
@@ -398,12 +419,15 @@ local function createCabin(
 		Enum.Material.WoodPlanks
 	)
 	-- Corrugated tin roof panels (two sloped halves)
+	-- Positive Z rotation tilts the +X edge up; each panel's inner edge faces the ridge
+	local roofAngle = math.rad(25)
+	local ridgeY = 11.1 + (width / 4 + 1) * math.sin(roofAngle)
 	createPart(
 		model,
 		"RoofLeft",
 		Vector3.new(width / 2 + 2, 1.1, 19),
 		CFrame.new(position + Vector3.new(-width / 4, 11.1, 0))
-			* CFrame.Angles(0, 0, math.rad(-13)),
+			* CFrame.Angles(0, 0, roofAngle),
 		tinRoof,
 		Enum.Material.CorrodedMetal
 	)
@@ -412,18 +436,35 @@ local function createCabin(
 		"RoofRight",
 		Vector3.new(width / 2 + 2, 1.1, 19),
 		CFrame.new(position + Vector3.new(width / 4, 11.1, 0))
-			* CFrame.Angles(0, 0, math.rad(13)),
+			* CFrame.Angles(0, 0, -roofAngle),
 		tinRoof,
 		Enum.Material.CorrodedMetal
 	)
 	-- Roof ridge cap along the peak
 	createPart(model, "RoofRidge", Vector3.new(1.2, 1.2, 19),
-		CFrame.new(position + Vector3.new(0, 12.2, 0)),
+		CFrame.new(position + Vector3.new(0, ridgeY, 0)),
 		Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
+	-- Triangular gable fills on front and back walls
+	-- Two WedgeParts per gable wall, mirrored at cabin center X
+	-- Rotation -90° around Y: local -Z (tall end) → world +X (toward center)
+	-- Rotation +90° around Y: local -Z (tall end) → world -X (toward center)
+	local gableHeight = ridgeY - 10
+	local gableCenterY = 10 + gableHeight / 2
+	local gableSize = Vector3.new(0.7, gableHeight, width / 2)
+	for _, wallZ in ipairs({ -7.65, 7.65 }) do
+		createWedge(model, "GableLeft", gableSize,
+			CFrame.new(position + Vector3.new(-width / 4, gableCenterY, wallZ))
+				* CFrame.Angles(0, -math.pi / 2, 0),
+			wallColor, Enum.Material.WoodPlanks)
+		createWedge(model, "GableRight", gableSize,
+			CFrame.new(position + Vector3.new(width / 4, gableCenterY, wallZ))
+				* CFrame.Angles(0, math.pi / 2, 0),
+			wallColor, Enum.Material.WoodPlanks)
+	end
 	-- Chimney on the back wall
 	createPart(model, "ChimneyBase", Vector3.new(2.4, 6, 2.4),
 		CFrame.new(position + Vector3.new(width * 0.28, 13, 6.5)),
-		stoneColor, Enum.Material.SmoothPlastic)
+		stoneColor, Enum.Material.Brick)
 	createPart(model, "ChimneyTop", Vector3.new(2.8, 0.5, 2.8),
 		CFrame.new(position + Vector3.new(width * 0.28, 16.25, 6.5)),
 		Color3.fromRGB(54, 50, 46), Enum.Material.Concrete)
@@ -1289,6 +1330,41 @@ function ProductionMapService:Build()
 		for idx, treePos in bareTreePositions do
 			createBareTree(self.nightTown, treePos, 14 + (idx % 3) * 3)
 		end
+		-- Scatter props: barrels + crates in front of General Store (reference: porch/ground clutter)
+		local barrelColor = Color3.fromRGB(68, 48, 32)
+		for b = 1, 3 do
+			createCylinder(self.nightTown, "Barrel" .. tostring(b),
+				Vector3.new(2.2, 2.4, 2.4),
+				CFrame.new(-58 + (b - 1) * 2.8, 1.2, -174) * CFrame.Angles(0, 0, math.rad(90)),
+				barrelColor, Enum.Material.WoodPlanks)
+			-- Metal band rings on each barrel
+			createCylinder(self.nightTown, "BarrelRing" .. tostring(b) .. "T",
+				Vector3.new(2.25, 0.25, 0.25),
+				CFrame.new(-58 + (b - 1) * 2.8, 0.6, -174) * CFrame.Angles(0, 0, math.rad(90)),
+				Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
+			createCylinder(self.nightTown, "BarrelRing" .. tostring(b) .. "B",
+				Vector3.new(2.25, 0.25, 0.25),
+				CFrame.new(-58 + (b - 1) * 2.8, 1.8, -174) * CFrame.Angles(0, 0, math.rad(90)),
+				Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
+		end
+		-- Wooden crates stacked near Gas Station (reference: roadside debris)
+		local crateColor = Color3.fromRGB(82, 65, 44)
+		createPart(self.nightTown, "CrateBase",  Vector3.new(2.4, 2.4, 2.4), CFrame.new(60, 1.2, -175), crateColor, Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "CrateTop",   Vector3.new(2.0, 2.0, 2.0), CFrame.new(60, 3.6, -175), crateColor:Lerp(Color3.fromRGB(0,0,0), 0.12), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "CrateSmall", Vector3.new(1.6, 1.6, 1.6), CFrame.new(62.8, 0.8, -177), crateColor, Enum.Material.WoodPlanks)
+		-- Wagon wheel lying flat on the road edge (reference old town 2 shows wheel debris)
+		local wheelColor = Color3.fromRGB(52, 38, 24)
+		for spoke = 1, 6 do
+			local spokeAngle = math.rad(spoke * 30)
+			createPart(self.nightTown, "WheelSpoke" .. tostring(spoke),
+				Vector3.new(0.18, 3.6, 0.18),
+				CFrame.new(-52, 0.18, -220) * CFrame.Angles(0, spokeAngle, 0),
+				wheelColor, Enum.Material.Wood)
+		end
+		createCylinder(self.nightTown, "WheelRim",
+			Vector3.new(0.22, 8.2, 8.2),
+			CFrame.new(-52, 0.18, -220) * CFrame.Angles(0, 0, math.rad(90)),
+			wheelColor, Enum.Material.Wood)
 		-- Rusted metal fence along the left sidewalk edge of main road
 		for section = 0, 9 do
 			createPart(self.nightTown, "FencePost",

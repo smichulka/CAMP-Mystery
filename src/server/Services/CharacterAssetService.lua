@@ -982,9 +982,25 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(math.cos(angle) * 0.5, 0, math.sin(angle) * 0.5), presentation.accent)
 		end
 	elseif monsterId == "Screamer" then
-		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 2.2, 0.6),
+		-- Square mouth reads as circular from front — lamprey reference
+		local mouth = makePart(model, "ResonantMouth", Vector3.new(3.0, 3.0, 0.6),
 			at * CFrame.new(0, headY - 0.1, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
 		mouth.Material = Enum.Material.Neon
+		-- Ring of jagged white teeth around the mouth (8 teeth, like the reference's lamprey rows)
+		local toothW = 0.32 * sx
+		local toothH = 0.55 * sy
+		local toothR = 1.65 * sx  -- radius from mouth center
+		local toothFaceZ = -(headSize.Z / 2 + 0.20)
+		for t = 1, 8 do
+			local ta = ((t - 1) / 8) * math.pi * 2
+			local tx = math.cos(ta) * toothR
+			local ty = headY - 0.1 + math.sin(ta) * toothR
+			local tooth = makePart(model, "MouthTooth" .. tostring(t),
+				Vector3.new(toothW, toothH, 0.18 * sz),
+				at * CFrame.new(tx, ty, toothFaceZ) * CFrame.Angles(0, 0, ta + math.pi / 2),
+				Color3.fromRGB(230, 222, 208))
+			tooth.Material = Enum.Material.SmoothPlastic
+		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftSoundSpine" else "RightSoundSpine",
 				Vector3.new(0.35, 4.5, 0.35),
@@ -1011,6 +1027,32 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	elseif monsterId == "Wendigo" then
 		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
 		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
+		-- Branching tines off each main antler beam (reference shows 5-7 tines per side)
+		local antlerCY = headY + 1.6
+		makePart(model, "LeftAntlerTine1", Vector3.new(0.22, 1.8, 0.22),
+			at * CFrame.new(-1.15, antlerCY + 0.72, 0.15) * CFrame.Angles(0.1, 0, -1.25), presentation.accent)
+		makePart(model, "LeftAntlerTine2", Vector3.new(0.20, 1.4, 0.20),
+			at * CFrame.new(-0.82, antlerCY + 1.5, -0.2) * CFrame.Angles(-0.15, 0, -0.7), presentation.accent)
+		makePart(model, "LeftAntlerTine3", Vector3.new(0.18, 1.1, 0.18),
+			at * CFrame.new(-0.55, antlerCY + 2.2, 0.12) * CFrame.Angles(0.1, 0, -1.55), presentation.accent)
+		makePart(model, "LeftAntlerTine4", Vector3.new(0.16, 0.9, 0.16),
+			at * CFrame.new(-1.35, antlerCY + 2.6, -0.1) * CFrame.Angles(0.2, 0, -0.45), presentation.accent)
+		makePart(model, "RightAntlerTine1", Vector3.new(0.22, 1.8, 0.22),
+			at * CFrame.new(1.15, antlerCY + 0.72, 0.15) * CFrame.Angles(0.1, 0, 1.25), presentation.accent)
+		makePart(model, "RightAntlerTine2", Vector3.new(0.20, 1.4, 0.20),
+			at * CFrame.new(0.82, antlerCY + 1.5, -0.2) * CFrame.Angles(-0.15, 0, 0.7), presentation.accent)
+		makePart(model, "RightAntlerTine3", Vector3.new(0.18, 1.1, 0.18),
+			at * CFrame.new(0.55, antlerCY + 2.2, 0.12) * CFrame.Angles(0.1, 0, 1.55), presentation.accent)
+		makePart(model, "RightAntlerTine4", Vector3.new(0.16, 0.9, 0.16),
+			at * CFrame.new(1.35, antlerCY + 2.6, -0.1) * CFrame.Angles(0.2, 0, 0.45), presentation.accent)
+		-- Exposed ribcage on the torso front (reference shows skeletal chest)
+		local ribColor = presentation.accent:Lerp(Color3.fromRGB(200, 190, 165), 0.4)
+		for r = 1, 4 do
+			local ribY = torsoSize.Y * 0.3 - r * 0.65 * sy
+			local ribW  = torsoSize.X * (0.55 + r * 0.06)
+			makePart(model, "Rib" .. tostring(r), Vector3.new(ribW, 0.20, 0.14),
+				at * CFrame.new(0, ribY, -(torsoSize.Z / 2 + 0.06)), ribColor)
+		end
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "LeftClaw" else "RightClaw",
 				Vector3.new(0.45, 5.5, 0.45), at * CFrame.new(side * 2.1, -0.5, -0.4), presentation.accent)
@@ -1029,6 +1071,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			smHead.Material = Enum.Material.ForceField
 			smHead.Transparency = 0.42
 		end
+		-- Override glowing eyes to white — classic "Hat Man" variant (glowing white eyes in darkness)
+		local smEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
+		local smEyeR = model:FindFirstChild("RightGlow") :: BasePart?
+		if smEyeL then smEyeL.Color = Color3.fromRGB(235, 240, 255) end
+		if smEyeR then smEyeR.Color = Color3.fromRGB(235, 240, 255) end
+		-- Wide-brim fedora hat — the iconic "Hat Man" silhouette from the reference
+		local hatColor = Color3.fromRGB(8, 9, 14)
+		makePart(model, "HatBrim", Vector3.new(headSize.X * 2.0 * sx, 0.35 * sy, headSize.Z * 2.0 * sz),
+			at * CFrame.new(0, headY + headSize.Y / 2 * sy + 0.18 * sy, 0), hatColor)
+		makePart(model, "HatCrown", Vector3.new(headSize.X * 1.15 * sx, headSize.Y * 0.72 * sy, headSize.Z * 1.10 * sz),
+			at * CFrame.new(0, headY + headSize.Y / 2 * sy + 0.18 * sy + headSize.Y * 0.40 * sy, 0), hatColor)
 		for index = 1, 4 do
 			local angle = (index / 4) * math.pi * 2
 			local tendril = makePart(model, "ShadowTendril" .. tostring(index),
@@ -1049,6 +1102,11 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			leg.Transparency = 0.5
 		end
 	elseif monsterId == "Chupacabra" then
+		-- Hide the generic upright arm-limbs so only the 4 legs show
+		local ll = model:FindFirstChild("LeftLimb")
+		local rl = model:FindFirstChild("RightLimb")
+		if ll then ll.Transparency = 1; (ll :: BasePart).CanCollide = false end
+		if rl then rl.Transparency = 1; (rl :: BasePart).CanCollide = false end
 		for index = 1, 5 do
 			local spine = makePart(model, "BackSpine" .. tostring(index),
 				Vector3.new(0.28, 2.2 + index * 0.18, 0.55),
@@ -1089,23 +1147,50 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.45 * sy), 0), presentation.color)
 		end
 	elseif monsterId == "Entity" then
-		root.Transparency = 0.25
+		-- Cthulhu/octopus body — semi-transparent deep ocean mantle
+		root.Transparency = 0.18
+		root.Material = Enum.Material.ForceField
+		-- Large dark eyes on the head (octopus reference: two large circular eyes)
+		local entHead = model:FindFirstChild("Head") :: BasePart?
+		if entHead then
+			entHead.Material = Enum.Material.ForceField
+			entHead.Transparency = 0.15
+			for side = -1, 1, 2 do
+				local eyeOrb = makePart(model, if side < 0 then "EntityEyeL" else "EntityEyeR",
+					Vector3.new(1.1 * sx, 1.1 * sy, 0.55 * sz),
+					at * CFrame.new(side * 0.7 * sx, headY + 0.1 * sy, -(headSize.Z / 2 + 0.05)),
+					Color3.fromRGB(8, 8, 12), Enum.PartType.Ball)
+				eyeOrb.Material = Enum.Material.Neon
+			end
+		end
+		-- 3 bioluminescent anchor orbs on the upper body
 		for index = 1, 3 do
 			local orb = makePart(model, "AnchorOrb" .. tostring(index),
-				Vector3.new(0.9, 0.9, 0.9),
-				at * CFrame.new((index - 2) * 2.4, 1 + index % 2, -0.8), presentation.accent, Enum.PartType.Ball)
-			orb.Material = Enum.Material.ForceField
-			orb.Transparency = 0.15
+				Vector3.new(0.75, 0.75, 0.75),
+				at * CFrame.new((index - 2) * 1.8 * sx, 0.8 + (index % 2) * 0.6, -0.6 * sz),
+				presentation.accent, Enum.PartType.Ball)
+			orb.Material = Enum.Material.Neon
+			orb.Transparency = 0.08
 		end
-		-- 3 ethereal trailing streams at the base
-		for index = 1, 3 do
-			local angle = ((index - 1) / 3) * math.pi * 2
-			local stream = makePart(model, "EtherStream" .. tostring(index),
-				Vector3.new(0.28, 3.2 * sy, 0.28),
-				at * CFrame.new(math.cos(angle) * 1.2, -(torsoSize.Y / 2 + sy), math.sin(angle) * 1.2)
-					* CFrame.Angles(math.cos(angle) * 0.2, 0, math.sin(angle) * 0.2), presentation.accent)
-			stream.Material = Enum.Material.ForceField
-			stream.Transparency = 0.4
+		-- 8 tentacles radiating from the base (octopus reference)
+		for index = 1, 8 do
+			local angle = ((index - 1) / 8) * math.pi * 2
+			local cosA = math.cos(angle)
+			local sinA = math.sin(angle)
+			local splayX = cosA * 1.8 * sx
+			local splayZ = sinA * 1.8 * sz
+			local tLen = (3.6 + (index % 3) * 0.7) * sy
+			local tentacle = makePart(model, "Tentacle" .. tostring(index),
+				Vector3.new(0.50, tLen, 0.50),
+				at * CFrame.new(splayX * 0.55, -(torsoSize.Y / 2 + tLen * 0.42), splayZ * 0.55)
+					* CFrame.Angles(cosA * 0.5, 0, sinA * 0.5), presentation.color)
+			tentacle.Material = Enum.Material.ForceField
+			tentacle.Transparency = 0.22
+			-- Sucker tip: accent-colored neon disc at end of each tentacle
+			makePart(model, "TentacleTip" .. tostring(index),
+				Vector3.new(0.38, 0.38, 0.38),
+				at * CFrame.new(splayX * 0.55 + cosA * tLen * 0.42, -(torsoSize.Y / 2 + tLen * 0.84), splayZ * 0.55 + sinA * tLen * 0.42),
+				presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
 		end
 	elseif monsterId == "Banshee" then
 		root.Transparency = 0.25
@@ -1133,6 +1218,14 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			stream.Material = Enum.Material.ForceField
 			stream.Transparency = 0.5
 		end
+		-- Ethereal sword raised in right-hand position — key visual from reference
+		local blade = makePart(model, "SwordBlade", Vector3.new(0.22 * sx, 4.2 * sy, 0.1 * sz),
+			at * CFrame.new(2.6 * sx, -1.2 * sy, -0.4 * sz) * CFrame.Angles(0.2, 0.1, -0.3), presentation.accent)
+		blade.Material = Enum.Material.Neon
+		blade.Transparency = 0.18
+		makePart(model, "SwordGuard", Vector3.new(1.0 * sx, 0.22 * sy, 0.18 * sz),
+			at * CFrame.new(2.6 * sx, 0.6 * sy, -0.4 * sz) * CFrame.Angles(0, 0.1, -0.3),
+			Color3.fromRGB(200, 215, 235))
 	end
 
 	labelModel(model, MONSTER_DISPLAY_NAMES[monsterId])
