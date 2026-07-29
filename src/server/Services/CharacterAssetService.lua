@@ -967,11 +967,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	model:SetAttribute("LimbLen",        limbLen)
 
 	if monsterId == "BabyAlien" then
+		-- Swollen alien cranium: disproportionately large head is the key reference feature
+		local cranium = makePart(model, "AlienCranium",
+			Vector3.new(headSize.X * 1.65, headSize.Y * 1.95, headSize.Z * 1.45),
+			at * CFrame.new(0, headY + headSize.Y * 0.28, 0),
+			presentation.color, Enum.PartType.Ball)
+		cranium.Transparency = 0.04
+		-- Large dark teardrop eyes: close-set and dominating the face (matching reference)
 		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftEye" else "RightEye",
-				Vector3.new(0.8, 1.25, 0.35),
-				at * CFrame.new(side * 0.75, headY + 0.35, -(headSize.Z / 2)),
-				presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
+			local eye = makePart(model, if side < 0 then "LeftEye" else "RightEye",
+				Vector3.new(1.30, 1.85, 0.62),
+				at * CFrame.new(side * 0.50, headY + 0.08, -(headSize.Z / 2 + 0.10)),
+				Color3.fromRGB(5, 4, 6), Enum.PartType.Ball)
+			eye.Material = Enum.Material.SmoothPlastic
 		end
 		makePart(model, "AcidSac", Vector3.new(2.4, 1.2, 2.4), at * CFrame.new(0, -1.7, 1.4), presentation.accent, Enum.PartType.Ball).Transparency = 0.2
 		-- 4 spider legs radiating from the base
@@ -1120,6 +1128,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					at * CFrame.new(side * 1.4 * sx, -(torsoSize.Y / 2 + 0.7 * sy), fore * 0.9 * sz)
 						* CFrame.Angles(fore * 0.28, 0, side * 0.1), presentation.accent)
 			end
+		end
+		-- Curved whip tail arcing behind and upward: defining feature in reference image
+		for s = 1, 5 do
+			local tFrac = s / 5
+			local tThick = (0.46 - tFrac * 0.26) * sx
+			local chuTail = makePart(model, "Tail" .. tostring(s),
+				Vector3.new(tThick, tThick, 0.88 * sz),
+				at * CFrame.new(0,
+					-(torsoSize.Y * 0.35) + s * 0.52 * sy,
+					(torsoSize.Z * 0.54) + s * 0.75 * sz)
+				* CFrame.Angles(-0.18 * s, 0, 0),
+				presentation.accent)
+			chuTail.Material = Enum.Material.SmoothPlastic
 		end
 	elseif monsterId == "Dullahan" then
 		local head = model:FindFirstChild("Head")
@@ -1306,12 +1327,33 @@ local function buildProceduralCounselor(
 			at * CFrame.new(0, hatBrimY, 0), Color3.fromRGB(72, 54, 36))
 		makePart(model, "RangerCrown", Vector3.new(hs * 1.1, hs * 0.6, hs * 1.1),
 			at * CFrame.new(0, hatBrimY + hs * 0.43, 0), Color3.fromRGB(82, 62, 42))
+		-- Survival pack on back + shoulder straps: matches hiker/explorer reference images
+		local bpColor = Color3.fromRGB(80, 66, 42)
+		makePart(model, "BackpackBody", Vector3.new(1.28 * scale, 1.55 * scale, 0.55),
+			at * CFrame.new(0, 0.12 * scale, td / 2 + 0.30), bpColor)
+		makePart(model, "BackpackFlap", Vector3.new(1.14 * scale, 0.42 * scale, 0.52),
+			at * CFrame.new(0, 0.12 * scale + 0.99 * scale, td / 2 + 0.28),
+			Color3.fromRGB(68, 54, 34))
+		makePart(model, "BpStrapL", Vector3.new(0.17, 1.26 * scale, 0.13),
+			at * CFrame.new(-0.34 * scale, 0.10 * scale, -(td / 2 + 0.07))
+			* CFrame.Angles(0.16, 0, 0.08), bpColor)
+		makePart(model, "BpStrapR", Vector3.new(0.17, 1.26 * scale, 0.13),
+			at * CFrame.new( 0.34 * scale, 0.10 * scale, -(td / 2 + 0.07))
+			* CFrame.Angles(0.16, 0, -0.08), bpColor)
 	elseif index == 4 then
 		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
 			at * CFrame.new(0, 0.1, -(td / 2 + 0.05)), Color3.fromRGB(218, 188, 68))
 		makePart(model, "Whistle", Vector3.new(0.32, 0.46, 0.32),
 			at * CFrame.new(0, -(th / 2 - 0.45), -(td / 2 + 0.28)), Color3.fromRGB(218, 188, 68), Enum.PartType.Ball)
+		-- Camera body + lens: Brooks photographs every camp activity
+		local camBody = makePart(model, "CameraBody", Vector3.new(0.62, 0.44, 0.34),
+			at * CFrame.new(-0.28 * scale, -0.30 * scale, -(td / 2 + 0.19)), Color3.fromRGB(28, 28, 34))
+		camBody.Material = Enum.Material.SmoothPlastic
+		local camLens = makePart(model, "CameraLens", Vector3.new(0.24, 0.24, 0.22),
+			at * CFrame.new(-0.28 * scale, -0.30 * scale, -(td / 2 + 0.36)), Color3.fromRGB(12, 12, 18),
+			Enum.PartType.Ball)
+		camLens.Material = Enum.Material.Glass
 	elseif index == 5 then
 		-- Field journal tucked under left arm: Chen logs nature observations
 		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
@@ -1338,6 +1380,14 @@ local function buildProceduralCounselor(
 					at * CFrame.new(i * 0.6 * scale, -(th / 2 - 0.52), -(td / 2 + 0.17)), Color3.fromRGB(70, 52, 32))
 			end
 		end
+		-- Adjustable wrench clipped to right side of belt
+		local wrenchColor = Color3.fromRGB(80, 83, 94)
+		local wrPart = makePart(model, "WrenchHandle", Vector3.new(0.13, 0.70 * scale, 0.12),
+			at * CFrame.new(0.66 * scale, -(th / 2 - 0.58 * scale), -(td / 2 + 0.21)), wrenchColor)
+		wrPart.Material = Enum.Material.Metal
+		local wrJaw = makePart(model, "WrenchJaw", Vector3.new(0.32, 0.18, 0.12),
+			at * CFrame.new(0.66 * scale, -(th / 2 - 0.58 * scale) + 0.37 * scale, -(td / 2 + 0.21)), wrenchColor)
+		wrJaw.Material = Enum.Material.Metal
 	end
 
 	-- Staff ID badge: colored card on a short cord around the neck

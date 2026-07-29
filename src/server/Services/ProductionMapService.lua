@@ -558,6 +558,23 @@ local function createCabin(
 			Enum.Material.Fabric
 		)
 		mattress.CanCollide = false
+		-- Pillow at head (door-side) end of each bunk
+		local pillow = createPart(
+			model, "Pillow",
+			Vector3.new(4.2, 0.36, 1.56),
+			bed.CFrame + Vector3.new(0, 1.405, -3.4),
+			Color3.fromRGB(234, 226, 208),
+			Enum.Material.Fabric
+		)
+		pillow.CanCollide = false
+		-- Footlocker at foot end of each bunk
+		createPart(
+			model, "Footlocker",
+			Vector3.new(4.6, 1.5, 1.8),
+			bed.CFrame + Vector3.new(0, -0.65, 4.5),
+			Color3.fromRGB(58, 44, 28),
+			Enum.Material.WoodPlanks
+		)
 	end
 
 	local tableTop = createPart(
