@@ -127,6 +127,12 @@ export type GameRuntimeService = typeof(
 )
 
 local OBJECTIVE_IDS = { "firewood", "generator", "supplies" }
+-- Uniquely identifies this server instance in reward receipts (JobId is ""
+-- in Studio, where a timestamp keeps separate sessions distinct). Truncated
+-- so receiptIds stay within the profile identifier length limit.
+local SERVER_REWARD_SALT = if game.JobId == ""
+	then string.format("studio-%d", os.time())
+	else string.sub(game.JobId, 1, 8)
 local SEARCH_LOCATIONS = {
 	"main-road-clue-a",
 	"residential-bedroom-clue",
@@ -2341,8 +2347,16 @@ function GameRuntimeService:_ApplyRewards()
 		if participant.controller.kind == "Human" then
 			local player = Players:GetPlayerByUserId(participant.controller.userId)
 			if player then
-				self.profile:ApplyReward(player, {
-					receiptId = string.format("round:%d:user:%d", self.roundId, player.UserId),
+				local result = self.profile:ApplyReward(player, {
+					-- Salted with the server's JobId: roundId restarts at 1 on
+					-- every server, so unsalted receipts collide across servers
+					-- and the duplicate check silently eats legitimate rewards.
+					receiptId = string.format(
+						"%s:round:%d:user:%d",
+						SERVER_REWARD_SALT,
+						self.roundId,
+						player.UserId
+					),
 					roleId = participant.role,
 					participated = participant.role ~= "Spectator",
 					won = participant.team == winner,
@@ -2352,6 +2366,14 @@ function GameRuntimeService:_ApplyRewards()
 					evidenceCollected =
 						self.evidenceByParticipantId[participant.participantId] or 0,
 				})
+				if not result.applied and not result.duplicate then
+					warn(string.format(
+						"[GameRuntimeService] Round %d reward failed for %s: %s",
+						self.roundId,
+						player.Name,
+						tostring(result.reason)
+					))
+				end
 			end
 		end
 	end

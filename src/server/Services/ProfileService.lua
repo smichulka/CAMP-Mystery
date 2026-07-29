@@ -472,6 +472,16 @@ function ProfileService:LoadPlayer(player: Player): ProfileSnapshot
 
 	local success, rawValue, loadError =
 		self.store:LoadAsync(keyForUserId(player.UserId))
+	-- LoadAsync yields (with retries) — re-check the world before caching:
+	-- if the player left, caching would leak an entry no PlayerRemoving will
+	-- ever release (and a failed load would strand them in guest mode on
+	-- rejoin); if a concurrent load already cached a state, keep that one.
+	local playerStillHere = Players:GetPlayerByUserId(player.UserId) == player
+		and player.Parent ~= nil
+	local concurrent = self.profiles[player.UserId]
+	if concurrent then
+		return self:_Snapshot(concurrent)
+	end
 	local profile: PlayerProfile?
 	local migrationError: string?
 	if success then
@@ -487,7 +497,9 @@ function ProfileService:LoadPlayer(player: Player): ProfileSnapshot
 			busy = false,
 			saveError = reason,
 		}
-		self.profiles[player.UserId] = guestState
+		if playerStillHere then
+			self.profiles[player.UserId] = guestState
+		end
 		warn(
 			string.format(
 				"[ProfileService] %s entered guest mode: %s",
@@ -507,7 +519,9 @@ function ProfileService:LoadPlayer(player: Player): ProfileSnapshot
 		busy = false,
 		saveError = nil,
 	}
-	self.profiles[player.UserId] = state
+	if playerStillHere then
+		self.profiles[player.UserId] = state
+	end
 	return self:_Snapshot(state)
 end
 
