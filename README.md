@@ -152,3 +152,21 @@ Per-monster attack sting (server, positional one-shot at the lunge origin, rolls
 
 UI interaction sounds are defined in `src/client/Controllers/UISoundMap.lua`, with one
 `SoundService` attribute per entry (see that file for the current list).
+
+## Image asset drop-in points
+
+UI imagery is key-driven through `ReplicatedStorage/Assets/Images/UI` (mapped by
+`default.project.json`). For each key, set either an attribute on that folder named
+after the key (asset id as number or string), or add a child named after the key
+(`StringValue`/`NumberValue` holding the id, an `ImageLabel`/`ImageButton` whose
+`Image` is the asset, or any instance with an `AssetId` attribute). Unset keys render
+the text-only fallback presentation — no code changes needed to adopt final art.
+
+| Key pattern | Used for | Identifiers |
+| --- | --- | --- |
+| `Equipment_<Id>` | Inventory slot icons | `Flashlight`, `UVLight`, `LaserProjector`, `Camera`, `SpiritBox`, `Thermometer`, `AudioRecorder`, `EMFReader`, `MonsterTrap`, `MedicalKit`, `FlareLantern` |
+| `Role_<Name>` | Role reveal card art | `Camper`, `Detective`, `Medic`, `Trapper`, `Medium`, `Guard`, `Protector`, `Murderer`, `Spectator` |
+| `Evidence_Culprit` | Culprit-channel evidence card icon | — |
+| `Evidence_Monster` | Monster-channel evidence card icon | — |
+| `Evidence_Mystery` | Mystery clue card icon | — |
+| `Evidence_Witness` | Witness account card icon | — |
