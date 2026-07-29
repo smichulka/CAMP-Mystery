@@ -490,6 +490,18 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(side * (width / 2 - 1.5), 4.5, -12)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
+	-- Two wooden steps up to porch (Cabin 2 reference: steps leading up from ground)
+	local stepColor = Color3.fromRGB(60, 42, 28)
+	createPart(model, "PorchStep1", Vector3.new(4.5, 0.55, 1.1),
+		CFrame.new(position + Vector3.new(0, 0.28, -14.1)), stepColor, Enum.Material.WoodPlanks)
+	createPart(model, "PorchStep2", Vector3.new(4.5, 0.55, 1.1),
+		CFrame.new(position + Vector3.new(0, 0.83, -13.0)), stepColor, Enum.Material.WoodPlanks)
+	-- Simple wooden porch chair on one side (Cabin 2 reference: chair visible on porch)
+	local chairColor = Color3.fromRGB(68, 46, 28)
+	createPart(model, "ChairSeat", Vector3.new(1.7, 0.28, 1.5),
+		CFrame.new(position + Vector3.new(width * 0.25, 1.64, -9.8)), chairColor, Enum.Material.WoodPlanks)
+	createPart(model, "ChairBack", Vector3.new(1.7, 1.15, 0.22),
+		CFrame.new(position + Vector3.new(width * 0.25, 2.35, -9.1)), chairColor, Enum.Material.WoodPlanks)
 	local doorState = createInteractiveDoor(
 		model,
 		"Door",
