@@ -1070,6 +1070,19 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			vis.Transparency = 0.18
 		end
 	elseif monsterId == "Wendigo" then
+		-- Deer skull head: bone-colored cranium + hollow dark eye sockets + elongated muzzle
+		local wdHead = model:FindFirstChild("Head") :: BasePart?
+		if wdHead then
+			wdHead.Color = presentation.accent  -- same bone tone as antlers
+		end
+		-- Hollow eye sockets: override glow eyes to dark empty voids (skull silhouette)
+		local wdEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
+		local wdEyeR = model:FindFirstChild("RightGlow") :: BasePart?
+		if wdEyeL then wdEyeL.Color = Color3.fromRGB(10, 8, 10); wdEyeL.Material = Enum.Material.SmoothPlastic end
+		if wdEyeR then wdEyeR.Color = Color3.fromRGB(10, 8, 10); wdEyeR.Material = Enum.Material.SmoothPlastic end
+		-- Elongated skull snout / muzzle protruding from the lower face
+		makePart(model, "SkullSnout", Vector3.new(0.55 * sx, 0.52 * sy, 1.05 * sz),
+			at * CFrame.new(0, headY - 0.22 * sy, -(headSize.Z / 2 + 0.54 * sz)), presentation.accent)
 		makePart(model, "LeftAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(-1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, -0.45), presentation.accent)
 		makePart(model, "RightAntler", Vector3.new(0.35, 4, 0.35), at * CFrame.new(1.5, headY + 1.6, 0) * CFrame.Angles(0, 0, 0.45), presentation.accent)
 		-- Branching tines off each main antler beam (reference shows 5-7 tines per side)
