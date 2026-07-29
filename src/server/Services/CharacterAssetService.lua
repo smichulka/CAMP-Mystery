@@ -2060,6 +2060,14 @@ local function buildProceduralBotCharacter(
 					Color3.fromRGB(205, 80, 125), Enum.PartType.Ball)
 				rose2.Material = Enum.Material.SmoothPlastic
 			end
+			-- Small charm pendant necklace (Girl Camper 3 reference: small pendant at upper chest)
+			local charmChain = makePart(model, "CharmChain", Vector3.new(0.74 * scale, 0.05 * scale, 0.68 * scale),
+				at * CFrame.new(0, th / 2 - 0.32 * scale, 0), Color3.fromRGB(195, 192, 205))
+			charmChain.Material = Enum.Material.Metal
+			local charm = makePart(model, "CharmPendant", Vector3.new(0.16 * scale, 0.18 * scale, 0.07),
+				at * CFrame.new(0, th / 2 - 0.44 * scale, -(td / 2 + 0.09)),
+				Color3.fromRGB(245, 238, 195), Enum.PartType.Ball)
+			charm.Material = Enum.Material.Metal
 			-- Black/white striped knee socks visible above shoes
 			local sockY2 = -(th / 2 + 1.15 * scale)
 			local lxS2 = 0.5 * scale
@@ -2075,15 +2083,35 @@ local function buildProceduralBotCharacter(
 			-- Denim Overalls: denim-blue sneakers, overall bib + suspenders, sun pendant
 			if cLS then cLS.Color = Color3.fromRGB(105, 132, 168) end
 			if cRS then cRS.Color = Color3.fromRGB(105, 132, 168) end
-			local denimBlue = Color3.fromRGB(88, 115, 162)
+			-- Washed denim (lighter than body color, matching Girl Camper 4 reference)
+			local denimBlue = Color3.fromRGB(132, 165, 200)
+			-- White/grey striped under-shirt visible at torso sides (Girl Camper 4 ref)
+			makePart(model, "UnderShirt", Vector3.new(1.88 * scale, th * 0.70, 0.09),
+				at * CFrame.new(0, th * 0.04, -(td / 2 + 0.07)), Color3.fromRGB(232, 232, 232))
+			for si = 0, 2 do
+				makePart(model, "ShirtStripe" .. si, Vector3.new(1.86 * scale, 0.09 * scale, 0.10),
+					at * CFrame.new(0, th * (0.20 - si * 0.18), -(td / 2 + 0.08)),
+					Color3.fromRGB(195, 195, 198))
+			end
 			makePart(model, "OverallBib", Vector3.new(1.55 * scale, th * 0.50, 0.10),
 				at * CFrame.new(0, th * 0.25, -(td / 2 + 0.09)), denimBlue)
+			-- Chest pocket on bib (Girl Camper 4 reference: small pocket on front of bib)
+			makePart(model, "BibPocket", Vector3.new(0.50 * scale, 0.35 * scale, 0.10),
+				at * CFrame.new(0, th * 0.28, -(td / 2 + 0.10)), Color3.fromRGB(115, 148, 185))
 			makePart(model, "SuspL", Vector3.new(0.18, th * 0.44, 0.10),
 				at * CFrame.new(-0.44 * scale, th * 0.22, -(td / 2 + 0.08))
 					* CFrame.Angles(0, 0, 0.22), denimBlue)
 			makePart(model, "SuspR", Vector3.new(0.18, th * 0.44, 0.10),
 				at * CFrame.new( 0.44 * scale, th * 0.22, -(td / 2 + 0.08))
 					* CFrame.Angles(0, 0, -0.22), denimBlue)
+			-- Gold buckle clips where suspenders meet bib top (Girl Camper 4 ref: yellow buckles)
+			local buckleGold = Color3.fromRGB(215, 172, 42)
+			for bSide = -1, 1, 2 do
+				local bkl = makePart(model, "Buckle" .. (if bSide < 0 then "L" else "R"),
+					Vector3.new(0.18 * scale, 0.12 * scale, 0.12),
+					at * CFrame.new(bSide * 0.44 * scale, th * 0.44, -(td / 2 + 0.11)), buckleGold)
+				bkl.Material = Enum.Material.Metal
+			end
 			local sun = makePart(model, "SunPendant", Vector3.new(0.26 * scale, 0.26 * scale, 0.07),
 				at * CFrame.new(0, th / 2 - 0.38 * scale, -(td / 2 + 0.09)),
 				Color3.fromRGB(220, 188, 58))
