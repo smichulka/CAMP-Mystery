@@ -2756,6 +2756,11 @@ local function buildProceduralBotCharacter(
 			-- Bill faces backward (positive Z in local space)
 			makePart(model, "BCapBill", Vector3.new(hs * 1.06, 0.10 * scale, 0.55 * scale),
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, hs * 0.68), bCC)
+			-- Strap adjuster buckle now facing front (silver — prominent in Boy Camper 3 reference)
+			local capBkl = makePart(model, "BCapBuckle", Vector3.new(0.26 * scale, 0.18 * scale, 0.10),
+				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.52)),
+				Color3.fromRGB(82, 86, 96))
+			capBkl.Material = Enum.Material.Metal
 			-- Kangaroo front pocket centered on lower hoodie — signature detail from reference
 			makePart(model, "KangarooPocket", Vector3.new(1.32 * scale, 0.50 * scale, 0.10),
 				at * CFrame.new(0, -(th * 0.28), -(td / 2 + 0.09)),
