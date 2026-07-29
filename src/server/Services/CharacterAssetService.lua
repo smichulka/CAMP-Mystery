@@ -1533,6 +1533,14 @@ local function buildProceduralCounselor(
 		makePart(model, "ScarfTailL", Vector3.new(0.22 * scale, 0.80 * scale, 0.07),
 			at * CFrame.new(-0.56 * scale, scarfTopY - 0.60 * scale, -(td / 2 + 0.10))
 				* CFrame.Angles(0.08, 0, 0.12), scarfNavy)
+		-- Fitness tracker on right wrist (Counslor 6 reference: dark smartwatch visible on wrist)
+		local trY2 = -(th / 2 - 0.24 * scale)
+		makePart(model, "FitnessTracker", Vector3.new(1.04 * scale, 0.22 * scale, 1.04 * scale),
+			at * CFrame.new(ax, trY2, 0), Color3.fromRGB(18, 18, 22))
+		local trScreen = makePart(model, "TrackerScreen", Vector3.new(0.28 * scale, 0.16 * scale, 0.08),
+			at * CFrame.new(ax, trY2, -(0.54 * scale)), Color3.fromRGB(22, 88, 50))
+		trScreen.Material = Enum.Material.Neon
+		trScreen.Transparency = 0.22
 	elseif index == 3 then
 		-- Wide-brim ranger hat: Reed is the Outdoor Skills trail expert
 		local hatBrimY = headY + hs / 2 + 0.15
@@ -1561,6 +1569,14 @@ local function buildProceduralCounselor(
 		makePart(model, "MapFold", Vector3.new(0.06, 0.90 * scale, 0.08),
 			at * CFrame.new(ax + 0.18, 0.0 * scale, -(td / 2 + 0.12))
 				* CFrame.Angles(0, 0.12, 0.18), Color3.fromRGB(168, 148, 88))
+		-- Leather waist belt + buckle (Counslor 2 reference: prominent brown belt with large buckle)
+		local beltC3 = Color3.fromRGB(82, 52, 28)
+		makePart(model, "ReedBelt", Vector3.new(2.04 * scale, 0.24 * scale, td * 1.10),
+			at * CFrame.new(0, -(th / 2 - 0.24 * scale), 0), beltC3)
+		local reedBkl = makePart(model, "ReedBuckle", Vector3.new(0.40 * scale, 0.32 * scale, 0.12),
+			at * CFrame.new(0, -(th / 2 - 0.24 * scale), -(td / 2 + 0.08)),
+			Color3.fromRGB(172, 138, 44))
+		reedBkl.Material = Enum.Material.Metal
 	elseif index == 4 then
 		-- Lanyard + whistle: Brooks runs camp activities
 		makePart(model, "Lanyard", Vector3.new(0.1, 1.5 * scale, 0.08),
@@ -2377,6 +2393,14 @@ local function buildProceduralBotCharacter(
 			-- Right wrist guard band (Boy Camper 1 ref: black strap on right wrist)
 			makePart(model, "WristGuard", Vector3.new(0.90 * scale, 0.26 * scale, 0.90 * scale),
 				at * CFrame.new(ax, -(th / 2 - 0.20 * scale), 0), Color3.fromRGB(18, 18, 22))
+			-- Dark knee pads on both legs (Boy Camper 1 reference: tactical knee guards)
+			local kpC = Color3.fromRGB(18, 18, 22)
+			local kpY = -(th / 2 + 0.82 * scale)
+			for kSide = -1, 1, 2 do
+				makePart(model, "KneePad" .. (if kSide < 0 then "L" else "R"),
+					Vector3.new(1.06 * scale, 0.44 * scale, 1.04 * scale),
+					at * CFrame.new(kSide * 0.5 * scale, kpY, 0), kpC)
+			end
 
 		elseif styleSlot == 8 then
 			-- Flannel & Headphones: white sneakers, teal headphones, white inner hoodie
