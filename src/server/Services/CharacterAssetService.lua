@@ -2153,6 +2153,12 @@ local function buildProceduralBotCharacter(
 			-- Teal Classic: dark sneakers, simple teal snapback
 			if cLS then cLS.Color = Color3.fromRGB(24, 20, 24) end
 			if cRS then cRS.Color = Color3.fromRGB(24, 20, 24) end
+			-- Golden blonde hair (Girl Camper.jpg reference: straight blonde hair)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(212, 178, 88)
+				end
+			end
 			makePart(model, "CapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
 				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), Color3.fromRGB(35, 128, 118))
 			makePart(model, "CapBand", Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),
@@ -2646,6 +2652,16 @@ local function buildProceduralBotCharacter(
 			makePart(model, "HPCupR", Vector3.new(0.40 * scale, 0.52 * scale, 0.32 * scale),
 				at * CFrame.new( (hs / 2 + 0.22 * scale), headY + hs * 0.08, 0),
 				hpC, Enum.PartType.Ball)
+			-- White foam ear-pad visible on inner (head-side) face of each cup (Boy Camper 2 ref)
+			local padWhite = Color3.fromRGB(236, 233, 228)
+			for padSide = -1, 1, 2 do
+				local padX = padSide * (hs / 2 + 0.22 * scale)
+				local padInnerX = padSide * (hs / 2 + 0.06 * scale)
+				local pad = makePart(model, "HPPad" .. (if padSide < 0 then "L" else "R"),
+					Vector3.new(0.28 * scale, 0.40 * scale, 0.10),
+					at * CFrame.new(padInnerX, headY + hs * 0.08, 0), padWhite, Enum.PartType.Ball)
+				pad.Material = Enum.Material.SmoothPlastic
+			end
 			-- Black cargo pants: Boy Camper 2 reference shows black pants under flannel
 			local ll8 = model:FindFirstChild("LeftLeg")  :: BasePart?
 			local rl8 = model:FindFirstChild("RightLeg") :: BasePart?
@@ -2657,6 +2673,12 @@ local function buildProceduralBotCharacter(
 			-- Backwards Cap: white sneakers, backwards snapback, kangaroo hoodie pocket
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
+			-- Dark medium-brown hair peeking below cap (Boy Camper 3 reference)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(72, 36, 12)
+				end
+			end
 			local bCC = Color3.fromRGB(20, 20, 26)
 			makePart(model, "BCapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
 				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), bCC)
