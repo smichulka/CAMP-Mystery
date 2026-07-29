@@ -419,14 +419,23 @@ local function createCabin(
 		Enum.Material.WoodPlanks
 	)
 	-- Corrugated tin roof panels (two sloped halves)
-	-- Positive Z rotation tilts the +X edge up; each panel's inner edge faces the ridge
+	-- Geometry derived from the wall top (y=10) so the panels rest on the walls:
+	-- each panel runs from the ridge at cabin-center X down past the wall with a small overhang.
 	local roofAngle = math.rad(25)
-	local ridgeY = 11.1 + (width / 4 + 1) * math.sin(roofAngle)
+	local overhang = 1.5
+	local half = width / 2
+	local wallTop = 10
+	local ridgeY = wallTop + half * math.tan(roofAngle)
+	local eaveY = wallTop - overhang * math.tan(roofAngle)
+	local panelLen = (half + overhang) / math.cos(roofAngle)
+	local panelCX = (half + overhang) / 2
+	local panelCY = (ridgeY + eaveY) / 2
+	-- Positive Z rotation tilts the +X edge up; each panel's inner edge faces the ridge
 	createPart(
 		model,
 		"RoofLeft",
-		Vector3.new(width / 2 + 2, 1.1, 19),
-		CFrame.new(position + Vector3.new(-width / 4, 11.1, 0))
+		Vector3.new(panelLen, 1.1, 19),
+		CFrame.new(position + Vector3.new(-panelCX, panelCY, 0))
 			* CFrame.Angles(0, 0, roofAngle),
 		tinRoof,
 		Enum.Material.CorrodedMetal
@@ -434,22 +443,23 @@ local function createCabin(
 	createPart(
 		model,
 		"RoofRight",
-		Vector3.new(width / 2 + 2, 1.1, 19),
-		CFrame.new(position + Vector3.new(width / 4, 11.1, 0))
+		Vector3.new(panelLen, 1.1, 19),
+		CFrame.new(position + Vector3.new(panelCX, panelCY, 0))
 			* CFrame.Angles(0, 0, -roofAngle),
 		tinRoof,
 		Enum.Material.CorrodedMetal
 	)
 	-- Roof ridge cap along the peak
 	createPart(model, "RoofRidge", Vector3.new(1.2, 1.2, 19),
-		CFrame.new(position + Vector3.new(0, ridgeY, 0)),
+		CFrame.new(position + Vector3.new(0, ridgeY + 0.35, 0)),
 		Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
 	-- Triangular gable fills on front and back walls
 	-- Two WedgeParts per gable wall, mirrored at cabin center X
 	-- Rotation -90° around Y: local -Z (tall end) → world +X (toward center)
 	-- Rotation +90° around Y: local -Z (tall end) → world -X (toward center)
-	local gableHeight = ridgeY - 10
-	local gableCenterY = 10 + gableHeight / 2
+	-- gableHeight/(width/2) = tan(roofAngle), so the wedge slope matches the roof pitch exactly
+	local gableHeight = ridgeY - wallTop
+	local gableCenterY = wallTop + gableHeight / 2
 	local gableSize = Vector3.new(0.7, gableHeight, width / 2)
 	for _, wallZ in ipairs({ -7.65, 7.65 }) do
 		createWedge(model, "GableLeft", gableSize,
@@ -629,18 +639,26 @@ local function createCabin(
 		name .. " guest book",
 		"LAST ENTRY — lights out at 11:47 PM. Something scratched at the door."
 	)
+	-- Name board hangs from the porch roof edge so it never clips the gable or hides behind the eave
+	local signW = math.min(width - 6, 14)
 	createSign(
 		createPart(
 			model,
 			"CabinSign",
-			Vector3.new(math.min(width - 6, 14), 2.4, 0.35),
-			CFrame.new(position + Vector3.new(0, 9.5, -8.2)),
+			Vector3.new(signW, 1.9, 0.35),
+			CFrame.new(position + Vector3.new(0, 8.15, -12.3)),
 			trimColor,
 			Enum.Material.Wood
 		),
 		string.upper(string.gsub(name, "(%l)(%u)", "%1 %2")),
 		Color3.fromRGB(226, 190, 114)
 	)
+	for hSide = -1, 1, 2 do
+		createPart(model, "SignStrap" .. (if hSide < 0 then "L" else "R"),
+			Vector3.new(0.14, 0.6, 0.14),
+			CFrame.new(position + Vector3.new(hSide * (signW / 2 - 0.8), 9.15, -12.3)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
 	-- Two-step approach from porch down to ground (Cabin 2/4 reference: raised porch feel)
 	createPart(model, "PorchStep1", Vector3.new(4.2, 0.38, 1.5),
 		CFrame.new(position + Vector3.new(0, 0.19, -13.4)),
