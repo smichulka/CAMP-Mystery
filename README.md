@@ -147,5 +147,8 @@ Per-monster positional hunt loop (server, 3D emitter attached to the spawned mon
 model, rolls off 8–90 studs): `MonsterHunt<MonsterId>AssetId` — e.g.
 `MonsterHuntScreamerAssetId`.
 
+Per-monster attack sting (server, positional one-shot at the lunge origin, rolls off
+10–120 studs): `MonsterAttack<MonsterId>AssetId` — e.g. `MonsterAttackDullahanAssetId`.
+
 UI interaction sounds are defined in `src/client/Controllers/UISoundMap.lua`, with one
 `SoundService` attribute per entry (see that file for the current list).

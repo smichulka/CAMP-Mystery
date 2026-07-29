@@ -2109,6 +2109,33 @@ function CharacterAssetService:LungeMonsterToward(targetPosition: Vector3)
 	if not model then
 		return
 	end
+	-- Attack sting slot: plays the MonsterAttack<Id>AssetId SoundService
+	-- attribute (if set) as a positional one-shot at the lunge origin.
+	local monsterId = model:GetAttribute("MonsterId")
+	if type(monsterId) == "string" and monsterId ~= "" then
+		local attackAssetId = SoundService:GetAttribute(
+			"MonsterAttack" .. monsterId .. "AssetId"
+		)
+		local attackSoundId = if type(attackAssetId) == "number" and attackAssetId > 0
+			then "rbxassetid://" .. tostring(attackAssetId)
+			elseif type(attackAssetId) == "string" and attackAssetId ~= "" then attackAssetId
+			else ""
+		local emitter = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+		if attackSoundId ~= "" and emitter then
+			local sting = Instance.new("Sound")
+			sting.Name = "MonsterAttackSting"
+			sting.SoundId = attackSoundId
+			sting.Volume = 1
+			sting.RollOffMode = Enum.RollOffMode.InverseTapered
+			sting.RollOffMinDistance = 10
+			sting.RollOffMaxDistance = 120
+			sting.Parent = emitter
+			sting.Ended:Once(function()
+				sting:Destroy()
+			end)
+			sting:Play()
+		end
+	end
 	local resumePlayer = self.monsterTrackPlayer
 	self:StopMonsterTracking()
 	task.spawn(function()
