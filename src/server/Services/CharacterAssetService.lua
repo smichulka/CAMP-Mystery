@@ -1212,6 +1212,21 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 					* CFrame.Angles(0.28, 0, side * 0.16), fangC)
 			fang.Material = Enum.Material.SmoothPlastic
 		end
+		-- Large pointed ears rising from each side of the head (prominent in parchment drawing)
+		for side = -1, 1, 2 do
+			-- Outer ear shaft: tall narrow block leaning slightly outward
+			local ear = makePart(model, "Ear" .. (if side < 0 then "L" else "R"),
+				Vector3.new(0.36 * sx, 1.40 * sy, 0.28 * sx),
+				at * CFrame.new(side * (headSize.X * 0.52 + 0.10), headY + headSize.Y * 0.62, 0)
+					* CFrame.Angles(0, 0, side * 0.22), presentation.color)
+			ear.Material = Enum.Material.SmoothPlastic
+			-- Darker inner ear (concave feel)
+			local earIn = makePart(model, "EarIn" .. (if side < 0 then "L" else "R"),
+				Vector3.new(0.18 * sx, 1.00 * sy, 0.16 * sx),
+				at * CFrame.new(side * (headSize.X * 0.52 + 0.10), headY + headSize.Y * 0.62, -0.06)
+					* CFrame.Angles(0, 0, side * 0.22), Color3.fromRGB(42, 28, 30))
+			earIn.Material = Enum.Material.SmoothPlastic
+		end
 	elseif monsterId == "Dullahan" then
 		local head = model:FindFirstChild("Head")
 		if head then
