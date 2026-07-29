@@ -1966,6 +1966,15 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(-0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
 			makePart(model, "VestPouchR", Vector3.new(0.55 * scale, 0.55 * scale, 0.14),
 				at * CFrame.new( 0.52 * scale, 0.32, -(td / 2 + 0.16)), Color3.fromRGB(58, 62, 55))
+			-- Action camera clipped to left chest vest panel (matching Boy Camper 1 reference)
+			local camC = Color3.fromRGB(22, 22, 22)
+			local gopro = makePart(model, "ActionCam", Vector3.new(0.34 * scale, 0.26 * scale, 0.20),
+				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.22)), camC)
+			gopro.Material = Enum.Material.SmoothPlastic
+			local goproLens = makePart(model, "CamLens", Vector3.new(0.16 * scale, 0.16 * scale, 0.08),
+				at * CFrame.new(-0.28 * scale, th * 0.26, -(td / 2 + 0.32)),
+				Color3.fromRGB(12, 12, 20), Enum.PartType.Ball)
+			goproLens.Material = Enum.Material.Glass
 			-- Olive patrol cap with a short forward bill
 			local tacOlive = Color3.fromRGB(62, 68, 52)
 			makePart(model, "PatrolCrown", Vector3.new(hs * 1.02, 0.28 * scale, hs * 0.96),
@@ -1990,9 +1999,9 @@ local function buildProceduralBotCharacter(
 				hpC, Enum.PartType.Ball)
 
 		elseif styleSlot == 9 then
-			-- Backwards Cap: dark sneakers, backwards snapback
-			if cLS then cLS.Color = Color3.fromRGB(35, 32, 38) end
-			if cRS then cRS.Color = Color3.fromRGB(35, 32, 38) end
+			-- Backwards Cap: white sneakers, backwards snapback, kangaroo hoodie pocket
+			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
+			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
 			local bCC = Color3.fromRGB(20, 20, 26)
 			makePart(model, "BCapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
 				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), bCC)
@@ -2001,6 +2010,10 @@ local function buildProceduralBotCharacter(
 			-- Bill faces backward (positive Z in local space)
 			makePart(model, "BCapBill", Vector3.new(hs * 1.06, 0.10 * scale, 0.55 * scale),
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, hs * 0.68), bCC)
+			-- Kangaroo front pocket centered on lower hoodie — signature detail from reference
+			makePart(model, "KangarooPocket", Vector3.new(1.32 * scale, 0.50 * scale, 0.10),
+				at * CFrame.new(0, -(th * 0.28), -(td / 2 + 0.09)),
+				Color3.fromRGB(52, 108, 52))
 
 		elseif styleSlot == 10 then
 			-- Pixel Creeper: full-green pixel costume with block-head mask

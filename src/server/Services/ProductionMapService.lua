@@ -728,28 +728,38 @@ local function createBuilding(
 end
 
 local function createStreetlight(parent: Instance, position: Vector3)
-	local pole = createPart(
-		parent,
-		"Streetlight",
-		Vector3.new(0.8, 15, 0.8),
-		CFrame.new(position + Vector3.new(0, 7.5, 0)),
-		Color3.fromRGB(47, 51, 53),
-		Enum.Material.Metal
-	)
-	local lamp = createPart(
-		parent,
-		"Lamp",
-		Vector3.new(3, 1.4, 3),
-		CFrame.new(position + Vector3.new(0, 15, 0)),
-		Color3.fromRGB(170, 184, 145),
-		Enum.Material.Neon
-	)
-	local light = Instance.new("PointLight")
-	light.Brightness = 1.25
-	light.Range = 25
-	light.Color = Color3.fromRGB(184, 200, 160)
-	light.Parent = lamp
+	local poleC = Color3.fromRGB(28, 30, 34)  -- dark wrought iron
+	-- Main pole (slender Victorian shaft)
+	local pole = createPart(parent, "Streetlight", Vector3.new(0.55, 18, 0.55),
+		CFrame.new(position + Vector3.new(0, 9, 0)), poleC, Enum.Material.Metal)
 	pole:SetAttribute("ShadowNode", true)
+	-- Decorative collar ring near the top
+	createPart(parent, "LampCollar", Vector3.new(0.90, 0.42, 0.90),
+		CFrame.new(position + Vector3.new(0, 16.8, 0)), poleC, Enum.Material.Metal)
+	-- Finial ball cap
+	local cap = createPart(parent, "PoleCap", Vector3.new(0.75, 0.75, 0.75),
+		CFrame.new(position + Vector3.new(0, 18.38, 0)), poleC, Enum.Material.Metal)
+	cap.Shape = Enum.PartType.Ball
+	-- Hook arm: horizontal beam + short vertical drop
+	createPart(parent, "LampArm", Vector3.new(3.0, 0.38, 0.38),
+		CFrame.new(position + Vector3.new(1.5, 17.2, 0)), poleC, Enum.Material.Metal)
+	createPart(parent, "LampDrop", Vector3.new(0.38, 1.5, 0.38),
+		CFrame.new(position + Vector3.new(3.0, 16.45, 0)), poleC, Enum.Material.Metal)
+	-- Lantern cage (dark frame surrounding the glow bulb)
+	createPart(parent, "LanternFrame", Vector3.new(1.55, 1.90, 1.55),
+		CFrame.new(position + Vector3.new(3.0, 15.2, 0)), poleC, Enum.Material.Metal)
+	-- Glowing amber bulb inside the cage
+	local glow = createPart(parent, "LanternGlow", Vector3.new(0.95, 1.20, 0.95),
+		CFrame.new(position + Vector3.new(3.0, 15.2, 0)),
+		Color3.fromRGB(255, 208, 140), Enum.Material.Neon)
+	glow.Transparency = 0.22
+	glow.Shape = Enum.PartType.Ball
+	-- Warm amber point light (matches Old Town 1 reference lamp colour)
+	local light = Instance.new("PointLight")
+	light.Brightness = 1.6
+	light.Range = 30
+	light.Color = Color3.fromRGB(255, 205, 140)
+	light.Parent = glow
 end
 
 local function createUtilityPole(parent: Instance, position: Vector3)
@@ -1422,6 +1432,28 @@ function ProductionMapService:Build()
 					CFrame.new(-36, 2.8, -95 - section * 34),
 					Color3.fromRGB(60, 54, 48), Enum.Material.CorrodedMetal)
 			end
+		end
+		-- Ground rubble and fallen plaster chunks scattered along the road
+		-- Matches Old Town 1 reference: irregular concrete debris on the ground
+		local rubbleData = {
+			{ -12, -118, 2.8, 1.1, 2.2, 0.55 },
+			{  10, -148, 1.8, 0.8, 1.6, 1.20 },
+			{ -22, -170, 3.4, 1.3, 2.6, 0.30 },
+			{  18, -210, 2.2, 0.9, 2.0, 2.10 },
+			{ -10, -240, 1.6, 0.7, 1.4, 0.80 },
+			{ -26, -265, 3.0, 1.2, 2.4, 1.60 },
+			{  12, -310, 2.4, 1.0, 2.2, 0.40 },
+			{ -16, -345, 1.8, 0.8, 1.6, 2.50 },
+			{  22, -368, 2.6, 1.1, 2.0, 1.00 },
+			{  -8, -395, 2.0, 0.9, 1.8, 1.80 },
+		}
+		local rubbleC = Color3.fromRGB(148, 142, 134)
+		for i, rd in ipairs(rubbleData) do
+			local chunk = createPart(self.nightTown, "Rubble" .. i,
+				Vector3.new(rd[3], rd[4], rd[5]),
+				CFrame.new(rd[1], rd[4] / 2, rd[2]) * CFrame.Angles(0.14, rd[6], 0.10),
+				rubbleC, Enum.Material.Concrete)
+			chunk.CanCollide = false
 		end
 	end
 
