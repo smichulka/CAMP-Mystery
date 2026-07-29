@@ -2168,9 +2168,12 @@ local function buildProceduralBotCharacter(
 			-- Glitter Bow: white high-tops + oversized bow on head (Girl Camper 2: blush-pink hair)
 			if cLS then cLS.Color = Color3.fromRGB(232, 230, 235) end
 			if cRS then cRS.Color = Color3.fromRGB(232, 230, 235) end
-			-- Blush pink/cream hair matching Girl Camper 2 reference
-			local hairPart1 = model:FindFirstChild("Hair") :: BasePart?
-			if hairPart1 then hairPart1.Color = Color3.fromRGB(238, 208, 215) end
+			-- Blush pink/cream hair matching Girl Camper 2 reference (all hair parts)
+			for _, p in model:GetChildren() do
+				if p:IsA("BasePart") and string.sub(p.Name, 1, 4) == "Hair" then
+					(p :: BasePart).Color = Color3.fromRGB(238, 208, 215)
+				end
+			end
 			local bowPink = Color3.fromRGB(238, 88, 168)
 			makePart(model, "BowL", Vector3.new(0.90 * scale, 0.70 * scale, 0.22 * scale),
 				at * CFrame.new(-0.54 * scale, headY + hs * 0.60, -hs * 0.08)
