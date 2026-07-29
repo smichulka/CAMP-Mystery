@@ -2770,8 +2770,8 @@ local function buildProceduralBotCharacter(
 
 		elseif styleSlot == 10 then
 			-- Pixel Creeper: full-green pixel costume with block-head mask + chest face
-			if cLS then cLS.Color = Color3.fromRGB(88, 158, 55) end
-			if cRS then cRS.Color = Color3.fromRGB(88, 158, 55) end
+			if cLS then cLS.Color = Color3.fromRGB(30, 50, 20) end  -- dark near-black shoe from reference
+			if cRS then cRS.Color = Color3.fromRGB(30, 50, 20) end
 			local pxG = Color3.fromRGB(88, 158, 55)
 			local pxD = Color3.fromRGB(40, 85, 25)
 			-- Block mask sits over the head giving the iconic square pixel look
