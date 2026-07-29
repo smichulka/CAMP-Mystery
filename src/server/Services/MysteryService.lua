@@ -213,7 +213,8 @@ local function buildPlantedCandidateSet(
 	culpritParticipantId: string,
 	frameTargetId: string,
 	suspectIds: { string },
-	clueIndex: number
+	clueIndex: number,
+	maxDecoys: number
 ): { string }
 	local decoys: { string } = {}
 	for _, suspectId in suspectIds do
@@ -222,10 +223,10 @@ local function buildPlantedCandidateSet(
 		end
 	end
 	local candidates: { string } = { frameTargetId }
-	if #decoys > 0 then
+	if #decoys > 0 and maxDecoys >= 1 then
 		table.insert(candidates, decoys[((clueIndex - 1) % #decoys) + 1])
 	end
-	if #decoys > 1 then
+	if #decoys > 1 and maxDecoys >= 2 then
 		table.insert(candidates, decoys[(clueIndex % #decoys) + 1])
 	end
 	table.sort(candidates)
@@ -409,6 +410,14 @@ function MysteryService:BeginRound(
 		)
 	end
 
+	-- Controlled Trace: each rank removes decoys from one more planted source,
+	-- so the frame job implicates fewer bystanders. Authentic clues are never
+	-- touched, which keeps the culprit deduction invariant intact.
+	local frameSharpness = math.clamp(math.floor(request.frameSharpness or 0), 0, 3)
+	if not request.frameTargetId then
+		frameSharpness = 0
+	end
+
 	local seed = deriveSeed(request.roundId, request.roundSeed)
 	local random = Random.new(seed)
 	local frameTargetId = request.frameTargetId
@@ -470,7 +479,8 @@ function MysteryService:BeginRound(
 				request.culpritParticipantId,
 				frameTargetId :: string,
 				suspectIds,
-				clueIndex
+				clueIndex,
+				if clueIndex <= frameSharpness then 1 else 2
 			),
 			{}
 		)
@@ -541,7 +551,8 @@ function MysteryService:BeginRound(
 			request.culpritParticipantId,
 			frameTargetId :: string,
 			suspectIds,
-			1
+			1,
+			if frameSharpness >= 3 then 1 else 2
 		),
 		{}
 	)

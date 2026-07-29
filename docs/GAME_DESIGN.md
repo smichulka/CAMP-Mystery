@@ -331,7 +331,11 @@ mislead the group, injure or eliminate campers, and survive the final accusation
 - Maximum: 1 use per round.
 - Available during `MurderPlanning`.
 - Selects a valid non-culprit frame target and redirects the planted evidence toward
-  that participant.
+  that participant. The chosen target replaces the default frame in the murder plan,
+  so the round's planted mystery clues point at the deliberate target.
+- Deliberate planting also activates the Controlled Trace upgrade: each rank removes
+  the decoy suspects from one more planted mystery clue (rank 3 additionally narrows
+  the mistaken witness account). Authentic clues are never altered.
 - The runtime enforces the once-per-round use. The current direct planning branch does
   not apply the catalog's 30-second cooldown.
 
@@ -903,7 +907,7 @@ Each role has one launch upgrade with a catalog cap of rank 3.
 | Guard | Watchful Post | 125 / +90 | 1 | Guard cooldown −1s/rank and duration +3s/rank |
 | Protector | Focused Ward | 125 / +90 | 1 | Protection cooldown −2s/rank |
 | Detective | Methodical Review | 125 / +90 | 1 | Participant-analysis cooldown −2s/rank |
-| Murderer | Controlled Trace | 150 / +100 | 1 | Role-service fake-evidence cooldown −2s/rank; direct planning branch currently bypasses that commit |
+| Murderer | Controlled Trace | 150 / +100 | 1 | After planting false evidence: rank 1–2 strip decoys from one/both planted mystery clues, rank 3 also narrows the mistaken witness account |
 
 The next-rank token cost is:
 

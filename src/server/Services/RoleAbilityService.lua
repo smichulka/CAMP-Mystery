@@ -105,7 +105,9 @@ local ABILITY_UPGRADES: {
 	["guard-post"] = { id = "watchful-post", cooldownReductionPerRank = 1 },
 	["protect-participant"] = { id = "focused-ward", cooldownReductionPerRank = 2 },
 	["analyze-evidence"] = { id = "methodical-review", cooldownReductionPerRank = 2 },
-	["plant-false-evidence"] = { id = "controlled-trace", cooldownReductionPerRank = 2 },
+	-- controlled-trace is not listed here: plant-false-evidence never passes
+	-- through this service's commit path, and the upgrade instead sharpens
+	-- planted mystery clues at generation time (GameRuntimeService:_beginMystery).
 }
 
 local function phaseIncluded(phase: string, allowed: { string }): boolean

@@ -16,6 +16,9 @@ export type MysteryGenerationRequest = {
 	suspectIds: { string },
 	counselorIds: { string },
 	frameTargetId: string?,
+	-- Controlled Trace rank (0-3); only honored when frameTargetId is a
+	-- deliberate frame job, never for the randomly assigned fallback target.
+	frameSharpness: number?,
 }
 
 export type MysteryClueTemplate = {

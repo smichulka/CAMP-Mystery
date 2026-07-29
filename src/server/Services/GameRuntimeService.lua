@@ -955,6 +955,21 @@ function GameRuntimeService:_assignEvidenceLocations()
 	end
 end
 
+function GameRuntimeService:_getUpgradeRank(
+	participantId: string,
+	upgradeId: string
+): number
+	local participant = self.participants:GetById(participantId)
+	if not participant or participant.controller.kind ~= "Human" then
+		return 0
+	end
+	local player = Players:GetPlayerByUserId(participant.controller.userId)
+	if not player then
+		return 0
+	end
+	return self.profile:GetUpgradeRank(player, participant.role, upgradeId)
+end
+
 function GameRuntimeService:_beginMystery(seed: number?)
 	if self.mysteryReady then
 		return
@@ -981,6 +996,14 @@ function GameRuntimeService:_beginMystery(seed: number?)
 		table.insert(mysterySuspects, counselorIds[counselorIndex])
 		counselorIndex += 1
 	end
+	-- Controlled Trace only sharpens a frame the Murderer deliberately planted;
+	-- the default frame target assigned at round start gets no benefit.
+	local culprit = self.participants:GetById(culpritId)
+	local frameSharpness = 0
+	if culprit and (culprit.abilityUses["plant-false-evidence"] or 0) >= 1 then
+		frameSharpness = self:_getUpgradeRank(culpritId, "controlled-trace")
+	end
+
 	local privateMystery = self.mystery:BeginRound({
 		roundId = self.roundId,
 		roundSeed = seed or self.roundId,
@@ -989,6 +1012,7 @@ function GameRuntimeService:_beginMystery(seed: number?)
 		suspectIds = mysterySuspects,
 		counselorIds = counselorIds,
 		frameTargetId = plan.frameParticipantId,
+		frameSharpness = frameSharpness,
 	})
 
 	self.mysteryClueIdsByLocation = {}
@@ -1874,6 +1898,10 @@ function GameRuntimeService:_useRoleAbility(
 			if not reframed then
 				return actionRejected(frameReason or "Frame target is invalid")
 			end
+		elseif self.murderPlan then
+			-- A frame chosen earlier (default or planted) must survive locking
+			-- the plan, or the planted mystery clues lose their target.
+			frameId = self.murderPlan.frameParticipantId
 		end
 		self.monster:SelectPlanningMonster(self.roundId, monsterId)
 		self.evidence:SetMonsterForRound(monsterId)
@@ -1909,6 +1937,11 @@ function GameRuntimeService:_useRoleAbility(
 			self.evidence:ReframeFake(participant.participantId, frameId)
 		if not reframed then
 			return actionRejected(frameReason or "Frame target is invalid")
+		end
+		-- The mystery is generated from murderPlan, so the deliberate frame must
+		-- replace the default target or the planted evidence points elsewhere.
+		if self.murderPlan then
+			self.murderPlan.frameParticipantId = frameId
 		end
 		participant.abilityUses[abilityId] = 1
 		return {
