@@ -461,13 +461,16 @@ local function createCabin(
 				* CFrame.Angles(0, math.pi / 2, 0),
 			wallColor, Enum.Material.WoodPlanks)
 	end
-	-- Chimney on the back wall
-	createPart(model, "ChimneyBase", Vector3.new(2.4, 6, 2.4),
-		CFrame.new(position + Vector3.new(width * 0.28, 13, 6.5)),
-		stoneColor, Enum.Material.Brick)
-	createPart(model, "ChimneyTop", Vector3.new(2.8, 0.5, 2.8),
-		CFrame.new(position + Vector3.new(width * 0.28, 16.25, 6.5)),
-		Color3.fromRGB(54, 50, 46), Enum.Material.Concrete)
+	-- Round metal stovepipe chimney (vertical cylinder through roof)
+	local pipeColor = Color3.fromRGB(40, 36, 32)
+	createCylinder(model, "Stovepipe",
+		Vector3.new(8, 0.52, 0.52),
+		CFrame.new(position + Vector3.new(width * 0.28, 14.0, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+		pipeColor, Enum.Material.Metal)
+	createCylinder(model, "StovepipeCap",
+		Vector3.new(0.55, 0.80, 0.80),
+		CFrame.new(position + Vector3.new(width * 0.28, 18.3, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
 	-- Porch with posts
 	createPart(
 		model,

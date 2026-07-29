@@ -1708,16 +1708,16 @@ local function buildProceduralBotCharacter(
 			-- Glitter Bow: white high-tops + oversized bow on head
 			if cLS then cLS.Color = Color3.fromRGB(232, 230, 235) end
 			if cRS then cRS.Color = Color3.fromRGB(232, 230, 235) end
-			local bowPink = Color3.fromRGB(238, 128, 175)
-			makePart(model, "BowL", Vector3.new(0.58 * scale, 0.48 * scale, 0.18 * scale),
-				at * CFrame.new(-0.30 * scale, headY + hs * 0.60, -hs * 0.08)
-					* CFrame.Angles(0, 0, 0.42), bowPink)
-			makePart(model, "BowR", Vector3.new(0.58 * scale, 0.48 * scale, 0.18 * scale),
-				at * CFrame.new( 0.30 * scale, headY + hs * 0.60, -hs * 0.08)
-					* CFrame.Angles(0, 0, -0.42), bowPink)
-			makePart(model, "BowKnot", Vector3.new(0.20 * scale, 0.20 * scale, 0.20 * scale),
+			local bowPink = Color3.fromRGB(238, 88, 168)
+			makePart(model, "BowL", Vector3.new(0.90 * scale, 0.70 * scale, 0.22 * scale),
+				at * CFrame.new(-0.54 * scale, headY + hs * 0.60, -hs * 0.08)
+					* CFrame.Angles(0, 0, 0.36), bowPink)
+			makePart(model, "BowR", Vector3.new(0.90 * scale, 0.70 * scale, 0.22 * scale),
+				at * CFrame.new( 0.54 * scale, headY + hs * 0.60, -hs * 0.08)
+					* CFrame.Angles(0, 0, -0.36), bowPink)
+			makePart(model, "BowKnot", Vector3.new(0.28 * scale, 0.28 * scale, 0.24 * scale),
 				at * CFrame.new(0, headY + hs * 0.62, -hs * 0.08),
-				Color3.fromRGB(255, 160, 200), Enum.PartType.Ball)
+				Color3.fromRGB(255, 138, 195), Enum.PartType.Ball)
 
 		elseif styleSlot == 2 then
 			-- Deep Pink: black-pink high-tops, rose hair clip
@@ -1732,61 +1732,131 @@ local function buildProceduralBotCharacter(
 				Color3.fromRGB(255, 128, 178), Enum.PartType.Ball)
 
 		elseif styleSlot == 3 then
-			-- Denim Overalls: white sneakers, gold sun pendant
-			if cLS then cLS.Color = Color3.fromRGB(235, 232, 228) end
-			if cRS then cRS.Color = Color3.fromRGB(235, 232, 228) end
+			-- Denim Overalls: denim-blue sneakers, overall bib + suspenders, sun pendant
+			if cLS then cLS.Color = Color3.fromRGB(105, 132, 168) end
+			if cRS then cRS.Color = Color3.fromRGB(105, 132, 168) end
+			local denimBlue = Color3.fromRGB(88, 115, 162)
+			makePart(model, "OverallBib", Vector3.new(1.55 * scale, th * 0.50, 0.10),
+				at * CFrame.new(0, th * 0.25, -(td / 2 + 0.09)), denimBlue)
+			makePart(model, "SuspL", Vector3.new(0.18, th * 0.44, 0.10),
+				at * CFrame.new(-0.44 * scale, th * 0.22, -(td / 2 + 0.08))
+					* CFrame.Angles(0, 0, 0.22), denimBlue)
+			makePart(model, "SuspR", Vector3.new(0.18, th * 0.44, 0.10),
+				at * CFrame.new( 0.44 * scale, th * 0.22, -(td / 2 + 0.08))
+					* CFrame.Angles(0, 0, -0.22), denimBlue)
 			local sun = makePart(model, "SunPendant", Vector3.new(0.26 * scale, 0.26 * scale, 0.07),
 				at * CFrame.new(0, th / 2 - 0.38 * scale, -(td / 2 + 0.09)),
 				Color3.fromRGB(220, 188, 58))
 			sun.Material = Enum.Material.Metal
 
 		elseif styleSlot == 4 then
-			-- Frog Hoodie: green-grey sneakers + floral bucket hat
-			if cLS then cLS.Color = Color3.fromRGB(90, 115, 88) end
-			if cRS then cRS.Color = Color3.fromRGB(90, 115, 88) end
-			local brimC = Color3.fromRGB(145, 168, 138)
+			-- Frog Hoodie: bright green sneakers + daisy-print bucket hat + frog chest emblem
+			if cLS then cLS.Color = Color3.fromRGB(52, 158, 62) end
+			if cRS then cRS.Color = Color3.fromRGB(52, 158, 62) end
+			local frogGreen = Color3.fromRGB(42, 148, 52)
 			makePart(model, "BucketBrim", Vector3.new(hs * 1.55, 0.14 * scale, hs * 1.55),
-				at * CFrame.new(0, headY + hs / 2 + 0.08, 0), brimC)
+				at * CFrame.new(0, headY + hs / 2 + 0.08, 0), frogGreen)
 			makePart(model, "BucketCrown", Vector3.new(hs * 1.02, hs * 0.55, hs * 1.00),
-				at * CFrame.new(0, headY + hs / 2 + 0.08 + hs * 0.33, 0), Color3.fromRGB(158, 182, 152))
-			local flw = makePart(model, "HatFlower", Vector3.new(0.22 * scale, 0.22 * scale, 0.14),
-				at * CFrame.new(-0.42 * scale, headY + hs / 2 + 0.14, -(hs * 0.60)),
-				Color3.fromRGB(255, 195, 95), Enum.PartType.Ball)
-			flw.Material = Enum.Material.Neon
-			flw.Transparency = 0.35
+				at * CFrame.new(0, headY + hs / 2 + 0.08 + hs * 0.33, 0), Color3.fromRGB(36, 138, 46))
+			-- White daisy accents on hat brim
+			for side = -1, 1, 2 do
+				makePart(model, "Daisy" .. (if side < 0 then "L" else "R"),
+					Vector3.new(0.24 * scale, 0.15, 0.24 * scale),
+					at * CFrame.new(side * 0.38 * scale, headY + hs / 2 + 0.16, -(hs * 0.54)),
+					Color3.fromRGB(245, 245, 245), Enum.PartType.Ball)
+			end
+			-- Frog face emblem on chest
+			local frogFace = makePart(model, "FrogFace", Vector3.new(0.42 * scale, 0.40 * scale, 0.10),
+				at * CFrame.new(0, th * 0.18, -(td / 2 + 0.08)), frogGreen, Enum.PartType.Ball)
+			frogFace.Material = Enum.Material.SmoothPlastic
+			makePart(model, "FrogEyeL", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
+				at * CFrame.new(-0.14 * scale, th * 0.22, -(td / 2 + 0.14)),
+				Color3.fromRGB(18, 18, 18), Enum.PartType.Ball)
+			makePart(model, "FrogEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
+				at * CFrame.new( 0.14 * scale, th * 0.22, -(td / 2 + 0.14)),
+				Color3.fromRGB(18, 18, 18), Enum.PartType.Ball)
 
 		elseif styleSlot == 5 then
-			-- Cat Onesie: white sneakers, cat ears on head
+			-- Cat Onesie: white sneakers, full cat hood with face + ear + stripe details
 			if cLS then cLS.Color = Color3.fromRGB(228, 222, 215) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 222, 215) end
+			-- Full cat hood dome enclosing head
+			makePart(model, "CatHood", Vector3.new(hs * 1.14, hs * 1.08, hs * 1.08),
+				at * CFrame.new(0, headY, 0), bodyColor, Enum.PartType.Ball)
+			-- Cat ears on top of hood
 			makePart(model, "CatEarL", Vector3.new(0.32 * scale, 0.44 * scale, 0.14),
 				at * CFrame.new(-0.44 * scale, headY + hs * 0.68, 0), bodyColor)
 			makePart(model, "CatEarR", Vector3.new(0.32 * scale, 0.44 * scale, 0.14),
 				at * CFrame.new( 0.44 * scale, headY + hs * 0.68, 0), bodyColor)
+			local catInnerPink = Color3.fromRGB(210, 145, 158)
 			makePart(model, "CatEarInL", Vector3.new(0.16 * scale, 0.24 * scale, 0.12),
-				at * CFrame.new(-0.44 * scale, headY + hs * 0.68, -0.04),
-				Color3.fromRGB(235, 165, 188))
+				at * CFrame.new(-0.44 * scale, headY + hs * 0.68, -0.04), catInnerPink)
 			makePart(model, "CatEarInR", Vector3.new(0.16 * scale, 0.24 * scale, 0.12),
-				at * CFrame.new( 0.44 * scale, headY + hs * 0.68, -0.04),
-				Color3.fromRGB(235, 165, 188))
+				at * CFrame.new( 0.44 * scale, headY + hs * 0.68, -0.04), catInnerPink)
+			-- Cat face: nose on front of hood
+			makePart(model, "CatNose", Vector3.new(0.11 * scale, 0.09 * scale, 0.10),
+				at * CFrame.new(0, headY + 0.02 * scale, -(hs * 0.56)),
+				Color3.fromRGB(185, 75, 105), Enum.PartType.Ball)
+			-- Whisker lines (2 per side)
+			for side = -1, 1, 2 do
+				for w = 0, 1 do
+					makePart(model, "Wsk" .. (if side < 0 then "L" else "R") .. w,
+						Vector3.new(0.40 * scale, 0.04, 0.04),
+						at * CFrame.new(side * 0.30 * scale, headY - 0.08 * scale + w * 0.14 * scale, -(hs * 0.54)),
+						Color3.fromRGB(32, 22, 18))
+				end
+			end
+			-- Dark tabby stripe band on torso front
+			local catDark = Color3.fromRGB(96, 52, 22)
+			makePart(model, "CatStripe1", Vector3.new(1.78 * scale, 0.16, 0.10),
+				at * CFrame.new(0, -(th * 0.08), -(td / 2 + 0.09)), catDark)
+			makePart(model, "CatStripe2", Vector3.new(1.78 * scale, 0.14, 0.10),
+				at * CFrame.new(0, -(th * 0.30), -(td / 2 + 0.09)), catDark)
 
 		elseif styleSlot == 6 then
-			-- Axolotl Explorer: purple shoes, pink axolotl hat with gills
+			-- Axolotl Hood: purple shoes, pink hood with fan gills, white hoodie body + navy accents
 			if cLS then cLS.Color = Color3.fromRGB(118, 98, 198) end
 			if cRS then cRS.Color = Color3.fromRGB(118, 98, 198) end
 			local axPink = Color3.fromRGB(255, 168, 198)
+			-- Main axolotl hood dome
 			makePart(model, "AxolotlBody", Vector3.new(hs * 1.10, hs * 0.62, hs * 1.05),
 				at * CFrame.new(0, headY + hs * 0.55, 0), axPink, Enum.PartType.Ball)
-			makePart(model, "AxolotlGillL", Vector3.new(0.22 * scale, 0.44 * scale, 0.15),
-				at * CFrame.new(-hs * 0.58, headY + hs * 0.70, 0), axPink)
-			makePart(model, "AxolotlGillR", Vector3.new(0.22 * scale, 0.44 * scale, 0.15),
-				at * CFrame.new( hs * 0.58, headY + hs * 0.70, 0), axPink)
+			-- 4 gill fins per side, fanning outward with increasing spread
+			local gillData = {
+				{x = 0.50, y = 0.48, angZ = -0.18},
+				{x = 0.60, y = 0.64, angZ = -0.44},
+				{x = 0.60, y = 0.78, angZ = -0.68},
+				{x = 0.46, y = 0.88, angZ = -0.92},
+			}
+			for i, g in ipairs(gillData) do
+				local sz = Vector3.new(0.20 * scale, (0.46 - i * 0.05) * scale, 0.10)
+				local gt = 0.18 + i * 0.05
+				local gL = makePart(model, "GillL" .. i, sz,
+					at * CFrame.new(-hs * g.x, headY + hs * g.y, 0) * CFrame.Angles(0, 0, g.angZ), axPink)
+				gL.Transparency = gt
+				local gR = makePart(model, "GillR" .. i, sz,
+					at * CFrame.new( hs * g.x, headY + hs * g.y, 0) * CFrame.Angles(0, 0, -g.angZ), axPink)
+				gR.Transparency = gt
+			end
+			-- Axolotl hood eyes
 			makePart(model, "AxolotlEyeL", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
 				at * CFrame.new(-0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
 				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
 			makePart(model, "AxolotlEyeR", Vector3.new(0.14 * scale, 0.14 * scale, 0.10),
 				at * CFrame.new( 0.28 * scale, headY + hs * 0.60, -(hs * 0.50)),
 				Color3.fromRGB(28, 20, 20), Enum.PartType.Ball)
+			-- White hoodie body with navy side accents + orange pockets
+			local navyBlue = Color3.fromRGB(38, 58, 128)
+			makePart(model, "HoodieFront", Vector3.new(1.78 * scale, th * 0.90, 0.11),
+				at * CFrame.new(0, 0, -(td / 2 + 0.08)), Color3.fromRGB(240, 238, 232))
+			makePart(model, "HoodieAccL", Vector3.new(0.40 * scale, th * 0.90, 0.11),
+				at * CFrame.new(-0.70 * scale, 0, -(td / 2 + 0.09)), navyBlue)
+			makePart(model, "HoodieAccR", Vector3.new(0.40 * scale, th * 0.90, 0.11),
+				at * CFrame.new( 0.70 * scale, 0, -(td / 2 + 0.09)), navyBlue)
+			makePart(model, "PocketL", Vector3.new(0.44 * scale, 0.38 * scale, 0.12),
+				at * CFrame.new(-0.42 * scale, -(th * 0.26), -(td / 2 + 0.11)), Color3.fromRGB(215, 132, 38))
+			makePart(model, "PocketR", Vector3.new(0.44 * scale, 0.38 * scale, 0.12),
+				at * CFrame.new( 0.42 * scale, -(th * 0.26), -(td / 2 + 0.11)), Color3.fromRGB(215, 132, 38))
 
 		elseif styleSlot == 7 then
 			-- Tactical Vest: dark boots, layered vest panels on chest, patrol cap
@@ -1808,10 +1878,10 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new(0, headY + hs / 2 + 0.005 * scale, -(hs * 0.62)), tacOlive)
 
 		elseif styleSlot == 8 then
-			-- Flannel & Headphones: white sneakers, blue headphones
+			-- Flannel & Headphones: white sneakers, teal headphones
 			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
 			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
-			local hpC = Color3.fromRGB(42, 70, 145)
+			local hpC = Color3.fromRGB(72, 192, 214)
 			makePart(model, "HPArc", Vector3.new(0.14 * scale, hs * 0.60, 0.14 * scale),
 				at * CFrame.new(0, headY + hs * 0.45, 0), hpC)
 			makePart(model, "HPCupL", Vector3.new(0.40 * scale, 0.52 * scale, 0.32 * scale),
@@ -1854,14 +1924,20 @@ local function buildProceduralBotCharacter(
 				at * CFrame.new( 0.26 * scale, headY - 0.26 * scale, -(hs / 2 + 0.58)), pxD)
 
 		else -- styleSlot == 11
-			-- Holo Visor: dark sneakers, colour-shifting iridescent visor
-			if cLS then cLS.Color = Color3.fromRGB(30, 30, 42) end
-			if cRS then cRS.Color = Color3.fromRGB(30, 30, 42) end
+			-- Holo Visor: white sneakers, colour-shifting visor, rose-gold hoodie trim
+			if cLS then cLS.Color = Color3.fromRGB(228, 228, 232) end
+			if cRS then cRS.Color = Color3.fromRGB(228, 228, 232) end
 			local visor = makePart(model, "HoloVisor", Vector3.new(hs * 1.05, hs * 0.25, 0.10),
 				at * CFrame.new(0, headY + hs * 0.08, -(hs / 2 + 0.06)),
 				Color3.fromRGB(120, 190, 255))
 			visor.Material = Enum.Material.Neon
 			visor.Transparency = 0.28
+			-- Rose-gold zip stripe + hem band on the dark hoodie
+			local roseGold = Color3.fromRGB(208, 148, 102)
+			makePart(model, "HoodieZip", Vector3.new(0.14 * scale, th * 0.88, 0.10),
+				at * CFrame.new(0, 0, -(td / 2 + 0.08)), roseGold)
+			makePart(model, "HoodieHem", Vector3.new(2.02 * scale, 0.16 * scale, 0.10),
+				at * CFrame.new(0, -(th / 2 - 0.09 * scale), -(td / 2 + 0.08)), roseGold)
 			task.spawn(function()
 				local holoColors = {
 					Color3.fromRGB(120, 190, 255),
