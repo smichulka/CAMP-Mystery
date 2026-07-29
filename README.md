@@ -114,3 +114,38 @@ and incidents, and [docs/TESTING.md](docs/TESTING.md) for validation.
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the product boundaries, source layout, and current milestone.
+
+## Audio asset drop-in points
+
+All game audio is attribute-driven: set attributes on **SoundService** in Studio (or a
+setup script) and the runtime uses them with no code changes. Unset slots fall back to
+the placeholder asset (base slots), the generic monster loop (per-monster heartbeats),
+or silence (positional hunt loops).
+
+Base slots (`SoundService` attributes, client `AudioController`):
+
+| Attribute | Purpose |
+| --- | --- |
+| `LobbyMusicAssetId` | Lobby music loop |
+| `CampMusicAssetId` | Day/campfire music loop |
+| `NightMusicAssetId` | Night/investigation music loop |
+| `ResultsMusicAssetId` | Resolution/rewards music loop |
+| `CampAmbienceAssetId` | Day ambience loop |
+| `NightAmbienceAssetId` | Night ambience loop |
+| `PhaseChimeAssetId` | Phase-change chime |
+| `EvidenceFoundAssetId` | Evidence discovery sting |
+| `VoteOpenAssetId` | Campfire vote-open sting |
+| `MonsterActiveAssetId` | Generic monster proximity heartbeat loop |
+| `RewardAssetId` | Round reward sting |
+
+Per-monster proximity heartbeat (client, replaces the generic loop for that monster's
+rounds): `MonsterActive<MonsterId>AssetId` — e.g. `MonsterActiveWendigoAssetId`,
+`MonsterActiveBansheeAssetId`. Valid ids: `BabyAlien`, `Screamer`, `Wendigo`,
+`ShadowMonster`, `Chupacabra`, `Dullahan`, `Entity`, `Banshee`.
+
+Per-monster positional hunt loop (server, 3D emitter attached to the spawned monster
+model, rolls off 8–90 studs): `MonsterHunt<MonsterId>AssetId` — e.g.
+`MonsterHuntScreamerAssetId`.
+
+UI interaction sounds are defined in `src/client/Controllers/UISoundMap.lua`, with one
+`SoundService` attribute per entry (see that file for the current list).

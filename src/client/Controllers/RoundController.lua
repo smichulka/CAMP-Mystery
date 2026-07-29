@@ -199,6 +199,39 @@ local function monsterDreadFraction(snapshot: any): number
 	return 1 - ((distance - 8) / 32)
 end
 
+-- Which monster's audio should play. The public snapshot only exposes
+-- monsterId at resolution, but during night phases the spawned monster
+-- model (visible to everyone anyway) carries its id as an attribute.
+local function resolveActiveMonsterId(snapshot: any): string?
+	if type(snapshot) ~= "table" or type(snapshot.round) ~= "table" then
+		return nil
+	end
+	local phase = snapshot.round.phase
+	if phase ~= "Investigation" and phase ~= "NightTransform" then
+		return nil
+	end
+	if type(snapshot.round.monsterId) == "string" and snapshot.round.monsterId ~= "" then
+		return snapshot.round.monsterId
+	end
+	local runtime = workspace:FindFirstChild("Runtime")
+	local characters = if runtime then runtime:FindFirstChild("Characters") else nil
+	local generated = if characters
+		then characters:FindFirstChild("GeneratedCharacters")
+		else nil
+	if not generated then
+		return nil
+	end
+	for _, child in generated:GetChildren() do
+		if child:IsA("Model") then
+			local monsterId = child:GetAttribute("MonsterId")
+			if type(monsterId) == "string" and monsterId ~= "" then
+				return monsterId
+			end
+		end
+	end
+	return nil
+end
+
 local function evidenceList(snapshot: any, key: string): { any }
 	if type(snapshot) ~= "table" or type(snapshot.evidence) ~= "table" then
 		return {}
@@ -1174,6 +1207,7 @@ local function updateReleaseExperience(
 	InteractionController.SetPromptsEnabled(not isGhost and roleName ~= "Spectator")
 	local dreadFraction = monsterDreadFraction(snapshot)
 	currentCinematics:SetMonsterDread(dreadFraction)
+	currentAudio:SetActiveMonster(resolveActiveMonsterId(snapshot))
 	if roleName == "Murderer" or isGhost or roleName == "Spectator" then
 		currentAudio:SetHeartbeatIntensity(0)
 	else

@@ -27,6 +27,7 @@ type AudioControllerState = {
 	lastPhase: string?,
 	lastEvidenceFound: number,
 	heartbeatIntensity: number,
+	activeMonsterId: string?,
 	onSubtitle: ((text: string, duration: number) -> ())?,
 	destroyed: boolean,
 }
@@ -136,6 +137,32 @@ for _, definition in UISoundMap.Definitions do
 		attribute = definition.attribute,
 		looped = false,
 		defaultAssetId = definition.defaultAssetId,
+	})
+end
+
+-- Per-monster proximity loops. Each is a drop-in slot: set the SoundService
+-- attribute "MonsterActive<Id>AssetId" to a final asset and that monster's
+-- rounds use it automatically; unset slots fall back to the generic
+-- MonsterActive loop. No code changes needed to adopt final audio.
+local MONSTER_DISPLAY_NAMES: { [string]: string } = {
+	BabyAlien = "Baby Alien",
+	Screamer = "Screamer",
+	Wendigo = "Wendigo",
+	ShadowMonster = "Shadow Monster",
+	Chupacabra = "Chupacabra",
+	Dullahan = "Dullahan",
+	Entity = "Entity",
+	Banshee = "Banshee",
+}
+
+for monsterId, displayName in MONSTER_DISPLAY_NAMES do
+	table.insert(DEFINITIONS, {
+		name = "MonsterActive_" .. monsterId,
+		channel = "Effects",
+		attribute = "MonsterActive" .. monsterId .. "AssetId",
+		looped = true,
+		subtitle = "The " .. displayName .. " is nearby.",
+		defaultAssetId = nil,
 	})
 end
 
@@ -274,6 +301,7 @@ function AudioController.new(options: AudioOptions?): AudioController
 		lastPhase = nil,
 		lastEvidenceFound = 0,
 		heartbeatIntensity = 0,
+		activeMonsterId = nil,
 		onSubtitle = resolved.onSubtitle,
 		destroyed = false,
 	}, AudioController)
@@ -385,6 +413,39 @@ function AudioController:ApplySettings(settings: any)
 	self:SetHeartbeatIntensity(self.heartbeatIntensity)
 end
 
+function AudioController:_heartbeatSound(): Sound?
+	local monsterId = self.activeMonsterId
+	if monsterId then
+		local specific = self.sounds["MonsterActive_" .. monsterId]
+		if specific and self:_configured(specific) then
+			return specific
+		end
+	end
+	return self.sounds.MonsterActive
+end
+
+-- Selects which proximity loop plays for the current round's monster.
+-- Pass nil outside night phases; unset monster slots fall back to the
+-- generic MonsterActive loop.
+function AudioController:SetActiveMonster(monsterId: string?)
+	if self.destroyed then
+		return
+	end
+	local resolved = if type(monsterId) == "string" and monsterId ~= ""
+		then monsterId
+		else nil
+	if self.activeMonsterId == resolved then
+		return
+	end
+	local previous = self:_heartbeatSound()
+	self.activeMonsterId = resolved
+	local current = self:_heartbeatSound()
+	if previous and previous ~= current and previous.IsPlaying then
+		previous:Stop()
+	end
+	self:SetHeartbeatIntensity(self.heartbeatIntensity)
+end
+
 function AudioController:SetHeartbeatIntensity(fraction: number)
 	if self.destroyed then
 		return
@@ -393,7 +454,7 @@ function AudioController:SetHeartbeatIntensity(fraction: number)
 		then math.clamp(fraction, 0, 1)
 		else 0
 	self.heartbeatIntensity = resolved
-	local heartbeat = self.sounds.MonsterActive
+	local heartbeat = self:_heartbeatSound()
 	if not heartbeat then
 		return
 	end

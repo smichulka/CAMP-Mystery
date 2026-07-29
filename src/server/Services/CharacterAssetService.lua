@@ -1,6 +1,7 @@
 --!strict
 
 local ServerStorage = game:GetService("ServerStorage")
+local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local CounselorCatalog = require(
@@ -2036,6 +2037,29 @@ function CharacterAssetService:SpawnMonster(
 	model:SetAttribute("ParticipantId", participantId)
 	model:PivotTo(at)
 	model.Parent = self.container
+	-- Positional hunt-loop slot: set the SoundService attribute
+	-- "MonsterHunt<Id>AssetId" to a final asset id and that monster emits it
+	-- in 3D while spawned; unset slots stay silent. Drop-in, no code changes.
+	local huntAssetId = SoundService:GetAttribute("MonsterHunt" .. monsterId .. "AssetId")
+	local huntSoundId = if type(huntAssetId) == "number" and huntAssetId > 0
+		then "rbxassetid://" .. tostring(huntAssetId)
+		elseif type(huntAssetId) == "string" and huntAssetId ~= "" then huntAssetId
+		else ""
+	if huntSoundId ~= "" then
+		local emitter = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+		if emitter then
+			local hunt = Instance.new("Sound")
+			hunt.Name = "MonsterHuntLoop"
+			hunt.SoundId = huntSoundId
+			hunt.Looped = true
+			hunt.Volume = 0.85
+			hunt.RollOffMode = Enum.RollOffMode.InverseTapered
+			hunt.RollOffMinDistance = 8
+			hunt.RollOffMaxDistance = 90
+			hunt.Parent = emitter
+			hunt:Play()
+		end
+	end
 	self.monsterModel = model
 	self:PlayMonsterState("Transform", false)
 	return model
