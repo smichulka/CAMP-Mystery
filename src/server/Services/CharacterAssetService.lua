@@ -1316,6 +1316,14 @@ local function buildProceduralCounselor(
 			at * CFrame.new(ax + 0.26, 0.3 * scale, -(td / 2 + 0.09)), Color3.fromRGB(34, 38, 42))
 		makePart(model, "RadioAntenna", Vector3.new(0.09, 0.75 * scale, 0.09),
 			at * CFrame.new(ax + 0.46, 0.9 * scale, -(td / 2 + 0.09)), Color3.fromRGB(55, 60, 65))
+		-- Earpiece headset: field-commander ref shows headset + mic boom
+		local hsetC = Color3.fromRGB(28, 28, 32)
+		makePart(model, "Earpiece", Vector3.new(0.20 * scale, 0.22 * scale, 0.14),
+			at * CFrame.new(-(hs / 2 + 0.06), headY + 0.04 * scale, -(hs * 0.22)),
+			hsetC, Enum.PartType.Ball)
+		makePart(model, "MicBoom", Vector3.new(0.07, 0.38 * scale, 0.07),
+			at * CFrame.new(-(hs / 2 + 0.02), headY - 0.22 * scale, -(hs * 0.42)),
+			hsetC)
 	elseif index == 2 then
 		-- Medical pack + red cross on torso: Ortiz is Health & Safety
 		makePart(model, "FirstAidPack", Vector3.new(2.0 * scale * 0.8, th * 0.5, 0.45),
@@ -1393,6 +1401,22 @@ local function buildProceduralCounselor(
 			at * CFrame.new(-0.28 * scale, -0.30 * scale, -(td / 2 + 0.36)), Color3.fromRGB(12, 12, 18),
 			Enum.PartType.Ball)
 		camLens.Material = Enum.Material.Glass
+		-- Colorful beaded necklace (bohemian free-spirit reference)
+		local beadColors = {
+			Color3.fromRGB(215, 65, 65),
+			Color3.fromRGB(52, 118, 215),
+			Color3.fromRGB(62, 168, 68),
+			Color3.fromRGB(212, 158, 42),
+			Color3.fromRGB(168, 58, 185),
+		}
+		for i = 1, #beadColors do
+			local bXOffset = (i - 3) * 0.28 * scale
+			local bead = makePart(model, "Bead" .. i,
+				Vector3.new(0.20, 0.20, 0.14),
+				at * CFrame.new(bXOffset, th / 2 - 0.32 * scale, -(td / 2 + 0.09)),
+				beadColors[i], Enum.PartType.Ball)
+			bead.Material = Enum.Material.SmoothPlastic
+		end
 	elseif index == 5 then
 		-- Field journal tucked under left arm: Chen logs nature observations
 		makePart(model, "FieldJournal", Vector3.new(1.15 * scale, 1.5 * scale, 0.26),
