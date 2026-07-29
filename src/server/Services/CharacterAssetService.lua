@@ -2009,9 +2009,9 @@ local function buildProceduralBotCharacter(
 		end
 
 		if styleSlot == 0 then
-			-- Teal Classic: mint sneakers, simple teal snapback
-			if cLS then cLS.Color = Color3.fromRGB(45, 160, 150) end
-			if cRS then cRS.Color = Color3.fromRGB(45, 160, 150) end
+			-- Teal Classic: dark sneakers, simple teal snapback
+			if cLS then cLS.Color = Color3.fromRGB(24, 20, 24) end
+			if cRS then cRS.Color = Color3.fromRGB(24, 20, 24) end
 			makePart(model, "CapCrown", Vector3.new(hs * 1.04, 0.30 * scale, hs * 0.98),
 				at * CFrame.new(0, headY + hs / 2 + 0.15 * scale, 0), Color3.fromRGB(35, 128, 118))
 			makePart(model, "CapBand", Vector3.new(hs * 1.06, 0.11 * scale, hs * 1.00),

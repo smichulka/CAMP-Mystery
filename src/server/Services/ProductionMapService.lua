@@ -358,7 +358,7 @@ local function createCabin(
 	model.Name = name
 	model.Parent = parent
 
-	local wallColor  = Color3.fromRGB(94, 68, 46)   -- aged timber
+	local wallColor  = Color3.fromRGB(112, 102, 90)   -- weathered grey-silver log (matches references)
 	local trimColor  = Color3.fromRGB(46, 32, 22)
 	local tinRoof    = Color3.fromRGB(88, 84, 76)    -- weathered corrugated tin
 	local stoneColor = Color3.fromRGB(72, 68, 62)    -- mossy stone foundation
