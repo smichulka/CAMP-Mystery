@@ -2165,6 +2165,151 @@ function ProductionMapService:Build()
 		for index = 1, 9 do
 			createStreetlight(self.nightTown, Vector3.new(if index % 2 == 0 then 18 else -18, 0, -62 - index * 38))
 		end
+		-- East district: a second north-south street with connecting cross
+		-- streets turns the strip into a town grid — diner, motel, school,
+		-- rowhouses, a fountain plaza, and the churchyard
+		createPart(self.nightTown, "TownGroundEast", Vector3.new(120, 1, 430),
+			CFrame.new(210, -0.5, -230), Color3.fromRGB(47, 51, 48), Enum.Material.Ground)
+		createPart(self.nightTown, "EastStreet", Vector3.new(24, 1, 360),
+			CFrame.new(150, 0.05, -240), Color3.fromRGB(36, 39, 42), Enum.Material.Asphalt)
+		for _, crossZ in { -150, -320 } do
+			createPart(self.nightTown, "CrossStreet" .. tostring(-crossZ), Vector3.new(110, 1, 18),
+				CFrame.new(81, 0.05, crossZ), Color3.fromRGB(38, 41, 43), Enum.Material.Asphalt)
+		end
+		createStreetlight(self.nightTown, Vector3.new(138, 0, -130))
+		createStreetlight(self.nightTown, Vector3.new(162, 0, -200))
+		createStreetlight(self.nightTown, Vector3.new(138, 0, -270))
+		createStreetlight(self.nightTown, Vector3.new(162, 0, -340))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Diner", Vector3.new(190, 0, -140), Vector3.new(30, 14, 24), Color3.fromRGB(94, 76, 60), "MOONLIGHT DINER", math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "School", Vector3.new(194, 0, -320), Vector3.new(40, 18, 30), Color3.fromRGB(88, 82, 74), "HOLLOW CREEK SCHOOL", math.pi / 2))
+		local rowhouseColors = {
+			Color3.fromRGB(74, 68, 60),
+			Color3.fromRGB(68, 64, 62),
+			Color3.fromRGB(78, 70, 58),
+		}
+		for rowIndex = 1, 3 do
+			table.insert(self.interactiveDoors, createBuilding(
+				self.nightTown,
+				"Rowhouse" .. tostring(rowIndex),
+				Vector3.new(120, 0, -172 - rowIndex * 18),
+				Vector3.new(16, 15, 14),
+				rowhouseColors[rowIndex],
+				"NO. " .. tostring(rowIndex * 2 + 1),
+				-math.pi / 2
+			))
+		end
+		-- Tall Pines Motel: room strip with four numbered doors facing the street
+		local motelWall = Color3.fromRGB(82, 72, 66)
+		createPart(self.nightTown, "MotelBlock", Vector3.new(16, 12, 44),
+			CFrame.new(196, 6, -220), motelWall, Enum.Material.Concrete)
+		createPart(self.nightTown, "MotelRoof", Vector3.new(18, 0.5, 46),
+			CFrame.new(196, 12.3, -220), Color3.fromRGB(52, 48, 44), Enum.Material.CorrodedMetal)
+		createPart(self.nightTown, "MotelWalk", Vector3.new(3, 0.4, 44),
+			CFrame.new(186.5, 0.7, -220), Color3.fromRGB(70, 70, 66), Enum.Material.Concrete)
+		for roomIndex = 1, 4 do
+			local roomZ = -197.5 - roomIndex * 9
+			createPart(self.nightTown, "MotelDoor" .. tostring(roomIndex),
+				Vector3.new(0.4, 7, 3.2),
+				CFrame.new(187.9, 3.6, roomZ),
+				Color3.fromRGB(58, 84, 88), Enum.Material.Wood)
+			local roomLamp = createPart(self.nightTown, "MotelRoomLamp" .. tostring(roomIndex),
+				Vector3.new(0.3, 0.5, 0.5),
+				CFrame.new(187.8, 7.8, roomZ),
+				Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
+			roomLamp.CanCollide = false
+			createPart(self.nightTown, "MotelWindow" .. tostring(roomIndex),
+				Vector3.new(0.3, 3, 3.4),
+				CFrame.new(187.9, 5.4, roomZ + 4.6),
+				Color3.fromRGB(38, 44, 52), Enum.Material.Glass, 0.15)
+		end
+		for postIndex = 0, 4 do
+			createPart(self.nightTown, "MotelPost" .. tostring(postIndex),
+				Vector3.new(0.4, 11.6, 0.4),
+				CFrame.new(186.2, 5.8, -200 - postIndex * 10),
+				Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
+		end
+		createPart(self.nightTown, "MotelSignPole", Vector3.new(0.5, 9, 0.5),
+			CFrame.new(178, 4.5, -198), Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
+		local motelBoard = createPart(self.nightTown, "MotelSignBoard", Vector3.new(6, 3, 0.4),
+			CFrame.new(178, 10, -198) * CFrame.Angles(0, math.rad(90), 0),
+			Color3.fromRGB(30, 34, 40), Enum.Material.SmoothPlastic)
+		createSign(motelBoard, "TALL PINES MOTEL", Color3.fromRGB(226, 190, 114))
+		-- Fountain plaza between the gas station and the police station
+		local plazaStone = Color3.fromRGB(96, 96, 90)
+		createCylinder(self.nightTown, "PlazaFloor", Vector3.new(0.4, 40, 40),
+			CFrame.new(55, 0.2, -255) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(78, 78, 74), Enum.Material.Cobblestone)
+		createCylinder(self.nightTown, "FountainRing", Vector3.new(1.8, 14, 14),
+			CFrame.new(55, 0.9, -255) * CFrame.Angles(0, 0, math.rad(90)),
+			plazaStone, Enum.Material.Concrete)
+		local fountainWater = createCylinder(self.nightTown, "FountainWater", Vector3.new(0.5, 11, 11),
+			CFrame.new(55, 1.35, -255) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(46, 72, 84), Enum.Material.Glass)
+		fountainWater.Transparency = 0.3
+		fountainWater.CanCollide = false
+		createCylinder(self.nightTown, "FountainPillar", Vector3.new(2.6, 1.2, 1.2),
+			CFrame.new(55, 1.9, -255) * CFrame.Angles(0, 0, math.rad(90)),
+			plazaStone, Enum.Material.Concrete)
+		createCylinder(self.nightTown, "FountainBowl", Vector3.new(0.5, 5, 5),
+			CFrame.new(55, 3.35, -255) * CFrame.Angles(0, 0, math.rad(90)),
+			plazaStone, Enum.Material.Concrete)
+		createPart(self.nightTown, "PlazaBenchA", Vector3.new(4.5, 0.4, 1.4),
+			CFrame.new(43, 1.1, -244) * CFrame.Angles(0, math.rad(40), 0),
+			Color3.fromRGB(58, 44, 30), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "PlazaBenchB", Vector3.new(4.5, 0.4, 1.4),
+			CFrame.new(67, 1.1, -266) * CFrame.Angles(0, math.rad(-140), 0),
+			Color3.fromRGB(58, 44, 30), Enum.Material.WoodPlanks)
+		-- Churchyard: fenced graveyard beside the abandoned church
+		local graveStone = Color3.fromRGB(128, 126, 118)
+		local fenceIron = Color3.fromRGB(56, 52, 48)
+		for _, postSpot in {
+			Vector3.new(-65, 0, -421), Vector3.new(-52, 0, -421), Vector3.new(-39, 0, -421),
+			Vector3.new(-65, 0, -430), Vector3.new(-39, 0, -430),
+			Vector3.new(-65, 0, -439), Vector3.new(-52, 0, -439), Vector3.new(-39, 0, -439),
+		} do
+			createPart(self.nightTown, "GraveFencePost", Vector3.new(0.35, 2.6, 0.35),
+				CFrame.new(postSpot + Vector3.new(0, 1.3, 0)), fenceIron, Enum.Material.CorrodedMetal)
+		end
+		for _, railY in { 1.1, 1.9 } do
+			createPart(self.nightTown, "GraveRailNorth", Vector3.new(26, 0.18, 0.18),
+				CFrame.new(-52, railY, -421), fenceIron, Enum.Material.CorrodedMetal)
+			createPart(self.nightTown, "GraveRailSouth", Vector3.new(26, 0.18, 0.18),
+				CFrame.new(-52, railY, -439), fenceIron, Enum.Material.CorrodedMetal)
+			createPart(self.nightTown, "GraveRailWest", Vector3.new(0.18, 0.18, 18),
+				CFrame.new(-65, railY, -430), fenceIron, Enum.Material.CorrodedMetal)
+		end
+		local graveSpots = {
+			{ x = -61, z = -426, tilt = 4 },
+			{ x = -56, z = -424, tilt = -6 },
+			{ x = -49, z = -427, tilt = 2 },
+			{ x = -44, z = -424, tilt = -3 },
+			{ x = -60, z = -434, tilt = 7 },
+			{ x = -53, z = -436, tilt = -5 },
+			{ x = -45, z = -434, tilt = 3 },
+		}
+		for graveIndex, grave in graveSpots do
+			createPart(self.nightTown, "Gravestone" .. tostring(graveIndex),
+				Vector3.new(1.6, 2.2, 0.4),
+				CFrame.new(grave.x, 1.1, grave.z) * CFrame.Angles(0, 0, math.rad(grave.tilt)),
+				graveStone, Enum.Material.Concrete)
+		end
+		createPart(self.nightTown, "GraveCrossV", Vector3.new(0.4, 2.6, 0.4),
+			CFrame.new(-64, 1.3, -428), Color3.fromRGB(88, 70, 52), Enum.Material.Wood)
+		createPart(self.nightTown, "GraveCrossH", Vector3.new(1.4, 0.4, 0.4),
+			CFrame.new(-64, 1.9, -428), Color3.fromRGB(88, 70, 52), Enum.Material.Wood)
+		-- Alley clutter and outskirts trees for the new blocks
+		createCylinder(self.nightTown, "AlleyBarrel", Vector3.new(2.4, 2.2, 2.2),
+			CFrame.new(-92, 1.2, -158) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(68, 48, 32), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "AlleyCrateA", Vector3.new(2.2, 2.2, 2.2),
+			CFrame.new(-89, 1.1, -161), Color3.fromRGB(82, 65, 44), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "AlleyCrateB", Vector3.new(1.7, 1.7, 1.7),
+			CFrame.new(-91, 1.0, -163), Color3.fromRGB(75, 60, 40), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "PoliceCrate", Vector3.new(2.2, 2.2, 2.2),
+			CFrame.new(108, 1.1, -368), Color3.fromRGB(82, 65, 44), Enum.Material.WoodPlanks)
+		createBareTree(self.nightTown, Vector3.new(170, 0, -175), 16)
+		createBareTree(self.nightTown, Vector3.new(215, 0, -260), 18)
+		createBareTree(self.nightTown, Vector3.new(176, 0, -368), 15)
 		-- Dead/bare trees scattered around the outskirts for atmosphere
 		local bareTreePositions = {
 			Vector3.new(-135, 0, -150), Vector3.new(-140, 0, -340),
