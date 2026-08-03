@@ -97,6 +97,7 @@ type GameRuntimeServiceState = {
 	evidenceAliasById: { [string]: string },
 	mysteryClueIdsByLocation: { [string]: { string } },
 	mysteryReady: boolean,
+	lastMonsterId: MonsterId?,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -126,7 +127,7 @@ export type GameRuntimeService = typeof(
 	setmetatable({} :: GameRuntimeServiceState, GameRuntimeService)
 )
 
-local OBJECTIVE_IDS = { "firewood", "generator", "supplies" }
+local OBJECTIVE_IDS = { "firewood", "generator", "supplies", "ropes" }
 -- Uniquely identifies this server instance in reward receipts (JobId is ""
 -- in Studio, where a timestamp keeps separate sessions distinct). Truncated
 -- so receiptIds stay within the profile identifier length limit.
@@ -142,16 +143,7 @@ local SEARCH_LOCATIONS = {
 	"police-evidence-room-clue",
 	"outskirts-company-house-clue",
 }
-local MONSTER_ORDER: { MonsterId } = {
-	"BabyAlien",
-	"Screamer",
-	"Wendigo",
-	"ShadowMonster",
-	"Chupacabra",
-	"Dullahan",
-	"Entity",
-	"Banshee",
-}
+local MONSTER_ORDER: { MonsterId } = require(Shared.Config:WaitForChild("MonsterOrder"))
 local DEVICE_EVIDENCE: { [EquipmentId]: boolean } = {
 	UVLight = true,
 	LaserProjector = true,
@@ -1066,6 +1058,21 @@ function GameRuntimeService:_discoverMysteryAtLocation(
 	return revealed
 end
 
+function GameRuntimeService:_selectRoundMonster(roundId: number, seed: number?): MonsterId
+	-- Random pick excluding last round's monster so fresh servers do not
+	-- always open with the same monster; explicit seeds stay reproducible.
+	local pool: { MonsterId } = {}
+	for _, candidateId in MONSTER_ORDER do
+		if candidateId ~= self.lastMonsterId then
+			table.insert(pool, candidateId)
+		end
+	end
+	local rng = Random.new((seed or os.time()) + roundId * 7919)
+	local monsterId = pool[rng:NextInteger(1, #pool)]
+	self.lastMonsterId = monsterId
+	return monsterId
+end
+
 function GameRuntimeService:BeginRound(
 	participantIds: { string }?,
 	seed: number?
@@ -1106,7 +1113,7 @@ function GameRuntimeService:BeginRound(
 
 	local culprit = self:_findCulprit()
 	self.culpritParticipantId = culprit.participantId
-	local monsterId = MONSTER_ORDER[((roundId - 1) % #MONSTER_ORDER) + 1]
+	local monsterId = self:_selectRoundMonster(roundId, seed)
 	self.monster:SelectForRound(roundId, culprit.participantId, monsterId)
 	self.evidence:BeginRound(roundId, culprit.participantId, monsterId, seed)
 	local frameTarget = self:_defaultFrameTarget(culprit.participantId)
@@ -2382,7 +2389,9 @@ function GameRuntimeService:_ApplyRewards()
 		return
 	end
 	for _, participant in self.participants:GetAll() do
-		if participant.controller.kind == "Human" then
+		-- Spectators earn nothing and ProfileService rejects their roleId;
+		-- skipping them keeps round-end logs clean.
+		if participant.controller.kind == "Human" and participant.role ~= "Spectator" then
 			local player = Players:GetPlayerByUserId(participant.controller.userId)
 			if player then
 				local result = self.profile:ApplyReward(player, {

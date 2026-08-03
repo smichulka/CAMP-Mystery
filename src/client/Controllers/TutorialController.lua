@@ -271,45 +271,67 @@ function TutorialController:_findForContext(context: string): StepDefinition?
 	return nil
 end
 
+-- Mirrors currentContext: which cards this role can ever be shown.
+local function stepApplies(stepId: string, role: string): boolean
+	if stepId == TutorialController.StepIds.Spectator then
+		return role == "Spectator"
+	end
+	-- Spectators only pass through Lobby before getting the Spectator context;
+	-- all other step contexts are never returned for them by currentContext.
+	if role == "Spectator" then
+		return stepId == TutorialController.StepIds.Lobby
+	end
+	local murdererStep = stepId == TutorialController.StepIds.MurderPlanningMurderer
+		or stepId == TutorialController.StepIds.NightTransformMurderer
+		or stepId == TutorialController.StepIds.InvestigationMurderer
+		or stepId == TutorialController.StepIds.VoteMurderer
+	if murdererStep then
+		return role == "Murderer"
+	end
+	local camperEquivalent = stepId == TutorialController.StepIds.MurderPlanning
+		or stepId == TutorialController.StepIds.NightTransform
+		or stepId == TutorialController.StepIds.Investigation
+		or stepId == TutorialController.StepIds.Vote
+	if camperEquivalent then
+		return role ~= "Murderer"
+	end
+	-- currentContext returns InvestigationMurderer (not Evidence) for murderers,
+	-- so murderers will never see the evidence step.
+	if stepId == TutorialController.StepIds.Evidence then
+		return role ~= "Murderer"
+	end
+	return true
+end
+
 function TutorialController:_allSeen(): boolean
 	local lastState = self.lastState
 	local player = if type(lastState) == "table" then lastState.player else nil
 	local role = readString(player, "role", "")
 	for _, step in self.steps do
-		if step.id == TutorialController.StepIds.Spectator then
-			if role ~= "Spectator" then
-				continue
-			end
-		end
-		-- Spectators only pass through Lobby before getting the Spectator context;
-		-- all other step contexts are never returned for them by currentContext.
-		if role == "Spectator"
-			and step.id ~= TutorialController.StepIds.Lobby
-			and step.id ~= TutorialController.StepIds.Spectator
-		then
-			continue
-		end
-		local murdererStep = step.id == TutorialController.StepIds.MurderPlanningMurderer
-			or step.id == TutorialController.StepIds.NightTransformMurderer
-			or step.id == TutorialController.StepIds.InvestigationMurderer
-			or step.id == TutorialController.StepIds.VoteMurderer
-		local camperEquivalent = step.id == TutorialController.StepIds.MurderPlanning
-			or step.id == TutorialController.StepIds.NightTransform
-			or step.id == TutorialController.StepIds.Investigation
-			or step.id == TutorialController.StepIds.Vote
-		if (murdererStep and role ~= "Murderer") or (camperEquivalent and role == "Murderer") then
-			continue
-		end
-		-- currentContext returns InvestigationMurderer (not Evidence) for murderers,
-		-- so murderers will never see the evidence step.
-		if step.id == TutorialController.StepIds.Evidence and role == "Murderer" then
-			continue
-		end
-		if not self.seen[step.id] then
+		if stepApplies(step.id, role) and not self.seen[step.id] then
 			return false
 		end
 	end
 	return true
+end
+
+function TutorialController:_displayNumbering(step: StepDefinition): (number, number)
+	local player = if type(self.lastState) == "table" then self.lastState.player else nil
+	local role = readString(player, "role", "")
+	local position = 0
+	local total = 0
+	for _, candidate in self.steps do
+		if stepApplies(candidate.id, role) then
+			total += 1
+			if candidate.id == step.id then
+				position = total
+			end
+		end
+	end
+	if position == 0 then
+		return step.position, step.total
+	end
+	return position, total
 end
 
 function TutorialController:_finish(skipped: boolean)
@@ -326,7 +348,17 @@ end
 
 function TutorialController:_show(step: StepDefinition)
 	self.activeStep = step
-	self.view:Show(step, function()
+	local position, total = self:_displayNumbering(step)
+	local display: StepDefinition = {
+		id = step.id,
+		context = step.context,
+		title = step.title,
+		body = step.body,
+		objective = step.objective,
+		position = position,
+		total = total,
+	}
+	self.view:Show(display, function()
 		self:Advance()
 	end, function()
 		self:Skip()

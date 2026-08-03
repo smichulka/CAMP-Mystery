@@ -59,6 +59,16 @@ local OBJECTIVES = {
 		position = Vector3.new(30, 2, -22),
 		color = Color3.fromRGB(109, 94, 56),
 	},
+	{
+		-- The completion platform sits at the top of a climbable course; the
+		-- root is placed at position + (0, -1.4, 0), so Y=16.4 puts the
+		-- platform floor at Y=15 and humans must traverse the obby to reach
+		-- the prompt (bots complete objectives with enforceSpatial = false).
+		id = "ropes",
+		name = "Ropes Course",
+		position = Vector3.new(58, 16.4, -44),
+		color = Color3.fromRGB(139, 98, 52),
+	},
 }
 
 local SEARCH_TARGETS = {
@@ -1429,7 +1439,7 @@ function ProductionMapService:Build()
 			)
 			statusLamp:SetAttribute("CompletionIndicator", true)
 			statusLamp.CanCollide = false
-		else
+		elseif definition.id == "supplies" then
 			for crateIndex = 1, 4 do
 				local x = if crateIndex % 2 == 0 then 2.2 else -2.2
 				local y = if crateIndex > 2 then 2.2 else 0
@@ -1441,6 +1451,214 @@ function ProductionMapService:Build()
 					Color3.fromRGB(105, 78, 48),
 					Enum.Material.WoodPlanks
 				)
+			end
+		elseif definition.id == "ropes" then
+			-- Climbable ropes course: stepping stumps over a mud pit, a rope-rail
+			-- balance beam, rising jump pads, a wooden lattice climb, and the
+			-- completion platform (InteractionRoot) at the top with a slide down.
+			local base = Vector3.new(definition.position.X, 0, definition.position.Z)
+			local postColor = Color3.fromRGB(84, 60, 38)
+			local stumpColor = Color3.fromRGB(116, 84, 50)
+			local ropeColor = Color3.fromRGB(168, 142, 96)
+			local platformTrim = Color3.fromRGB(46, 32, 22)
+			for _, corner in {
+				Vector3.new(-3.4, 0, -3.4),
+				Vector3.new(-3.4, 0, 3.4),
+				Vector3.new(3.4, 0, -3.4),
+				Vector3.new(3.4, 0, 3.4),
+			} do
+				createPart(
+					station,
+					"TowerPost",
+					Vector3.new(0.9, 15, 0.9),
+					CFrame.new(base + corner + Vector3.new(0, 7.5, 0)),
+					postColor,
+					Enum.Material.Wood
+				)
+			end
+			local gateBoard = createPart(
+				station,
+				"RopesSign",
+				Vector3.new(7, 2.6, 0.5),
+				CFrame.new(base + Vector3.new(-20, 5.4, 10))
+					* CFrame.Angles(0, math.rad(140), 0),
+				platformTrim,
+				Enum.Material.WoodPlanks
+			)
+			createSign(gateBoard, "ROPES COURSE", Color3.fromRGB(244, 224, 176))
+			for side = -1, 1, 2 do
+				createPart(
+					station,
+					"GatePost",
+					Vector3.new(0.7, 6.4, 0.7),
+					CFrame.new(base + Vector3.new(-20, 3.2, 10))
+						* CFrame.Angles(0, math.rad(140), 0)
+						* CFrame.new(side * 3.6, 0, 0),
+					postColor,
+					Enum.Material.Wood
+				)
+			end
+			createPart(
+				station,
+				"MudPit",
+				Vector3.new(14, 0.28, 7),
+				CFrame.new(base + Vector3.new(-10.75, 0.14, 7))
+					* CFrame.Angles(0, math.rad(-10), 0),
+				Color3.fromRGB(58, 44, 30),
+				Enum.Material.Ground
+			)
+			local stumps = {
+				{ offsetX = -16, offsetZ = 8, height = 2.4 },
+				{ offsetX = -12.5, offsetZ = 6.5, height = 3.2 },
+				{ offsetX = -9, offsetZ = 8, height = 4 },
+				{ offsetX = -5.5, offsetZ = 6, height = 4.8 },
+			}
+			for stumpIndex, stump in stumps do
+				createCylinder(
+					station,
+					"Stump" .. tostring(stumpIndex),
+					Vector3.new(stump.height, 2.6, 2.6),
+					CFrame.new(base + Vector3.new(stump.offsetX, stump.height / 2, stump.offsetZ))
+						* CFrame.Angles(0, 0, math.rad(90)),
+					stumpColor,
+					Enum.Material.Wood
+				)
+			end
+			createPart(
+				station,
+				"BalanceBeam",
+				Vector3.new(8, 0.5, 1.3),
+				CFrame.new(base + Vector3.new(-1, 4.55, 5)),
+				stumpColor,
+				Enum.Material.WoodPlanks
+			)
+			for _, beamEndX in { -5, 3 } do
+				createPart(
+					station,
+					"RopePost",
+					Vector3.new(0.4, 3, 0.4),
+					CFrame.new(base + Vector3.new(beamEndX, 6.3, 6.2)),
+					postColor,
+					Enum.Material.Wood
+				)
+			end
+			createCylinder(
+				station,
+				"BeamRope",
+				Vector3.new(8, 0.24, 0.24),
+				CFrame.new(base + Vector3.new(-1, 7.4, 6.2)),
+				ropeColor,
+				Enum.Material.Fabric
+			)
+			createPart(
+				station,
+				"LowPlatform",
+				Vector3.new(5, 0.8, 5),
+				CFrame.new(base + Vector3.new(6.5, 4.6, 4)),
+				stumpColor,
+				Enum.Material.WoodPlanks
+			)
+			createPart(
+				station,
+				"JumpPadA",
+				Vector3.new(4, 0.8, 4),
+				CFrame.new(base + Vector3.new(6, 6.8, -2)),
+				stumpColor,
+				Enum.Material.WoodPlanks
+			)
+			createPart(
+				station,
+				"JumpPadB",
+				Vector3.new(4, 0.8, 4),
+				CFrame.new(base + Vector3.new(4, 9, -5.5)),
+				stumpColor,
+				Enum.Material.WoodPlanks
+			)
+			for trussOffset = -1, 1, 2 do
+				local truss = Instance.new("TrussPart")
+				truss.Name = "ClimbLattice"
+				truss.Anchored = true
+				truss.Size = Vector3.new(2, 16, 2)
+				truss.CFrame = CFrame.new(base + Vector3.new(-1.8 + trussOffset, 8, -5.2))
+				truss.Color = Color3.fromRGB(96, 78, 52)
+				truss.Material = Enum.Material.Wood
+				truss.TopSurface = Enum.SurfaceType.Smooth
+				truss.BottomSurface = Enum.SurfaceType.Smooth
+				truss.Parent = station
+			end
+			for _, railPostOffset in {
+				Vector3.new(-4, 0, 4),
+				Vector3.new(4, 0, 4),
+				Vector3.new(4, 0, -4),
+			} do
+				createPart(
+					station,
+					"RailPost",
+					Vector3.new(0.5, 2.8, 0.5),
+					CFrame.new(base + railPostOffset + Vector3.new(0, 17, 0)),
+					platformTrim,
+					Enum.Material.Wood
+				)
+			end
+			createPart(
+				station,
+				"RailNorth",
+				Vector3.new(8.6, 0.35, 0.35),
+				CFrame.new(base + Vector3.new(0, 18.3, 4)),
+				platformTrim,
+				Enum.Material.Wood
+			)
+			createPart(
+				station,
+				"RailEast",
+				Vector3.new(0.35, 0.35, 8.6),
+				CFrame.new(base + Vector3.new(4, 18.3, 0)),
+				platformTrim,
+				Enum.Material.Wood
+			)
+			createPart(
+				station,
+				"BellPost",
+				Vector3.new(0.5, 3.2, 0.5),
+				CFrame.new(base + Vector3.new(-3.2, 17.2, 3.4)),
+				postColor,
+				Enum.Material.Wood
+			)
+			local bell = createPart(
+				station,
+				"StatusLamp",
+				Vector3.new(1.1, 1.1, 1.1),
+				CFrame.new(base + Vector3.new(-3.2, 19.2, 3.4)),
+				Color3.fromRGB(187, 72, 49),
+				Enum.Material.Neon
+			)
+			bell.Shape = Enum.PartType.Ball
+			bell:SetAttribute("CompletionIndicator", true)
+			bell.CanCollide = false
+			local slide = Instance.new("WedgePart")
+			slide.Name = "ExitSlide"
+			slide.Anchored = true
+			slide.Size = Vector3.new(5, 15, 26)
+			slide.CFrame = CFrame.new(base + Vector3.new(-17, 7.5, 0))
+				* CFrame.Angles(0, math.pi / 2, 0)
+			slide.Color = Color3.fromRGB(148, 108, 62)
+			slide.Material = Enum.Material.SmoothPlastic
+			slide.TopSurface = Enum.SurfaceType.Smooth
+			slide.BottomSurface = Enum.SurfaceType.Smooth
+			slide.Parent = station
+			for railOffset = -1, 1, 2 do
+				local slideRail = Instance.new("WedgePart")
+				slideRail.Name = "SlideRail"
+				slideRail.Anchored = true
+				slideRail.Size = Vector3.new(0.5, 16, 26)
+				slideRail.CFrame = CFrame.new(
+					base + Vector3.new(-17, 8, railOffset * 2.75)
+				) * CFrame.Angles(0, math.pi / 2, 0)
+				slideRail.Color = platformTrim
+				slideRail.Material = Enum.Material.Wood
+				slideRail.TopSurface = Enum.SurfaceType.Smooth
+				slideRail.BottomSurface = Enum.SurfaceType.Smooth
+				slideRail.Parent = station
 			end
 		end
 		local marker = Instance.new("BillboardGui")

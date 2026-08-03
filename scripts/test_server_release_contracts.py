@@ -928,13 +928,18 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn(
             "candidates[((self.roundId - 1) % #candidates) + 1]", victim_block
         )
-        # BeginRound: monster selected via MONSTER_ORDER modulo roundId
+        # BeginRound: monster picked by the seeded no-repeat helper
         begin_start = runtime.index("function GameRuntimeService:BeginRound(")
         begin_end = runtime.index("function GameRuntimeService:EnterPhase(", begin_start)
         begin_block = runtime[begin_start:begin_end]
-        self.assertIn(
-            "MONSTER_ORDER[((roundId - 1) % #MONSTER_ORDER) + 1]", begin_block
-        )
+        self.assertIn("self:_selectRoundMonster(roundId, seed)", begin_block)
+        # Helper excludes the previous round's monster and uses a seeded RNG
+        sel_start = runtime.index("function GameRuntimeService:_selectRoundMonster(")
+        sel_end = runtime.index("function GameRuntimeService:BeginRound(", sel_start)
+        sel_block = runtime[sel_start:sel_end]
+        self.assertIn("candidateId ~= self.lastMonsterId", sel_block)
+        self.assertIn("rng:NextInteger(1, #pool)", sel_block)
+        self.assertIn("self.lastMonsterId = monsterId", sel_block)
         # Initial murderPlan set from default victim/frame before player action
         self.assertIn("self.murderPlan = {", begin_block)
         self.assertIn('victimParticipantId = self:_defaultVictim(', begin_block)
@@ -3460,24 +3465,27 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("total = total,", build_fn)
         self.assertIn("local total = #STEP_COPY", build_fn)
 
-        # --- _allSeen: role-aware step filtering ---
-        all_start = tut.index("function TutorialController:_allSeen()")
+        # --- stepApplies/_allSeen: role-aware step filtering ---
+        all_start = tut.index("local function stepApplies(")
         all_end = tut.index("\nfunction TutorialController:_finish(", all_start)
         all_fn = tut[all_start:all_end]
-        # Spectator step is skipped for non-Spectator roles
+        # Spectator card only for Spectators; Spectators otherwise only see Lobby
+        self.assertIn('return role == "Spectator"', all_fn)
         self.assertIn(
-            'if step.id == TutorialController.StepIds.Spectator then', all_fn
+            "return stepId == TutorialController.StepIds.Lobby", all_fn
         )
-        self.assertIn('if role ~= "Spectator" then', all_fn)
-        self.assertIn("continue", all_fn)
-        # Murderer steps skipped when role != Murderer; camper steps skipped when Murderer
+        # Murderer steps only for the Murderer; camper steps never for the Murderer
+        self.assertIn("if murdererStep then", all_fn)
+        self.assertIn('return role == "Murderer"', all_fn)
+        self.assertIn("if camperEquivalent then", all_fn)
+        self.assertIn('return role ~= "Murderer"', all_fn)
+        # _allSeen returns false when any applicable step is unseen
         self.assertIn(
-            '(murdererStep and role ~= "Murderer") or (camperEquivalent and role == "Murderer")',
-            all_fn,
+            "if stepApplies(step.id, role) and not self.seen[step.id] then", all_fn
         )
-        # Returns false when any relevant step is unseen
-        self.assertIn("if not self.seen[step.id] then", all_fn)
         self.assertIn("return false", all_fn)
+        # Progress numbering counts only steps applicable to the viewer's role
+        self.assertIn("function TutorialController:_displayNumbering(", all_fn)
 
         # --- _finish: idempotent; sets completed; fires onCompleted with skipped flag ---
         fin_start = tut.index("function TutorialController:_finish(")

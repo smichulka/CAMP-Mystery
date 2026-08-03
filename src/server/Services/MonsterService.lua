@@ -88,16 +88,7 @@ MonsterService.__index = MonsterService
 
 export type MonsterService = typeof(setmetatable({} :: MonsterServiceState, MonsterService))
 
-local MONSTER_ORDER: { MonsterId } = {
-	"BabyAlien",
-	"Screamer",
-	"Wendigo",
-	"ShadowMonster",
-	"Chupacabra",
-	"Dullahan",
-	"Entity",
-	"Banshee",
-}
+local MONSTER_ORDER: { MonsterId } = require(Shared:WaitForChild("Config"):WaitForChild("MonsterOrder"))
 
 local function cloneCooldowns(source: { [string]: number }): { [string]: number }
 	local result: { [string]: number } = {}
