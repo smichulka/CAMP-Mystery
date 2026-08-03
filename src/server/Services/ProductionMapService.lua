@@ -454,9 +454,12 @@ local function createCabin(
 		CFrame.new(position + Vector3.new(0, ridgeY + 0.35, 0)),
 		Color3.fromRGB(60, 56, 52), Enum.Material.Metal)
 	-- Triangular gable fills on front and back walls
-	-- Two WedgeParts per gable wall, mirrored at cabin center X
-	-- Rotation -90° around Y: local -Z (tall end) → world +X (toward center)
-	-- Rotation +90° around Y: local -Z (tall end) → world -X (toward center)
+	-- Two WedgeParts per gable wall, mirrored at cabin center X.
+	-- A WedgePart's tall vertical face is at local +Z (verified by raycast); the
+	-- slope descends toward local -Z. Rotate so each wedge's tall end faces the
+	-- ridge at cabin-center X:
+	--   +90° around Y: local +Z (tall end) → world +X (left wedge, toward center)
+	--   -90° around Y: local +Z (tall end) → world -X (right wedge, toward center)
 	-- gableHeight/(width/2) = tan(roofAngle), so the wedge slope matches the roof pitch exactly
 	local gableHeight = ridgeY - wallTop
 	local gableCenterY = wallTop + gableHeight / 2
@@ -464,11 +467,11 @@ local function createCabin(
 	for _, wallZ in ipairs({ -7.65, 7.65 }) do
 		createWedge(model, "GableLeft", gableSize,
 			CFrame.new(position + Vector3.new(-width / 4, gableCenterY, wallZ))
-				* CFrame.Angles(0, -math.pi / 2, 0),
+				* CFrame.Angles(0, math.pi / 2, 0),
 			wallColor, Enum.Material.WoodPlanks)
 		createWedge(model, "GableRight", gableSize,
 			CFrame.new(position + Vector3.new(width / 4, gableCenterY, wallZ))
-				* CFrame.Angles(0, math.pi / 2, 0),
+				* CFrame.Angles(0, -math.pi / 2, 0),
 			wallColor, Enum.Material.WoodPlanks)
 	end
 	-- Round metal stovepipe chimney (vertical cylinder through roof)
@@ -519,10 +522,12 @@ local function createCabin(
 	-- Side lean-to: small open-sided shelter attached to the right cabin wall (Cabin 3 reference)
 	local leanW, leanD = 9, 10
 	local leanHi, leanLo = 8.5, 5.0
+	-- Tall end (+Z after -90° rotation → world -X) sits against the cabin wall;
+	-- the slope descends outward
 	createWedge(model, "LeanToRoof",
 		Vector3.new(leanW, leanHi - leanLo, leanD + 0.5),
 		CFrame.new(position + Vector3.new(width / 2 + leanW / 2, leanLo + (leanHi - leanLo) / 2, 2))
-			* CFrame.Angles(0, math.pi / 2, 0),
+			* CFrame.Angles(0, -math.pi / 2, 0),
 		tinRoof, Enum.Material.CorrodedMetal)
 	for lSide = -1, 1, 2 do
 		createPart(model, "LeanToPost" .. (if lSide < 0 then "F" else "B"),
@@ -702,8 +707,12 @@ local function createBuilding(
 	position: Vector3,
 	size: Vector3,
 	color: Color3,
-	signText: string
+	signText: string,
+	rotationY: number?
 ): InteractiveDoor
+	-- All offsets are in the building's local frame (front = local -Z);
+	-- rotationY turns the whole building so the storefront can face the road
+	local base = CFrame.new(position) * CFrame.Angles(0, rotationY or 0, 0)
 	local model = Instance.new("Model")
 	model.Name = name
 	model.Parent = parent
@@ -711,7 +720,7 @@ local function createBuilding(
 		model,
 		"Floor",
 		Vector3.new(size.X, 0.8, size.Z),
-		CFrame.new(position + Vector3.new(0, 0.4, 0)),
+		base * CFrame.new(0, 0.4, 0),
 		color,
 		Enum.Material.Concrete
 	)
@@ -720,7 +729,7 @@ local function createBuilding(
 		model,
 		"BackWall",
 		Vector3.new(size.X, size.Y, 1),
-		CFrame.new(position + Vector3.new(0, size.Y / 2, size.Z / 2 - 0.5)),
+		base * CFrame.new(0, size.Y / 2, size.Z / 2 - 0.5),
 		color,
 		Enum.Material.Brick
 	)
@@ -729,7 +738,7 @@ local function createBuilding(
 			model,
 			"SideWall",
 			Vector3.new(1, size.Y, size.Z),
-			CFrame.new(position + Vector3.new(side * (size.X / 2 - 0.5), size.Y / 2, 0)),
+			base * CFrame.new(side * (size.X / 2 - 0.5), size.Y / 2, 0),
 			color,
 			Enum.Material.Brick
 		)
@@ -737,14 +746,7 @@ local function createBuilding(
 			model,
 			"FrontWall",
 			Vector3.new((size.X - 6) / 2, size.Y, 1),
-			CFrame.new(
-				position
-					+ Vector3.new(
-						side * (size.X / 4 + 1.5),
-						size.Y / 2,
-						-size.Z / 2 + 0.5
-					)
-			),
+			base * CFrame.new(side * (size.X / 4 + 1.5), size.Y / 2, -size.Z / 2 + 0.5),
 			color,
 			Enum.Material.Brick
 		)
@@ -753,14 +755,7 @@ local function createBuilding(
 		model,
 		"DoorHeader",
 		Vector3.new(6, math.max(2, size.Y - 8), 1),
-		CFrame.new(
-			position
-				+ Vector3.new(
-					0,
-					8 + math.max(2, size.Y - 8) / 2,
-					-size.Z / 2 + 0.5
-				)
-		),
+		base * CFrame.new(0, 8 + math.max(2, size.Y - 8) / 2, -size.Z / 2 + 0.5),
 		color,
 		Enum.Material.Brick
 	)
@@ -768,7 +763,7 @@ local function createBuilding(
 		model,
 		"Roof",
 		Vector3.new(size.X + 2, 1.5, size.Z + 2),
-		CFrame.new(position + Vector3.new(0, size.Y + 0.75, 0)),
+		base * CFrame.new(0, size.Y + 0.75, 0),
 		Color3.fromRGB(41, 43, 46),
 		Enum.Material.Slate
 	)
@@ -776,7 +771,7 @@ local function createBuilding(
 		model,
 		"Door",
 		Vector3.new(5.4, 7.6, 0.55),
-		CFrame.new(position + Vector3.new(0, 4.2, -size.Z / 2 - 0.05)),
+		base * CFrame.new(0, 4.2, -size.Z / 2 - 0.05),
 		Color3.fromRGB(54, 48, 42),
 		signText
 	)
@@ -784,7 +779,7 @@ local function createBuilding(
 		model,
 		"Sign",
 		Vector3.new(math.min(size.X - 3, 18), 4, 0.5),
-		CFrame.new(position + Vector3.new(0, size.Y - 3, -size.Z / 2 - 0.35)),
+		base * CFrame.new(0, size.Y - 3, -size.Z / 2 - 0.35),
 		Color3.fromRGB(27, 29, 31),
 		Enum.Material.Wood
 	)
@@ -794,7 +789,7 @@ local function createBuilding(
 			model,
 			"BoardedWindow",
 			Vector3.new(5, 4, 0.4),
-			CFrame.new(position + Vector3.new(column * size.X * 0.23, size.Y * 0.48, -size.Z / 2 - 0.25)),
+			base * CFrame.new(column * size.X * 0.23, size.Y * 0.48, -size.Z / 2 - 0.25),
 			Color3.fromRGB(75, 63, 50),
 			Enum.Material.WoodPlanks
 		)
@@ -802,8 +797,8 @@ local function createBuilding(
 	-- Crumbling plaster patches: exposed dark brick where facade has fallen off (Old Town 2/3 reference)
 	local damageC = Color3.fromRGB(46, 40, 35)
 	local fZ = -size.Z / 2 - 0.14
-	local function dmgPatch(nm, partSize, offset)
-		local p = createPart(model, nm, partSize, CFrame.new(position + offset), damageC, Enum.Material.Concrete)
+	local function dmgPatch(nm, partSize, offset: Vector3)
+		local p = createPart(model, nm, partSize, base * CFrame.new(offset.X, offset.Y, offset.Z), damageC, Enum.Material.Concrete)
 		p.CanCollide = false
 	end
 	dmgPatch("DamagePatch1", Vector3.new(3.8, 3.2, 0.18), Vector3.new(-size.X * 0.29, size.Y * 0.72, fZ))
@@ -813,7 +808,7 @@ local function createBuilding(
 		model,
 		"SearchCounter",
 		Vector3.new(math.min(12, size.X - 6), 3.5, 3),
-		CFrame.new(position + Vector3.new(0, 1.75, 3)),
+		base * CFrame.new(0, 1.75, 3),
 		Color3.fromRGB(66, 57, 49),
 		Enum.Material.WoodPlanks
 	)
@@ -1522,12 +1517,14 @@ function ProductionMapService:Build()
 			Color3.fromRGB(38, 41, 43),
 			Enum.Material.Asphalt
 		)
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GeneralStore", Vector3.new(-73, 0, -185), Vector3.new(34, 19, 30), Color3.fromRGB(77, 72, 65), "GENERAL STORE"))
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GasStation", Vector3.new(75, 0, -185), Vector3.new(35, 16, 28), Color3.fromRGB(82, 76, 65), "LAST STOP GAS"))
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "ResidentialA", Vector3.new(-100, 0, -135), Vector3.new(30, 17, 28), Color3.fromRGB(71, 67, 64), "RESIDENCE"))
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Factory", Vector3.new(-100, 0, -275), Vector3.new(48, 28, 45), Color3.fromRGB(64, 69, 70), "MILL NO. 7"))
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE"))
-		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE"))
+		-- Buildings flank the north-south main road; rotate storefronts to face it
+		-- (left side of the road faces +X = -90 deg, right side faces -X = +90 deg)
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GeneralStore", Vector3.new(-73, 0, -185), Vector3.new(34, 19, 30), Color3.fromRGB(77, 72, 65), "GENERAL STORE", -math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "GasStation", Vector3.new(75, 0, -185), Vector3.new(35, 16, 28), Color3.fromRGB(82, 76, 65), "LAST STOP GAS", math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "ResidentialA", Vector3.new(-100, 0, -135), Vector3.new(30, 17, 28), Color3.fromRGB(71, 67, 64), "RESIDENCE", -math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Factory", Vector3.new(-100, 0, -275), Vector3.new(48, 28, 45), Color3.fromRGB(64, 69, 70), "MILL NO. 7", -math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE", math.pi / 2))
+		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE", -math.pi / 2))
 		buildWaterTower(self.nightTown, Vector3.new(110, 0, -292))
 		-- Abandoned church at the far end of the road (prominent in Old Town 4 aerial reference)
 		do
@@ -1682,6 +1679,28 @@ function ProductionMapService:Build()
 				scrubColor, Enum.Material.Grass)
 			scrub.Shape = Enum.PartType.Ball
 			scrub.CanCollide = false
+		end
+		-- Weed bands hugging both road edges (Old Town 1/2 reference: vegetation
+		-- reclaiming the street). Deterministic jitter keeps the layout stable.
+		local weedColors = {
+			Color3.fromRGB(56, 64, 36),
+			Color3.fromRGB(96, 92, 48),
+			Color3.fromRGB(74, 78, 40),
+		}
+		local weedIndex = 0
+		for _, edgeX in { -17, 17 } do
+			for z = -100, -440, -13 do
+				weedIndex += 1
+				local jitterX = (((weedIndex * 37) % 11) - 5) * 0.6
+				local jitterZ = ((weedIndex * 53) % 7) - 3
+				local wSz = 0.8 + ((weedIndex * 29) % 10) * 0.14
+				local weed = createPart(self.nightTown, "RoadWeed" .. weedIndex,
+					Vector3.new(wSz * 1.15, wSz * 0.6, wSz),
+					CFrame.new(edgeX + jitterX, wSz * 0.3, z + jitterZ),
+					weedColors[(weedIndex % #weedColors) + 1], Enum.Material.Grass)
+				weed.Shape = Enum.PartType.Ball
+				weed.CanCollide = false
+			end
 		end
 		-- Golden autumn bushes: bright yellow shrubs against bare trees (Old Town 3 reference)
 		local goldenBushData = {
