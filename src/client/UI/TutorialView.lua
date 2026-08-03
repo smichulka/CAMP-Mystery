@@ -2,6 +2,7 @@
 
 local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Components = require(script.Parent:WaitForChild("Components"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
@@ -16,6 +17,7 @@ export type TutorialStep = {
 }
 
 type TutorialViewState = {
+	screenGui: ScreenGui,
 	root: Frame,
 	panel: Frame,
 	title: TextLabel,
@@ -46,10 +48,22 @@ local function setZIndex(instance: Instance, zIndex: number)
 end
 
 function TutorialView.new(parent: Instance): TutorialView
-	local existing = parent:FindFirstChild("ContextualTutorial")
-	if existing then
-		existing:Destroy()
+	-- The tutorial gets its own ScreenGui above the game UI (GameUI DisplayOrder
+	-- is 10). Sharing a ScreenGui with the gameplay modals made paint order and
+	-- input capture ambiguous: briefing steps interleaved with the campfire vote
+	-- list and clicks fell through to the vote buttons underneath.
+	local hostGui: Instance = parent:FindFirstAncestorOfClass("PlayerGui") or parent
+	local existingGui = hostGui:FindFirstChild("TutorialUI")
+	if existingGui then
+		existingGui:Destroy()
 	end
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "TutorialUI"
+	screenGui.DisplayOrder = 60
+	screenGui.IgnoreGuiInset = true
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.Parent = hostGui
 
 	local root = Instance.new("Frame")
 	root.Name = "ContextualTutorial"
@@ -60,7 +74,7 @@ function TutorialView.new(parent: Instance): TutorialView
 	root.Visible = false
 	root.Active = true
 	root.ZIndex = 70
-	root.Parent = parent
+	root.Parent = screenGui
 
 	local panel = Components.Panel(root, "TutorialCard")
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -121,6 +135,7 @@ function TutorialView.new(parent: Instance): TutorialView
 	setZIndex(root, 70)
 
 	local self: TutorialView = setmetatable({
+		screenGui = screenGui,
 		root = root,
 		panel = panel,
 		title = title,
@@ -158,7 +173,11 @@ function TutorialView:Show(step: TutorialStep, onContinue: () -> (), onSkip: () 
 	local briefingHeader = if string.find(step.id, "_murderer") then "MURDERER BRIEFING" else "NEW CAMPER BRIEFING"
 	self.progress.Text = string.format("%s  •  %d OF %d", briefingHeader, step.position, step.total)
 	self.root.Visible = true
-	GuiService.SelectedObject = self.continueButton
+	-- Gamepad selection only: setting SelectedObject for mouse users draws stray
+	-- selection boxes and warns "invalid GuiObject" when the button isn't ready
+	if UserInputService.GamepadEnabled then
+		GuiService.SelectedObject = self.continueButton
+	end
 
 	table.insert(self.connections, self.continueButton.Activated:Connect(onContinue))
 	table.insert(self.connections, self.skipButton.Activated:Connect(onSkip))
@@ -187,7 +206,9 @@ end
 function TutorialView:Hide()
 	self:_disconnectButtons()
 	self.animationToken += 1
-	GuiService.SelectedObject = nil
+	if GuiService.SelectedObject == self.continueButton then
+		GuiService.SelectedObject = nil
+	end
 	if not self.root.Parent then
 		return
 	end
@@ -217,8 +238,8 @@ end
 function TutorialView:Destroy()
 	self:_disconnectButtons()
 	self.animationToken += 1
-	if self.root.Parent then
-		self.root:Destroy()
+	if self.screenGui.Parent then
+		self.screenGui:Destroy()
 	end
 end
 

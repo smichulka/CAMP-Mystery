@@ -6489,6 +6489,10 @@ function GameView:Announce(payload: any)
 		elseif kind == "Success" then Theme.Colors.Success
 		else Theme.Colors.Panel
 	local reducedMotion = self.settingsValues.reducedMotion == true
+	-- The banner slides in directly over the top phase status; both panels are
+	-- translucent, so hide the status while the banner is up or the two titles
+	-- overprint into unreadable double text
+	self.topStatus.Visible = false
 	if reducedMotion then
 		self.announcement.Position = UDim2.new(0.5, 0, 0, 16)
 	else
@@ -6501,6 +6505,7 @@ function GameView:Announce(payload: any)
 	local duration = math.clamp(readNumber(payload, "duration", 4), 1, 12)
 	task.delay(duration, function()
 		if not self.destroyed and token == self.announcementToken and self.announcement.Parent then
+			self.topStatus.Visible = true
 			if reducedMotion then
 				self.announcement.Position = UDim2.new(0.5, 0, 0, -110)
 			else
