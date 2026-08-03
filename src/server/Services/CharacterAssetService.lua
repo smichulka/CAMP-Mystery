@@ -973,13 +973,17 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			at * CFrame.new(0, headY + headSize.Y * 0.28, 0),
 			presentation.color, Enum.PartType.Ball)
 		cranium.Transparency = 0.04
-		-- Large dark teardrop eyes: wide-set on the cranium surface (reference: eyes at cranium sides)
-		local craniumFrontZ = -(headSize.Z * 0.725 + 0.08)
-		local craniumCenterY = headY + headSize.Y * 0.22
+		-- Large dark almond eyes on the front of the cranium. Keep the eye centers on the
+		-- cranium ellipsoid surface: (dx/ax)^2 + (dy/ay)^2 + (dz/az)^2 must stay ~1 relative
+		-- to the cranium center (0, headY + 0.28*headSize.Y, 0) with semi-axes
+		-- (0.825*hx, 0.975*hy, 0.725*hz), or the eyes float off the head.
+		local craniumFrontZ = -(headSize.Z * 0.60 + 0.08)
+		local eyeY = headY + headSize.Y * 0.10
 		for side = -1, 1, 2 do
 			local eye = makePart(model, if side < 0 then "LeftEye" else "RightEye",
-				Vector3.new(1.45 * sx, 2.05 * sy, 0.55 * sz),
-				at * CFrame.new(side * headSize.X * 0.72, craniumCenterY, craniumFrontZ),
+				Vector3.new(1.85 * sx, 1.35 * sy, 0.55 * sz),
+				at * CFrame.new(side * headSize.X * 0.45, eyeY, craniumFrontZ)
+					* CFrame.Angles(0, 0, side * 0.35),
 				Color3.fromRGB(5, 4, 6), Enum.PartType.Ball)
 			eye.Material = Enum.Material.SmoothPlastic
 		end
@@ -1033,10 +1037,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			at * CFrame.new(0, headY - 0.1, -(headSize.Z / 2 + 0.06)), Color3.fromRGB(24, 10, 14))
 		mouth.Material = Enum.Material.Neon
 		-- Ring of jagged white teeth around the mouth (8 teeth, like the reference's lamprey rows)
+		-- Teeth must sit in FRONT of the maw panel (mouth front face is at
+		-- headSize.Z/2 + 0.36) and inside its 1.5-stud half-width, or the black
+		-- box swallows them entirely
 		local toothW = 0.32 * sx
-		local toothH = 0.55 * sy
-		local toothR = 1.65 * sx  -- radius from mouth center
-		local toothFaceZ = -(headSize.Z / 2 + 0.20)
+		local toothH = 0.75 * sy
+		local toothR = 1.15 * sx  -- radius from mouth center
+		local toothFaceZ = -(headSize.Z / 2 + 0.44)
 		for t = 1, 8 do
 			local ta = ((t - 1) / 8) * math.pi * 2
 			local tx = math.cos(ta) * toothR
@@ -1097,19 +1104,32 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			vis.Transparency = 0.18
 		end
 	elseif monsterId == "Wendigo" then
-		-- Deer skull head: bone-colored cranium + hollow dark eye sockets + elongated muzzle
+		-- Deer skull head: pale bone cranium + hollow dark eye sockets + elongated muzzle
+		local boneColor = presentation.accent:Lerp(Color3.fromRGB(226, 218, 198), 0.55)
 		local wdHead = model:FindFirstChild("Head") :: BasePart?
 		if wdHead then
-			wdHead.Color = presentation.accent  -- same bone tone as antlers
+			wdHead.Color = boneColor
 		end
-		-- Hollow eye sockets: override glow eyes to dark empty voids (skull silhouette)
+		-- Hollow eye sockets: large dark voids dominating the skull face (reference:
+		-- the sockets are the skull's defining feature, not small dots)
 		local wdEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
 		local wdEyeR = model:FindFirstChild("RightGlow") :: BasePart?
-		if wdEyeL then wdEyeL.Color = Color3.fromRGB(10, 8, 10); wdEyeL.Material = Enum.Material.SmoothPlastic end
-		if wdEyeR then wdEyeR.Color = Color3.fromRGB(10, 8, 10); wdEyeR.Material = Enum.Material.SmoothPlastic end
-		-- Elongated skull snout / muzzle protruding from the lower face
-		makePart(model, "SkullSnout", Vector3.new(0.55 * sx, 0.52 * sy, 1.05 * sz),
-			at * CFrame.new(0, headY - 0.22 * sy, -(headSize.Z / 2 + 0.54 * sz)), presentation.accent)
+		for _, socket in { wdEyeL, wdEyeR } do
+			if socket then
+				socket.Color = Color3.fromRGB(10, 8, 10)
+				socket.Material = Enum.Material.SmoothPlastic
+				-- Ball parts render as spheres with diameter = smallest axis, so all
+				-- three axes must grow for the socket to actually get bigger
+				socket.Size = Vector3.new(0.95 * sx, 0.95 * sy, 0.95 * sz)
+			end
+		end
+		-- Elongated skull muzzle: long, angled slightly downward, with a dark nose tip
+		local muzzleCF = at * CFrame.new(0, headY - 0.30 * sy, -(headSize.Z / 2 + 0.85 * sz))
+			* CFrame.Angles(0.22, 0, 0)
+		makePart(model, "SkullSnout", Vector3.new(0.85 * sx, 0.72 * sy, 1.95 * sz),
+			muzzleCF, boneColor)
+		makePart(model, "SkullNose", Vector3.new(0.48 * sx, 0.40 * sy, 0.30 * sz),
+			muzzleCF * CFrame.new(0, -0.05 * sy, -(0.95 * sz)), Color3.fromRGB(16, 12, 12))
 		-- Main antler beams: sy-scaled so they tower above the tall skull (reference: massive rack)
 		local aBY = headY + 1.8 * sy
 		makePart(model, "LeftAntler", Vector3.new(0.35*sx, 4.2*sy, 0.35*sx),
@@ -1352,14 +1372,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		if head then
 			head:Destroy()
 		end
-		local flame = makePart(model, "SpectralFlame", Vector3.new(2, 2, 2),
-			at * CFrame.new(0, torsoSize.Y / 2 + 1.4, 0), presentation.accent, Enum.PartType.Ball)
-		flame.Material = Enum.Material.Neon
 		makePart(model, "HeadlessCollar", Vector3.new(3.5, 0.7, 3),
 			at * CFrame.new(0, torsoSize.Y / 2, 0), Color3.fromRGB(24, 31, 33))
-		-- Wide flowing cloak wrapping all sides: bell-shaped robed silhouette from reference
+		-- Cloak: narrow at the shoulders, belling out toward the ground (reference: tapered
+		-- hooded silhouette, not a uniform slab). The taper comes from a slim shoulder width,
+		-- outward-angled side panels, and a wider hem skirt at the base.
 		local cloakColor = Color3.fromRGB(14, 17, 22)
-		local cloakW = torsoSize.X * 2.10
+		local cloakW = torsoSize.X * 1.55
 		local cloakH = torsoSize.Y * 1.65
 		-- Back panel
 		makePart(model, "CloakBack", Vector3.new(cloakW, cloakH, 0.22),
@@ -1367,41 +1386,81 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		-- Front panel: closes the robe so no body shows through
 		makePart(model, "CloakFront", Vector3.new(cloakW * 0.88, cloakH * 0.92, 0.20),
 			at * CFrame.new(0, -torsoSize.Y * 0.18, -(torsoSize.Z / 2 + 0.14)), cloakColor)
-		-- Side panels flared out (wide to match bell silhouette)
+		-- Side panels angled outward so the silhouette widens toward the ground
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "CloakL" else "CloakR",
 				Vector3.new(0.24, cloakH, torsoSize.Z * 1.22),
 				at * CFrame.new(side * (cloakW / 2 + 0.12), -torsoSize.Y * 0.16, 0)
-					* CFrame.Angles(0, 0, side * 0.10), cloakColor)
+					* CFrame.Angles(0, 0, side * 0.18), cloakColor)
 		end
-		-- Deep drooping hood: empty cowl covering the headless neck/head area (reference: hooded figure)
-		local hoodW = cloakW * 0.68
-		local hoodH = 4.5 * sy
+		-- Drooping sleeve hints hanging from the mid-cloak
+		for side = -1, 1, 2 do
+			makePart(model, if side < 0 then "SleeveL" else "SleeveR",
+				Vector3.new(0.24, 3.4, 1.05),
+				at * CFrame.new(side * (cloakW / 2 + 0.55), -torsoSize.Y * 0.02, -(torsoSize.Z * 0.18))
+					* CFrame.Angles(0, 0, side * 0.55), cloakColor)
+		end
+		-- The generic monster limbs use the teal accent; with the slimmer cloak they peek
+		-- out at the shoulders, so darken them to read as cloth folds instead
+		local dlLimbL = model:FindFirstChild("LeftLimb") :: BasePart?
+		local dlLimbR = model:FindFirstChild("RightLimb") :: BasePart?
+		if dlLimbL then dlLimbL.Color = cloakColor end
+		if dlLimbR then dlLimbR.Color = cloakColor end
+		-- Hood: clearly narrower than the shoulders and pitched forward so the cowl droops
+		local hoodW = cloakW * 0.58
+		local hoodH = 3.6 * sy
 		local hoodBotY = torsoSize.Y / 2 - 0.4
-		local hoodCY = hoodBotY + hoodH * 0.5
+		local hoodPivot = at * CFrame.new(0, hoodBotY, 0) * CFrame.Angles(-0.14, 0, 0)
 		makePart(model, "HoodBack", Vector3.new(hoodW, hoodH, 0.22),
-			at * CFrame.new(0, hoodCY, torsoSize.Z / 2 + 0.14), cloakColor)
-		makePart(model, "HoodFront", Vector3.new(hoodW * 0.86, hoodH * 0.88, 0.20),
-			at * CFrame.new(0, hoodCY - hoodH * 0.06, -(torsoSize.Z / 2 + 0.14))
-				* CFrame.Angles(-0.12, 0, 0), cloakColor)
+			hoodPivot * CFrame.new(0, hoodH * 0.5, torsoSize.Z / 2 + 0.14), cloakColor)
 		for hSide = -1, 1, 2 do
 			makePart(model, "HoodSide" .. (if hSide < 0 then "L" else "R"),
 				Vector3.new(0.24, hoodH, torsoSize.Z + 0.28),
-				at * CFrame.new(hSide * (hoodW * 0.5 + 0.12), hoodCY, 0), cloakColor)
+				hoodPivot * CFrame.new(hSide * (hoodW * 0.5 + 0.12), hoodH * 0.5, 0), cloakColor)
 		end
 		makePart(model, "HoodTop", Vector3.new(hoodW + 0.44, 0.28, torsoSize.Z + 0.30),
-			at * CFrame.new(0, hoodBotY + hoodH + 0.14, 0), cloakColor)
+			hoodPivot * CFrame.new(0, hoodH + 0.14, 0), cloakColor)
+		-- Hood face: a frame around a recessed void so the cowl reads hollow
+		-- (reference: dark empty opening where the head should be)
+		local hoodFrontZ = -(torsoSize.Z / 2 + 0.14)
+		makePart(model, "HoodBrow", Vector3.new(hoodW * 0.86, hoodH * 0.30, 0.20),
+			hoodPivot * CFrame.new(0, hoodH * 0.79, hoodFrontZ), cloakColor)
+		for hSide = -1, 1, 2 do
+			makePart(model, "HoodJamb" .. (if hSide < 0 then "L" else "R"),
+				Vector3.new(hoodW * 0.16, hoodH * 0.72, 0.20),
+				hoodPivot * CFrame.new(hSide * hoodW * 0.35, hoodH * 0.28, hoodFrontZ), cloakColor)
+		end
+		makePart(model, "HoodVoid", Vector3.new(hoodW * 0.62, hoodH * 0.66, 0.16),
+			hoodPivot * CFrame.new(0, hoodH * 0.30, -(torsoSize.Z / 2 - 0.55)), Color3.fromRGB(4, 5, 7))
+		-- Spectral flame deep inside the hood void: faint teal glow from the hollow cowl
+		local flame = makePart(model, "SpectralFlame", Vector3.new(1.4, 1.4, 1.4),
+			hoodPivot * CFrame.new(0, hoodH * 0.30, -(torsoSize.Z / 2 - 1.05)),
+			presentation.accent, Enum.PartType.Ball)
+		flame.Material = Enum.Material.Neon
+		-- Drooped peak folding over the brow
+		makePart(model, "HoodPeak", Vector3.new(hoodW * 0.72, 0.26, 1.5),
+			hoodPivot * CFrame.new(0, hoodH + 0.05, hoodFrontZ + 0.35) * CFrame.Angles(-0.55, 0, 0), cloakColor)
 		-- Bottom hem flare: wide skirt that fans out at base for bell-shaped silhouette from reference
 		local hemW = cloakW * 1.45
 		local hemH = cloakH * 0.28
+		local hemY = -(torsoSize.Y * 0.14 + cloakH * 0.58)
 		makePart(model, "CloakHemFront", Vector3.new(hemW, hemH, 0.22),
-			at * CFrame.new(0, -(torsoSize.Y * 0.14 + cloakH * 0.58), -(torsoSize.Z / 2 + 0.14)), cloakColor)
+			at * CFrame.new(0, hemY, -(torsoSize.Z / 2 + 0.14)), cloakColor)
 		makePart(model, "CloakHemBack", Vector3.new(hemW, hemH, 0.22),
-			at * CFrame.new(0, -(torsoSize.Y * 0.14 + cloakH * 0.58), torsoSize.Z / 2 + 0.14), cloakColor)
+			at * CFrame.new(0, hemY, torsoSize.Z / 2 + 0.14), cloakColor)
 		for side = -1, 1, 2 do
 			makePart(model, if side < 0 then "CloakHemL" else "CloakHemR",
 				Vector3.new(0.22, hemH, torsoSize.Z * 1.50),
-				at * CFrame.new(side * (hemW / 2 + 0.12), -(torsoSize.Y * 0.14 + cloakH * 0.58), 0), cloakColor)
+				at * CFrame.new(side * (hemW / 2 + 0.12), hemY, 0), cloakColor)
+		end
+		-- Ragged trailing streamers below the hem (reference: tattered wisps at the ground)
+		for i = 1, 7 do
+			local fx = (i - 4) / 3
+			local streamH = 1.3 + ((i * 37) % 5) * 0.32
+			makePart(model, "HemStreamer" .. i,
+				Vector3.new(0.55, streamH, 0.20),
+				at * CFrame.new(fx * hemW * 0.44, hemY - hemH * 0.5 - streamH * 0.45, -(torsoSize.Z / 2 + 0.16))
+					* CFrame.Angles(0, 0, fx * 0.12), cloakColor)
 		end
 		-- Legs hidden under cloak
 		for side = -1, 1, 2 do
@@ -1411,79 +1470,94 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			leg.Transparency = 0.8
 		end
 	elseif monsterId == "Entity" then
-		-- Cthulhu/octopus body — semi-transparent deep ocean mantle
-		root.Transparency = 0.18
-		root.Material = Enum.Material.ForceField
-		-- Large dark eyes on the head (octopus reference: two large circular eyes)
+		-- Cthulhu/octopus: bulbous translucent mantle sitting on a skirt of curling
+		-- tentacles (reference: octopus ink art with one large clock-face eye).
+		-- The monster pivot spawns ~4 studs above the ground, so nothing may extend
+		-- more than ~3.6 studs below the root or it ends up underground.
+		root.Transparency = 1
 		local entHead = model:FindFirstChild("Head") :: BasePart?
 		if entHead then
-			entHead.Material = Enum.Material.ForceField
-			entHead.Transparency = 0.15
-			for side = -1, 1, 2 do
-				local eyeOrb = makePart(model, if side < 0 then "EntityEyeL" else "EntityEyeR",
-					Vector3.new(1.1 * sx, 1.1 * sy, 0.55 * sz),
-					at * CFrame.new(side * 0.7 * sx, headY + 0.1 * sy, -(headSize.Z / 2 + 0.05)),
-					Color3.fromRGB(8, 8, 12), Enum.PartType.Ball)
-				eyeOrb.Material = Enum.Material.Neon
+			entHead:Destroy()
+		end
+		local entGlowL = model:FindFirstChild("LeftGlow")
+		local entGlowR = model:FindFirstChild("RightGlow")
+		if entGlowL then entGlowL:Destroy() end
+		if entGlowR then entGlowR:Destroy() end
+		-- Generic accent limbs become faint ether streams hugging the mantle
+		for _, limbName in { "LeftLimb", "RightLimb" } do
+			local limb = model:FindFirstChild(limbName) :: BasePart?
+			if limb then
+				limb.Color = presentation.color
+				limb.Material = Enum.Material.ForceField
+				limb.Transparency = 0.45
 			end
 		end
-		-- 3 bioluminescent anchor orbs on the upper body
+		-- Bulbous mantle dome with a smaller crown bump
+		local mantle = makePart(model, "Mantle", Vector3.new(6.6 * sx, 4.3 * sy, 6.2 * sz),
+			at * CFrame.new(0, 2.0, 0), presentation.color, Enum.PartType.Ball)
+		mantle.Material = Enum.Material.ForceField
+		mantle.Transparency = 0.12
+		local crown = makePart(model, "MantleCrown", Vector3.new(4.2 * sx, 2.1 * sy, 3.8 * sz),
+			at * CFrame.new(0, 4.5, 0.2), presentation.color, Enum.PartType.Ball)
+		crown.Material = Enum.Material.ForceField
+		crown.Transparency = 0.18
+		-- One large clock-face eye on the mantle front (defining reference feature),
+		-- keeping the red needle as the clock hand
+		local eyeZ = -(6.2 * sz) / 2
+		local sclera = makePart(model, "ClockEyeWhite", Vector3.new(2.5, 2.5, 0.6),
+			at * CFrame.new(0, 2.6, eyeZ - 0.1), Color3.fromRGB(214, 224, 226), Enum.PartType.Ball)
+		sclera.Material = Enum.Material.Neon
+		sclera.Transparency = 0.25
+		local iris = makePart(model, "ClockEyeIris", Vector3.new(1.35, 1.35, 0.5),
+			at * CFrame.new(0, 2.6, eyeZ - 0.35), Color3.fromRGB(10, 12, 18), Enum.PartType.Ball)
+		iris.Material = Enum.Material.SmoothPlastic
+		makePart(model, "ClockEyeHand", Vector3.new(0.08, 0.85, 0.10),
+			at * CFrame.new(0.12, 2.85, eyeZ - 0.42) * CFrame.Angles(0, 0, -0.55),
+			Color3.fromRGB(195, 38, 38))
+		-- Smaller eye organs scattered on the mantle (reference shows several)
+		for i, eyeOff in ipairs({ { -1.85, 1.35 }, { 1.85, 1.5 }, { -1.15, 0.3 }, { 1.2, 0.15 } }) do
+			local bodyEye = makePart(model, "BodyEye" .. i,
+				Vector3.new(0.55, 0.55, 0.30),
+				at * CFrame.new(eyeOff[1], eyeOff[2], eyeZ + 0.55),
+				Color3.fromRGB(6, 6, 10), Enum.PartType.Ball)
+			bodyEye.Material = Enum.Material.Neon
+		end
+		-- 3 bioluminescent anchor orbs on the crown
 		for index = 1, 3 do
 			local orb = makePart(model, "AnchorOrb" .. tostring(index),
 				Vector3.new(0.75, 0.75, 0.75),
-				at * CFrame.new((index - 2) * 1.8 * sx, 0.8 + (index % 2) * 0.6, -0.6 * sz),
+				at * CFrame.new((index - 2) * 2.0, 4.1 - (index % 2) * 0.5, eyeZ + 0.9),
 				presentation.accent, Enum.PartType.Ball)
 			orb.Material = Enum.Material.Neon
 			orb.Transparency = 0.08
 		end
-		-- Mechanical pressure gauge on front of body (distinctive reference-image feature)
-		local gaugeC = Color3.fromRGB(52, 52, 56)
-		local gaugeFace = makePart(model, "GaugeFace",
-			Vector3.new(1.40 * sx, 1.40 * sy, 0.18),
-			at * CFrame.new(0, torsoSize.Y * 0.24, -(torsoSize.Z / 2 + 0.10)),
-			gaugeC, Enum.PartType.Ball)
-		gaugeFace.Material = Enum.Material.Metal
-		-- Gauge needle pointer
-		makePart(model, "GaugeNeedle",
-			Vector3.new(0.08, 0.62 * sy, 0.10),
-			at * CFrame.new(0.16 * sx, torsoSize.Y * 0.24, -(torsoSize.Z / 2 + 0.20))
-				* CFrame.Angles(0, 0, -0.60),
-			Color3.fromRGB(195, 38, 38))
-		-- Extra body-surface eye organs (reference shows 4+ eyes distributed on body)
-		for i, eyeOff in ipairs({{-1.1, -0.2}, {1.1, 0.35}}) do
-			local bodyEye = makePart(model, "BodyEye" .. i,
-				Vector3.new(0.55 * sx, 0.55 * sy, 0.28),
-				at * CFrame.new(eyeOff[1] * sx, eyeOff[2] * sy, -(torsoSize.Z / 2 + 0.06)),
-				Color3.fromRGB(6, 6, 10), Enum.PartType.Ball)
-			bodyEye.Material = Enum.Material.Neon
-		end
-		-- 8 tentacles radiating from the base (octopus reference)
+		-- 8 two-segment tentacles curling out from under the mantle and pooling
+		-- near the ground (octopus reference); tips stay above the pivot floor
 		for index = 1, 8 do
 			local angle = ((index - 1) / 8) * math.pi * 2
-			local cosA = math.cos(angle)
-			local sinA = math.sin(angle)
-			local splayX = cosA * 1.8 * sx
-			local splayZ = sinA * 1.8 * sz
-			local tLen = (3.6 + (index % 3) * 0.7) * sy
-			local tentacle = makePart(model, "Tentacle" .. tostring(index),
-				Vector3.new(0.50, tLen, 0.50),
-				at * CFrame.new(splayX * 0.55, -(torsoSize.Y / 2 + tLen * 0.42), splayZ * 0.55)
-					* CFrame.Angles(cosA * 0.5, 0, sinA * 0.5), presentation.color)
-			tentacle.Material = Enum.Material.ForceField
-			tentacle.Transparency = 0.22
-			-- Sucker tip: accent-colored neon disc at end of each tentacle
+			local radial = at * CFrame.Angles(0, -angle, 0)
+			local segLen1 = 2.7 + (index % 3) * 0.3
+			local segLen2 = 2.5 + ((index + 1) % 3) * 0.3
+			local bend1 = -0.52 - (index % 2) * 0.10
+			local seg1CF = radial * CFrame.new(1.85, -0.4, 0) * CFrame.Angles(0, 0, bend1)
+			local seg1 = makePart(model, "Tentacle" .. index .. "A", Vector3.new(0.72, segLen1, 0.72),
+				seg1CF * CFrame.new(0, -segLen1 / 2, 0), presentation.color)
+			seg1.Material = Enum.Material.ForceField
+			seg1.Transparency = 0.18
+			local seg2CF = seg1CF * CFrame.new(0, -segLen1, 0) * CFrame.Angles(0, 0, -0.62)
+			local seg2 = makePart(model, "Tentacle" .. index .. "B", Vector3.new(0.56, segLen2, 0.56),
+				seg2CF * CFrame.new(0, -segLen2 / 2, 0), presentation.color)
+			seg2.Material = Enum.Material.ForceField
+			seg2.Transparency = 0.22
 			makePart(model, "TentacleTip" .. tostring(index),
-				Vector3.new(0.38, 0.38, 0.38),
-				at * CFrame.new(splayX * 0.55 + cosA * tLen * 0.42, -(torsoSize.Y / 2 + tLen * 0.84), splayZ * 0.55 + sinA * tLen * 0.42),
+				Vector3.new(0.40, 0.40, 0.40),
+				seg2CF * CFrame.new(0, -segLen2, 0),
 				presentation.accent, Enum.PartType.Ball).Material = Enum.Material.Neon
-			-- Sucker rings at 3 intervals along the tentacle (octopus reference: sucker disc rows)
-			for si, f in ipairs({ 0.20, 0.50, 0.80 }) do
-				local srX = splayX * 0.55 + cosA * tLen * 0.42 * f
-				local srY = -(torsoSize.Y / 2 + tLen * 0.42 * (1 + f))
-				local srZ = splayZ * 0.55 + sinA * tLen * 0.42 * f
+			-- Sucker rings along the lower segment (octopus reference: sucker disc rows)
+			for si, f in ipairs({ 0.35, 0.75 }) do
 				local ring = makePart(model, "SuckerRing" .. index .. "_" .. si,
-					Vector3.new(0.65, 0.09, 0.65),
-					at * CFrame.new(srX, srY, srZ) * CFrame.Angles(cosA * 0.5, 0, sinA * 0.5),
+					Vector3.new(0.58, 0.09, 0.58),
+					seg2CF * CFrame.new(0, -segLen2 * f, 0),
 					presentation.accent, Enum.PartType.Cylinder)
 				ring.Material = Enum.Material.Neon
 				ring.Transparency = 0.30
