@@ -17,6 +17,7 @@ local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
 local PublicMonsterCatalog = require(SharedConfig:WaitForChild("PublicMonsterCatalog"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local KeybindHints = require(SharedConfig:WaitForChild("KeybindHints"))
+local MonsterOrder = require(SharedConfig:WaitForChild("MonsterOrder"))
 local PhaseTips = require(SharedConfig:WaitForChild("PhaseTips"))
 local PhaseTitles = require(SharedConfig:WaitForChild("PhaseTitles"))
 local TipCatalog = require(SharedConfig:WaitForChild("TipCatalog"))
@@ -61,6 +62,7 @@ type GameViewState = {
 	lastSeenEvidenceCount: number,
 	lastEvidenceCountForPop: number,
 	settingsButton: TextButton?,
+	codexButton: TextButton?,
 	actionHandler: ActionHandler,
 	resolveImage: ImageResolver,
 	phaseLabel: TextLabel,
@@ -118,6 +120,9 @@ type GameViewState = {
 	progression: Frame,
 	progressionSummary: TextLabel,
 	progressionList: ScrollingFrame,
+	codex: Frame?,
+	codexSummary: TextLabel?,
+	codexList: ScrollingFrame?,
 	targetModal: Frame,
 	targetTitle: TextLabel,
 	targetList: ScrollingFrame,
@@ -1004,6 +1009,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		lastSeenEvidenceCount = 0,
 		lastEvidenceCountForPop = 0,
 		settingsButton = nil,
+		codexButton = nil,
 		actionHandler = actionHandler,
 		resolveImage = imageResolver or function(_key: string): string?
 			return nil
@@ -1063,6 +1069,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		progression = progression,
 		progressionSummary = nil :: any,
 		progressionList = nil :: any,
+		codex = nil,
+		codexSummary = nil,
+		codexList = nil,
 		targetModal = targetModal,
 		targetTitle = nil :: any,
 		targetList = nil :: any,
@@ -1151,6 +1160,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	self:_buildResults()
 	self:_buildTargetSelector()
 	self:_buildProgression()
+	self:_buildCodex()
 	self:_buildAnnouncements()
 	self:_buildLobby()
 
@@ -1234,6 +1244,9 @@ function GameView:_updateLayout()
 		if self.settingsButton then
 			self.settingsButton.Position = UDim2.fromOffset(144, 0)
 		end
+		if self.codexButton then
+			self.codexButton.Position = UDim2.fromOffset(6, 46)
+		end
 
 		self.missionPanel.Position = UDim2.fromOffset(8, 142)
 		self.missionPanel.Size = UDim2.new(1, -16, 0, 310)
@@ -1266,6 +1279,9 @@ function GameView:_updateLayout()
 		if self.settingsButton then
 			self.settingsButton.Position = UDim2.fromOffset(10, 48)
 		end
+		if self.codexButton then
+			self.codexButton.Position = UDim2.fromOffset(10, 96)
+		end
 
 		self.missionPanel.Position = UDim2.fromOffset(10, 10)
 		self.missionPanel.Size = UDim2.fromOffset(280, 310)
@@ -1296,6 +1312,9 @@ function GameView:_updateLayout()
 		end
 		if self.settingsButton then
 			self.settingsButton.Position = UDim2.fromOffset(10, 48)
+		end
+		if self.codexButton then
+			self.codexButton.Position = UDim2.fromOffset(10, 96)
 		end
 		self.missionPanel.Position = UDim2.fromOffset(18, 18)
 		self.missionPanel.Size = UDim2.fromOffset(310, 310)
@@ -1743,6 +1762,178 @@ function GameView:_updateProgression(state: any)
 			end
 		)
 	end
+end
+
+function GameView:_buildCodex()
+	local codex = makeModal(self.root, "MonsterCodex", UDim2.new(0.72, 0, 0.78, 0))
+	self.codex = codex
+	makeHeader(codex, "MONSTER CODEX", function()
+		setModalVisible(codex, false)
+	end)
+	local summary = Components.Label(
+		codex,
+		"Summary",
+		"Every monster you face is recorded here permanently.",
+		15,
+		Enum.Font.GothamBold
+	)
+	summary.Position = UDim2.fromOffset(20, 58)
+	summary.Size = UDim2.new(1, -40, 0, 50)
+	summary.TextColor3 = Theme.Colors.Gold
+	summary.TextXAlignment = Enum.TextXAlignment.Center
+	self.codexSummary = summary
+
+	local list = Instance.new("ScrollingFrame")
+	list.Name = "CodexList"
+	list.Position = UDim2.fromOffset(18, 112)
+	list.Size = UDim2.new(1, -36, 1, -130)
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 5
+	list.CanvasSize = UDim2.fromOffset(0, 0)
+	list.Parent = codex
+	local layout = Components.List(list, 9)
+	addCanvasSizing(list, layout)
+	self.codexList = list
+
+	self.codexButton = makeMenuButton(
+		self.menuPanel,
+		"CodexButton",
+		"CODEX",
+		UDim2.fromOffset(10, 96),
+		function()
+			self:ToggleCodex()
+		end
+	)
+end
+
+function GameView:_codexCard(
+	titleText: string,
+	bodyText: string,
+	countersText: string,
+	discovered: boolean
+)
+	local list = self.codexList
+	if not list then
+		return
+	end
+	local card = Components.Panel(list, "CodexCard")
+	card:SetAttribute("Generated", true)
+	card.Size = UDim2.new(1, -8, 0, 132)
+
+	local silhouette = Instance.new("Frame")
+	silhouette.Name = "Silhouette"
+	silhouette.Position = UDim2.fromOffset(12, 12)
+	silhouette.Size = UDim2.fromOffset(108, 108)
+	silhouette.BorderSizePixel = 0
+	silhouette.BackgroundColor3 = Theme.Colors.Background
+	silhouette.BackgroundTransparency = if discovered then 0.35 else 0.05
+	silhouette.Parent = card
+	Components.Corner(silhouette, Theme.SmallCornerRadius)
+
+	local glyph = Components.Label(
+		silhouette,
+		"Glyph",
+		if discovered then string.sub(titleText, 1, 1) else "?",
+		34,
+		Enum.Font.GothamBold
+	)
+	glyph.Position = UDim2.fromOffset(0, 0)
+	glyph.Size = UDim2.new(1, 0, 1, 0)
+	glyph.TextXAlignment = Enum.TextXAlignment.Center
+	glyph.TextColor3 = if discovered then Theme.Colors.Gold else Theme.Colors.TextMuted
+	glyph.TextTransparency = if discovered then 0 else 0.45
+
+	local title = Components.Label(card, "Title", titleText, 16, Enum.Font.GothamBold)
+	title.Position = UDim2.fromOffset(132, 7)
+	title.Size = UDim2.new(1, -144, 0, 26)
+	title.TextColor3 = if discovered then Theme.Colors.Gold else Theme.Colors.TextMuted
+
+	local body = Components.Label(card, "Body", bodyText, 12)
+	body.Position = UDim2.fromOffset(132, 35)
+	body.Size = UDim2.new(1, -144, 0, 70)
+	body.TextColor3 = Theme.Colors.TextMuted
+	body.Font = Theme.Typography.CaptionFont
+	body.TextSize = Theme.Typography.CaptionSize
+	body.TextYAlignment = Enum.TextYAlignment.Top
+	body.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local counters = Components.Label(card, "Counters", countersText, 12, Enum.Font.GothamBold)
+	counters.Position = UDim2.fromOffset(132, 107)
+	counters.Size = UDim2.new(1, -144, 0, 18)
+	counters.TextColor3 = if discovered then Theme.Colors.Text else Theme.Colors.TextMuted
+end
+
+function GameView:_updateCodex(state: any)
+	local list = self.codexList
+	if not list then
+		return
+	end
+	Components.ClearGenerated(list)
+	local profileSnapshot = if type(state) == "table" then state.profile else nil
+	local profile = if type(profileSnapshot) == "table" then profileSnapshot.profile else nil
+	local monsterStats = if type(profile) == "table" and type(profile.monsterStats) == "table"
+		then profile.monsterStats
+		else {}
+	local discoveredCount = 0
+	for _, monsterId in MonsterOrder do
+		local definition = PublicMonsterCatalog[monsterId]
+		local record = monsterStats[monsterId]
+		local encounters = math.floor(readNumber(record, "encounters", 0))
+		local survivalCount = math.floor(readNumber(record, "survivals", 0))
+		local identificationCount = math.floor(readNumber(record, "identifications", 0))
+		if encounters > 0 and definition then
+			discoveredCount += 1
+			self:_codexCard(
+				definition.displayName,
+				string.format(
+					"%s\nMovement: %s (%s)\nCounter: %s",
+					definition.description,
+					definition.movement.style,
+					definition.movement.speed,
+					definition.counterplay.summary
+				),
+				string.format(
+					"Encounters %d · Survived %d · Identified %d",
+					encounters,
+					survivalCount,
+					identificationCount
+				),
+				true
+			)
+		else
+			self:_codexCard(
+				"???",
+				"Face this monster to unlock its file.",
+				"Undiscovered",
+				false
+			)
+		end
+	end
+	local summary = self.codexSummary
+	if summary then
+		summary.Text = string.format(
+			"MONSTERS DISCOVERED  %d / %d\nSurvive the hunt and expose the culprit to fill each file.",
+			discoveredCount,
+			#MonsterOrder
+		)
+	end
+end
+
+function GameView:ToggleCodex()
+	local codex = self.codex
+	if not codex then
+		return
+	end
+	setModalVisible(self.notebook, false)
+	setModalVisible(self.settings, false)
+	setModalVisible(self.progression, false)
+	setModalVisible(self.resultModal, false)
+	local willOpen = not modalTargetVisible(codex)
+	if willOpen then
+		self:_updateCodex(self.currentState)
+	end
+	setModalVisible(codex, willOpen)
 end
 
 function GameView:_buildTargetSelector()
@@ -4646,6 +4837,10 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	if modalTargetVisible(self.progression) then
 		self:_updateProgression(state)
 	end
+	local codexModal = self.codex
+	if codexModal and modalTargetVisible(codexModal) then
+		self:_updateCodex(state)
+	end
 
 	local winner = if type(round.winner) == "string" then round.winner else nil
 	if (phase == "Resolution" or phase == "Rewards") and not modalTargetVisible(self.progression) then
@@ -4990,6 +5185,10 @@ end
 function GameView:ToggleNotebook()
 	setModalVisible(self.settings, false)
 	setModalVisible(self.progression, false)
+	local codexForNotebook = self.codex
+	if codexForNotebook then
+		setModalVisible(codexForNotebook, false)
+	end
 	local willOpen = not modalTargetVisible(self.notebook)
 	setModalVisible(self.notebook, willOpen)
 	if willOpen then
@@ -5009,6 +5208,10 @@ end
 function GameView:ToggleSettings()
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.progression, false)
+	local codexForSettings = self.codex
+	if codexForSettings then
+		setModalVisible(codexForSettings, false)
+	end
 	setModalVisible(self.settings, not modalTargetVisible(self.settings))
 end
 
@@ -5016,6 +5219,10 @@ function GameView:ToggleProgression()
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.settings, false)
 	setModalVisible(self.resultModal, false)
+	local codexForProgression = self.codex
+	if codexForProgression then
+		setModalVisible(codexForProgression, false)
+	end
 	local willOpen = not modalTargetVisible(self.progression)
 	if willOpen then
 		self:_updateProgression(self.currentState)
@@ -5027,6 +5234,10 @@ function GameView:CloseModal()
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.settings, false)
 	setModalVisible(self.progression, false)
+	local codexForClose = self.codex
+	if codexForClose then
+		setModalVisible(codexForClose, false)
+	end
 	setModalVisible(self.targetModal, false)
 	if modalTargetVisible(self.resultModal) then
 		setModalVisible(self.resultModal, false)

@@ -368,6 +368,78 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"InvalidRewardIdentity"', profile)
 
 
+    def test_monster_codex_profile_stats_sanitize_grant_and_reward_fields(self) -> None:
+        profile = source("Services/ProfileService.lua")
+        # Canonical monster list is the shared MonsterOrder config
+        order = (ROOT / "src/shared/Config/MonsterOrder.lua").read_text(encoding="utf-8")
+        for monster_id in (
+            "BabyAlien",
+            "Screamer",
+            "Wendigo",
+            "ShadowMonster",
+            "Chupacabra",
+            "Dullahan",
+            "Entity",
+            "Banshee",
+        ):
+            self.assertIn(f'"{monster_id}"', order)
+        # ProfileService validates codex keys against MonsterOrder
+        self.assertIn('local MonsterOrder = require(configFolder:WaitForChild("MonsterOrder"))', profile)
+        self.assertIn("for _, monsterId in MonsterOrder do", profile)
+        # defaultProfile seeds an empty monsterStats map
+        self.assertIn("monsterStats = {},", profile)
+        # sanitizeProfile: additive monsterStats branch keeps records across saves,
+        # bounded by maxMapEntries and clamped by safeInteger
+        stats_start = profile.index('if typeof(raw.monsterStats) == "table" then')
+        stats_end = profile.index("local defaults = ProgressionConfig.defaultSettings", stats_start)
+        stats_block = profile[stats_start:stats_end]
+        self.assertIn("isCodexMonster(monsterId)", stats_block)
+        self.assertIn("ProgressionConfig.maxMapEntries", stats_block)
+        for counter in ("encounters", "survivals", "identifications"):
+            self.assertIn(f"safeInteger(rawRecord.{counter}, 0, 2_000_000_000)", stats_block)
+        # applyGrant upserts the per-monster record with clamped increments
+        apply_start = profile.index("local function applyGrant(")
+        apply_end = profile.index("local function grantEligibleCosmetics(", apply_start)
+        apply_block = profile[apply_start:apply_end]
+        self.assertIn("local monsterId = grant.monsterId", apply_block)
+        self.assertIn("addClamped(record.encounters, grant.monsterEncounter, 2_000_000_000)", apply_block)
+        self.assertIn("addClamped(record.survivals, grant.monsterSurvival, 2_000_000_000)", apply_block)
+        self.assertIn(
+            "addClamped(record.identifications, grant.monsterIdentification, 2_000_000_000)",
+            apply_block,
+        )
+        self.assertIn("profile.monsterStats[monsterId] = record", apply_block)
+        # ApplyReward normalizes and validates the monster identity before granting
+        self.assertIn("local rawMonsterId = safeIdentifier(input.monsterId)", profile)
+        self.assertIn("monsterId = if rawMonsterId and isCodexMonster(rawMonsterId)", profile)
+        self.assertIn("identifiedMonster = input.identifiedMonster == true,", profile)
+        # RewardCalculation computes the three codex counters from participation
+        reward = (ROOT / "src/server/Systems/RewardCalculation.lua").read_text(encoding="utf-8")
+        self.assertIn(
+            "monsterEncounter = if input.participated and monsterId ~= nil then 1 else 0,",
+            reward,
+        )
+        self.assertIn(
+            "monsterSurvival = if input.participated and monsterId ~= nil and input.survived",
+            reward,
+        )
+        self.assertIn("monsterIdentification = if input.participated", reward)
+        self.assertIn("and input.identifiedMonster == true", reward)
+        self.assertIn("monsterId = monsterId,", reward)
+        # Codex UI: modal, menu button, and per-monster discovered/undiscovered states
+        view = (ROOT / "src/client/UI/GameView.lua").read_text(encoding="utf-8")
+        codex_start = view.index("function GameView:_buildCodex()")
+        codex_end = view.index("function GameView:_buildTargetSelector()", codex_start)
+        codex_block = view[codex_start:codex_end]
+        self.assertIn('makeModal(self.root, "MonsterCodex", UDim2.new(0.72, 0, 0.78, 0))', codex_block)
+        self.assertIn('"CODEX"', codex_block)
+        self.assertIn("for _, monsterId in MonsterOrder do", codex_block)
+        self.assertIn("PublicMonsterCatalog[monsterId]", codex_block)
+        self.assertIn('"Face this monster to unlock its file."', codex_block)
+        self.assertIn('"Encounters %d · Survived %d · Identified %d"', codex_block)
+        self.assertIn("function GameView:ToggleCodex()", codex_block)
+
+
     def test_request_0105_available_actions_ghost_spectator_root_gate(self) -> None:
         runtime = source("Services/GameRuntimeService.lua")
         # _availableActions: active = false for ghost and Spectator

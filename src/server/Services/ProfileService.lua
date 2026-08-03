@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local configFolder = Shared:WaitForChild("Config")
 local typesFolder = Shared:WaitForChild("Types")
 local CosmeticCatalog = require(configFolder:WaitForChild("CosmeticCatalog"))
+local MonsterOrder = require(configFolder:WaitForChild("MonsterOrder"))
 local ProgressionConfig = require(configFolder:WaitForChild("ProgressionConfig"))
 local RoleCatalog = require(configFolder:WaitForChild("RoleCatalog"))
 local UpgradeCatalog = require(configFolder:WaitForChild("UpgradeCatalog"))
@@ -119,6 +120,15 @@ local function isProgressionRole(roleId: string): boolean
 	return progressionRoleIds[roleId] == true
 end
 
+local codexMonsterIds: { [string]: boolean } = {}
+for _, monsterId in MonsterOrder do
+	codexMonsterIds[monsterId] = true
+end
+
+local function isCodexMonster(monsterId: string): boolean
+	return codexMonsterIds[monsterId] == true
+end
+
 local function defaultProfile(): PlayerProfile
 	local ownedCosmetics: { [string]: boolean } = {}
 	for _, cosmeticId in CosmeticCatalog.defaultIds do
@@ -142,6 +152,7 @@ local function defaultProfile(): PlayerProfile
 			evidenceCollected = 0,
 			survivals = 0,
 		},
+		monsterStats = {},
 		settings = deepCopy(ProgressionConfig.defaultSettings),
 		recentRewardReceipts = {},
 	}
@@ -279,6 +290,26 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 		profile.stats.survivals = safeInteger(raw.stats.survivals, 0, 2_000_000_000)
 	end
 
+	if typeof(raw.monsterStats) == "table" then
+		local count = 0
+		for rawMonsterId, rawRecord in raw.monsterStats do
+			local monsterId = safeIdentifier(rawMonsterId)
+			if monsterId
+				and isCodexMonster(monsterId)
+				and typeof(rawRecord) == "table"
+				and count < ProgressionConfig.maxMapEntries
+			then
+				profile.monsterStats[monsterId] = {
+					encounters = safeInteger(rawRecord.encounters, 0, 2_000_000_000),
+					survivals = safeInteger(rawRecord.survivals, 0, 2_000_000_000),
+					identifications =
+						safeInteger(rawRecord.identifications, 0, 2_000_000_000),
+				}
+				count += 1
+			end
+		end
+	end
+
 	local defaults = ProgressionConfig.defaultSettings
 	if typeof(raw.settings) == "table" then
 		profile.settings.masterVolume =
@@ -383,6 +414,19 @@ local function applyGrant(profile: PlayerProfile, grant: RewardGrant)
 		2_000_000_000
 	)
 	stats.survivals = addClamped(stats.survivals, grant.survivals, 2_000_000_000)
+
+	local monsterId = grant.monsterId
+	if monsterId then
+		local record = profile.monsterStats[monsterId]
+			or { encounters = 0, survivals = 0, identifications = 0 }
+		record.encounters =
+			addClamped(record.encounters, grant.monsterEncounter, 2_000_000_000)
+		record.survivals =
+			addClamped(record.survivals, grant.monsterSurvival, 2_000_000_000)
+		record.identifications =
+			addClamped(record.identifications, grant.monsterIdentification, 2_000_000_000)
+		profile.monsterStats[monsterId] = record
+	end
 
 	table.insert(profile.recentRewardReceipts, grant.receiptId)
 	while #profile.recentRewardReceipts > ProgressionConfig.maxRewardReceipts do
@@ -912,6 +956,7 @@ function ProfileService:ApplyReward(
 		}
 	end
 
+	local rawMonsterId = safeIdentifier(input.monsterId)
 	local normalizedInput: RewardInput = {
 		receiptId = receiptId,
 		roleId = roleId,
@@ -920,6 +965,10 @@ function ProfileService:ApplyReward(
 		survived = input.survived == true,
 		objectivesCompleted = finiteNumber(input.objectivesCompleted, 0),
 		evidenceCollected = finiteNumber(input.evidenceCollected, 0),
+		monsterId = if rawMonsterId and isCodexMonster(rawMonsterId)
+			then rawMonsterId
+			else nil,
+		identifiedMonster = input.identifiedMonster == true,
 	}
 	local grant = RewardCalculation.Calculate(normalizedInput)
 	local appliedByThisUpdate = false
