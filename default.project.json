@@ -83,6 +83,9 @@
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
+      "$properties": {
+        "LoadCharacterAppearance": false
+      },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "Client": {

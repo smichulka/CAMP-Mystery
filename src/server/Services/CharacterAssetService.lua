@@ -174,6 +174,12 @@ local HAIR_COLORS: { Color3 } = {
 	Color3.fromRGB(118, 162, 125),   -- sage green  (bucket-hat camper reference)
 }
 
+-- Shared with CharacterService so real players draw from the same camper
+-- visual language as the procedural bots.
+CharacterAssetService.CamperOutfitPalette = CAMPER_OUTFIT_PALETTE
+CharacterAssetService.BotSkinTones = BOT_SKIN_TONES
+CharacterAssetService.HairColors = HAIR_COLORS
+
 local EYE_COLORS: { Color3 } = {
 	Color3.fromRGB(18,  20,  90),   -- deep blue
 	Color3.fromRGB(24,  72,  30),   -- dark green
