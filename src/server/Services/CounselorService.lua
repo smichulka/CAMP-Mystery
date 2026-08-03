@@ -51,6 +51,7 @@ type CounselorServiceState = {
 	nextMemoryNumber: number,
 	dialogueCountByKey: { [string]: number },
 	lastDialogueAtByKey: { [string]: number },
+	contradictionCounselorId: CounselorId?,
 }
 
 local CounselorService = {}
@@ -288,6 +289,10 @@ function CounselorService:BeginRound(
 	self.nextMemoryNumber = 0
 	self.dialogueCountByKey = {}
 	self.lastDialogueAtByKey = {}
+	-- One seeded counselor misremembers (or hides) their evening this round;
+	-- pressing them twice on the Schedule topic makes the story change.
+	self.contradictionCounselorId =
+		self.orderedIds[(self.roundSeed % #self.orderedIds) + 1]
 
 	for _, counselorId in self.orderedIds do
 		local definition = getDefinition(counselorId)
@@ -696,7 +701,28 @@ function CounselorService:RequestDialogue(
 	self.dialogueCountByKey[dialogueKey] = dialogueCount
 	local definition = getDefinition(counselorId)
 	local text: string
-	if topic == "Observation" and state.witnessStatement then
+	if topic == "Schedule" and counselorId == self.contradictionCounselorId then
+		-- The seeded contradiction: a confident blanket alibi on the first
+		-- ask that the counselor walks back under repeat questioning. Their
+		-- posted schedule (and visible movement) disproves the first claim.
+		if dialogueCount == 1 then
+			text = "I never left my post all evening. You can ask anyone."
+		else
+			text = "I told you, I never left— well. I may have stepped away."
+				.. " Briefly. Why do you keep asking?"
+			if dialogueCount == 2 then
+				self:_recordMemory(
+					state,
+					"Interview",
+					"Changed their story about the evening under repeat questioning.",
+					state.locationId,
+					participantId,
+					3,
+					now
+				)
+			end
+		end
+	elseif topic == "Observation" and state.witnessStatement then
 		text = state.witnessStatement
 	else
 		local lines = dialogueLines(definition, topic)
@@ -730,6 +756,11 @@ function CounselorService:RequestDialogue(
 		onDialogue(response)
 	end
 	return response, nil
+end
+
+function CounselorService:GetContradictionCounselorId(): CounselorId?
+	self:_assertActive()
+	return self.contradictionCounselorId
 end
 
 function CounselorService:EndRound(now: number)
