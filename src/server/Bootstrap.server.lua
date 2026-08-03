@@ -3,10 +3,22 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local SoundService = game:GetService("SoundService")
+
 local serverRoot = script.Parent
 local config = serverRoot:WaitForChild("Config")
 local services = serverRoot:WaitForChild("Services")
 local ProfileStoreConfiguration = require(config:WaitForChild("ProfileStoreConfiguration"))
+local MonsterAudioConfig = require(config:WaitForChild("MonsterAudioConfig"))
+
+-- Apply configured monster hunt-loop audio slots; attributes already set on
+-- SoundService (e.g. Studio experiments) take precedence over the config file
+for monsterId, assetId in MonsterAudioConfig do
+	local attributeName = "MonsterHunt" .. monsterId .. "AssetId"
+	if SoundService:GetAttribute(attributeName) == nil and assetId ~= 0 then
+		SoundService:SetAttribute(attributeName, assetId)
+	end
+end
 local ProfileServiceReliabilityPatch = require(
 	services:WaitForChild("ProfileServiceReliabilityPatch")
 )
