@@ -202,8 +202,10 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             'return "NightTransformMurderer"',
             'return "InvestigationMurderer"',
             'return "VoteMurderer"',
-            'murdererStep and role ~= "Murderer"',
-            'camperEquivalent and role == "Murderer"',
+            'if murdererStep then',
+            'return role == "Murderer"',
+            'if camperEquivalent then',
+            'return role ~= "Murderer"',
         ):
             self.assertIn(token, tutorial)
         for token in (
@@ -366,7 +368,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
             '["Daylight Objectives"] = {',
             'title = "A NEW DAY"',
             '"Blend in with the camp. Complete tasks and draw no suspicion."',
-            '["Something Is Being Planned"] = {',
+            '["Dusk Settles Over Camp"] = {',
             'title = "YOUR PLAN"',
             '"Choose your target. You have until dawn."',
             '["The Town Is Appearing"] = {',
@@ -396,9 +398,12 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         invest_start = controller.index('if phaseName == "Investigation" and not reconnect then')
         invest_end = controller.index('if phaseName == "NightTransform" and not reconnect then', invest_start)
         invest = controller[invest_start:invest_end]
-        self.assertIn('"Body discovered"', invest)
-        self.assertIn('"Stay calm. Blend in with the others."', invest)
-        self.assertIn('"Someone was killed. Find the evidence before campfire."', invest)
+        self.assertIn('"Night investigation begins"', invest)
+        self.assertIn('"Hunt carefully. Blend in when they gather."', invest)
+        self.assertIn(
+            '"Not everyone may have made it. Search the town and watch each other."',
+            invest,
+        )
         self.assertIn('"Investigation begins"', invest)
         self.assertIn('"You are a ghost. Watch as the survivors search for the truth."', invest)
         self.assertIn('elseif roleName ~= "Spectator" then', invest)
@@ -423,7 +428,7 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         server_titles = (
             "Your Role Is Ready",
             "Daylight Objectives",
-            "Something Is Being Planned",
+            "Dusk Settles Over Camp",
             "The Town Is Appearing",
             "Night Investigation",
             "Campfire Accusation",
@@ -450,8 +455,8 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
                 tutorial,
             )
         # The step is only relevant for Spectators
-        self.assertIn("step.id == TutorialController.StepIds.Spectator", tutorial)
-        self.assertIn("if role ~= \"Spectator\" then", tutorial)
+        self.assertIn("stepId == TutorialController.StepIds.Spectator", tutorial)
+        self.assertIn('return role == "Spectator"', tutorial)
         # camperEquivalent and murdererStep skip logic is complete
         for step_id in (
             "MurderPlanningMurderer",

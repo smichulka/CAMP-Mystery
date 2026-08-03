@@ -199,9 +199,10 @@ class DomainContractTests(unittest.TestCase):
             int(value)
             for value in re.findall(r"studioDurationSeconds\s*=\s*(\d+)", source)
         ]
-        self.assertGreaterEqual(sum(production), 15 * 60)
-        self.assertLessEqual(sum(production), 20 * 60)
-        self.assertEqual(studio, [40, 8, 75, 40, 10, 90, 60, 12, 10])
+        # Family-audience pacing: full rounds land between 12 and 18 minutes
+        self.assertGreaterEqual(sum(production), 12 * 60)
+        self.assertLessEqual(sum(production), 18 * 60)
+        self.assertEqual(studio, [40, 8, 75, 30, 10, 100, 60, 12, 10])
         self.assertEqual(sum(studio), 5 * 60 + 45)
 
 

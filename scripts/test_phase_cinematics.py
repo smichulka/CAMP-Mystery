@@ -229,7 +229,7 @@ class PhaseCinematicsTests(unittest.TestCase):
     def test_request_0053_murderer_announcements_and_evidence_are_role_aware(self) -> None:
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
-            '["Something Is Being Planned"]',
+            '["Dusk Settles Over Camp"]',
             'title = "YOUR PLAN"',
             'message = "Choose your target. You have until dawn."',
             '["The Town Is Appearing"]',
@@ -821,8 +821,11 @@ class PhaseCinematicsTests(unittest.TestCase):
         inv_start = controller.index('if phaseName == "Investigation" and not reconnect then')
         inv_end = controller.index('if phaseName == "NightTransform" and not reconnect', inv_start)
         inv_block = controller[inv_start:inv_end]
-        self.assertIn('"Stay calm. Blend in with the others."', inv_block)
-        self.assertIn('"Someone was killed. Find the evidence before campfire."', inv_block)
+        self.assertIn('"Hunt carefully. Blend in when they gather."', inv_block)
+        self.assertIn(
+            '"Not everyone may have made it. Search the town and watch each other."',
+            inv_block,
+        )
         self.assertIn('"You are a ghost. Watch as the survivors search for the truth."', inv_block)
         self.assertIn('"Warning"', inv_block)
         self.assertIn('"DangerBright"', inv_block)

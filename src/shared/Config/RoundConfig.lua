@@ -22,14 +22,14 @@ local phases: { PhaseConfig } = {
 	{
 		name = "Day",
 		displayName = "Daytime Objectives",
-		durationSeconds = 240,
+		durationSeconds = 180,
 		studioDurationSeconds = 75,
 	},
 	{
 		name = "MurderPlanning",
 		displayName = "Dusk at Camp",
-		durationSeconds = 60,
-		studioDurationSeconds = 40,
+		durationSeconds = 40,
+		studioDurationSeconds = 30,
 	},
 	{
 		name = "NightTransform",
@@ -40,8 +40,8 @@ local phases: { PhaseConfig } = {
 	{
 		name = "Investigation",
 		displayName = "Night Investigation",
-		durationSeconds = 480,
-		studioDurationSeconds = 90,
+		durationSeconds = 300,
+		studioDurationSeconds = 100,
 	},
 	{
 		name = "Campfire",

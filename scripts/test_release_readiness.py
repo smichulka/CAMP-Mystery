@@ -242,11 +242,12 @@ class ReleaseCatalogTests(unittest.TestCase):
         self.assertTrue(all(int(phase["studio"]) > 0 for phase in phases))
         production_seconds = sum(int(phase["duration"]) for phase in phases)
         studio_seconds = sum(int(phase["studio"]) for phase in phases)
-        self.assertGreaterEqual(production_seconds, 15 * 60)
-        self.assertLessEqual(production_seconds, 20 * 60)
+        # Family-audience pacing: full rounds land between 12 and 18 minutes
+        self.assertGreaterEqual(production_seconds, 12 * 60)
+        self.assertLessEqual(production_seconds, 18 * 60)
         self.assertEqual(
             [int(phase["studio"]) for phase in phases],
-            [40, 8, 75, 40, 10, 90, 60, 12, 10],
+            [40, 8, 75, 30, 10, 100, 60, 12, 10],
         )
         self.assertEqual(studio_seconds, 5 * 60 + 45)
 

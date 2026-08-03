@@ -42,7 +42,7 @@ class GhostDreadTests(unittest.TestCase):
             "function GameView:SetGhostMode(active: boolean)",
             "Motion.IsReducedMotion(self.root)",
             "TextTransparency = 0.4",
-            "not ghost and (roleEnabled or monsterEnabled or planEnabled)",
+            "not ghost\n\t\tand (roleEnabled or monsterEnabled or planEnabled or buddyEnabled)",
             "Components.SetButtonEnabled(button, not self.ghostMode)",
             "if self.ghostMode or type(item) ~= \"table\" then",
             "if self.ghostMode then\n\t\tself:HideInteraction()",
@@ -371,7 +371,7 @@ class GhostDreadTests(unittest.TestCase):
         )
         # Living role action enabled gate: ghost cannot trigger living role abilities
         self.assertIn(
-            "local livingRoleActionEnabled = not ghost and (roleEnabled or monsterEnabled or planEnabled)",
+            "local livingRoleActionEnabled = not ghost\n\t\tand (roleEnabled or monsterEnabled or planEnabled or buddyEnabled)",
             update_block,
         )
 

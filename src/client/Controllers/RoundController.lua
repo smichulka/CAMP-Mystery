@@ -79,7 +79,7 @@ local MURDERER_ANNOUNCEMENT_COPY: {
 		title = "A NEW DAY",
 		message = "Blend in with the camp. Complete tasks and draw no suspicion.",
 	},
-	["Something Is Being Planned"] = {
+	["Dusk Settles Over Camp"] = {
 		title = "YOUR PLAN",
 		message = "Choose your target. You have until dawn.",
 	},

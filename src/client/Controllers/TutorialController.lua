@@ -67,7 +67,7 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		id = "day",
 		context = "Day",
 		title = "Prepare Before Sunset",
-		body = "Explore the camp, complete shared work, and gather equipment. Preparation makes the night survivable.",
+		body = "Camp tasks decide the night: the generator keeps the lights on, firewood keeps the campfire safe, and supplies earn bonus gear. Finish what you can.",
 		objective = "COMPLETE CAMP OBJECTIVES AND CHOOSE YOUR GEAR",
 	},
 	{
@@ -102,8 +102,8 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 		id = "investigation",
 		context = "Investigation",
 		title = "Investigate the Town",
-		body = "The abandoned town is dangerous. Search rooms for evidence, interview counselors, use your equipment, and stay in range of teammates. Isolation is how the monster wins.",
-		objective = "FIND REAL CLUES WITHOUT GETTING ISOLATED",
+		body = "Search rooms for evidence and interview counselors — and if you find a body, report it so the camp knows. Stay in range of teammates; isolation is how the monster wins.",
+		objective = "FIND CLUES AND REPORT WHAT YOU DISCOVER",
 	},
 	{
 		id = "investigation_murderer",
@@ -122,9 +122,9 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 	{
 		id = "vote",
 		context = "Vote",
-		title = "Choose Carefully",
-		body = "At the campfire, review the evidence and accuse one suspect. Living players receive one server-validated vote.",
-		objective = "LOCK IN THE SUSPECT BEST SUPPORTED BY THE CLUES",
+		title = "Talk First, Then Vote",
+		body = "The campfire opens with a discussion: present your strongest evidence and make your case. When voting opens, accuse one suspect — no take-backs.",
+		objective = "PRESENT EVIDENCE, THEN LOCK IN YOUR ACCUSATION",
 	},
 	{
 		id = "vote_murderer",

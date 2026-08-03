@@ -26,7 +26,7 @@ The repository contains the integrated, code-complete release candidate:
 - versioned profiles, earned progression, rewards, and cosmetics
 - round-scoped lifecycle and cleanup utilities
 - 150-second production matchmaking fill and ready flow
-- 18m55s production rounds with a 5m45s Studio test cadence
+- 14m35s production rounds with a 5m45s Studio test cadence
 - filtered evidence notes and server-side proximity, range, line-of-sight, cooldown,
   ownership, role, phase, and request-rate validation
 
