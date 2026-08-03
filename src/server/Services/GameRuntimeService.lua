@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -125,6 +126,7 @@ type GameRuntimeServiceState = {
 	checkInPairs: { [string]: boolean },
 	checkInsByParticipantId: { [string]: number },
 	bodyReportedByVictimId: { [string]: boolean },
+	ghostFlickerAt: { [string]: number },
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -1206,6 +1208,7 @@ function GameRuntimeService:BeginRound(
 	self.checkInPairs = {}
 	self.checkInsByParticipantId = {}
 	self.bodyReportedByVictimId = {}
+	self.ghostFlickerAt = {}
 	self.characters:ClearBodyMarkers()
 
 	for _, participantId in selectedIds do
@@ -2537,6 +2540,79 @@ function GameRuntimeService:_handleParticipantAction(
 	return actionRejected("Action is handled by another server domain")
 end
 
+local GHOST_FLICKER_COOLDOWN_SECONDS = 60
+local GHOST_FLICKER_RANGE_STUDS = 24
+
+-- Ghost-only: flicker the nearest light so every living player sees it.
+-- The position comes from the ghost camera; it is clamped and only ever
+-- dims a light briefly, so it is safe to trust within range limits.
+function GameRuntimeService:_ghostFlickerLight(
+	participant: ParticipantState,
+	payload: { [string]: unknown }
+): ActionResult
+	if self.phase ~= "Investigation" then
+		return actionRejected("Spirits can only reach the lights at night")
+	end
+	local lastAt = self.ghostFlickerAt[participant.participantId]
+	if lastAt and now() - lastAt < GHOST_FLICKER_COOLDOWN_SECONDS then
+		return actionRejected("Your spectral energy is spent")
+	end
+	local function finiteCoordinate(key: string): number?
+		local value = payload[key]
+		if typeof(value) == "number" and value == value and math.abs(value) < 10000 then
+			return value
+		end
+		return nil
+	end
+	local x = finiteCoordinate("x")
+	local y = finiteCoordinate("y")
+	local z = finiteCoordinate("z")
+	if not x or not y or not z then
+		return actionRejected("Flicker position is required")
+	end
+	local origin = Vector3.new(x, y, z)
+	local nearest: Light? = nil
+	local nearestDistance = GHOST_FLICKER_RANGE_STUDS
+	for _, descendant in Workspace:GetDescendants() do
+		if
+			descendant:IsA("PointLight")
+			or descendant:IsA("SpotLight")
+			or descendant:IsA("SurfaceLight")
+		then
+			local lightParent = descendant.Parent
+			if lightParent and lightParent:IsA("BasePart") then
+				local distance = (lightParent.Position - origin).Magnitude
+				if distance <= nearestDistance then
+					nearest = descendant
+					nearestDistance = distance
+				end
+			end
+		end
+	end
+	if not nearest then
+		return actionRejected("No light within reach")
+	end
+	self.ghostFlickerAt[participant.participantId] = now()
+	local light = nearest :: Light
+	local brightness = light.Brightness
+	local fadeOut = TweenService:Create(
+		light,
+		TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+		{ Brightness = 0 }
+	)
+	fadeOut.Completed:Connect(function()
+		if light.Parent then
+			TweenService:Create(
+				light,
+				TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In),
+				{ Brightness = brightness }
+			):Play()
+		end
+	end)
+	fadeOut:Play()
+	return { accepted = true, reason = nil, state = nil, data = nil }
+end
+
 function GameRuntimeService:HandleAction(
 	player: Player,
 	actionName: string,
@@ -2659,6 +2735,12 @@ function GameRuntimeService:HandleAction(
 			result.state = self:GetGameState(player)
 		end
 		return result
+	elseif
+		actionName == "GhostFlickerLight"
+		and rawParticipant
+		and rawParticipant.isGhost
+	then
+		return self:_ghostFlickerLight(rawParticipant, clonePayload(payload))
 	end
 	if not participant then
 		return actionRejected(participantReason or "Player cannot act")

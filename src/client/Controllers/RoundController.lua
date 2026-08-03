@@ -1383,7 +1383,15 @@ function RoundController.Start()
 		end
 	)
 	cinematics = cinematicsController
-	local releaseCamera = CameraControllerModule.new()
+	local releaseCamera = CameraControllerModule.new({
+		onFlickerRequest = function(position: Vector3)
+			requestAction("GhostFlickerLight", {
+				x = position.X,
+				y = position.Y,
+				z = position.Z,
+			})
+		end,
+	})
 	camera = releaseCamera
 	local accessibilityController = AccessibilityController.new(gameView.root)
 	accessibility = accessibilityController

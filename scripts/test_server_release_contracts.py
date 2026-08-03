@@ -2230,7 +2230,8 @@ class ServerReleaseContracts(unittest.TestCase):
             ROOT / "src" / "client" / "Controllers" / "CameraController.lua"
         ).read_text(encoding="utf-8")
 
-        # _flickerNearestLight: ghost-mode and cooldown gate
+        # _flickerNearestLight: ghost-mode and cooldown gate, then a
+        # server-authoritative dispatch (no local tween)
         flicker_start = camera.index("function CameraController:_flickerNearestLight()")
         flicker_end = camera.index("\nfunction CameraController:_step(", flicker_start)
         flicker_fn = camera[flicker_start:flicker_end]
@@ -2238,29 +2239,33 @@ class ServerReleaseContracts(unittest.TestCase):
             "not self.ghostMode or os.clock() - self.lastFlickerAt < FLICKER_COOLDOWN",
             flicker_fn,
         )
+        self.assertIn("onFlickerRequest(camera.CFrame.Position)", flicker_fn)
+        self.assertNotIn("TweenService:Create", flicker_fn)
+        # Client wires the request to the GhostFlickerLight action
+        controller = (
+            ROOT / "src" / "client" / "Controllers" / "RoundController.lua"
+        ).read_text(encoding="utf-8")
+        self.assertIn('requestAction("GhostFlickerLight", {', controller)
 
-        # Light search: three light types within FLICKER_RANGE
+        # Server: ghost-only bypass, night-only, 60s cooldown, three light
+        # types, and a restore tween
+        runtime = source("Services/GameRuntimeService.lua")
+        server_start = runtime.index(
+            "function GameRuntimeService:_ghostFlickerLight("
+        )
+        server_end = runtime.index("function GameRuntimeService:HandleAction(", server_start)
+        server_fn = runtime[server_start:server_end]
+        self.assertIn('"Spirits can only reach the lights at night"', server_fn)
+        self.assertIn("GHOST_FLICKER_COOLDOWN_SECONDS", server_fn)
         for light_type in ('"PointLight"', '"SpotLight"', '"SurfaceLight"'):
-            self.assertIn(light_type, flicker_fn)
-        self.assertIn("distance <= nearestDistance", flicker_fn)
-
-        # Two-stage tween: fade out (Sine Out) then fade back in (Sine In)
+            self.assertIn(light_type, server_fn)
+        self.assertIn("distance <= nearestDistance", server_fn)
+        self.assertIn("{ Brightness = brightness }", server_fn)
+        self.assertIn("{ Brightness = 0 }", server_fn)
         self.assertIn(
-            "TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)",
-            flicker_fn,
+            'actionName == "GhostFlickerLight"\n\t\tand rawParticipant\n\t\tand rawParticipant.isGhost',
+            runtime,
         )
-        self.assertIn(
-            "TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In)",
-            flicker_fn,
-        )
-        # Fade-in only executes when fade-out completed and light still parented
-        self.assertIn(
-            "playbackState ~= Enum.PlaybackState.Completed or not light.Parent",
-            flicker_fn,
-        )
-        # Brightness restored to original value on fade-in
-        self.assertIn("{ Brightness = brightness }", flicker_fn)
-        self.assertIn("{ Brightness = 0 }", flicker_fn)
 
         # _step: ghost-mode gate
         step_start = camera.index("function CameraController:_step(deltaTime: number)")

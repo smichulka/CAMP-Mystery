@@ -90,14 +90,20 @@ local function groundHeight(position: Vector3): number
 	return if result then result.Position.Y + MINIMUM_ALTITUDE else MINIMUM_ALTITUDE
 end
 
-function CameraController.new(): CameraController
+export type CameraOptions = {
+	onFlickerRequest: ((position: Vector3) -> ())?,
+}
+
+function CameraController.new(options: CameraOptions?): CameraController
 	local camera = Workspace.CurrentCamera
 	local initialCFrame = if camera then camera.CFrame else CFrame.new(0, 12, 0)
 	local pitch, yaw = initialCFrame:ToOrientation()
+	local resolvedOptions = options or {}
 	local self: CameraController = setmetatable({
 		connections = {},
 		ghostMode = false,
 		destroyed = false,
+		onFlickerRequest = resolvedOptions.onFlickerRequest,
 		position = initialCFrame.Position,
 		yaw = yaw,
 		pitch = pitch,
@@ -193,6 +199,8 @@ function CameraController.new(): CameraController
 	return self
 end
 
+-- The flicker itself is server-authoritative so every living player sees
+-- it; this just forwards the ghost camera position with a local cooldown.
 function CameraController:_flickerNearestLight()
 	if not self.ghostMode or os.clock() - self.lastFlickerAt < FLICKER_COOLDOWN then
 		return
@@ -201,48 +209,12 @@ function CameraController:_flickerNearestLight()
 	if not camera then
 		return
 	end
-	if camera.CameraType ~= Enum.CameraType.Scriptable then
-		camera.CameraType = Enum.CameraType.Scriptable
-	end
-	local nearest: Light? = nil
-	local nearestDistance = FLICKER_RANGE
-	for _, descendant in Workspace:GetDescendants() do
-		if descendant:IsA("PointLight")
-			or descendant:IsA("SpotLight")
-			or descendant:IsA("SurfaceLight")
-		then
-			local position = lightPosition(descendant)
-			if position then
-				local distance = (position - camera.CFrame.Position).Magnitude
-				if distance <= nearestDistance then
-					nearest = descendant
-					nearestDistance = distance
-				end
-			end
-		end
-	end
-	if not nearest then
+	local onFlickerRequest = self.onFlickerRequest
+	if not onFlickerRequest then
 		return
 	end
 	self.lastFlickerAt = os.clock()
-	local light = nearest :: Light
-	local brightness = light.Brightness
-	local fadeOut = TweenService:Create(
-		light,
-		TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-		{ Brightness = 0 }
-	)
-	fadeOut.Completed:Connect(function(playbackState: Enum.PlaybackState)
-		if playbackState ~= Enum.PlaybackState.Completed or not light.Parent then
-			return
-		end
-		TweenService:Create(
-			light,
-			TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In),
-			{ Brightness = brightness }
-		):Play()
-	end)
-	fadeOut:Play()
+	onFlickerRequest(camera.CFrame.Position)
 end
 
 function CameraController:_step(deltaTime: number)
