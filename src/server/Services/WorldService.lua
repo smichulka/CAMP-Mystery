@@ -16,11 +16,16 @@ type WorldPublicSnapshot = WorldTypes.WorldPublicSnapshot
 type TransformMidpointContext = WorldTypes.TransformMidpointContext
 type SocketReference = WorldTypes.SocketReference
 
+export type NightOptions = {
+	generatorPowered: boolean?,
+	firewoodStocked: boolean?,
+}
+
 export type GrayboxFallback = {
 	ResetRound: (self: any) -> (),
 	SetObjectivePromptsEnabled: (self: any, enabled: boolean) -> (),
 	MarkObjectiveComplete: (self: any, objectiveId: string) -> (),
-	SetNight: (self: any, isNight: boolean) -> (),
+	SetNight: (self: any, isNight: boolean, options: NightOptions?) -> (),
 	SpawnEvidence: (self: any) -> (),
 	ClearEvidence: (self: any) -> (),
 }
@@ -181,9 +186,9 @@ function WorldService:_transitionState(isNight: boolean): TransitionState
 	return if isNight then "TransformingToNight" else "TransformingToDay"
 end
 
-function WorldService:SetNight(isNight: boolean)
+function WorldService:SetNight(isNight: boolean, options: NightOptions?)
 	if self.isNight == isNight and self.transitionState == self:_stableState(isNight) then
-		self.fallback:SetNight(isNight)
+		self.fallback:SetNight(isNight, options)
 		return
 	end
 
@@ -192,7 +197,7 @@ function WorldService:SetNight(isNight: boolean)
 	self:_mutated()
 
 	local swapped, swapFailure = pcall(function()
-		self.fallback:SetNight(isNight)
+		self.fallback:SetNight(isNight, options)
 	end)
 	if not swapped then
 		self.transitionState = self:_stableState(previousIsNight)

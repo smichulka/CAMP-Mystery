@@ -53,6 +53,7 @@ type CombatServiceState = {
 	getPhase: PhaseProvider,
 	resolveDefense: DefenseResolver,
 	emitEvidence: EvidenceEmitter,
+	isProtected: (target: ParticipantState) -> boolean,
 }
 
 local CombatService = {}
@@ -79,7 +80,8 @@ function CombatService.new(
 	lifecycle: LifecycleEmitter,
 	getPhase: PhaseProvider,
 	resolveDefense: DefenseResolver?,
-	emitEvidence: EvidenceEmitter?
+	emitEvidence: EvidenceEmitter?,
+	isProtected: ((target: ParticipantState) -> boolean)?
 ): CombatService
 	return setmetatable({
 		roundId = 0,
@@ -93,6 +95,9 @@ function CombatService.new(
 				return "None"
 			end,
 		emitEvidence = emitEvidence or function() end,
+		isProtected = isProtected or function(): boolean
+			return false
+		end,
 	}, CombatService)
 end
 
@@ -165,6 +170,9 @@ function CombatService:ApplyInjury(
 	if not target.alive or target.isGhost or target.team ~= "Campers" then
 		return false, "Target is not eligible"
 	end
+	if self.isProtected(target) then
+		return false, "The campfire wards off the monster"
+	end
 
 	if target.injuryLevel >= 3 then
 		self:Eliminate(target, reason, attackerParticipantId)
@@ -230,6 +238,9 @@ function CombatService:ApplyAttack(request: AttackRequest): AttackResult
 	end
 	if not target.alive or target.isGhost or target.team ~= "Campers" then
 		return rejected(request, "Target is not eligible")
+	end
+	if self.isProtected(target) then
+		return rejected(request, "The campfire wards off the monster")
 	end
 
 	local defense = self.resolveDefense(attacker, target, request)

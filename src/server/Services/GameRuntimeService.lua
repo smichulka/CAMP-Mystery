@@ -85,6 +85,12 @@ type BotSiteTask = {
 	workReadyAt: number?,
 }
 
+type DayOutcomes = {
+	generator: boolean,
+	firewood: boolean,
+	supplies: boolean,
+}
+
 type GameRuntimeServiceState = {
 	options: RuntimeOptions,
 	running: boolean,
@@ -110,6 +116,7 @@ type GameRuntimeServiceState = {
 	botObjectiveCount: number,
 	botEvidenceCount: number,
 	votingOpensAt: number?,
+	dayOutcomes: DayOutcomes?,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -646,6 +653,13 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 					request
 				)
 			end
+		end,
+		function(target: ParticipantState): boolean
+			local runtime = runtimeRef
+			if not runtime then
+				return false
+			end
+			return runtime:_isCampfireProtected(target)
 		end
 	)
 	combatRef = combat
@@ -1141,6 +1155,7 @@ function GameRuntimeService:BeginRound(
 	self.botObjectiveCount = 0
 	self.botEvidenceCount = 0
 	self.votingOpensAt = nil
+	self.dayOutcomes = nil
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -1226,8 +1241,50 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.world:SetObjectivePromptsEnabled(false)
 		self.monster:BeginPlanning(self.roundId)
 	elseif phase == "NightTransform" then
+		local outcomes: DayOutcomes = {
+			generator = self.completedObjectives.generator ~= nil,
+			firewood = self.completedObjectives.firewood ~= nil,
+			supplies = self.completedObjectives.supplies ~= nil,
+		}
+		self.dayOutcomes = outcomes
 		self:_beginMystery(self.world:GetPublicSnapshot().roundSeed)
-		self.world:SetNight(true)
+		self.world:SetNight(true, {
+			generatorPowered = outcomes.generator,
+			firewoodStocked = outcomes.firewood,
+		})
+		if outcomes.supplies then
+			for _, campParticipant in self.participants:GetAll() do
+				if
+					campParticipant.team == "Campers"
+					and campParticipant.alive
+					and not campParticipant.isGhost
+					and campParticipant.role ~= "Spectator"
+				then
+					local granted, instanceId = self.inventory:Grant(
+						campParticipant.participantId,
+						"FlareLantern"
+					)
+					if granted and instanceId then
+						self.participants:AddInventoryItem(
+							campParticipant.participantId,
+							instanceId
+						)
+					end
+				end
+			end
+		end
+		local nightSummary = table.concat({
+			if outcomes.generator
+				then "Generator ON — the camp stays lit."
+				else "Generator DEAD — darkness takes the camp.",
+			if outcomes.firewood
+				then "The campfire blazes — its light is a haven."
+				else "The fire gutters — even the campfire is not safe.",
+			if outcomes.supplies
+				then "Supplies secured — every camper got a bonus flare."
+				else "Supplies unsecured — no extra gear tonight.",
+		}, " ")
+		self:_announce("Warning", "Night falls on camp", nightSummary, 8)
 		local privateMonster = self.monster:GetPrivateSnapshot()
 		local monsterId = privateMonster.monsterId
 		local participantId = privateMonster.participantId
@@ -1368,6 +1425,7 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		winner = self.winner,
 		resultMessage = self.resultMessage,
 		isNight = self.world:GetPublicSnapshot().isNight,
+		dayOutcomes = self.dayOutcomes,
 	}
 end
 
@@ -2466,6 +2524,21 @@ function GameRuntimeService:_ApplyRewards()
 	end
 end
 
+local CAMPFIRE_POSITION = Vector3.new(0, 1.5, 2)
+local CAMPFIRE_SAFE_RADIUS_STUDS = 18
+
+-- The campfire only wards off the monster if campers stacked firewood
+-- during the day. Positions are server-derived, so this cannot be spoofed.
+function GameRuntimeService:_isCampfireProtected(target: ParticipantState): boolean
+	local outcomes = self.dayOutcomes
+	if not outcomes or not outcomes.firewood then
+		return false
+	end
+	local position = participantPosition(target)
+	return position ~= nil
+		and (position - CAMPFIRE_POSITION).Magnitude <= CAMPFIRE_SAFE_RADIUS_STUDS
+end
+
 function GameRuntimeService:_livingHumanCount(): number
 	local count = 0
 	for _, participant in self.participants:GetAll() do
@@ -2573,17 +2646,17 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 	end
 	local caps = BotContributionConfig.GetCaps(self:_livingHumanCount())
 	if phase == "Day" then
-		local remainingObjectives = 0
-		for _, objectiveId in OBJECTIVE_IDS do
-			if not self.completedObjectives[objectiveId] then
-				remainingObjectives += 1
-			end
-		end
-		-- Bots never take the final objective; humans get the finishing move.
+		-- Bots never take the goal-completing objective; humans get the
+		-- finishing move. The ropes course is a physical obby, so grounded
+		-- bot models skip it entirely.
 		local objectivesAllowed = self.botObjectiveCount < caps.objectives
-			and remainingObjectives > 1
+			and self:_objectiveCount() < RoundConfig.objectiveGoal - 1
 		for _, objectiveId in OBJECTIVE_IDS do
-			if objectivesAllowed and not self.completedObjectives[objectiveId] then
+			if
+				objectivesAllowed
+				and objectiveId ~= "ropes"
+				and not self.completedObjectives[objectiveId]
+			then
 				table.insert(actions, {
 					id = "objective:" .. objectiveId,
 					actionType = "CompleteObjective",
@@ -2675,7 +2748,9 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			local plan = self.murderPlan
 			local targetId = if plan then plan.victimParticipantId else nil
 			local target = if targetId then self.participants:GetById(targetId) else nil
-			if target and target.alive then
+			-- A victim standing in stocked firelight is untouchable; the bot
+			-- murderer waits instead of hurling itself at the ward.
+			if target and target.alive and not self:_isCampfireProtected(target) then
 				table.insert(actions, {
 					id = "attack:" .. target.participantId,
 					actionType = "Attack",

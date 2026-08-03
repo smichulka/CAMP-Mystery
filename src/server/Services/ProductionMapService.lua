@@ -63,12 +63,19 @@ local OBJECTIVES = {
 		-- The completion platform sits at the top of a climbable course; the
 		-- root is placed at position + (0, -1.4, 0), so Y=16.4 puts the
 		-- platform floor at Y=15 and humans must traverse the obby to reach
-		-- the prompt (bots complete objectives with enforceSpatial = false).
+		-- the prompt (bots skip this station — see _GetBotActions).
 		id = "ropes",
 		name = "Ropes Course",
 		position = Vector3.new(58, 16.4, -44),
 		color = Color3.fromRGB(139, 98, 52),
 	},
+}
+
+local OBJECTIVE_EFFECT_LINES: { [string]: string } = {
+	firewood = "Keeps the campfire a safe haven tonight",
+	generator = "Powers the camp lights tonight",
+	supplies = "Bonus night gear for every camper",
+	ropes = "Optional challenge — counts toward camp tasks",
 }
 
 local SEARCH_TARGETS = {
@@ -1317,6 +1324,13 @@ local function buildCampTerrain(parent: Instance)
 		Vector3.new(31, 4.8, 170),
 		Enum.Material.Water
 	)
+	-- Widen the creek into a proper lake bay east of camp, with a sandy
+	-- beach along the western shore (the tree ring leaves this sector open)
+	terrain:FillCylinder(CFrame.new(105, -0.8, 48), 4.8, 36, Enum.Material.Water)
+	terrain:FillCylinder(CFrame.new(112, -0.8, 22), 4.8, 26, Enum.Material.Water)
+	terrain:FillCylinder(CFrame.new(78, -1.6, 48), 3.6, 16, Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(80, -1.6, 28), 3.6, 12, Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(80, -1.6, 66), 3.6, 12, Enum.Material.Sand)
 
 	local bounds = createPart(
 		parent,
@@ -1498,6 +1512,11 @@ function ProductionMapService:Build()
 			seat.Parent = self.dayCamp
 		end
 		for index = 1, 30 do
+			if index <= 3 or index >= 29 then
+				-- Lakefront gap: the east-northeast sector stays open so the
+				-- camp looks onto the lake instead of a tree wall
+				continue
+			end
 			local angle = (index / 30) * math.pi * 2
 			local radius = 91 + (index % 4) * 9
 			createPineTree(
@@ -1530,6 +1549,171 @@ function ProductionMapService:Build()
 			)
 			rock.CanCollide = false
 		end
+		-- Waterfront: dock over the lake bay, boathouse with canoe rack,
+		-- beached and floating canoes, lifeguard chair, and buoy line
+		local dockWood = Color3.fromRGB(96, 70, 46)
+		local dockDark = Color3.fromRGB(72, 52, 34)
+		createPart(self.dayCamp, "DockWalk", Vector3.new(26, 0.5, 3.6),
+			CFrame.new(83, 1.9, 40), dockWood, Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "DockPlatform", Vector3.new(8, 0.5, 8),
+			CFrame.new(100, 1.9, 40), dockWood, Enum.Material.WoodPlanks)
+		local dockPostSpots = {
+			Vector3.new(74, 0, 38.5), Vector3.new(74, 0, 41.5),
+			Vector3.new(82, 0, 38.5), Vector3.new(82, 0, 41.5),
+			Vector3.new(90, 0, 38.5), Vector3.new(90, 0, 41.5),
+			Vector3.new(97, 0, 36.5), Vector3.new(97, 0, 43.5),
+			Vector3.new(103, 0, 36.5), Vector3.new(103, 0, 43.5),
+		}
+		for postIndex, postSpot in dockPostSpots do
+			createCylinder(self.dayCamp, "DockPost" .. tostring(postIndex),
+				Vector3.new(2.4, 0.55, 0.55),
+				CFrame.new(postSpot + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+				dockDark, Enum.Material.Wood)
+		end
+		createPart(self.dayCamp, "DockLanternPost", Vector3.new(0.4, 4, 0.4),
+			CFrame.new(103, 4.15, 43.5), dockDark, Enum.Material.Wood)
+		local dockLamp = createPart(self.dayCamp, "DockLantern", Vector3.new(0.8, 0.8, 0.8),
+			CFrame.new(103, 6.4, 43.5), Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
+		dockLamp.Shape = Enum.PartType.Ball
+		dockLamp.CanCollide = false
+		local dockLight = Instance.new("PointLight")
+		dockLight.Brightness = 0.6
+		dockLight.Range = 18
+		dockLight.Color = Color3.fromRGB(255, 220, 161)
+		dockLight.Parent = dockLamp
+		-- Boathouse: open east wall faces the water
+		local bhX, bhZ = 74, 68
+		createPart(self.dayCamp, "BoathouseFloor", Vector3.new(10, 0.6, 8),
+			CFrame.new(bhX, 0.8, bhZ), dockDark, Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "BoathouseWestWall", Vector3.new(0.7, 7, 8),
+			CFrame.new(bhX - 4.65, 4.6, bhZ), Color3.fromRGB(112, 102, 90), Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "BoathouseNorthWall", Vector3.new(10, 7, 0.7),
+			CFrame.new(bhX, 4.6, bhZ + 3.65), Color3.fromRGB(112, 102, 90), Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "BoathouseSouthWall", Vector3.new(10, 7, 0.7),
+			CFrame.new(bhX, 4.6, bhZ - 3.65), Color3.fromRGB(112, 102, 90), Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "BoathouseRoof", Vector3.new(11, 0.4, 9.5),
+			CFrame.new(bhX, 8.6, bhZ) * CFrame.Angles(0, 0, math.rad(6)),
+			Color3.fromRGB(88, 84, 76), Enum.Material.CorrodedMetal)
+		local boathouseSign = createPart(self.dayCamp, "BoathouseSign", Vector3.new(5, 1.4, 0.3),
+			CFrame.new(bhX, 6.5, bhZ - 4.05), Color3.fromRGB(46, 32, 22), Enum.Material.Wood)
+		createSign(boathouseSign, "BOATHOUSE", Color3.fromRGB(226, 190, 114))
+		for railSide = -1, 1, 2 do
+			createPart(self.dayCamp, "CanoeRackRail" .. (if railSide < 0 then "L" else "R"),
+				Vector3.new(0.35, 0.35, 7),
+				CFrame.new(bhX + 0.2 + railSide * 0.9, 2.6, bhZ), dockDark, Enum.Material.Wood)
+			for postZ = -1, 1, 2 do
+				createPart(self.dayCamp, "CanoeRackPost", Vector3.new(0.35, 2.6, 0.35),
+					CFrame.new(bhX + 0.2 + railSide * 0.9, 1.3, bhZ + postZ * 3),
+					dockDark, Enum.Material.Wood)
+			end
+		end
+		-- Canoes: one racked, one beached, one tied at the dock
+		local canoeSpots = {
+			{ cframe = CFrame.new(74.2, 3.35, 68), color = Color3.fromRGB(74, 110, 60) },
+			{ cframe = CFrame.new(80, 1.0, 26) * CFrame.Angles(0, math.rad(35), 0), color = Color3.fromRGB(52, 118, 124) },
+			{ cframe = CFrame.new(101, 1.85, 33) * CFrame.Angles(0, math.rad(75), 0), color = Color3.fromRGB(150, 54, 44) },
+		}
+		for canoeIndex, canoe in canoeSpots do
+			local suffix = tostring(canoeIndex)
+			createPart(self.dayCamp, "CanoeHull" .. suffix, Vector3.new(1.6, 0.9, 7),
+				canoe.cframe, canoe.color, Enum.Material.SmoothPlastic)
+			local inner = createPart(self.dayCamp, "CanoeInner" .. suffix, Vector3.new(1.2, 0.28, 5.4),
+				canoe.cframe * CFrame.new(0, 0.33, 0), Color3.fromRGB(40, 34, 26), Enum.Material.Wood)
+			inner.CanCollide = false
+			for tip = -1, 1, 2 do
+				local tipWedge = Instance.new("WedgePart")
+				tipWedge.Name = "CanoeTip" .. suffix
+				tipWedge.Anchored = true
+				tipWedge.Size = Vector3.new(1.6, 0.9, 1.1)
+				tipWedge.CFrame = canoe.cframe
+					* CFrame.new(0, 0, tip * 4.05)
+					* CFrame.Angles(0, if tip > 0 then math.pi else 0, 0)
+				tipWedge.Color = canoe.color
+				tipWedge.Material = Enum.Material.SmoothPlastic
+				tipWedge.Parent = self.dayCamp
+			end
+		end
+		-- Lifeguard chair on the beach
+		local chairWhite = Color3.fromRGB(232, 232, 226)
+		for legX = -1, 1, 2 do
+			for legZ = -1, 1, 2 do
+				createPart(self.dayCamp, "LifeguardLeg", Vector3.new(0.35, 5, 0.35),
+					CFrame.new(70 + legX * 1.0, 2.5, 54 + legZ * 0.8),
+					chairWhite, Enum.Material.SmoothPlastic)
+			end
+		end
+		createPart(self.dayCamp, "LifeguardSeat", Vector3.new(2.6, 0.4, 2.2),
+			CFrame.new(70, 5.2, 54), chairWhite, Enum.Material.SmoothPlastic)
+		createPart(self.dayCamp, "LifeguardBack", Vector3.new(0.3, 2.2, 2.6),
+			CFrame.new(68.9, 6.5, 54), Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
+		local buoySpots = {
+			Vector3.new(92, 1.75, 62), Vector3.new(103, 1.75, 66),
+			Vector3.new(114, 1.75, 63), Vector3.new(123, 1.75, 57),
+		}
+		for buoyIndex, buoySpot in buoySpots do
+			local buoy = createPart(self.dayCamp, "LakeBuoy" .. tostring(buoyIndex),
+				Vector3.new(0.9, 0.9, 0.9), CFrame.new(buoySpot),
+				Color3.fromRGB(198, 60, 48), Enum.Material.SmoothPlastic)
+			buoy.Shape = Enum.PartType.Ball
+			buoy.CanCollide = false
+		end
+		-- Camp dressing: flagpole, picnic tables, trail signpost, archery range
+		createCylinder(self.dayCamp, "Flagpole", Vector3.new(18, 0.5, 0.5),
+			CFrame.new(14, 9, 42) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(168, 168, 174), Enum.Material.Metal)
+		local flagBall = createPart(self.dayCamp, "FlagpoleCap", Vector3.new(0.7, 0.7, 0.7),
+			CFrame.new(14, 18.2, 42), Color3.fromRGB(198, 165, 32), Enum.Material.Metal)
+		flagBall.Shape = Enum.PartType.Ball
+		flagBall.CanCollide = false
+		local flag = createPart(self.dayCamp, "CampFlag", Vector3.new(3.4, 2, 0.15),
+			CFrame.new(15.95, 16.8, 42), Color3.fromRGB(58, 96, 64), Enum.Material.Fabric)
+		flag.CanCollide = false
+		local picnicSpots = {
+			CFrame.new(24, 0, 12) * CFrame.Angles(0, math.rad(15), 0),
+			CFrame.new(-24, 0, 8) * CFrame.Angles(0, math.rad(-20), 0),
+		}
+		for picnicIndex, picnicCF in picnicSpots do
+			local suffix = tostring(picnicIndex)
+			createPart(self.dayCamp, "PicnicTable" .. suffix, Vector3.new(7, 0.45, 3),
+				picnicCF * CFrame.new(0, 2.6, 0), Color3.fromRGB(98, 72, 46), Enum.Material.WoodPlanks)
+			for benchSide = -1, 1, 2 do
+				createPart(self.dayCamp, "PicnicBench" .. suffix, Vector3.new(7, 0.35, 1.2),
+					picnicCF * CFrame.new(0, 1.7, benchSide * 2.2),
+					Color3.fromRGB(82, 60, 38), Enum.Material.WoodPlanks)
+			end
+		end
+		createPart(self.dayCamp, "TrailPost", Vector3.new(0.5, 7, 0.5),
+			CFrame.new(10, 3.5, 52), Color3.fromRGB(72, 52, 34), Enum.Material.Wood)
+		local trailSigns = {
+			{ text = "LAKE", height = 5.9, yaw = -35 },
+			{ text = "CABINS", height = 5.0, yaw = 90 },
+			{ text = "TOWN ROAD", height = 4.1, yaw = 180 },
+		}
+		for _, trailSign in trailSigns do
+			local board = createPart(self.dayCamp, "TrailSign" .. trailSign.text,
+				Vector3.new(3.6, 0.8, 0.22),
+				CFrame.new(10, trailSign.height, 52) * CFrame.Angles(0, math.rad(trailSign.yaw), 0),
+				Color3.fromRGB(56, 40, 26), Enum.Material.Wood)
+			createSign(board, trailSign.text, Color3.fromRGB(226, 190, 114))
+		end
+		local targetSpots = { Vector3.new(-44, 0, -66), Vector3.new(-35, 0, -70) }
+		for targetIndex, targetSpot in targetSpots do
+			local suffix = tostring(targetIndex)
+			createPart(self.dayCamp, "TargetPost" .. suffix, Vector3.new(0.5, 3.2, 0.5),
+				CFrame.new(targetSpot + Vector3.new(0, 1.6, 0)),
+				Color3.fromRGB(72, 52, 34), Enum.Material.Wood)
+			createCylinder(self.dayCamp, "TargetFace" .. suffix, Vector3.new(0.5, 3.2, 3.2),
+				CFrame.new(targetSpot + Vector3.new(0, 3.2, 0)) * CFrame.Angles(0, math.rad(90), 0),
+				Color3.fromRGB(228, 224, 210), Enum.Material.SmoothPlastic)
+			createCylinder(self.dayCamp, "TargetRing" .. suffix, Vector3.new(0.5, 1.9, 1.9),
+				CFrame.new(targetSpot + Vector3.new(0, 3.2, 0.06)) * CFrame.Angles(0, math.rad(90), 0),
+				Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
+			createCylinder(self.dayCamp, "TargetBull" .. suffix, Vector3.new(0.5, 0.8, 0.8),
+				CFrame.new(targetSpot + Vector3.new(0, 3.2, 0.12)) * CFrame.Angles(0, math.rad(90), 0),
+				Color3.fromRGB(198, 165, 32), Enum.Material.SmoothPlastic)
+		end
+		createPart(self.dayCamp, "HayBale", Vector3.new(4, 2.2, 1.6),
+			CFrame.new(-39.5, 1.1, -72), Color3.fromRGB(172, 150, 92), Enum.Material.Grass)
 	end
 
 	-- Strip any surviving brick chimneys (from authored place-file content or ServerStorage models)
@@ -1844,7 +2028,7 @@ function ProductionMapService:Build()
 		end
 		local marker = Instance.new("BillboardGui")
 		marker.Name = "ObjectiveMarker"
-		marker.Size = UDim2.fromOffset(190, 46)
+		marker.Size = UDim2.fromOffset(200, 62)
 		marker.StudsOffset = Vector3.new(0, 5.5, 0)
 		marker.AlwaysOnTop = true
 		marker.MaxDistance = 100
@@ -1855,7 +2039,10 @@ function ProductionMapService:Build()
 		markerText.BorderSizePixel = 0
 		markerText.Size = UDim2.fromScale(1, 1)
 		markerText.Font = Enum.Font.GothamBold
-		markerText.Text = string.upper(definition.name)
+		local effectLine = OBJECTIVE_EFFECT_LINES[definition.id]
+		markerText.Text = if effectLine
+			then string.upper(definition.name) .. "\n" .. effectLine
+			else string.upper(definition.name)
 		markerText:SetAttribute("OriginalText", markerText.Text)
 		markerText.TextColor3 = Color3.fromRGB(244, 224, 176)
 		markerText.TextScaled = true
@@ -2175,11 +2362,52 @@ function ProductionMapService:GetEvidenceAliases(): { string }
 	return aliases
 end
 
-function ProductionMapService:SetNight(isNight: boolean)
+export type NightOptions = {
+	generatorPowered: boolean?,
+	firewoodStocked: boolean?,
+}
+
+function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
+	local powered = options ~= nil and options.generatorPowered == true
+	local stocked = options ~= nil and options.firewoodStocked == true
 	setFolderVisible(self.nightTown, isNight)
 	for _, descendant in self.dayCamp:GetDescendants() do
 		if descendant:IsA("SurfaceLight") then
-			descendant.Enabled = isNight
+			-- Cabin window lights only burn at night if the generator was repaired.
+			descendant.Enabled = isNight and powered
+		end
+	end
+
+	local flame: BasePart? = nil
+	for _, descendant in self.dayCamp:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant:GetAttribute("SafeVolume") == true then
+			flame = descendant
+			break
+		end
+	end
+	if flame then
+		local light = flame:FindFirstChildOfClass("PointLight")
+		local fire = flame:FindFirstChildOfClass("Fire")
+		if isNight then
+			-- Stocked firewood keeps the campfire blazing (and marks the safe
+			-- haven); unstocked, it gutters down to embers.
+			if light then
+				light.Brightness = if stocked then 3.4 else 1.1
+				light.Range = if stocked then 44 else 16
+			end
+			if fire then
+				fire.Size = if stocked then 12 else 5
+				fire.Heat = if stocked then 12 else 6
+			end
+		else
+			if light then
+				light.Brightness = 2.4
+				light.Range = 32
+			end
+			if fire then
+				fire.Size = 7
+				fire.Heat = 9
+			end
 		end
 	end
 
@@ -2195,12 +2423,14 @@ function ProductionMapService:SetNight(isNight: boolean)
 	if isNight then
 		Lighting.ClockTime = 1.25
 		TweenService:Create(Lighting, transition, {
-			Brightness = 0.62,
+			Brightness = if powered then 0.85 else 0.62,
 			Ambient = NIGHT_AMBIENT,
-			OutdoorAmbient = Color3.fromRGB(12, 16, 28),
+			OutdoorAmbient = if powered
+				then Color3.fromRGB(24, 30, 46)
+				else Color3.fromRGB(12, 16, 28),
 			FogColor = Color3.fromRGB(34, 42, 54),
-			FogStart = 14,
-			FogEnd = 165,
+			FogStart = if powered then 40 else 14,
+			FogEnd = if powered then 260 else 165,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {

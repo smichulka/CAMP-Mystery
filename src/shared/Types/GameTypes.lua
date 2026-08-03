@@ -61,6 +61,13 @@ export type RoundSnapshot = {
 	winner: WinnerName?,
 	resultMessage: string?,
 	isNight: boolean,
+	dayOutcomes: DayOutcomeSnapshot?,
+}
+
+export type DayOutcomeSnapshot = {
+	generator: boolean,
+	firewood: boolean,
+	supplies: boolean,
 }
 
 return {}

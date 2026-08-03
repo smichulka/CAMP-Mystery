@@ -2474,7 +2474,9 @@ class ServerReleaseContracts(unittest.TestCase):
             self.assertIn(state, world)
 
         # SetNight: no-op when already in the target stable state
-        set_night_start = world.index("function WorldService:SetNight(isNight: boolean)")
+        set_night_start = world.index(
+            "function WorldService:SetNight(isNight: boolean, options: NightOptions?)"
+        )
         set_night_end = world.index("\nfunction WorldService:SpawnEvidence(", set_night_start)
         set_night_fn = world[set_night_start:set_night_end]
         self.assertIn(
