@@ -24,6 +24,7 @@ local ProfileServiceReliabilityPatch = require(
 )
 ProfileServiceReliabilityPatch.Apply()
 local GameRuntimeService = require(services:WaitForChild("GameRuntimeService"))
+local CharacterService = require(services:WaitForChild("CharacterService"))
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameStateChanged = remotes:WaitForChild("GameStateChanged") :: RemoteEvent
@@ -251,6 +252,9 @@ Players.PlayerRemoving:Connect(function(player: Player)
 end)
 
 runtime:Start()
+
+local characterService = CharacterService.new()
+characterService:Start()
 
 game:BindToClose(function()
 	runtime:Stop()
