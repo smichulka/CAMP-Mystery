@@ -1565,26 +1565,73 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		end
 	elseif monsterId == "Banshee" then
 		root.Transparency = 0.25
-		-- Open wailing mouth — the defining Banshee feature from the reference (large O scream)
+		-- Hollow dark eyes (the generic glow eyes render as white dots — too friendly)
+		for _, eyeName in { "LeftGlow", "RightGlow" } do
+			local bansheeEye = model:FindFirstChild(eyeName) :: BasePart?
+			if bansheeEye then
+				bansheeEye.Color = Color3.fromRGB(10, 10, 16)
+				bansheeEye.Material = Enum.Material.SmoothPlastic
+				bansheeEye.Size = Vector3.new(0.55, 0.55, 0.55)
+			end
+		end
+		-- Open wailing mouth — the defining Banshee feature (large O scream). A Ball
+		-- part renders at its smallest axis, so use a forward-facing cylinder disc
+		-- for a tall dark oval on the visible head sphere (radius 1.2)
 		local mouthGlow = makePart(model, "WailMouth",
-			Vector3.new(1.10 * sx, 1.40 * sy, 0.35 * sz),
-			at * CFrame.new(0, headY - headSize.Y * 0.28, -(headSize.Z / 2 + 0.10)),
-			Color3.fromRGB(12, 6, 14), Enum.PartType.Ball)
+			Vector3.new(0.30, 1.45 * sy * 0.66, 1.00 * sx),
+			at * CFrame.new(0, headY - 0.55, -(headSize.Z / 2 - 0.05))
+				* CFrame.Angles(0, math.pi / 2, 0),
+			Color3.fromRGB(12, 6, 14), Enum.PartType.Cylinder)
 		mouthGlow.Material = Enum.Material.Neon
 		mouthGlow.Transparency = 0.08
+		-- Ghostly reaching arms: the generic accent limbs render as rigid white rods,
+		-- so soften them into translucent spectral sleeves
+		for _, limbName in { "LeftLimb", "RightLimb" } do
+			local limb = model:FindFirstChild(limbName) :: BasePart?
+			if limb then
+				limb.Color = presentation.color
+				limb.Material = Enum.Material.ForceField
+				limb.Transparency = 0.30
+			end
+		end
+		for side = -1, 1, 2 do
+			local sleeve = makePart(model, if side < 0 then "SleeveL" else "SleeveR",
+				Vector3.new(0.85, 1.9, 0.55),
+				at * CFrame.new(side * 3.2, -2.2, 0) * CFrame.Angles(0, 0, side * 0.42),
+				presentation.color)
+			sleeve.Material = Enum.Material.ForceField
+			sleeve.Transparency = 0.45
+		end
 		local veil = makePart(model, "SpectralVeil", Vector3.new(6, 6.5, 0.25),
-			at * CFrame.new(0, 0.3, 1.2), presentation.accent)
+			at * CFrame.new(0, 0.3, 1.35) * CFrame.Angles(0.18, 0, 0), presentation.accent)
 		veil.Material = Enum.Material.ForceField
-		veil.Transparency = 0.55
-		-- Long silver-white hair streams flowing back from the head
-		for index = 1, 5 do
-			local spread = (index - 3) * 0.55 * sx
-			local hairWisp = makePart(model, "HairWisp" .. tostring(index),
-				Vector3.new(0.22, 3.2 * sy + index * 0.3, 0.14),
-				at * CFrame.new(spread, headY - 0.4 * sy, 0.9 + index * 0.18)
-					* CFrame.Angles(-0.35, 0, (index - 3) * 0.06), presentation.accent)
-			hairWisp.Material = Enum.Material.ForceField
-			hairWisp.Transparency = 0.35 + index * 0.06
+		veil.Transparency = 0.62
+		-- Layered flowing hair: translucent cap, side falls past the shoulders, and an
+		-- overlapping back cascade of wide waved panels (reference: wild flowing mane,
+		-- not thin sticks)
+		local hairC = presentation.accent
+		local hairCap = makePart(model, "HairCap",
+			Vector3.new(headSize.X * 1.14, headSize.Y * 0.62, headSize.Z * 1.14),
+			at * CFrame.new(0, headY + 0.30, 0.10), hairC, Enum.PartType.Ball)
+		hairCap.Material = Enum.Material.ForceField
+		hairCap.Transparency = 0.22
+		for side = -1, 1, 2 do
+			local fall = makePart(model, if side < 0 then "HairFallL" else "HairFallR",
+				Vector3.new(0.55, 2.5, 0.90),
+				at * CFrame.new(side * (headSize.X * 0.42 + 0.18), headY - 1.25, 0.15)
+					* CFrame.Angles(0, 0, side * 0.10), hairC)
+			fall.Material = Enum.Material.ForceField
+			fall.Transparency = 0.30
+		end
+		for index = 1, 4 do
+			local spread = (index - 2.5) * 0.62 * sx
+			local hairLen = 2.2 + (index % 2) * 0.8
+			local wave = makePart(model, "HairBack" .. tostring(index),
+				Vector3.new(0.72, hairLen, 0.30),
+				at * CFrame.new(spread, headY - hairLen * 0.28, headSize.Z * 0.35 + index * 0.10)
+					* CFrame.Angles(-0.42, 0, (index - 2.5) * 0.10), hairC)
+			wave.Material = Enum.Material.ForceField
+			wave.Transparency = 0.26 + index * 0.05
 		end
 		-- Trailing wail streams
 		for index = 1, 3 do
