@@ -2486,6 +2486,9 @@ function GameRuntimeService:_ApplyRewards()
 	if not winner then
 		return
 	end
+	local plan = self.murderPlan
+	local codexMonsterId = if plan then plan.monsterId else nil
+	local culpritId = self.culpritParticipantId
 	for _, participant in self.participants:GetAll() do
 		-- Spectators earn nothing and ProfileService rejects their roleId;
 		-- skipping them keeps round-end logs clean.
@@ -2510,6 +2513,9 @@ function GameRuntimeService:_ApplyRewards()
 						self.objectivesByParticipantId[participant.participantId] or 0,
 					evidenceCollected =
 						self.evidenceByParticipantId[participant.participantId] or 0,
+					monsterId = codexMonsterId,
+					identifiedMonster = participant.vote.targetParticipantId ~= nil
+						and participant.vote.targetParticipantId == culpritId,
 				})
 				if not result.applied and not result.duplicate then
 					warn(string.format(
