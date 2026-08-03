@@ -21,6 +21,7 @@ export type ActionName =
 	| "DiscoverEvidence"
 	| "InterviewCounselor"
 	| "Vote"
+	| "PresentEvidence"
 	| "EquipItem"
 	| "UseItem"
 	| "DropItem"

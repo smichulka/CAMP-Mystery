@@ -48,6 +48,10 @@ local phases: { PhaseConfig } = {
 		displayName = "Campfire Vote",
 		durationSeconds = 120,
 		studioDurationSeconds = 60,
+		-- Discussion window at the start of Campfire: evidence is presented
+		-- and chat happens; votes unlock once it elapses.
+		discussionSeconds = 75,
+		studioDiscussionSeconds = 25,
 	},
 	{
 		name = "Resolution",

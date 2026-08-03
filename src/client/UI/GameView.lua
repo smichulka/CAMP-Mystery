@@ -3476,6 +3476,7 @@ function GameView:_updateEvidence(state: any, round: any)
 		card.Size = UDim2.new(1, -8, 0, Theme.Notebook.CardHeight)
 		local verifyEnabled = self:_available(state, "VerifyEvidence")
 		local noteEnabled = self:_available(state, "AddEvidenceNote")
+		local presentEnabled = self:_available(state, "PresentEvidence")
 		local verify = Components.Button(card, {
 			name = "Verify",
 			text = "VERIFY",
@@ -3500,6 +3501,19 @@ function GameView:_updateEvidence(state: any, round: any)
 		note.Activated:Connect(function()
 			self:_promptEvidenceNote(evidenceId)
 		end)
+		if presentEnabled and evidenceId ~= "" then
+			local present = Components.Button(card, {
+				name = "Present",
+				text = "PRESENT",
+				size = UDim2.fromOffset(104, 30),
+				position = UDim2.new(1, -330, 1, -36),
+				color = Theme.Colors.Amber,
+			})
+			present.ZIndex = card.ZIndex + 5
+			present.Activated:Connect(function()
+				self:_send("PresentEvidence", { evidenceId = evidenceId }, present)
+			end)
+		end
 	end
 	for _, record in culprit do
 		addEvidence(record, "CULPRIT")
@@ -3576,6 +3590,21 @@ function GameView:_updateEvidence(state: any, round: any)
 			footer.TextColor3 = Theme.Colors.TextMuted
 			footer.Font = Theme.Typography.CaptionFont
 			footer.TextSize = Theme.Typography.CaptionSize
+			local clueId = readString(clue, "clueId", "")
+			if self:_available(state, "PresentEvidence") and clueId ~= "" then
+				footer.Size = UDim2.new(1, -146, 0, 24)
+				local presentClue = Components.Button(card, {
+					name = "Present",
+					text = "PRESENT",
+					size = UDim2.fromOffset(104, 30),
+					position = UDim2.new(1, -116, 1, -36),
+					color = Theme.Colors.Amber,
+				})
+				presentClue.ZIndex = card.ZIndex + 5
+				presentClue.Activated:Connect(function()
+					self:_send("PresentEvidence", { clueId = clueId }, presentClue)
+				end)
+			end
 		end
 	end
 	local witnessAccounts = if type(mystery) == "table"
@@ -3827,6 +3856,110 @@ function GameView:_updateRoster(state: any)
 	end
 end
 
+function GameView:_ensureDiscussionPanel()
+	if self.discussionPanel then
+		return
+	end
+	local panel = Instance.new("Frame")
+	panel.Name = "CampfireDiscussion"
+	panel.AnchorPoint = Vector2.new(0.5, 0)
+	panel.Position = UDim2.new(0.5, 0, 0.12, 0)
+	panel.Size = UDim2.new(0.36, 0, 0.52, 0)
+	panel.BackgroundColor3 = Color3.fromRGB(16, 20, 19)
+	panel.BackgroundTransparency = 0.1
+	panel.BorderSizePixel = 0
+	panel.Visible = false
+	panel.ZIndex = 40
+	panel.Parent = self.root
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = panel
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.new(1, -24, 0, 34)
+	title.Position = UDim2.fromOffset(12, 8)
+	title.Font = Enum.Font.GothamBold
+	title.Text = "CAMPFIRE DISCUSSION"
+	title.TextColor3 = Color3.fromRGB(244, 224, 176)
+	title.TextSize = 20
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.ZIndex = panel.ZIndex + 1
+	title.Parent = panel
+	local hint = Instance.new("TextLabel")
+	hint.Name = "Hint"
+	hint.BackgroundTransparency = 1
+	hint.Size = UDim2.new(1, -24, 0, 44)
+	hint.Position = UDim2.fromOffset(12, 42)
+	hint.Font = Enum.Font.Gotham
+	hint.Text = "Talk it over in chat, and present your strongest evidence from the notebook [N]. Voting opens when the discussion timer ends."
+	hint.TextColor3 = Color3.fromRGB(214, 219, 212)
+	hint.TextSize = 14
+	hint.TextWrapped = true
+	hint.TextXAlignment = Enum.TextXAlignment.Left
+	hint.ZIndex = panel.ZIndex + 1
+	hint.Parent = panel
+	local log = Instance.new("ScrollingFrame")
+	log.Name = "DiscussionLog"
+	log.BackgroundTransparency = 1
+	log.BorderSizePixel = 0
+	log.Size = UDim2.new(1, -24, 1, -100)
+	log.Position = UDim2.fromOffset(12, 92)
+	log.CanvasSize = UDim2.new(0, 0, 0, 0)
+	log.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	log.ScrollBarThickness = 4
+	log.ZIndex = panel.ZIndex + 1
+	log.Parent = panel
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 4)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = log
+	self.discussionPanel = panel
+	self.discussionLogList = log
+end
+
+function GameView:_setDiscussionVisible(visible: boolean, round: any)
+	if not visible then
+		if self.discussionPanel then
+			self.discussionPanel.Visible = false
+		end
+		return
+	end
+	self:_ensureDiscussionPanel()
+	local panel = self.discussionPanel
+	local log = self.discussionLogList
+	if not panel or not log then
+		return
+	end
+	panel.Visible = true
+	Components.ClearGenerated(log)
+	local entries = asTable(round.discussionLog)
+	for index, entry in entries do
+		if type(entry) == "table" then
+			local line = Instance.new("TextLabel")
+			line.Name = "Entry" .. tostring(index)
+			line:SetAttribute("Generated", true)
+			line.BackgroundColor3 = Color3.fromRGB(28, 33, 31)
+			line.BackgroundTransparency = 0.25
+			line.BorderSizePixel = 0
+			line.Size = UDim2.new(1, -8, 0, 30)
+			line.Font = Enum.Font.Gotham
+			line.Text = string.format(
+				"%s presented: %s",
+				readString(entry, "presenterName", "Someone"),
+				readString(entry, "itemName", "evidence")
+			)
+			line.TextColor3 = Color3.fromRGB(232, 226, 200)
+			line.TextSize = 14
+			line.TextWrapped = true
+			line.TextXAlignment = Enum.TextXAlignment.Left
+			line.LayoutOrder = index
+			line.ZIndex = log.ZIndex + 1
+			line.Parent = log
+		end
+	end
+end
+
 function GameView:_updateVote(round: any, player: any)
 	local phase = readString(round, "phase", "Lobby")
 	local alive = readBoolean(player, "alive", false)
@@ -3852,10 +3985,20 @@ function GameView:_updateVote(round: any, player: any)
 	end
 	if phase ~= "Campfire" or not alive or isGhost then
 		setModalVisible(self.voteModal, false)
+		self:_setDiscussionVisible(false, round)
 		self.currentVoteSignature = ""
 		self.localVoteHasLocked = false
 		return
 	end
+	-- Older snapshots have no campfireStage; treat them as open voting.
+	local campfireStage = readString(round, "campfireStage", "Voting")
+	if campfireStage == "Discussion" then
+		setModalVisible(self.voteModal, false)
+		self:_setDiscussionVisible(true, round)
+		self.currentVoteSignature = ""
+		return
+	end
+	self:_setDiscussionVisible(false, round)
 	self.localVoteHasLocked = self.localVoteHasLocked or hasVoted
 	if not self.localVoteHasLocked then
 		setModalVisible(self.voteModal, true)

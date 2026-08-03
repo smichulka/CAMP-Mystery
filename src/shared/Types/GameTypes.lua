@@ -62,6 +62,15 @@ export type RoundSnapshot = {
 	resultMessage: string?,
 	isNight: boolean,
 	dayOutcomes: DayOutcomeSnapshot?,
+	campfireStage: string?,
+	votingOpensAt: number?,
+	discussionLog: { DiscussionEntry }?,
+}
+
+export type DiscussionEntry = {
+	presenterName: string,
+	itemName: string,
+	at: number,
 }
 
 export type DayOutcomeSnapshot = {

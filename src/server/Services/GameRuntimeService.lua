@@ -117,6 +117,11 @@ type GameRuntimeServiceState = {
 	botEvidenceCount: number,
 	votingOpensAt: number?,
 	dayOutcomes: DayOutcomes?,
+	campfireStage: string?,
+	discussionLog: { GameTypes.DiscussionEntry },
+	presentedSuspicion: { [string]: number },
+	presentedItems: { [string]: boolean },
+	presentedCountByParticipantId: { [string]: number },
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -291,6 +296,20 @@ local function phaseDuration(phase: PhaseName): number
 		end
 	end
 	error("Missing phase configuration for " .. phase)
+end
+
+local function campfireDiscussionSeconds(): number
+	for _, config in RoundConfig.phases do
+		if config.name == "Campfire" then
+			local anyConfig = config :: any
+			local studioSeconds = anyConfig.studioDiscussionSeconds
+			if RunService:IsStudio() and studioSeconds then
+				return studioSeconds
+			end
+			return anyConfig.discussionSeconds or 0
+		end
+	end
+	return 0
 end
 
 local function phaseDisplayName(phase: PhaseName): string
@@ -1156,6 +1175,11 @@ function GameRuntimeService:BeginRound(
 	self.botEvidenceCount = 0
 	self.votingOpensAt = nil
 	self.dayOutcomes = nil
+	self.campfireStage = nil
+	self.discussionLog = {}
+	self.presentedSuspicion = {}
+	self.presentedItems = {}
+	self.presentedCountByParticipantId = {}
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -1230,6 +1254,8 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	self.phaseStartedAt = now()
 	self.phaseEndsAt = self.phaseStartedAt + phaseDuration(phase)
 	self.botTaskById = {}
+	self.campfireStage = nil
+	self.votingOpensAt = nil
 	if self.roundId > 0 then
 		self.counselors:SetPhase(phase, self.phaseStartedAt)
 		self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
@@ -1314,6 +1340,30 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.characters:ClearMonster()
 		-- Draw bots toward the campfire for the vote so they look like participants
 		self.characters:GatherBotsAt(Vector3.new(0, 3, 7), 4)
+		self.campfireStage = "Discussion"
+		local discussionSeconds = campfireDiscussionSeconds()
+		self.votingOpensAt = self.phaseStartedAt + discussionSeconds
+		local generation = self.generation
+		local campfireRoundId = self.roundId
+		task.delay(discussionSeconds, function()
+			if not self.running or self.generation ~= generation then
+				return
+			end
+			if self.roundId ~= campfireRoundId or self.phase ~= "Campfire" then
+				return
+			end
+			if self.campfireStage ~= "Discussion" then
+				return
+			end
+			self.campfireStage = "Voting"
+			self:_announce(
+				"Info",
+				"Voting is open",
+				"Discussion is over — lock in your accusation.",
+				5
+			)
+			self:Broadcast()
+		end)
 	elseif phase == "Resolution" then
 		if not self.winner then
 			self:_ResolveAccusation()
@@ -1426,6 +1476,9 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		resultMessage = self.resultMessage,
 		isNight = self.world:GetPublicSnapshot().isNight,
 		dayOutcomes = self.dayOutcomes,
+		campfireStage = self.campfireStage,
+		votingOpensAt = self.votingOpensAt,
+		discussionLog = self.discussionLog,
 	}
 end
 
@@ -1444,6 +1497,7 @@ function GameRuntimeService:_availableActions(
 		"DiscoverEvidence",
 		"InterviewCounselor",
 		"Vote",
+		"PresentEvidence",
 		"EquipItem",
 		"UseItem",
 		"DropItem",
@@ -1480,7 +1534,13 @@ function GameRuntimeService:_availableActions(
 					or self.phase == "Campfire"
 				)
 		elseif name == "Vote" then
-			enabled = active and self.phase == "Campfire"
+			enabled = active
+				and self.phase == "Campfire"
+				and self.campfireStage == "Voting"
+		elseif name == "PresentEvidence" then
+			enabled = active
+				and self.phase == "Campfire"
+				and self.campfireStage == "Discussion"
 		elseif name == "UseMonsterAbility" then
 			enabled = active
 				and self.phase == "Investigation"
@@ -2212,6 +2272,9 @@ function GameRuntimeService:_handleParticipantAction(
 		if self.phase ~= "Campfire" then
 			return actionRejected("Voting is not active")
 		end
+		if self.campfireStage ~= "Voting" then
+			return actionRejected("Voting opens after the discussion")
+		end
 		local targetId = getString(payload, "targetParticipantId")
 			or getString(payload, "targetKey")
 		if not targetId then
@@ -2227,6 +2290,64 @@ function GameRuntimeService:_handleParticipantAction(
 			state = nil,
 			data = if cast then { targetParticipantId = targetId } else nil,
 		}
+	elseif actionName == "PresentEvidence" then
+		if self.phase ~= "Campfire" then
+			return actionRejected("Evidence can only be presented at the campfire")
+		end
+		if self.campfireStage ~= "Discussion" then
+			return actionRejected("Presentations happen during the discussion")
+		end
+		local itemId = getString(payload, "evidenceId") or getString(payload, "clueId")
+		if not itemId then
+			return actionRejected("Choose evidence to present")
+		end
+		if self.presentedItems[itemId] then
+			return actionRejected("That evidence has already been presented")
+		end
+		local presentedCount =
+			self.presentedCountByParticipantId[participant.participantId] or 0
+		if presentedCount >= 3 then
+			return actionRejected("You have presented enough for one night")
+		end
+		local itemName: string? = nil
+		local suspectIds: { string } = {}
+		local record = self.evidence:GetRecordServer(itemId)
+		if record and record.posted then
+			itemName = record.displayName
+		elseif self.mysteryReady then
+			for _, clue in self.mystery:GetPublicSnapshot().clues do
+				if clue.clueId == itemId then
+					itemName = clue.title
+					if clue.channel == "Culprit" then
+						suspectIds = clue.suspectCandidateIds
+					end
+					break
+				end
+			end
+		end
+		if not itemName then
+			return actionRejected("Only discovered evidence can be presented")
+		end
+		self.presentedItems[itemId] = true
+		self.presentedCountByParticipantId[participant.participantId] = presentedCount + 1
+		for _, suspectId in suspectIds do
+			self.presentedSuspicion[suspectId] = (self.presentedSuspicion[suspectId] or 0) + 1
+		end
+		table.insert(self.discussionLog, {
+			presenterName = participant.displayName,
+			itemName = itemName,
+			at = now(),
+		})
+		if #self.discussionLog > 20 then
+			table.remove(self.discussionLog, 1)
+		end
+		self:_announce(
+			"Info",
+			participant.displayName .. " presents evidence",
+			itemName,
+			4
+		)
+		return { accepted = true, reason = nil, state = nil, data = nil }
 	elseif actionName == "EquipItem" then
 		local instanceId = getString(payload, "instanceId")
 		if not instanceId then
@@ -2821,6 +2942,11 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 					end
 				end
 			end
+		end
+		-- Evidence presented aloud during the discussion carries extra weight
+		-- with bot voters.
+		for suspectId, weight in self.presentedSuspicion do
+			publicSuspicion[suspectId] = (publicSuspicion[suspectId] or 0) + weight * 1.25
 		end
 		-- Bots hold their votes until voting opens (plus a personal stagger)
 		-- so human accusations lead and bot votes follow.
