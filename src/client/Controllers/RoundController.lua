@@ -499,6 +499,11 @@ local function refresh()
 	end
 end
 
+-- Gamepad sensitivity writes are rejected in Studio playtests and warn loudly,
+-- so stop retrying after the first failure and skip redundant re-applies.
+local gamepadSensitivityBlocked = false
+local lastAppliedGamepadSensitivity: number? = nil
+
 local function updateReleaseExperience(
 	snapshot: GameState,
 	isReconnectSnapshot: boolean?
@@ -536,13 +541,20 @@ local function updateReleaseExperience(
 	if settings and type(settings.mouseSensitivity) == "number" then
 		UserInputService.MouseDeltaSensitivity = math.clamp(settings.mouseSensitivity, 0.1, 3)
 	end
-	if settings and type(settings.controllerSensitivity) == "number" then
-		pcall(function()
-			local userGameSettings = UserSettings():GetService("UserGameSettings")
-			local writableGameSettings = userGameSettings :: any
-			writableGameSettings.GamepadCameraSensitivity =
-				math.clamp(settings.controllerSensitivity, 0.1, 3)
-		end)
+	if settings and type(settings.controllerSensitivity) == "number" and not gamepadSensitivityBlocked then
+		local target = math.clamp(settings.controllerSensitivity, 0.1, 3)
+		if target ~= lastAppliedGamepadSensitivity then
+			local ok = pcall(function()
+				local userGameSettings = UserSettings():GetService("UserGameSettings")
+				local writableGameSettings = userGameSettings :: any
+				writableGameSettings.GamepadCameraSensitivity = target
+			end)
+			if ok then
+				lastAppliedGamepadSensitivity = target
+			else
+				gamepadSensitivityBlocked = true
+			end
+		end
 	end
 	currentTutorial:Update(snapshot)
 	local reconnect = isReconnectSnapshot == true

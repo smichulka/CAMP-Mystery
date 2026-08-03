@@ -1100,9 +1100,13 @@ end
 local function buildCampTerrain(parent: Instance)
 	local terrain = Workspace.Terrain
 	-- Animated grass everywhere on grass terrain, cut short so porches/props stay visible
-	terrain.Decoration = true
+	-- (Decoration/GrassLength may not exist depending on Studio version; both are optional cosmetics)
+	local cosmeticTerrain = terrain :: any
 	pcall(function()
-		terrain.GrassLength = 0.3
+		cosmeticTerrain.Decoration = true
+	end)
+	pcall(function()
+		cosmeticTerrain.GrassLength = 0.3
 	end)
 	terrain:FillBlock(
 		CFrame.new(0, -3.5, 12),
@@ -1563,8 +1567,8 @@ function ProductionMapService:Build()
 			createPart(churchModel, "SteepleBase", Vector3.new(7, cH + 4, 7), CFrame.new(cPos + Vector3.new(spX, (cH + 4) / 2, spZ)), churchColor, Enum.Material.Brick)
 			createPart(churchModel, "SteepleSpire", Vector3.new(6, 18, 6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 9, spZ)), roofC, Enum.Material.Slate)
 			-- Cross at the top of the steeple
-			createPart(churchModel, "CrossV", Vector3.new(0.6, 5, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 18 + 2.5, spZ)), Color3.fromRGB(72, 65, 55))
-			createPart(churchModel, "CrossH", Vector3.new(3.5, 0.6, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 20, spZ)), Color3.fromRGB(72, 65, 55))
+			createPart(churchModel, "CrossV", Vector3.new(0.6, 5, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 18 + 2.5, spZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
+			createPart(churchModel, "CrossH", Vector3.new(3.5, 0.6, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 20, spZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
 			-- Arched windows on side walls
 			for wSide = -1, 1, 2 do
 				for wn = 1, 2 do
