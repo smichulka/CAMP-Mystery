@@ -488,14 +488,116 @@ local function createCabin(
 	end
 	-- Round metal stovepipe chimney (vertical cylinder through roof)
 	local pipeColor = Color3.fromRGB(40, 36, 32)
+	local pipeLift = wallTop - 10
 	createCylinder(model, "Stovepipe",
 		Vector3.new(8, 0.52, 0.52),
-		CFrame.new(position + Vector3.new(width * 0.28, 14.0, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+		CFrame.new(position + Vector3.new(width * 0.28, 14.0 + pipeLift, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
 		pipeColor, Enum.Material.Metal)
 	createCylinder(model, "StovepipeCap",
 		Vector3.new(0.55, 0.80, 0.80),
-		CFrame.new(position + Vector3.new(width * 0.28, 18.3, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
+		CFrame.new(position + Vector3.new(width * 0.28, 18.3 + pipeLift, 6.5)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color3.fromRGB(52, 46, 40), Enum.Material.CorrodedMetal)
+	if twoStory then
+		-- Second story: upper wall band, floor slab with a stair opening in the
+		-- back-left corner, a ramp staircase along the left wall, and upstairs
+		-- windows front and back. Ground-floor walls stay 0-10; this band covers
+		-- 10-20 and the parameterized roof/gables sit at wallTop = 20.
+		createPart(model, "BackWallUpper", Vector3.new(width, 10, 0.7),
+			CFrame.new(position + Vector3.new(0, 15, 7.65)),
+			wallColor, Enum.Material.WoodPlanks)
+		createPart(model, "FrontWallUpper", Vector3.new(width, 10, 0.7),
+			CFrame.new(position + Vector3.new(0, 15, -7.65)),
+			wallColor, Enum.Material.WoodPlanks)
+		for side = -1, 1, 2 do
+			createPart(model, "SideWallUpper", Vector3.new(0.7, 10, 16),
+				CFrame.new(position + Vector3.new(side * (width / 2 - 0.35), 15, 0)),
+				wallColor, Enum.Material.WoodPlanks)
+		end
+		-- Floor slab in two pieces so the back-left corner stays open for the stairs
+		createPart(model, "UpperFloorMain", Vector3.new(width - 1.4, 0.7, 10.3),
+			CFrame.new(position + Vector3.new(0, 10.35, -2.15)),
+			Color3.fromRGB(72, 51, 36), Enum.Material.WoodPlanks)
+		createPart(model, "UpperFloorBack", Vector3.new(width - 6.4, 0.7, 4.3),
+			CFrame.new(position + Vector3.new(2.5, 10.35, 5.15)),
+			Color3.fromRGB(72, 51, 36), Enum.Material.WoodPlanks)
+		-- Ramp staircase hugging the left wall, rising toward the back opening
+		local stairRamp = Instance.new("WedgePart")
+		stairRamp.Name = "StairRamp"
+		stairRamp.Anchored = true
+		stairRamp.Size = Vector3.new(3.4, 10, 12)
+		stairRamp.CFrame = CFrame.new(position + Vector3.new(-(width / 2 - 2.4), 5.7, 1))
+		stairRamp.Color = Color3.fromRGB(88, 62, 40)
+		stairRamp.Material = Enum.Material.WoodPlanks
+		stairRamp.TopSurface = Enum.SurfaceType.Smooth
+		stairRamp.BottomSurface = Enum.SurfaceType.Smooth
+		stairRamp.Parent = model
+		local stairAngle = math.atan(10 / 12)
+		createPart(model, "StairRail", Vector3.new(0.25, 0.25, 15.6),
+			CFrame.new(position + Vector3.new(-(width / 2 - 4.05), 7.3, 1))
+				* CFrame.Angles(-stairAngle, 0, 0),
+			trimColor, Enum.Material.WoodPlanks)
+		for _, railZ in { -4.6, 6.6 } do
+			local railHeight = if railZ < 0 then 1.6 + 0.7 else 1.6 + 10
+			createPart(model, "StairRailPost", Vector3.new(0.3, 2.6, 0.3),
+				CFrame.new(position + Vector3.new(-(width / 2 - 4.05), railHeight, railZ)),
+				trimColor, Enum.Material.WoodPlanks)
+		end
+		-- Upstairs guard rail around the stair opening edge
+		createPart(model, "OpeningRail", Vector3.new(0.3, 2.4, 4.6),
+			CFrame.new(position + Vector3.new(-(width / 2 - 5.4), 11.9, 5.1)),
+			trimColor, Enum.Material.WoodPlanks)
+		-- Upstairs windows front and back
+		for side = -1, 1, 2 do
+			for _, windowZ in { -8.25, 8.25 } do
+				createPart(model, "WindowUpper",
+					Vector3.new(4, 3.5, 0.4),
+					CFrame.new(position + Vector3.new(side * width * 0.28, 15.5, windowZ)),
+					Color3.fromRGB(181, 198, 174), Enum.Material.Glass, 0.2)
+			end
+		end
+		-- Upstairs bunks (shifted forward so they clear the stair opening)
+		for side = -1, 1, 2 do
+			local upperBed = createPart(model, "BunkBedUpper",
+				Vector3.new(5.5, 1.2, 9),
+				CFrame.new(position + Vector3.new(side * (width / 2 - 3.5), 11.9, -2)),
+				Color3.fromRGB(98, 80, 61), Enum.Material.WoodPlanks)
+			local upperMattress = createPart(model, "MattressUpper",
+				Vector3.new(5.1, 0.65, 8.4),
+				upperBed.CFrame + Vector3.new(0, 0.9, 0),
+				if side < 0
+					then Color3.fromRGB(124, 104, 78)
+					else Color3.fromRGB(96, 112, 128),
+				Enum.Material.Fabric)
+			upperMattress.CanCollide = false
+			local upperPillow = createPart(model, "PillowUpper",
+				Vector3.new(4.2, 0.36, 1.56),
+				upperBed.CFrame + Vector3.new(0, 1.405, -3.4),
+				Color3.fromRGB(234, 226, 208), Enum.Material.Fabric)
+			upperPillow.CanCollide = false
+		end
+		-- Upstairs rug and lamp with its own switch
+		local upperRug = createPart(model, "UpperRug", Vector3.new(6, 0.06, 4.5),
+			CFrame.new(position + Vector3.new(0, 10.74, -2)),
+			Color3.fromRGB(96, 64, 52), Enum.Material.Fabric)
+		upperRug.CanCollide = false
+		local upperLamp = createPart(model, "UpperLamp", Vector3.new(1.2, 0.45, 1.2),
+			CFrame.new(position + Vector3.new(0, 19.4, 1.5)),
+			Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
+		upperLamp.CanCollide = false
+		local upperLight = Instance.new("PointLight")
+		upperLight.Name = "CabinLightUpper"
+		upperLight.Brightness = 1.25
+		upperLight.Range = 21
+		upperLight.Color = Color3.fromRGB(255, 220, 161)
+		upperLight.Shadows = true
+		upperLight.Enabled = false
+		upperLight.Parent = upperLamp
+		local upperPrompt = createPrompt(upperLamp, "Switch On", name .. " upstairs lights", 0.1)
+		upperPrompt.Triggered:Connect(function()
+			upperLight.Enabled = not upperLight.Enabled
+			upperPrompt.ActionText = if upperLight.Enabled then "Switch Off" else "Switch On"
+		end)
+	end
 	-- Porch with posts
 	createPart(
 		model,
@@ -605,6 +707,11 @@ local function createCabin(
 	end)
 
 	for side = -1, 1, 2 do
+		if twoStory and side == -1 then
+			-- The stair ramp runs along the left wall; upstairs bunks replace
+			-- this one
+			continue
+		end
 		local bed = createPart(
 			model,
 			"BunkBed",
@@ -656,6 +763,78 @@ local function createCabin(
 		name .. " guest book",
 		"LAST ENTRY — lights out at 11:47 PM. Something scratched at the door."
 	)
+	-- Interior furnishing shared by every cabin: rug under the table, a wall
+	-- shelf with books and a lantern, and a dresser against the right wall
+	local rug = createPart(model, "CabinRug", Vector3.new(7, 0.06, 5),
+		CFrame.new(position + Vector3.new(0, 0.74, 2)),
+		Color3.fromRGB(122, 60, 48), Enum.Material.Fabric)
+	rug.CanCollide = false
+	for shelfIndex, shelfY in { 4.5, 6.5 } do
+		createPart(model, "WallShelf" .. tostring(shelfIndex),
+			Vector3.new(6, 0.3, 1.4),
+			CFrame.new(position + Vector3.new(-width * 0.2, shelfY, 7.0)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
+	local bookColors = {
+		Color3.fromRGB(112, 54, 44),
+		Color3.fromRGB(58, 86, 64),
+		Color3.fromRGB(64, 66, 108),
+	}
+	for bookIndex, bookColor in bookColors do
+		local book = createPart(model, "ShelfBook" .. tostring(bookIndex),
+			Vector3.new(0.5, 1.1, 0.9),
+			CFrame.new(position + Vector3.new(-width * 0.2 - 1.6 + bookIndex * 0.75, 5.25, 7.0)),
+			bookColor, Enum.Material.SmoothPlastic)
+		book.CanCollide = false
+	end
+	local shelfLantern = createPart(model, "ShelfLantern", Vector3.new(0.8, 1.0, 0.8),
+		CFrame.new(position + Vector3.new(-width * 0.2 + 2.2, 7.3, 7.0)),
+		Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
+	shelfLantern.CanCollide = false
+	createPart(model, "Dresser", Vector3.new(1.6, 3.2, 2.6),
+		CFrame.new(position + Vector3.new(width / 2 - 1.6, 1.95, -4)),
+		Color3.fromRGB(76, 54, 36), Enum.Material.WoodPlanks)
+	for drawerIndex = 1, 2 do
+		local drawer = createPart(model, "DresserDrawer" .. tostring(drawerIndex),
+			Vector3.new(0.18, 1.1, 2.1),
+			CFrame.new(position + Vector3.new(width / 2 - 2.5, 0.85 + drawerIndex * 0.95, -4)),
+			Color3.fromRGB(58, 40, 26), Enum.Material.Wood)
+		drawer.CanCollide = false
+	end
+	if name == "CounselorLodge" then
+		-- Common-room extras: long meeting table with benches, a duty-roster
+		-- notice board, and the camp radio desk in the front-right corner
+		createPart(model, "LodgeTable", Vector3.new(10, 0.6, 3.4),
+			CFrame.new(position + Vector3.new(2, 2.9, -3)),
+			Color3.fromRGB(91, 64, 43), Enum.Material.WoodPlanks)
+		for _, benchZ in { -1.2, -4.8 } do
+			createPart(model, "LodgeBench", Vector3.new(10, 0.5, 1.2),
+				CFrame.new(position + Vector3.new(2, 1.6, benchZ)),
+				Color3.fromRGB(68, 48, 32), Enum.Material.WoodPlanks)
+		end
+		local noticeBoard = createPart(model, "NoticeBoard", Vector3.new(5.5, 3.4, 0.3),
+			CFrame.new(position + Vector3.new(-8, 5.6, 7.2)),
+			Color3.fromRGB(56, 40, 26), Enum.Material.Wood)
+		createSign(noticeBoard, "CAMP DUTY ROSTER", Color3.fromRGB(226, 190, 114))
+		createPart(model, "RadioDesk", Vector3.new(3.4, 0.5, 2),
+			CFrame.new(position + Vector3.new(9.5, 2.8, -5.5)),
+			Color3.fromRGB(76, 54, 36), Enum.Material.WoodPlanks)
+		local radioBox = createPart(model, "RadioBox", Vector3.new(1.8, 1.2, 1),
+			CFrame.new(position + Vector3.new(9.5, 3.65, -5.7)),
+			Color3.fromRGB(48, 44, 40), Enum.Material.Metal)
+		local radioDial = createPart(model, "RadioDial", Vector3.new(0.4, 0.4, 0.12),
+			CFrame.new(position + Vector3.new(9.9, 3.7, -6.26)),
+			Color3.fromRGB(198, 165, 32), Enum.Material.Neon)
+		radioDial.CanCollide = false
+		createPart(model, "RadioAntenna", Vector3.new(0.12, 3, 0.12),
+			CFrame.new(position + Vector3.new(8.9, 5.7, -5.7)),
+			Color3.fromRGB(120, 120, 126), Enum.Material.Metal)
+		createInspectPrompt(
+			radioBox,
+			"Camp radio",
+			"The dial drifts through static. Someone has marked 146.52 in grease pencil."
+		)
+	end
 	-- Name board hangs from the porch roof edge so it never clips the gable or hides behind the eave
 	local signW = math.min(width - 6, 14)
 	createSign(
@@ -1260,11 +1439,11 @@ function ProductionMapService:Build()
 		end
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0.5, 18), 24)
+			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0.5, 18), 24, 2)
 		)
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0.5, 18), 24)
+			createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0.5, 18), 24, 2)
 		)
 		table.insert(
 			self.interactiveDoors,
