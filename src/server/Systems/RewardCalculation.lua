@@ -62,6 +62,7 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 	end
 
 	local roleIsMurderer = input.roleId == "Murderer"
+	local monsterId = input.monsterId
 	return {
 		receiptId = input.receiptId,
 		roleId = input.roleId,
@@ -79,6 +80,16 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		objectivesCompleted = objectives,
 		evidenceCollected = evidence,
 		survivals = if input.participated and input.survived then 1 else 0,
+		monsterId = monsterId,
+		monsterEncounter = if input.participated and monsterId ~= nil then 1 else 0,
+		monsterSurvival = if input.participated and monsterId ~= nil and input.survived
+			then 1
+			else 0,
+		monsterIdentification = if input.participated
+				and monsterId ~= nil
+				and input.identifiedMonster == true
+			then 1
+			else 0,
 	}
 end
 

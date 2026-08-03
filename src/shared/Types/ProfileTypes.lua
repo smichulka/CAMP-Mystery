@@ -5,6 +5,12 @@ export type RoleMastery = {
 	level: number,
 }
 
+export type MonsterStatRecord = {
+	encounters: number,
+	survivals: number,
+	identifications: number,
+}
+
 export type PlayerStats = {
 	roundsPlayed: number,
 	wins: number,
@@ -40,6 +46,7 @@ export type PlayerProfile = {
 	ownedCosmetics: { [string]: boolean },
 	equippedCosmetics: { [string]: string },
 	stats: PlayerStats,
+	monsterStats: { [string]: MonsterStatRecord },
 	settings: PlayerSettings,
 	recentRewardReceipts: { string },
 }
@@ -58,6 +65,8 @@ export type RewardInput = {
 	survived: boolean,
 	objectivesCompleted: number,
 	evidenceCollected: number,
+	monsterId: string?,
+	identifiedMonster: boolean?,
 }
 
 export type RewardGrant = {
@@ -73,6 +82,10 @@ export type RewardGrant = {
 	objectivesCompleted: number,
 	evidenceCollected: number,
 	survivals: number,
+	monsterId: string?,
+	monsterEncounter: number,
+	monsterSurvival: number,
+	monsterIdentification: number,
 }
 
 export type RewardResult = {
