@@ -124,6 +124,7 @@ type GameRuntimeServiceState = {
 	presentedCountByParticipantId: { [string]: number },
 	checkInPairs: { [string]: boolean },
 	checkInsByParticipantId: { [string]: number },
+	bodyReportedByVictimId: { [string]: boolean },
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -855,6 +856,25 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		local participantId = event.payload.participantId
 		if type(participantId) == "string" then
 			runtime.characters:PlayBotDeath(participantId)
+			if runtime.phase == "Investigation" then
+				local victim = runtime.participants:GetById(participantId)
+				if victim and victim.team == "Campers" then
+					local position = participantPosition(victim)
+					if position then
+						runtime.characters:SpawnBodyMarker(
+							participantId,
+							victim.displayName,
+							position,
+							function(reporter: Player)
+								local currentRuntime = runtimeRef
+								if currentRuntime then
+									currentRuntime:_reportBody(reporter, participantId)
+								end
+							end
+						)
+					end
+				end
+			end
 		end
 	end)
 	lifecycle:On("ParticipantInjured", function(event)
@@ -1185,6 +1205,8 @@ function GameRuntimeService:BeginRound(
 	self.presentedCountByParticipantId = {}
 	self.checkInPairs = {}
 	self.checkInsByParticipantId = {}
+	self.bodyReportedByVictimId = {}
+	self.characters:ClearBodyMarkers()
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -1343,6 +1365,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.world:ClearEvidence()
 		self.monster:CampfireStop(self.roundId)
 		self.characters:ClearMonster()
+		self.characters:ClearBodyMarkers()
 		-- Draw bots toward the campfire for the vote so they look like participants
 		self.characters:GatherBotsAt(Vector3.new(0, 3, 7), 4)
 		self.campfireStage = "Discussion"
@@ -2723,6 +2746,42 @@ end
 
 local CAMPFIRE_POSITION = Vector3.new(0, 1.5, 2)
 local CAMPFIRE_SAFE_RADIUS_STUDS = 18
+
+function GameRuntimeService:_reportBody(reporter: Player, victimParticipantId: string)
+	local participant = self:_participantForPlayer(reporter)
+	if
+		not participant
+		or not participant.alive
+		or participant.isGhost
+		or participant.role == "Spectator"
+	then
+		return
+	end
+	if self.phase ~= "Investigation" then
+		return
+	end
+	if self.bodyReportedByVictimId[victimParticipantId] then
+		return
+	end
+	self.bodyReportedByVictimId[victimParticipantId] = true
+	self.characters:MarkBodyReported(victimParticipantId)
+	local victim = self.participants:GetById(victimParticipantId)
+	local victimName = if victim then victim.displayName else "A camper"
+	-- Reporting counts as finding evidence for the reporter.
+	self.evidenceByParticipantId[participant.participantId] =
+		(self.evidenceByParticipantId[participant.participantId] or 0) + 1
+	self:_announce(
+		"DangerBright",
+		"Body discovered",
+		string.format(
+			"%s was found by %s. Find the evidence before campfire.",
+			victimName,
+			participant.displayName
+		),
+		6
+	)
+	self:Broadcast()
+end
 
 -- The campfire only wards off the monster if campers stacked firewood
 -- during the day. Positions are server-derived, so this cannot be spoofed.

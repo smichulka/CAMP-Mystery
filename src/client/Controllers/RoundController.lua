@@ -910,16 +910,18 @@ local function updateReleaseExperience(
 			if phaseName == "Investigation" and not reconnect then
 				local playerIsGhost = type(player) == "table" and player.isGhost == true
 				if not playerIsGhost then
+					-- The real "Body discovered" announcement comes from the
+					-- server once someone physically reports a corpse.
 					if roleName == "Murderer" then
 						currentView:Notify(
-							"Body discovered",
-							"Stay calm. Blend in with the others.",
+							"The night is yours",
+							"Hunt carefully. Blend in when they gather.",
 							"Warning"
 						)
 					elseif roleName ~= "Spectator" then
 						currentView:Notify(
-							"Body discovered",
-							"Someone was killed. Find the evidence before campfire.",
+							"Night investigation begins",
+							"Not everyone may have made it. Search the town and watch each other.",
 							"DangerBright"
 						)
 					end

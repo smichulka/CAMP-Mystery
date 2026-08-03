@@ -32,6 +32,7 @@ type CharacterAssetServiceState = {
 	counselorAnimationStates: { [string]: string },
 	counselorMoveTokens: { [string]: number },
 	counselorMoveTargets: { [string]: string },
+	bodyMarkers: { [string]: Model },
 }
 
 local CharacterAssetService = {}
@@ -3078,6 +3079,7 @@ function CharacterAssetService.new(): CharacterAssetService
 		counselorAnimationStates = {},
 		counselorMoveTokens = {},
 		counselorMoveTargets = {},
+		bodyMarkers = {},
 	}, CharacterAssetService)
 end
 
@@ -3802,6 +3804,91 @@ end
 
 function CharacterAssetService:GetBotCharacterModel(participantId: string): Model?
 	return self.botCharacterModels[participantId]
+end
+
+-- A discoverable corpse at the kill site. The global "body discovered"
+-- announcement only fires once a living player reports it via the prompt.
+function CharacterAssetService:SpawnBodyMarker(
+	victimParticipantId: string,
+	displayName: string,
+	position: Vector3,
+	onReport: (reporter: Player) -> ()
+)
+	if self.bodyMarkers[victimParticipantId] then
+		return
+	end
+	local model = Instance.new("Model")
+	model.Name = "BodyMarker_" .. victimParticipantId
+	local ground = Vector3.new(position.X, math.max(position.Y, 2), position.Z)
+	local mound = makePart(
+		model,
+		"Body",
+		Vector3.new(4.4, 1.1, 2.2),
+		CFrame.new(ground) * CFrame.Angles(0, math.rad(25), 0),
+		Color3.fromRGB(52, 48, 46)
+	)
+	makePart(
+		model,
+		"Shroud",
+		Vector3.new(3.6, 0.5, 1.8),
+		CFrame.new(ground + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, math.rad(25), 0),
+		Color3.fromRGB(180, 174, 158)
+	)
+	model.PrimaryPart = mound
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "BodyLabel"
+	billboard.Size = UDim2.fromOffset(170, 34)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 60
+	billboard.Parent = mound
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.Text = "SOMETHING LIES HERE"
+	label.TextColor3 = Color3.fromRGB(220, 90, 84)
+	label.TextScaled = true
+	label.Parent = billboard
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ReportBody"
+	prompt.ActionText = "Report Body"
+	prompt.ObjectText = displayName
+	prompt.HoldDuration = 0.8
+	prompt.MaxActivationDistance = 9
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = mound
+	prompt.Triggered:Connect(function(player: Player)
+		onReport(player)
+	end)
+	model.Parent = self.container
+	self.bodyMarkers[victimParticipantId] = model
+end
+
+function CharacterAssetService:MarkBodyReported(victimParticipantId: string)
+	local model = self.bodyMarkers[victimParticipantId]
+	if not model then
+		return
+	end
+	local prompt = model:FindFirstChild("ReportBody", true)
+	if prompt and prompt:IsA("ProximityPrompt") then
+		prompt.Enabled = false
+	end
+	local billboard = model:FindFirstChild("BodyLabel", true)
+	if billboard then
+		local label = billboard:FindFirstChildOfClass("TextLabel")
+		if label then
+			label.Text = "REPORTED"
+			label.TextColor3 = Color3.fromRGB(214, 219, 212)
+		end
+	end
+end
+
+function CharacterAssetService:ClearBodyMarkers()
+	for _, model in self.bodyMarkers do
+		model:Destroy()
+	end
+	self.bodyMarkers = {}
 end
 
 function CharacterAssetService:GetBotCharacterPosition(participantId: string): Vector3?
