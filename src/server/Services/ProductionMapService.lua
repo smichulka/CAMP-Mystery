@@ -362,8 +362,10 @@ local function createCabin(
 	parent: Instance,
 	name: string,
 	position: Vector3,
-	width: number
+	width: number,
+	stories: number?
 ): InteractiveDoor
+	local twoStory = stories == 2
 	local model = Instance.new("Model")
 	model.Name = name
 	model.Parent = parent
@@ -434,7 +436,7 @@ local function createCabin(
 	local roofAngle = math.rad(25)
 	local overhang = 1.5
 	local half = width / 2
-	local wallTop = 10
+	local wallTop = if twoStory then 20 else 10
 	local ridgeY = wallTop + half * math.tan(roofAngle)
 	local eaveY = wallTop - overhang * math.tan(roofAngle)
 	local panelLen = (half + overhang) / math.cos(roofAngle)

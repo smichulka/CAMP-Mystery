@@ -3800,6 +3800,10 @@ function CharacterAssetService:ClearBotCharacters()
 	self.botHomePositions = {}
 end
 
+function CharacterAssetService:GetBotCharacterModel(participantId: string): Model?
+	return self.botCharacterModels[participantId]
+end
+
 function CharacterAssetService:GetBotCharacterPosition(participantId: string): Vector3?
 	local model = self.botCharacterModels[participantId]
 	if not model then

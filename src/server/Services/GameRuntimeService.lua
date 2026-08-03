@@ -12,6 +12,9 @@ local RoundConfig = require(Shared.Config:WaitForChild("RoundConfig"))
 local EquipmentRules = require(
 	script.Parent.Parent.Config:WaitForChild("EquipmentRules")
 )
+local BotContributionConfig = require(
+	script.Parent.Parent.Config:WaitForChild("BotContributionConfig")
+)
 local CombatTypes = require(Shared.Types:WaitForChild("CombatTypes"))
 local CounselorTypes = require(Shared.Types:WaitForChild("CounselorTypes"))
 local EquipmentTypes = require(Shared.Types:WaitForChild("EquipmentTypes"))
@@ -77,6 +80,11 @@ type MurderPlan = {
 	monsterId: MonsterId,
 }
 
+type BotSiteTask = {
+	candidateId: string,
+	workReadyAt: number?,
+}
+
 type GameRuntimeServiceState = {
 	options: RuntimeOptions,
 	running: boolean,
@@ -98,6 +106,10 @@ type GameRuntimeServiceState = {
 	mysteryClueIdsByLocation: { [string]: { string } },
 	mysteryReady: boolean,
 	lastMonsterId: MonsterId?,
+	botTaskById: { [string]: BotSiteTask },
+	botObjectiveCount: number,
+	botEvidenceCount: number,
+	votingOpensAt: number?,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -304,13 +316,33 @@ local function characterForParticipant(participant: ParticipantState): Model?
 	return if player then player.Character else nil
 end
 
+-- Set during construction so bot participants resolve to their visible
+-- character models instead of the legacy hash-derived placeholder.
+local resolveBotPosition: ((participantId: string) -> Vector3?)? = nil
+
 local function participantPosition(participant: ParticipantState): Vector3?
 	local player = findPlayerForParticipant(participant)
 	if player then
 		return playerRootPosition(player)
 	end
+	local resolver = resolveBotPosition
+	if resolver then
+		local botPosition = resolver(participant.participantId)
+		if botPosition then
+			return botPosition
+		end
+	end
 	local offset = #participant.participantId % 8
 	return Vector3.new(offset * 4, 3, -60 - offset * 3)
+end
+
+local function voteStagger(participantId: string): number
+	local sum = 0
+	for index = 1, #participantId do
+		sum += string.byte(participantId, index)
+	end
+	return BotContributionConfig.voteStaggerMinimumSeconds
+		+ sum % BotContributionConfig.voteStaggerSpreadSeconds
 end
 
 function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
@@ -489,6 +521,9 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		end,
 	})
 	local characters = CharacterAssetService.new()
+	resolveBotPosition = function(participantId: string): Vector3?
+		return characters:GetBotCharacterPosition(participantId)
+	end
 	local counselors = CounselorService.new({
 		canInteract = function(participantId: string, counselorId: string): boolean
 			local runtime = runtimeRef
@@ -505,22 +540,22 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 			if not active or not participant then
 				return false
 			end
+			local participantAt = participantPosition(participant)
+			local counselorAt = characters:GetCounselorPosition(counselorId)
+			local sourceCharacter: Instance? = characterForParticipant(participant)
 			if participant.controller.kind == "Bot" then
-				return true
+				sourceCharacter = characters:GetBotCharacterModel(participant.participantId)
 			end
-				local participantAt = participantPosition(participant)
-				local counselorAt = characters:GetCounselorPosition(counselorId)
-				local sourceCharacter = characterForParticipant(participant)
-				local counselorModel = characters:GetCounselorModel(counselorId)
-				return participantAt ~= nil
-					and counselorAt ~= nil
-					and (counselorAt - participantAt).Magnitude <= 18
-					and unobstructed(
-						participantAt,
-						counselorAt,
-						sourceCharacter,
-						counselorModel
-					)
+			local counselorModel = characters:GetCounselorModel(counselorId)
+			return participantAt ~= nil
+				and counselorAt ~= nil
+				and (counselorAt - participantAt).Magnitude <= 18
+				and unobstructed(
+					participantAt,
+					counselorAt,
+					sourceCharacter,
+					counselorModel
+				)
 		end,
 	})
 	local mystery = MysteryService.new({
@@ -1102,6 +1137,10 @@ function GameRuntimeService:BeginRound(
 	self.murderPlan = nil
 	self.mysteryReady = false
 	self.mysteryClueIdsByLocation = {}
+	self.botTaskById = {}
+	self.botObjectiveCount = 0
+	self.botEvidenceCount = 0
+	self.votingOpensAt = nil
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -1175,6 +1214,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	self.phase = phase
 	self.phaseStartedAt = now()
 	self.phaseEndsAt = self.phaseStartedAt + phaseDuration(phase)
+	self.botTaskById = {}
 	if self.roundId > 0 then
 		self.counselors:SetPhase(phase, self.phaseStartedAt)
 		self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
@@ -2426,6 +2466,75 @@ function GameRuntimeService:_ApplyRewards()
 	end
 end
 
+function GameRuntimeService:_livingHumanCount(): number
+	local count = 0
+	for _, participant in self.participants:GetAll() do
+		if
+			participant.controller.kind == "Human"
+			and participant.alive
+			and not participant.isGhost
+			and participant.role ~= "Spectator"
+		then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Bots must physically reach a site and spend work time there before an
+-- action lands. Returns false (retry next think) until the work completes.
+function GameRuntimeService:_botWorkAtSite(
+	participant: ParticipantState,
+	candidateId: string,
+	sitePosition: Vector3?,
+	rangeStuds: number,
+	workSeconds: number,
+	execute: () -> boolean
+): boolean
+	if not sitePosition then
+		return false
+	end
+	local participantId = participant.participantId
+	local position = participantPosition(participant)
+	if not position then
+		return false
+	end
+	local distance = (position - sitePosition).Magnitude
+	local pending = self.botTaskById[participantId]
+	if pending and pending.candidateId ~= candidateId then
+		pending = nil
+	end
+	if distance > rangeStuds then
+		self.botTaskById[participantId] = { candidateId = candidateId, workReadyAt = nil }
+		local travelSeconds = math.clamp(
+			distance / BotContributionConfig.walkSpeedStudsPerSecond,
+			1,
+			BotContributionConfig.maximumTravelSeconds
+		)
+		self.characters:MoveBotCharacterToward(participantId, sitePosition, travelSeconds)
+		return false
+	end
+	if not pending or not pending.workReadyAt then
+		self.botTaskById[participantId] = {
+			candidateId = candidateId,
+			workReadyAt = now() + workSeconds,
+		}
+		return false
+	end
+	if now() < pending.workReadyAt then
+		return false
+	end
+	self.botTaskById[participantId] = nil
+	return execute()
+end
+
+function GameRuntimeService:_sitePartPosition(part: Instance?): Vector3?
+	if part and part:IsA("BasePart") then
+		return part.Position
+	end
+	return nil
+end
+
 function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase: PhaseName)
 	local actions = {}
 	local otherCamperId: string? = nil
@@ -2462,9 +2571,19 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			teamValue = if participant.role == "Murderer" then 0 else 0.85,
 		})
 	end
+	local caps = BotContributionConfig.GetCaps(self:_livingHumanCount())
 	if phase == "Day" then
+		local remainingObjectives = 0
 		for _, objectiveId in OBJECTIVE_IDS do
 			if not self.completedObjectives[objectiveId] then
+				remainingObjectives += 1
+			end
+		end
+		-- Bots never take the final objective; humans get the finishing move.
+		local objectivesAllowed = self.botObjectiveCount < caps.objectives
+			and remainingObjectives > 1
+		for _, objectiveId in OBJECTIVE_IDS do
+			if objectivesAllowed and not self.completedObjectives[objectiveId] then
 				table.insert(actions, {
 					id = "objective:" .. objectiveId,
 					actionType = "CompleteObjective",
@@ -2496,30 +2615,42 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			35
 		)
 	elseif phase == "Investigation" then
-		for _, record in self.evidence:GetUndiscoveredServer() do
-			table.insert(actions, {
-				id = "evidence:" .. record.evidenceId,
-				actionType = "CollectEvidence",
-				baseUtility = 22,
-				evidenceId = record.evidenceId,
-				risk = 0.2,
-				informationValue = 1,
-				teamValue = 0.8,
-			})
+		local undiscoveredRecords = self.evidence:GetUndiscoveredServer()
+		local hiddenLocationCount = 0
+		local hiddenLocations: { [string]: boolean } = {}
+		if self.mysteryReady then
+			for _, clue in self.mystery:GetPrivateSnapshot().clues do
+				if clue.discoveryState == "Hidden" and not hiddenLocations[clue.locationId] then
+					hiddenLocations[clue.locationId] = true
+					hiddenLocationCount += 1
+				end
+			end
+		end
+		-- Bots never sweep the final undiscovered site; that beat is reserved
+		-- for human investigators.
+		local evidenceAllowed = self.botEvidenceCount < caps.evidence
+			and (#undiscoveredRecords + hiddenLocationCount) > 1
+		if evidenceAllowed then
+			for _, record in undiscoveredRecords do
+				table.insert(actions, {
+					id = "evidence:" .. record.evidenceId,
+					actionType = "CollectEvidence",
+					baseUtility = 22,
+					evidenceId = record.evidenceId,
+					risk = 0.2,
+					informationValue = 1,
+					teamValue = 0.8,
+				})
+			end
 		end
 		if self.mysteryReady then
-			local queuedLocations: { [string]: boolean } = {}
-			for _, clue in self.mystery:GetPrivateSnapshot().clues do
-				if
-					clue.discoveryState == "Hidden"
-					and not queuedLocations[clue.locationId]
-				then
-					queuedLocations[clue.locationId] = true
+			if evidenceAllowed then
+				for locationId in hiddenLocations do
 					table.insert(actions, {
-						id = "mystery:" .. clue.locationId,
+						id = "mystery:" .. locationId,
 						actionType = "CollectEvidence",
 						baseUtility = 24,
-						evidenceId = clue.locationId,
+						evidenceId = locationId,
 						risk = 0.2,
 						informationValue = 1,
 						teamValue = 0.9,
@@ -2610,10 +2741,29 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				end
 			end
 		end
-		if not self.voting.votes[participant.participantId] then
+		-- Bots hold their votes until voting opens (plus a personal stagger)
+		-- so human accusations lead and bot votes follow.
+		local votingOpensAt = self.votingOpensAt
+			or (self.phaseStartedAt + 0.5 * (self.phaseEndsAt - self.phaseStartedAt))
+		local voteReadyAt = votingOpensAt + voteStagger(participant.participantId)
+		if not self.voting.votes[participant.participantId] and now() >= voteReadyAt then
+			local humanVotes: { [string]: number } = {}
+			for _, other in self.participants:GetAll() do
+				local vote = other.vote
+				if
+					other.controller.kind == "Human"
+					and vote
+					and vote.hasVoted
+					and vote.targetParticipantId
+				then
+					humanVotes[vote.targetParticipantId] = (humanVotes[vote.targetParticipantId] or 0) + 1
+				end
+			end
 			for _, suspect in self:_suspects() do
 				if suspect.key ~= participant.participantId then
 					local caseUtility = (publicSuspicion[suspect.key] or 0) * 4
+						+ (humanVotes[suspect.key] or 0)
+							* BotContributionConfig.humanVoteFollowWeight
 					if
 						participant.role == "Murderer"
 						and self.murderPlan
@@ -2650,6 +2800,21 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			end
 		end
 	end
+	local pending = self.botTaskById[participant.participantId]
+	if pending then
+		local matched = false
+		for _, action in actions do
+			if action.id == pending.candidateId then
+				-- Keep the bot committed to the site it is already walking to.
+				action.baseUtility += BotContributionConfig.commitBonusUtility
+				matched = true
+				break
+			end
+		end
+		if not matched then
+			self.botTaskById[participant.participantId] = nil
+		end
+	end
 	table.insert(actions, {
 		id = "idle",
 		actionType = "Idle",
@@ -2680,37 +2845,37 @@ function GameRuntimeService:_ExecuteBotAction(
 			then { "Suspicion", "Observation", "Schedule" }
 			else { "Observation", "Schedule", "Monster", "Suspicion" }
 		payload.topic = botTopics[math.random(1, #botTopics)]
-		task.spawn(function()
-			local pos = self.characters:GetCounselorPosition(candidate.counselorId)
-			if pos then
-				self.characters:MoveBotCharacterToward(participant.participantId, pos)
+		local counselorPosition = self.characters:GetCounselorPosition(candidate.counselorId)
+		return self:_botWorkAtSite(
+			participant,
+			candidate.id,
+			counselorPosition,
+			BotContributionConfig.siteRangeStuds,
+			BotContributionConfig.interviewWorkSeconds,
+			function()
+				return self:_handleParticipantAction(participant, actionName, payload).accepted
 			end
-		end)
+		)
 	elseif candidate.actionType == "Attack" then
 		local targetId = candidate.targetParticipantId
 		if not targetId then
 			return false
 		end
-		task.spawn(function()
-			local targetP = self.participants:GetById(targetId)
-			local botPos: Vector3? = nil
-			if targetP then
-				local targetPlayer = findPlayerForParticipant(targetP)
-				if targetPlayer and targetPlayer.Character then
-					local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-					if hrp then
-						botPos = hrp.Position
-					end
-				else
-					botPos = self.characters:GetBotCharacterPosition(targetId)
-				end
+		local targetParticipant = self.participants:GetById(targetId)
+		local targetPosition = if targetParticipant
+			then participantPosition(targetParticipant)
+			else nil
+		return self:_botWorkAtSite(
+			participant,
+			candidate.id,
+			targetPosition,
+			BotContributionConfig.attackRangeStuds,
+			BotContributionConfig.attackWindupSeconds,
+			function()
+				self:_ApplyMonsterAttack(participant.participantId, targetId, "BotAttack")
+				return true
 			end
-			if botPos then
-				self.characters:MoveBotCharacterToward(participant.participantId, botPos)
-			end
-		end)
-		self:_ApplyMonsterAttack(participant.participantId, targetId, "BotAttack")
-		return true
+		)
 	elseif candidate.actionType == "VerifyEvidence" then
 		actionName = "VerifyEvidence"
 		payload.evidenceId = candidate.evidenceId
@@ -2723,34 +2888,29 @@ function GameRuntimeService:_ExecuteBotAction(
 			if not targetId then
 				return false
 			end
-			task.spawn(function()
-				local targetP = self.participants:GetById(targetId)
-				local botPos: Vector3? = nil
-				if targetP then
-					local targetPlayer = findPlayerForParticipant(targetP)
-					if targetPlayer and targetPlayer.Character then
-						local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-						if hrp then
-							botPos = hrp.Position
+			local targetParticipant = self.participants:GetById(targetId)
+			local targetPosition = if targetParticipant
+				then participantPosition(targetParticipant)
+				else nil
+			return self:_botWorkAtSite(
+				participant,
+				candidate.id,
+				targetPosition,
+				BotContributionConfig.treatRangeStuds,
+				BotContributionConfig.interviewWorkSeconds,
+				function()
+					for _, item in self.inventory:GetSnapshot(participant.participantId).items do
+						if item.equipmentId == "MedicalKit" then
+							self.inventory:Equip(participant.participantId, item.instanceId)
+							return self:_useItem(participant, {
+								instanceId = item.instanceId,
+								targetParticipantId = targetId,
+							}).accepted
 						end
-					else
-						botPos = self.characters:GetBotCharacterPosition(targetId)
 					end
+					return false
 				end
-				if botPos then
-					self.characters:MoveBotCharacterToward(participant.participantId, botPos)
-				end
-			end)
-			for _, item in self.inventory:GetSnapshot(participant.participantId).items do
-				if item.equipmentId == "MedicalKit" then
-					self.inventory:Equip(participant.participantId, item.instanceId)
-					return self:_useItem(participant, {
-						instanceId = item.instanceId,
-						targetParticipantId = targetId,
-					}).accepted
-				end
-			end
-			return false
+			)
 		end
 		actionName = "UseRoleAbility"
 		payload.abilityId = candidate.abilityId
@@ -2769,12 +2929,55 @@ function GameRuntimeService:_ExecuteBotAction(
 	end
 	if actionName == "CompleteObjective" then
 		local objectiveId = getString(payload, "objectiveId")
-		return objectiveId ~= nil
-			and self:_completeObjective(participant, objectiveId, false).accepted
+		if not objectiveId then
+			return false
+		end
+		return self:_botWorkAtSite(
+			participant,
+			candidate.id,
+			self:_sitePartPosition(self:_objectivePart(objectiveId)),
+			BotContributionConfig.siteRangeStuds,
+			BotContributionConfig.objectiveWorkSeconds,
+			function()
+				local accepted = self:_completeObjective(participant, objectiveId, true).accepted
+				if accepted then
+					self.botObjectiveCount += 1
+				end
+				return accepted
+			end
+		)
 	elseif actionName == "DiscoverEvidence" then
 		local evidenceId = getString(payload, "evidenceId")
-		return evidenceId ~= nil
-			and self:_discoverEvidence(participant, evidenceId, false).accepted
+		if not evidenceId then
+			return false
+		end
+		-- Resolve the search site the same way _discoverEvidence does: the
+		-- socket alias if one exists, else the record's assigned location.
+		local aliasId: string? = nil
+		local resolvedEvidenceId = self.evidenceAliasById[evidenceId] or evidenceId
+		for candidateAlias, mappedEvidenceId in self.evidenceAliasById do
+			if mappedEvidenceId == resolvedEvidenceId then
+				aliasId = candidateAlias
+				break
+			end
+		end
+		aliasId = aliasId
+			or self.evidenceLocationById[resolvedEvidenceId]
+			or evidenceId
+		return self:_botWorkAtSite(
+			participant,
+			candidate.id,
+			self:_sitePartPosition(self:_evidencePart(aliasId)),
+			BotContributionConfig.siteRangeStuds,
+			BotContributionConfig.evidenceWorkSeconds,
+			function()
+				local accepted = self:_discoverEvidence(participant, evidenceId, true).accepted
+				if accepted then
+					self.botEvidenceCount += 1
+				end
+				return accepted
+			end
+		)
 	end
 	return self:_handleParticipantAction(participant, actionName, payload).accepted
 end
