@@ -27,7 +27,7 @@ local phases: { PhaseConfig } = {
 	},
 	{
 		name = "MurderPlanning",
-		displayName = "Something Is Being Planned",
+		displayName = "Dusk at Camp",
 		durationSeconds = 60,
 		studioDurationSeconds = 40,
 	},

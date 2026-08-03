@@ -122,6 +122,8 @@ type GameRuntimeServiceState = {
 	presentedSuspicion: { [string]: number },
 	presentedItems: { [string]: boolean },
 	presentedCountByParticipantId: { [string]: number },
+	checkInPairs: { [string]: boolean },
+	checkInsByParticipantId: { [string]: number },
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -202,8 +204,8 @@ local PHASE_NOTICES: {
 	},
 	MurderPlanning = {
 		kind = "Warning",
-		title = "Something Is Being Planned",
-		message = "Stay alert. Someone at camp is choosing what happens tonight.",
+		title = "Dusk Settles Over Camp",
+		message = "Check on a buddy, hand off spare gear, and ask the counselors what they saw. Someone is choosing what happens tonight.",
 	},
 	NightTransform = {
 		kind = "Danger",
@@ -560,6 +562,7 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				and not participant.isGhost
 				and (
 					runtime.phase == "Day"
+					or runtime.phase == "MurderPlanning"
 					or runtime.phase == "Investigation"
 					or runtime.phase == "Campfire"
 				)
@@ -1180,6 +1183,8 @@ function GameRuntimeService:BeginRound(
 	self.presentedSuspicion = {}
 	self.presentedItems = {}
 	self.presentedCountByParticipantId = {}
+	self.checkInPairs = {}
+	self.checkInsByParticipantId = {}
 
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
@@ -1498,6 +1503,7 @@ function GameRuntimeService:_availableActions(
 		"InterviewCounselor",
 		"Vote",
 		"PresentEvidence",
+		"BuddyCheckIn",
 		"EquipItem",
 		"UseItem",
 		"DropItem",
@@ -1527,12 +1533,14 @@ function GameRuntimeService:_availableActions(
 			enabled = active and self.phase == "Investigation"
 		elseif name == "InterviewCounselor" then
 			enabled = active
-				and self.mysteryReady
 				and (
 					self.phase == "Day"
+					or self.phase == "MurderPlanning"
 					or self.phase == "Investigation"
 					or self.phase == "Campfire"
 				)
+		elseif name == "BuddyCheckIn" then
+			enabled = active and self.phase == "MurderPlanning"
 		elseif name == "Vote" then
 			enabled = active
 				and self.phase == "Campfire"
@@ -2220,12 +2228,10 @@ function GameRuntimeService:_handleParticipantAction(
 			else actionRejected("Evidence or location ID is required")
 	elseif actionName == "InterviewCounselor" then
 		if
-			not self.mysteryReady
-			or (
-				self.phase ~= "Day"
-				and self.phase ~= "Investigation"
-				and self.phase ~= "Campfire"
-			)
+			self.phase ~= "Day"
+			and self.phase ~= "MurderPlanning"
+			and self.phase ~= "Investigation"
+			and self.phase ~= "Campfire"
 		then
 			return actionRejected("Counselor interviews are not available now")
 		end
@@ -2253,6 +2259,19 @@ function GameRuntimeService:_handleParticipantAction(
 		)
 		if not dialogue then
 			return actionRejected(dialogueReason or "Counselor interview failed")
+		end
+		-- Before the mystery seeds (dusk and daytime chatter), counselors
+		-- talk but have no witness account to give yet.
+		if not self.mysteryReady then
+			return {
+				accepted = true,
+				reason = nil,
+				state = nil,
+				data = {
+					dialogue = dialogue,
+					witnessAccount = nil,
+				},
+			}
 		end
 		local witnessAccount, witnessReason = self.mystery:InterviewCounselor(
 			participant.participantId,
@@ -2289,6 +2308,55 @@ function GameRuntimeService:_handleParticipantAction(
 			reason = reason,
 			state = nil,
 			data = if cast then { targetParticipantId = targetId } else nil,
+		}
+	elseif actionName == "BuddyCheckIn" then
+		if self.phase ~= "MurderPlanning" then
+			return actionRejected("Check-ins happen at dusk")
+		end
+		local targetId = getString(payload, "targetParticipantId")
+		if not targetId then
+			return actionRejected("Choose a camper to check on")
+		end
+		if targetId == participant.participantId then
+			return actionRejected("Find a buddy, not a mirror")
+		end
+		local target = self.participants:GetById(targetId)
+		if
+			not target
+			or not target.alive
+			or target.isGhost
+			or target.role == "Spectator"
+		then
+			return actionRejected("That camper cannot be checked on")
+		end
+		local pairKey = if participant.participantId < targetId
+			then participant.participantId .. "|" .. targetId
+			else targetId .. "|" .. participant.participantId
+		if self.checkInPairs[pairKey] then
+			return actionRejected("You two already checked in tonight")
+		end
+		local sourcePosition = participantPosition(participant)
+		local targetPosition = participantPosition(target)
+		if
+			not sourcePosition
+			or not targetPosition
+			or (targetPosition - sourcePosition).Magnitude > 8
+		then
+			return actionRejected("Move closer to your buddy")
+		end
+		self.checkInPairs[pairKey] = true
+		self.checkInsByParticipantId[participant.participantId] =
+			(self.checkInsByParticipantId[participant.participantId] or 0) + 1
+		self.checkInsByParticipantId[targetId] =
+			(self.checkInsByParticipantId[targetId] or 0) + 1
+		return {
+			accepted = true,
+			reason = nil,
+			state = nil,
+			data = {
+				targetParticipantId = targetId,
+				targetName = target.displayName,
+			},
 		}
 	elseif actionName == "PresentEvidence" then
 		if self.phase ~= "Campfire" then
@@ -2637,6 +2705,8 @@ function GameRuntimeService:_ApplyRewards()
 					monsterId = codexMonsterId,
 					identifiedMonster = participant.vote.targetParticipantId ~= nil
 						and participant.vote.targetParticipantId == culpritId,
+					checkIns = self.checkInsByParticipantId[participant.participantId]
+						or 0,
 				})
 				if not result.applied and not result.duplicate then
 					warn(string.format(

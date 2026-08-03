@@ -2471,6 +2471,10 @@ function GameView:_requestRoleAction()
 		self:_chooseMurderPlan()
 		return
 	end
+	if self:_available(state, "BuddyCheckIn") then
+		self:_chooseParticipant("BuddyCheckIn", {}, false)
+		return
+	end
 	local player = if type(state) == "table" then state.player else nil
 	local rawAbilities = if type(player) == "table" then asTable(player.abilityIds) else {}
 	local abilities: { string } = {}
@@ -4954,7 +4958,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local roleEnabled, roleReason = self:_available(state, "UseRoleAbility")
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
 	local planEnabled = self:_available(state, "SetMurderPlan")
-	local livingRoleActionEnabled = not ghost and (roleEnabled or monsterEnabled or planEnabled)
+	local buddyEnabled = self:_available(state, "BuddyCheckIn")
+	local livingRoleActionEnabled = not ghost
+		and (roleEnabled or monsterEnabled or planEnabled or buddyEnabled)
 	Components.SetButtonEnabled(
 		self.roleAction,
 		livingRoleActionEnabled and not eliminated
@@ -4964,6 +4970,8 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		then "GHOST ACTIONS LOCKED"
 		elseif planEnabled
 		then "PLAN TONIGHT'S HUNT"
+		elseif buddyEnabled
+		then "BUDDY CHECK-IN"
 		elseif monsterEnabled
 		then "USE MONSTER ABILITY"
 		elseif roleEnabled then "USE ROLE ABILITY"

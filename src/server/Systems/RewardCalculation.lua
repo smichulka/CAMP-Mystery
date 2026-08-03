@@ -59,6 +59,9 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 			xp += rewards.survivalXP
 			campTokens += rewards.survivalTokens
 		end
+		-- Dusk buddy check-ins: small social bonus, capped so farming pairs
+		-- is pointless.
+		xp += math.min(math.floor(input.checkIns or 0), 3) * 5
 	end
 
 	local roleIsMurderer = input.roleId == "Murderer"

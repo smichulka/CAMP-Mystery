@@ -73,9 +73,9 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 	{
 		id = "murderplanning",
 		context = "MurderPlanning",
-		title = "The Night Is Being Decided",
-		body = "Someone in the group is choosing a victim right now. Use this moment to prepare — equip your gear and decide where to investigate tonight.",
-		objective = "EQUIP YOUR GEAR BEFORE NIGHTFALL",
+		title = "Dusk at Camp",
+		body = "Someone is choosing a victim right now. Check in with a buddy, hand spare gear to whoever heads out alone, and ask counselors what they saw.",
+		objective = "BUDDY CHECK-IN AND GEAR UP BEFORE NIGHTFALL",
 	},
 	{
 		id = "murderplanning_murderer",
