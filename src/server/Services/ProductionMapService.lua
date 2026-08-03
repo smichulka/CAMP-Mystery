@@ -1332,11 +1332,13 @@ local function buildCampTerrain(parent: Instance)
 	terrain:FillCylinder(CFrame.new(80, -1.6, 28), 3.6, 12, Enum.Material.Sand)
 	terrain:FillCylinder(CFrame.new(80, -1.6, 66), 3.6, 12, Enum.Material.Sand)
 
+	-- Sits below the storm-cellar tunnel (floor ~-6.9) so the passage can be
+	-- carved through the terrain block above it
 	local bounds = createPart(
 		parent,
 		"CampGround",
 		Vector3.new(250, 1, 205),
-		CFrame.new(0, -3, 12),
+		CFrame.new(0, -9, 12),
 		Color3.fromRGB(59, 82, 52),
 		Enum.Material.Grass,
 		1
@@ -1714,6 +1716,156 @@ function ProductionMapService:Build()
 		end
 		createPart(self.dayCamp, "HayBale", Vector3.new(4, 2.2, 1.6),
 			CFrame.new(-39.5, 1.1, -72), Color3.fromRGB(172, 150, 92), Enum.Material.Grass)
+		-- Fire lookout tower: climbable via the north lattice, with a view
+		-- over the whole camp and the town road
+		local towerWood = Color3.fromRGB(84, 60, 38)
+		local towerX, towerZ = 34, -70
+		for legX = -1, 1, 2 do
+			for legZ = -1, 1, 2 do
+				createPart(self.dayCamp, "LookoutLeg", Vector3.new(0.8, 26, 0.8),
+					CFrame.new(towerX + legX * 3.6, 13, towerZ + legZ * 3.6),
+					towerWood, Enum.Material.Wood)
+			end
+		end
+		for _, braceY in { 8, 17 } do
+			for legX = -1, 1, 2 do
+				createPart(self.dayCamp, "LookoutBraceNS", Vector3.new(0.5, 0.5, 7.6),
+					CFrame.new(towerX + legX * 3.6, braceY, towerZ),
+					towerWood, Enum.Material.Wood)
+			end
+			for legZ = -1, 1, 2 do
+				createPart(self.dayCamp, "LookoutBraceEW", Vector3.new(7.6, 0.5, 0.5),
+					CFrame.new(towerX, braceY, towerZ + legZ * 3.6),
+					towerWood, Enum.Material.Wood)
+			end
+		end
+		createPart(self.dayCamp, "LookoutFloor", Vector3.new(10, 0.6, 10),
+			CFrame.new(towerX, 26, towerZ), Color3.fromRGB(96, 70, 46), Enum.Material.WoodPlanks)
+		for legX = -1, 1, 2 do
+			for legZ = -1, 1, 2 do
+				createPart(self.dayCamp, "LookoutRailPost", Vector3.new(0.5, 3, 0.5),
+					CFrame.new(towerX + legX * 4.7, 27.8, towerZ + legZ * 4.7),
+					Color3.fromRGB(46, 32, 22), Enum.Material.Wood)
+			end
+		end
+		createPart(self.dayCamp, "LookoutRailSouth", Vector3.new(10, 0.35, 0.35),
+			CFrame.new(towerX, 29.2, towerZ + 4.7), Color3.fromRGB(46, 32, 22), Enum.Material.Wood)
+		for legX = -1, 1, 2 do
+			createPart(self.dayCamp, "LookoutRailSide", Vector3.new(0.35, 0.35, 10),
+				CFrame.new(towerX + legX * 4.7, 29.2, towerZ), Color3.fromRGB(46, 32, 22), Enum.Material.Wood)
+			-- North rail is split so climbers can step off the lattice
+			createPart(self.dayCamp, "LookoutRailNorth", Vector3.new(3.4, 0.35, 0.35),
+				CFrame.new(towerX + legX * 3.3, 29.2, towerZ - 4.7), Color3.fromRGB(46, 32, 22), Enum.Material.Wood)
+		end
+		local lookoutLattice = Instance.new("TrussPart")
+		lookoutLattice.Name = "LookoutLattice"
+		lookoutLattice.Anchored = true
+		lookoutLattice.Size = Vector3.new(2, 26, 2)
+		lookoutLattice.CFrame = CFrame.new(towerX, 13, towerZ - 5.9)
+		lookoutLattice.Color = Color3.fromRGB(96, 78, 52)
+		lookoutLattice.Material = Enum.Material.Wood
+		lookoutLattice.TopSurface = Enum.SurfaceType.Smooth
+		lookoutLattice.BottomSurface = Enum.SurfaceType.Smooth
+		lookoutLattice.Parent = self.dayCamp
+		for legX = -1, 1, 2 do
+			for legZ = -1, 1, 2 do
+				createPart(self.dayCamp, "LookoutRoofPost", Vector3.new(0.4, 4, 0.4),
+					CFrame.new(towerX + legX * 4.2, 28.3, towerZ + legZ * 4.2),
+					towerWood, Enum.Material.Wood)
+			end
+		end
+		createPart(self.dayCamp, "LookoutRoof", Vector3.new(11, 0.4, 11),
+			CFrame.new(towerX, 30.7, towerZ), Color3.fromRGB(88, 84, 76), Enum.Material.CorrodedMetal)
+		local lookoutDesk = createPart(self.dayCamp, "LookoutDesk", Vector3.new(3, 0.4, 1.4),
+			CFrame.new(towerX, 27.3, towerZ + 3.8), Color3.fromRGB(91, 64, 43), Enum.Material.WoodPlanks)
+		createInspectPrompt(
+			lookoutDesk,
+			"Fire watch log",
+			"Saw lights moving in the old town again. Third night running. Nobody believes me."
+		)
+		-- Storm cellar: hidden tunnel from behind Pine Cabin south to the
+		-- tree line by the town road. Carved through the terrain block and
+		-- lined with mine-shaft timber framing.
+		local terrainRef = Workspace.Terrain
+		terrainRef:FillBlock(CFrame.new(-58, -3.25, 36), Vector3.new(5, 8.5, 8), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(-58, -4, -15), Vector3.new(5, 6, 110), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(-22, -4, -70), Vector3.new(77, 6, 5), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(14, -3.25, -74), Vector3.new(5, 8.5, 10), Enum.Material.Air)
+		local rampEntry = Instance.new("WedgePart")
+		rampEntry.Name = "CellarRampEntry"
+		rampEntry.Anchored = true
+		rampEntry.Size = Vector3.new(4.6, 7, 8)
+		rampEntry.CFrame = CFrame.new(-58, -3, 36) * CFrame.Angles(0, math.pi, 0)
+		rampEntry.Color = Color3.fromRGB(88, 62, 40)
+		rampEntry.Material = Enum.Material.WoodPlanks
+		rampEntry.Parent = self.dayCamp
+		local rampExit = Instance.new("WedgePart")
+		rampExit.Name = "CellarRampExit"
+		rampExit.Anchored = true
+		rampExit.Size = Vector3.new(4.6, 7, 9)
+		rampExit.CFrame = CFrame.new(14, -3, -74.5) * CFrame.Angles(0, math.pi, 0)
+		rampExit.Color = Color3.fromRGB(88, 62, 40)
+		rampExit.Material = Enum.Material.WoodPlanks
+		rampExit.Parent = self.dayCamp
+		createPart(self.dayCamp, "TunnelFloorSouth", Vector3.new(4.6, 0.3, 108),
+			CFrame.new(-58, -6.85, -14), Color3.fromRGB(76, 56, 38), Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "TunnelFloorEast", Vector3.new(72, 0.3, 4.6),
+			CFrame.new(-21, -6.85, -70), Color3.fromRGB(76, 56, 38), Enum.Material.WoodPlanks)
+		for _, frameZ in { 20, 0, -20, -40, -60 } do
+			for frameSide = -1, 1, 2 do
+				createPart(self.dayCamp, "TunnelPost", Vector3.new(0.5, 5.6, 0.5),
+					CFrame.new(-58 + frameSide * 2.1, -4.1, frameZ),
+					Color3.fromRGB(62, 44, 28), Enum.Material.Wood)
+			end
+			createPart(self.dayCamp, "TunnelLintel", Vector3.new(5.2, 0.5, 0.5),
+				CFrame.new(-58, -1.4, frameZ), Color3.fromRGB(62, 44, 28), Enum.Material.Wood)
+		end
+		for _, frameX in { -40, -16, 4 } do
+			for frameSide = -1, 1, 2 do
+				createPart(self.dayCamp, "TunnelPostEast", Vector3.new(0.5, 5.6, 0.5),
+					CFrame.new(frameX, -4.1, -70 + frameSide * 2.1),
+					Color3.fromRGB(62, 44, 28), Enum.Material.Wood)
+			end
+			createPart(self.dayCamp, "TunnelLintelEast", Vector3.new(0.5, 0.5, 5.2),
+				CFrame.new(frameX, -1.4, -70), Color3.fromRGB(62, 44, 28), Enum.Material.Wood)
+		end
+		local tunnelLampSpots = {
+			Vector3.new(-58, -2, 10), Vector3.new(-58, -2, -45),
+			Vector3.new(-40, -2, -70), Vector3.new(0, -2, -70),
+		}
+		for lampIndex, lampSpot in tunnelLampSpots do
+			local tunnelLamp = createPart(self.dayCamp, "TunnelLamp" .. tostring(lampIndex),
+				Vector3.new(0.5, 0.5, 0.5), CFrame.new(lampSpot),
+				Color3.fromRGB(255, 196, 110), Enum.Material.Neon)
+			tunnelLamp.CanCollide = false
+			local tunnelLight = Instance.new("PointLight")
+			tunnelLight.Brightness = 0.8
+			tunnelLight.Range = 12
+			tunnelLight.Color = Color3.fromRGB(255, 200, 120)
+			tunnelLight.Parent = tunnelLamp
+		end
+		-- Cellar mouth dressing: stone cheeks, flung-open doors, and a sign
+		local cellarStone = Color3.fromRGB(96, 96, 90)
+		for cheekSide = -1, 1, 2 do
+			createPart(self.dayCamp, "CellarCheek", Vector3.new(0.6, 1.6, 8.4),
+				CFrame.new(-58 + cheekSide * 2.9, 1.3, 36), cellarStone, Enum.Material.Concrete)
+		end
+		for doorSide = -1, 1, 2 do
+			local cellarDoor = createPart(self.dayCamp, "CellarDoorOpen", Vector3.new(2.4, 0.3, 5),
+				CFrame.new(-58 + doorSide * 4.9, 0.68, 34.5) * CFrame.Angles(0, 0, math.rad(doorSide * 6)),
+				Color3.fromRGB(72, 50, 32), Enum.Material.WoodPlanks)
+			cellarDoor.CanCollide = false
+		end
+		local cellarSign = createPart(self.dayCamp, "CellarSign", Vector3.new(3.2, 1, 0.25),
+			CFrame.new(-62.5, 1.6, 31), Color3.fromRGB(56, 40, 26), Enum.Material.Wood)
+		createSign(cellarSign, "STORM CELLAR", Color3.fromRGB(226, 190, 114))
+		for bushIndex, bushSpot in { Vector3.new(11, 0.8, -79.5), Vector3.new(17.5, 0.9, -77.5) } do
+			local exitBush = createPart(self.dayCamp, "ExitBush" .. tostring(bushIndex),
+				Vector3.new(2.6, 2.0, 2.4), CFrame.new(bushSpot),
+				Color3.fromRGB(50, 94, 61), Enum.Material.Grass)
+			exitBush.Shape = Enum.PartType.Ball
+			exitBush.CanCollide = false
+		end
 	end
 
 	-- Strip any surviving brick chimneys (from authored place-file content or ServerStorage models)
