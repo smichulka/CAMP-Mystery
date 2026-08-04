@@ -3213,7 +3213,9 @@ end
 
 -- World-expansion district builders live under Services/Map and are loaded
 -- optionally so the map service works before/without any given pack.
-local EXPANSION_MODULE_NAMES = { "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks" }
+-- PolishPack runs last: it decorates structures the other packs build.
+local EXPANSION_MODULE_NAMES =
+	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "PolishPack" }
 
 local function optionalMapModule(name: string): any
 	local servicesFolder = script.Parent
