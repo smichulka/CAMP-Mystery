@@ -1825,9 +1825,18 @@ function ProductionMapService:Build()
 		-- lined with mine-shaft timber framing.
 		local terrainRef = Workspace.Terrain
 		terrainRef:FillBlock(CFrame.new(-58, -3.25, 36), Vector3.new(5, 8.5, 8), Enum.Material.Air)
-		terrainRef:FillBlock(CFrame.new(-58, -4, -15), Vector3.new(5, 6, 110), Enum.Material.Air)
-		terrainRef:FillBlock(CFrame.new(-22, -4, -70), Vector3.new(77, 6, 5), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(-58, -4.5, -15), Vector3.new(5, 7, 110), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(-22, -4.5, -70), Vector3.new(77, 7, 5), Enum.Material.Air)
 		terrainRef:FillBlock(CFrame.new(14, -3.25, -74), Vector3.new(5, 8.5, 10), Enum.Material.Air)
+		-- Thin the surface band directly over the passage so it cannot sag
+		-- into the tunnel as a colliding membrane (part walls and ceiling
+		-- seal the passage; a 3-wide low-occupancy seam is invisible above)
+		terrainRef:FillBlock(CFrame.new(-58, 1, -17), Vector3.new(3, 3.5, 97), Enum.Material.Air)
+		terrainRef:FillBlock(CFrame.new(-22, 1, -70), Vector3.new(74, 3.5, 3), Enum.Material.Air)
+		-- Open the L-junction corner fully — sized to swallow whole 4-stud
+		-- voxel cells (partial Air fills only reduce occupancy and leave
+		-- rubble humps that marching-cubes bulges past the wall parts)
+		terrainRef:FillBlock(CFrame.new(-60, -4, -72), Vector3.new(12, 8, 12), Enum.Material.Air)
 		local rampEntry = Instance.new("WedgePart")
 		rampEntry.Name = "CellarRampEntry"
 		rampEntry.Anchored = true
@@ -1865,6 +1874,31 @@ function ProductionMapService:Build()
 			end
 			createPart(self.dayCamp, "TunnelLintelEast", Vector3.new(0.5, 0.5, 5.2),
 				CFrame.new(frameX, -1.4, -70), Color3.fromRGB(62, 44, 28), Enum.Material.Wood)
+		end
+		-- The carved terrain shell is too thin to enclose the passage; part
+		-- walls and ceilings make it a sealed mine shaft regardless of how
+		-- the voxels render
+		local earthWall = Color3.fromRGB(58, 50, 44)
+		local tunnelCeil = Color3.fromRGB(64, 46, 30)
+		for _, wallX in { -60.4, -55.6 } do
+			createPart(self.dayCamp, "TunnelWallNS", Vector3.new(0.5, 6, 106),
+				CFrame.new(wallX, -4, -13), earthWall, Enum.Material.Slate)
+		end
+		createPart(self.dayCamp, "TunnelCeilNS", Vector3.new(5.3, 0.5, 97.5),
+			CFrame.new(-58, -1.15, -17.25), tunnelCeil, Enum.Material.WoodPlanks)
+		createPart(self.dayCamp, "TunnelWallES", Vector3.new(71.4, 6, 0.5),
+			CFrame.new(-24.3, -4, -72.4), earthWall, Enum.Material.Slate)
+		createPart(self.dayCamp, "TunnelWallEN", Vector3.new(72, 6, 0.5),
+			CFrame.new(-19.5, -4, -67.6), earthWall, Enum.Material.Slate)
+		createPart(self.dayCamp, "TunnelCapWest", Vector3.new(0.5, 6, 5.3),
+			CFrame.new(-60.3, -4, -70), earthWall, Enum.Material.Slate)
+		createPart(self.dayCamp, "TunnelCapEast", Vector3.new(0.5, 6, 5.3),
+			CFrame.new(16.3, -4, -70), earthWall, Enum.Material.Slate)
+		createPart(self.dayCamp, "TunnelCeilEW", Vector3.new(77, 0.5, 5.3),
+			CFrame.new(-22, -1.15, -70), tunnelCeil, Enum.Material.WoodPlanks)
+		for _, exitWallX in { 11.6, 16.4 } do
+			createPart(self.dayCamp, "TunnelExitWall", Vector3.new(0.5, 6, 10),
+				CFrame.new(exitWallX, -4, -74.5), earthWall, Enum.Material.Slate)
 		end
 		local tunnelLampSpots = {
 			Vector3.new(-58, -2, 10), Vector3.new(-58, -2, -45),
