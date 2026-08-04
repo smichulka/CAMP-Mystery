@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
+type SideObjectiveHandler = (player: Player, sideObjectiveId: string) -> boolean
 
 type InteractiveDoor = {
 	part: Part,
@@ -25,8 +26,12 @@ type ProductionMapServiceState = {
 	evidenceSockets: { BasePart },
 	onObjective: ObjectiveHandler,
 	onEvidence: EvidenceHandler,
+	onSideObjective: SideObjectiveHandler?,
 	evidenceClaimed: { [string]: boolean },
 	interactiveDoors: { InteractiveDoor },
+	sideObjectivePrompts: { [string]: ProximityPrompt },
+	sideObjectiveParts: { [string]: BasePart },
+	sideObjectiveComplete: { [string]: boolean },
 }
 
 local ProductionMapService = {}
@@ -39,6 +44,15 @@ export type ProductionMapService = typeof(
 local DAY_AMBIENT = Color3.fromRGB(128, 139, 121)
 local NIGHT_AMBIENT = Color3.fromRGB(24, 29, 43)
 local DOOR_TWEEN = TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+-- Night side-objective tuning: the mill's fuse box relights the dark lanterns
+-- around the industrial pocket; lamp colors flip between these two states.
+local FUSE_BOX_RELIGHT_RADIUS = 90
+local LANTERN_LIT_COLOR = Color3.fromRGB(255, 208, 140)
+local LANTERN_LIT_TRANSPARENCY = 0.22
+local LANTERN_DARK_COLOR = Color3.fromRGB(118, 104, 80)
+local LANTERN_DARK_TRANSPARENCY = 0.82
+local SIDE_OBJECTIVE_LAMP_OFF = Color3.fromRGB(187, 72, 49)
+local SIDE_OBJECTIVE_LAMP_ON = Color3.fromRGB(79, 214, 112)
 
 local OBJECTIVES = {
 	{
@@ -1018,7 +1032,7 @@ local function createBuilding(
 	return doorState
 end
 
-local function createStreetlight(parent: Instance, position: Vector3)
+local function createStreetlight(parent: Instance, position: Vector3, startsDark: boolean?)
 	local poleC = Color3.fromRGB(28, 30, 34)  -- dark wrought iron
 	-- Main pole (slender Victorian shaft)
 	local pole = createPart(parent, "Streetlight", Vector3.new(0.55, 18, 0.55),
@@ -1051,6 +1065,15 @@ local function createStreetlight(parent: Instance, position: Vector3)
 	light.Range = 30
 	light.Color = Color3.fromRGB(255, 205, 140)
 	light.Parent = glow
+	if startsDark then
+		-- A dead lantern the fuse box can bring back: the dark values are
+		-- applied before the first setFolderVisible pass so the Visible*
+		-- attribute cache records the lantern as unlit.
+		glow:SetAttribute("DarkLantern", true)
+		glow.Color = LANTERN_DARK_COLOR
+		glow.Transparency = LANTERN_DARK_TRANSPARENCY
+		light.Enabled = false
+	end
 end
 
 local function createUtilityPole(parent: Instance, position: Vector3)
@@ -1209,6 +1232,17 @@ local function buildWaterTower(parent: Instance, position: Vector3)
 			legColor, Enum.Material.Metal)
 	end
 
+	-- Climbable service ladder up the -X face; the truss tops out above the
+	-- platform railing so players can step over it onto the deck.
+	local ladder = Instance.new("TrussPart")
+	ladder.Name = "WTLadder"
+	ladder.Anchored = true
+	ladder.Size = Vector3.new(2, legH + 4, 2)
+	ladder.CFrame = CFrame.new(position + Vector3.new(-8.9, (legH + 4) / 2, 0))
+	ladder.Color = legColor
+	ladder.Material = Enum.Material.Metal
+	ladder.Parent = parent
+
 	-- "WATER" lettering sign on the tank side (SurfaceGui on a thin plate)
 	local signPlate = createPart(parent, "WTSign",
 		Vector3.new(8, 2.5, 0.25),
@@ -1366,7 +1400,8 @@ end
 
 function ProductionMapService.new(
 	onObjective: ObjectiveHandler,
-	onEvidence: EvidenceHandler
+	onEvidence: EvidenceHandler,
+	onSideObjective: SideObjectiveHandler?
 ): ProductionMapService
 	local runtime = Workspace:WaitForChild("Runtime")
 	local mapFolder = runtime:WaitForChild("Map")
@@ -1395,8 +1430,12 @@ function ProductionMapService.new(
 		evidenceSockets = {},
 		onObjective = onObjective,
 		onEvidence = onEvidence,
+		onSideObjective = onSideObjective,
 		evidenceClaimed = {},
 		interactiveDoors = {},
+		sideObjectivePrompts = {},
+		sideObjectiveParts = {},
+		sideObjectiveComplete = {},
 	}, ProductionMapService)
 	hideDefaultBaseplate()
 	configureLighting()
@@ -2341,6 +2380,11 @@ function ProductionMapService:Build()
 		for index = 1, 9 do
 			createStreetlight(self.nightTown, Vector3.new(if index % 2 == 0 then 18 else -18, 0, -62 - index * 38))
 		end
+		-- The industrial pocket between the main road and Mill No. 7 starts
+		-- unlit; repairing the mill fuse box brings these lanterns back.
+		createStreetlight(self.nightTown, Vector3.new(-64, 0, -250), true)
+		createStreetlight(self.nightTown, Vector3.new(-64, 0, -300), true)
+		createStreetlight(self.nightTown, Vector3.new(-40, 0, -275), true)
 		-- East district: a second north-south street with connecting cross
 		-- streets turns the strip into a town grid — diner, motel, school,
 		-- rowhouses, a fountain plaza, and the churchyard
@@ -2673,6 +2717,178 @@ function ProductionMapService:Build()
 		socket.CanCollide = false
 		table.insert(self.evidenceSockets, socket)
 	end
+
+	self:_buildSideObjectives()
+end
+
+-- Optional night-side objectives: hand-built props whose prompts stay dark
+-- until the Investigation phase enables them. Their triggers route through
+-- onSideObjective so the runtime owns validation and rewards.
+function ProductionMapService:_registerSideObjective(
+	sideObjectiveId: string,
+	part: BasePart,
+	actionText: string,
+	objectText: string,
+	holdDuration: number
+)
+	local prompt = createPrompt(part, actionText, objectText, holdDuration)
+	prompt.Enabled = false
+	part:SetAttribute("SideObjective", sideObjectiveId)
+	self.sideObjectivePrompts[sideObjectiveId] = prompt
+	self.sideObjectiveParts[sideObjectiveId] = part
+	prompt.Triggered:Connect(function(player: Player)
+		if self.sideObjectiveComplete[sideObjectiveId] then
+			return
+		end
+		local handler = self.onSideObjective
+		if handler and handler(player, sideObjectiveId) then
+			self:_markSideObjectiveComplete(sideObjectiveId)
+		end
+	end)
+end
+
+function ProductionMapService:_buildSideObjectives()
+	-- Radio relay console on the water tower platform (tower base 110, 0, -292;
+	-- deck top sits just under Y 20). Reaching it means climbing the ladder.
+	local console = createPart(
+		self.nightTown,
+		"RadioBeaconConsole",
+		Vector3.new(2.4, 2.6, 1.6),
+		CFrame.new(Vector3.new(105, 21.1, -287)),
+		Color3.fromRGB(58, 66, 72),
+		Enum.Material.Metal
+	)
+	createPart(
+		self.nightTown,
+		"RadioBeaconAntenna",
+		Vector3.new(0.3, 7, 0.3),
+		CFrame.new(Vector3.new(105, 25.9, -287.4)),
+		Color3.fromRGB(40, 46, 50),
+		Enum.Material.Metal
+	)
+	local consoleLamp = createPart(
+		self.nightTown,
+		"StatusLamp",
+		Vector3.new(0.5, 0.5, 0.5),
+		CFrame.new(Vector3.new(105, 22.6, -286.5)),
+		SIDE_OBJECTIVE_LAMP_OFF,
+		Enum.Material.Neon
+	)
+	consoleLamp.CanCollide = false
+	consoleLamp.Parent = console
+	self:_registerSideObjective(
+		"radio-beacon",
+		console,
+		"Boost the signal",
+		"Camp radio relay",
+		5
+	)
+
+	-- Fuse box on the east wall of Mill No. 7 (factory footprint reaches
+	-- x -77.5), facing the unlit industrial pocket it can relight.
+	local fuseBox = createPart(
+		self.nightTown,
+		"MillFuseBox",
+		Vector3.new(0.9, 3, 2.2),
+		CFrame.new(Vector3.new(-77, 4.5, -266)),
+		Color3.fromRGB(70, 74, 70),
+		Enum.Material.DiamondPlate
+	)
+	createPart(
+		self.nightTown,
+		"MillFuseConduit",
+		Vector3.new(0.45, 3.2, 0.45),
+		CFrame.new(Vector3.new(-77.2, 1.6, -266)),
+		Color3.fromRGB(48, 52, 50),
+		Enum.Material.Metal
+	)
+	local fuseLamp = createPart(
+		self.nightTown,
+		"StatusLamp",
+		Vector3.new(0.45, 0.45, 0.45),
+		CFrame.new(Vector3.new(-76.4, 6.2, -266)),
+		SIDE_OBJECTIVE_LAMP_OFF,
+		Enum.Material.Neon
+	)
+	fuseLamp.CanCollide = false
+	fuseLamp.Parent = fuseBox
+	self:_registerSideObjective(
+		"fuse-box",
+		fuseBox,
+		"Restore power",
+		"Mill No. 7 fuse box",
+		4
+	)
+end
+
+function ProductionMapService:_setSideObjectiveLamp(sideObjectiveId: string, complete: boolean)
+	local part = self.sideObjectiveParts[sideObjectiveId]
+	local lamp = if part then part:FindFirstChild("StatusLamp") else nil
+	if lamp and lamp:IsA("BasePart") then
+		lamp.Color = if complete then SIDE_OBJECTIVE_LAMP_ON else SIDE_OBJECTIVE_LAMP_OFF
+	end
+end
+
+-- Relights (or re-darkens) every dead lantern within reach of the fuse box.
+-- The Visible* attribute cache must be updated alongside the live properties
+-- so the next day/night visibility sweep keeps the repaired state.
+function ProductionMapService:_setFactoryStreetlights(repaired: boolean)
+	local fusePart = self.sideObjectiveParts["fuse-box"]
+	if not fusePart then
+		return
+	end
+	for _, descendant in self.nightTown:GetDescendants() do
+		if
+			descendant:IsA("BasePart")
+			and descendant:GetAttribute("DarkLantern") == true
+			and (descendant.Position - fusePart.Position).Magnitude
+				<= FUSE_BOX_RELIGHT_RADIUS
+		then
+			descendant.Color = if repaired then LANTERN_LIT_COLOR else LANTERN_DARK_COLOR
+			local transparency = if repaired
+				then LANTERN_LIT_TRANSPARENCY
+				else LANTERN_DARK_TRANSPARENCY
+			descendant.Transparency = transparency
+			descendant:SetAttribute("VisibleTransparency", transparency)
+			local light = descendant:FindFirstChildOfClass("PointLight")
+			if light then
+				light.Enabled = repaired
+				light:SetAttribute("VisibleEnabled", repaired)
+			end
+		end
+	end
+end
+
+function ProductionMapService:_markSideObjectiveComplete(sideObjectiveId: string)
+	self.sideObjectiveComplete[sideObjectiveId] = true
+	local prompt = self.sideObjectivePrompts[sideObjectiveId]
+	if prompt then
+		prompt.Enabled = false
+	end
+	self:_setSideObjectiveLamp(sideObjectiveId, true)
+	if sideObjectiveId == "fuse-box" then
+		self:_setFactoryStreetlights(true)
+	end
+end
+
+function ProductionMapService:SetSideObjectivePromptsEnabled(enabled: boolean)
+	for sideObjectiveId, prompt in self.sideObjectivePrompts do
+		prompt.Enabled = enabled and not self.sideObjectiveComplete[sideObjectiveId]
+	end
+end
+
+function ProductionMapService:GetSideObjectivePosition(sideObjectiveId: string): Vector3?
+	local part = self.sideObjectiveParts[sideObjectiveId]
+	return if part then part.Position else nil
+end
+
+function ProductionMapService:ResetSideObjectives()
+	self.sideObjectiveComplete = {}
+	for sideObjectiveId, prompt in self.sideObjectivePrompts do
+		prompt.Enabled = false
+		self:_setSideObjectiveLamp(sideObjectiveId, false)
+	end
+	self:_setFactoryStreetlights(false)
 end
 
 function ProductionMapService:GetEvidenceAliases(): { string }
@@ -2926,6 +3142,7 @@ end
 function ProductionMapService:ResetRound()
 	self:ClearEvidence()
 	self:ResetObjectives()
+	self:ResetSideObjectives()
 	for _, door in self.interactiveDoors do
 		door.isOpen = false
 		door.part.CFrame = door.closedCFrame

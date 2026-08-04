@@ -3408,6 +3408,76 @@ function CharacterAssetService:PlayMonsterState(
 	return self.monsterAnimationTrack ~= nil
 end
 
+function CharacterAssetService:GetMonsterPosition(): Vector3?
+	local model = self.monsterModel
+	if not model then
+		return nil
+	end
+	local root = model.PrimaryPart
+	return if root then root.Position else model:GetPivot().Position
+end
+
+-- Toggles the rescue interaction on a cornered counselor. The prompt lives on
+-- the counselor model itself (mirroring SpawnBodyMarker) so the server owns
+-- the trigger and can validate the rescuer before anything happens.
+function CharacterAssetService:SetCounselorCornered(
+	counselorId: string,
+	active: boolean,
+	onRescue: ((rescuer: Player) -> ())?
+)
+	local model = self:GetCounselorModel(counselorId)
+	if not model then
+		return
+	end
+	local root = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+	if not root then
+		return
+	end
+	local existingPrompt = model:FindFirstChild("RescuePrompt", true)
+	local existingBillboard = model:FindFirstChild("RescueBillboard", true)
+	if not active then
+		if existingPrompt then
+			existingPrompt:Destroy()
+		end
+		if existingBillboard then
+			existingBillboard:Destroy()
+		end
+		return
+	end
+	if existingPrompt then
+		return
+	end
+	local displayName = model:GetAttribute("DisplayName")
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "RescueBillboard"
+	billboard.Size = UDim2.fromOffset(150, 30)
+	billboard.StudsOffset = Vector3.new(0, 4.4, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 90
+	billboard.Parent = root
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.Text = "HELP!"
+	label.TextColor3 = Color3.fromRGB(255, 196, 110)
+	label.TextScaled = true
+	label.Parent = billboard
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "RescuePrompt"
+	prompt.ActionText = "Escort to safety"
+	prompt.ObjectText = if type(displayName) == "string" then displayName else "Counselor"
+	prompt.HoldDuration = 3
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = root
+	if onRescue then
+		prompt.Triggered:Connect(function(player: Player)
+			onRescue(player)
+		end)
+	end
+end
+
 function CharacterAssetService:ClearMonster()
 	self.monsterTrackPlayer = nil
 	self:StopMonsterTracking()

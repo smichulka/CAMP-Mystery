@@ -28,6 +28,10 @@ export type GrayboxFallback = {
 	SetNight: (self: any, isNight: boolean, options: NightOptions?) -> (),
 	SpawnEvidence: (self: any) -> (),
 	ClearEvidence: (self: any) -> (),
+	-- Night side-objectives are optional so older graybox fallbacks (and test
+	-- doubles) remain valid without stubbing them.
+	SetSideObjectivePromptsEnabled: ((self: any, enabled: boolean) -> ())?,
+	GetSideObjectivePosition: ((self: any, sideObjectiveId: string) -> Vector3?)?,
 }
 
 export type Callbacks = {
@@ -176,6 +180,21 @@ end
 function WorldService:MarkObjectiveComplete(objectiveId: string)
 	assert(objectiveId ~= "", "objectiveId must not be empty")
 	self.fallback:MarkObjectiveComplete(objectiveId)
+end
+
+function WorldService:SetSideObjectivePromptsEnabled(enabled: boolean)
+	local forward = self.fallback.SetSideObjectivePromptsEnabled
+	if forward then
+		forward(self.fallback, enabled)
+	end
+end
+
+function WorldService:GetSideObjectivePosition(sideObjectiveId: string): Vector3?
+	local forward = self.fallback.GetSideObjectivePosition
+	if forward then
+		return forward(self.fallback, sideObjectiveId)
+	end
+	return nil
 end
 
 function WorldService:_stableState(isNight: boolean): TransitionState

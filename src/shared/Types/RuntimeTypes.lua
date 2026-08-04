@@ -24,6 +24,8 @@ export type ActionName =
 	| "PresentEvidence"
 	| "BuddyCheckIn"
 	| "GhostFlickerLight"
+	| "GhostSync"
+	| "GhostHaunt"
 	| "EquipItem"
 	| "UseItem"
 	| "DropItem"
@@ -41,6 +43,20 @@ export type AvailableAction = {
 	name: ActionName,
 	enabled: boolean,
 	reason: string?,
+}
+
+-- Per-ghost night progress. Replicated only to that ghost's own client so
+-- living players never see how close a haunt is to landing.
+export type GhostSnapshot = {
+	hauntMeter: number,
+	hauntMeterMax: number,
+	hauntReady: boolean,
+	objectivesCompleted: number,
+	coldSpotSeconds: number,
+	coldSpotGoalSeconds: number,
+	vigilSeconds: number,
+	vigilGoalSeconds: number,
+	echoCooldownEndsAt: number,
 }
 
 export type MurderPlanSnapshot = {
@@ -64,6 +80,7 @@ export type GameState = {
 	monster: MonsterTypes.MonsterPublicSnapshot?,
 	privateMonster: MonsterTypes.MonsterPrivateSnapshot?,
 	murderPlan: MurderPlanSnapshot?,
+	ghost: GhostSnapshot?,
 	world: WorldTypes.WorldPublicSnapshot?,
 	profile: ProfileTypes.ProfileSnapshot?,
 	availableActions: { AvailableAction },

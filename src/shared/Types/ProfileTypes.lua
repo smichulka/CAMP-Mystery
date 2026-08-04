@@ -68,6 +68,8 @@ export type RewardInput = {
 	monsterId: string?,
 	identifiedMonster: boolean?,
 	checkIns: number?,
+	sideObjectives: number?,
+	ghostObjectives: number?,
 }
 
 export type RewardGrant = {

@@ -588,6 +588,76 @@ function CounselorService:ReportThreat(threat: CounselorThreat): { CounselorId }
 	return affected
 end
 
+-- Night rescue event: the counselor is trapped by the threat at a specific
+-- location. Reuses the existing behavior machinery — "Hiding" blocks dialogue
+-- through interactionAllowed, and destinationId drives the model movement.
+function CounselorService:SetCornered(
+	counselorId: CounselorId,
+	locationId: string,
+	now: number
+): (boolean, string?)
+	self:_assertActive()
+	if locationId == "" then
+		return false, "Cornered location cannot be empty"
+	end
+	local state = self.statesById[counselorId]
+	if not state then
+		return false, "Unknown counselor"
+	end
+	if state.threatActive then
+		return false, "Counselor is already reacting to a threat"
+	end
+	state.threatActive = true
+	state.behavior = "Hiding"
+	state.destinationId = locationId
+	state.currentActivity = "Cornered by something in the dark"
+	self:_recordMemory(
+		state,
+		"Threat",
+		"Something cornered the counselor in the night town.",
+		locationId,
+		nil,
+		1,
+		now
+	)
+	self:_mutated(state)
+	return true, nil
+end
+
+-- Frees a cornered counselor. They flee along their own emergency route,
+-- whether a camper escorted them out or they finally slipped away alone.
+function CounselorService:RescueCornered(
+	counselorId: CounselorId,
+	now: number
+): (boolean, string?)
+	self:_assertActive()
+	local state = self.statesById[counselorId]
+	if not state then
+		return false, "Unknown counselor"
+	end
+	if not state.threatActive or state.behavior ~= "Hiding" then
+		return false, "Counselor is not cornered"
+	end
+	local definition = getDefinition(counselorId)
+	local destinations = definition.fleeLocationIds
+	local destinationId = destinations[(self.roundSeed % #destinations) + 1]
+	state.threatActive = false
+	state.behavior = "Fleeing"
+	state.destinationId = destinationId
+	state.currentActivity = "Running for the safe route"
+	self:_recordMemory(
+		state,
+		"Threat",
+		"Escaped the corner and fled toward safety.",
+		destinationId,
+		nil,
+		1,
+		now
+	)
+	self:_mutated(state)
+	return true, nil
+end
+
 function CounselorService:ArriveAtDestination(
 	counselorId: CounselorId,
 	now: number

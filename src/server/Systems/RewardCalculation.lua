@@ -62,6 +62,14 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		-- Dusk buddy check-ins: small social bonus, capped so farming pairs
 		-- is pointless.
 		xp += math.min(math.floor(input.checkIns or 0), 3) * 5
+		-- Night side-objectives (counselor rescue, radio beacon, fuse box):
+		-- worth a detour, capped so they never rival the main goals.
+		local sideObjectives = math.min(math.floor(input.sideObjectives or 0), 3)
+		xp += sideObjectives * 15
+		campTokens += sideObjectives * 2
+		-- Ghost micro-objectives keep eliminated players earning at a gentle
+		-- rate; the cap stops idle hover-farming from paying out forever.
+		xp += math.min(math.floor(input.ghostObjectives or 0), 6) * 4
 	end
 
 	local roleIsMurderer = input.roleId == "Murderer"
