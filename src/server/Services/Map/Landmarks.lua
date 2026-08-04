@@ -613,7 +613,8 @@ local function buildChurchCrypt(nightTown: Instance)
 			CFrame.new(clusterSpot + Vector3.new(0, 1.5, 0.25)), Color3.fromRGB(255, 120, 70),
 			Enum.Material.Neon, Enum.PartType.Ball)
 		flame.CanCollide = false
-		WorldKit.lamp(flame, { color = Color3.fromRGB(255, 96, 64), brightness = 0.7, range = 9 })
+		-- Bright enough to search the niches by, still an ember-red crypt glow
+		WorldKit.lamp(flame, { color = Color3.fromRGB(255, 110, 72), brightness = 1.4, range = 15 })
 	end
 
 	-- Inscription
