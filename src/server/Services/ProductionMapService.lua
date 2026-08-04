@@ -3069,6 +3069,63 @@ function ProductionMapService:Build()
 	-- surrounding buildings are authored or procedural.
 	self:_buildColdCaseCabinet()
 	self:_buildLockedRooms()
+	self:_buildExpansions()
+end
+
+-- World-expansion district builders live under Services/Map and are loaded
+-- optionally so the map service works before/without any given pack.
+local EXPANSION_MODULE_NAMES = { "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks" }
+
+local function optionalMapModule(name: string): any
+	local servicesFolder = script.Parent
+	local mapModules = if servicesFolder then servicesFolder:FindFirstChild("Map") else nil
+	local child = if mapModules then mapModules:FindFirstChild(name) else nil
+	if not child or not child:IsA("ModuleScript") then
+		return nil
+	end
+	local ok, result = pcall(require, child)
+	if ok then
+		return result
+	end
+	warn("[CAMP-Mystery] Map module failed to load: " .. name .. " - " .. tostring(result))
+	return nil
+end
+
+function ProductionMapService:_buildExpansions()
+	for _, moduleName in EXPANSION_MODULE_NAMES do
+		local moduleValue = optionalMapModule(moduleName)
+		if moduleValue and typeof(moduleValue.Build) == "function" then
+			local ok, failure = pcall(moduleValue.Build, self.dayCamp, self.nightTown)
+			if not ok then
+				warn("[CAMP-Mystery] " .. moduleName .. ".Build failed: " .. tostring(failure))
+			end
+		end
+	end
+	local seasonal = optionalMapModule("SeasonalDressing")
+	if seasonal and typeof(seasonal.Build) == "function" then
+		local ok, failure = pcall(seasonal.Build, self.dayCamp)
+		if not ok then
+			warn("[CAMP-Mystery] SeasonalDressing.Build failed: " .. tostring(failure))
+		end
+	end
+	local wilds = optionalMapModule("LakeAndWilds")
+	if wilds and typeof(wilds.Start) == "function" then
+		task.spawn(function()
+			local ok, failure = pcall(wilds.Start)
+			if not ok then
+				warn("[CAMP-Mystery] LakeAndWilds.Start failed: " .. tostring(failure))
+			end
+		end)
+	end
+	local ambience = optionalMapModule("WorldAmbience")
+	if ambience and typeof(ambience.Start) == "function" then
+		task.spawn(function()
+			local ok, failure = pcall(ambience.Start)
+			if not ok then
+				warn("[CAMP-Mystery] WorldAmbience.Start failed: " .. tostring(failure))
+			end
+		end)
+	end
 end
 
 -- Optional night-side objectives: hand-built props whose prompts stay dark
@@ -3684,6 +3741,28 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		if descendant:IsA("SurfaceLight") then
 			-- Cabin window lights only burn at night if the generator was repaired.
 			descendant.Enabled = isNight and powered
+		end
+	end
+	-- Expansion-pack lamps (WorldKit.lamp): burn at night; gated ones also
+	-- need the generator repaired.
+	for _, folder in { self.dayCamp :: Instance, self.nightTown :: Instance } do
+		for _, descendant in folder:GetDescendants() do
+			if
+				descendant:IsA("PointLight")
+				and descendant:GetAttribute("CampLamp") == true
+			then
+				local gated = descendant:GetAttribute("GeneratorGated") == true
+				descendant.Enabled = isNight and (not gated or powered)
+			end
+		end
+	end
+	local ambience = optionalMapModule("WorldAmbience")
+	if ambience then
+		if typeof(ambience.SetNight) == "function" then
+			pcall(ambience.SetNight, isNight)
+		end
+		if typeof(ambience.SetWeather) == "function" then
+			pcall(ambience.SetWeather, if isNight then self.weatherId else "Clear")
 		end
 	end
 
