@@ -177,6 +177,7 @@ type GameViewState = {
 	dayObjectiveNotifiedRound: number?,
 	evidenceNotifiedRound: number?,
 	evidenceStatuses: { [string]: string },
+	comboSelectionId: string?,
 	selectedInventorySlot: number,
 	inventoryItems: { any },
 	requestSequence: number,
@@ -1126,6 +1127,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		dayObjectiveNotifiedRound = nil,
 		evidenceNotifiedRound = nil,
 		evidenceStatuses = {},
+		comboSelectionId = nil,
 		selectedInventorySlot = 0,
 		inventoryItems = {},
 		requestSequence = 0,
@@ -3465,16 +3467,25 @@ function GameView:_updateEvidence(state: any, round: any)
 		if type(discovery) == "table" then
 			finder = readString(discovery, "discoveredByDisplayName", finder)
 		end
+		-- Insight cards ride the culprit column but keep their own channel
+		-- label, icon, and amber accent so derived deductions stand apart.
+		local recordChannel = string.upper(readString(record, "channel", channel))
+		local isInsight = recordChannel == "INSIGHT"
+		local finderPrefix = if isInsight then "Combined by " else "Found by "
 		local card = Components.EvidenceCard(self.evidenceList, {
 			name = displayName,
 			description = readString(record, "description", "No description recorded."),
 			status = status,
 			previousStatus = previousStatus,
-			channel = channel,
-			footer = (if finder ~= "" then "Found by " .. finder .. "  |  " else "")
+			channel = recordChannel,
+			footer = (if finder ~= "" then finderPrefix .. finder .. "  |  " else "")
 				.. string.upper(status),
+			accentColor = if isInsight then Theme.Colors.Amber else nil,
 			iconAsset = self.resolveImage(
-				if channel == "MONSTER" then "Evidence_Monster" else "Evidence_Culprit"
+				if isInsight
+					then "Evidence_Insight"
+					elseif channel == "MONSTER" then "Evidence_Monster"
+					else "Evidence_Culprit"
 			),
 		})
 		card.Size = UDim2.new(1, -8, 0, Theme.Notebook.CardHeight)
@@ -3516,6 +3527,44 @@ function GameView:_updateEvidence(state: any, round: any)
 			present.ZIndex = card.ZIndex + 5
 			present.Activated:Connect(function()
 				self:_send("PresentEvidence", { evidenceId = evidenceId }, present)
+			end)
+		end
+		-- Detective-only: pick two cards to test a combination. Insights are
+		-- results, not ingredients, so they never get the button.
+		if
+			not isInsight
+			and evidenceId ~= ""
+			and self:_available(state, "CombineEvidence")
+		then
+			local isSelected = self.comboSelectionId == evidenceId
+			local combine = Components.Button(card, {
+				name = "Combine",
+				text = if isSelected then "SELECTED" else "COMBINE",
+				size = UDim2.fromOffset(104, 30),
+				position = UDim2.new(1, -440, 1, -36),
+				color = if isSelected then Theme.Colors.Success else Theme.Colors.Amber,
+			})
+			combine.ZIndex = card.ZIndex + 5
+			combine.Activated:Connect(function()
+				local selectedId = self.comboSelectionId
+				if selectedId == evidenceId then
+					self.comboSelectionId = nil
+					combine.Text = "COMBINE"
+				elseif selectedId then
+					self.comboSelectionId = nil
+					self:_send("CombineEvidence", {
+						evidenceIdA = selectedId,
+						evidenceIdB = evidenceId,
+					}, combine)
+				else
+					self.comboSelectionId = evidenceId
+					combine.Text = "SELECTED"
+					self:Notify(
+						"First clue selected",
+						"Press COMBINE on a second clue to test the pairing.",
+						"Info"
+					)
+				end
 			end)
 		end
 	end

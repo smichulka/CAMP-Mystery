@@ -56,6 +56,7 @@ local ACTION_REMOTES: { [string]: { string } } = {
 	DropItem = { "InventoryAction", "RequestInventoryAction" },
 	TransferItem = { "InventoryAction", "RequestInventoryAction" },
 	VerifyEvidence = { "EvidenceAction", "RequestEvidenceAction" },
+	CombineEvidence = { "EvidenceAction", "RequestEvidenceAction" },
 	AddEvidenceNote = { "EvidenceAction", "RequestEvidenceAction" },
 	UseRoleAbility = { "RoleAction", "RequestRoleAction" },
 	UseMonsterAbility = { "MonsterAction", "ActivateMonsterAbility" },
