@@ -3436,18 +3436,23 @@ function GameRuntimeService:_resolveCounselorRescue(rescuer: ParticipantState?)
 		return
 	end
 	self.rescueState = "Resolved"
-	self.counselors:RescueCornered(counselorId, now())
 	self.characters:SetCounselorCornered(counselorId, false, nil)
-	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
 	if rescuer then
 		self.sideObjectivesCompleted["counselor-rescue"] = rescuer.participantId
 		self.sideObjectivesByParticipantId[rescuer.participantId] =
 			(self.sideObjectivesByParticipantId[rescuer.participantId] or 0) + 1
-		-- The grateful counselor blurts out what they saw: reuse the witness
-		-- interview machinery so the hint lands through the normal channel.
+		-- The grateful counselor blurts out what they saw: clear the threat
+		-- first so the witness-interview gate sees them as interactable, then
+		-- reuse the interview machinery so the hint lands through the normal
+		-- channel before they bolt.
+		self.counselors:ClearThreat(counselorId, now())
 		if self.mysteryReady then
 			self.mystery:InterviewCounselor(rescuer.participantId, counselorId, now())
 		end
+	end
+	self.counselors:RescueCornered(counselorId, now())
+	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
+	if rescuer then
 		self:_announce(
 			"Success",
 			"Counselor rescued",

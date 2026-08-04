@@ -624,8 +624,10 @@ function CounselorService:SetCornered(
 	return true, nil
 end
 
--- Frees a cornered counselor. They flee along their own emergency route,
--- whether a camper escorted them out or they finally slipped away alone.
+-- Sends a freed counselor running along their own emergency route, whether a
+-- camper escorted them out or they finally slipped away alone. Deliberately
+-- does not require the cornered state: the runtime may ClearThreat first so
+-- the rescuer can collect a witness hint while the counselor is interactable.
 function CounselorService:RescueCornered(
 	counselorId: CounselorId,
 	now: number
@@ -634,9 +636,6 @@ function CounselorService:RescueCornered(
 	local state = self.statesById[counselorId]
 	if not state then
 		return false, "Unknown counselor"
-	end
-	if not state.threatActive or state.behavior ~= "Hiding" then
-		return false, "Counselor is not cornered"
 	end
 	local definition = getDefinition(counselorId)
 	local destinations = definition.fleeLocationIds

@@ -1444,6 +1444,11 @@ local function maybeSendGhostSync(snapshot: any)
 	if os.clock() - lastGhostSyncClock < GHOST_SYNC_INTERVAL_SECONDS then
 		return
 	end
+	-- Never overlap another in-flight request: the action-result FIFO labels
+	-- results by send order, and the sync can always wait a beat.
+	if #pendingActionNames > 0 then
+		return
+	end
 	local currentCamera = Workspace.CurrentCamera
 	if not currentCamera then
 		return
