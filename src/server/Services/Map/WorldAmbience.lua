@@ -33,9 +33,22 @@ local WeatherConfig = require(
 		:WaitForChild("WeatherConfig")
 )
 
--- Built-in rbxasset (NOT a marketplace id). If this ever goes missing from the
--- engine content folder the pcall below simply leaves the Sound silent.
-local IMPACT_SOUND_ID: string? = "rbxasset://sounds/impact_wood.mp3"
+-- Audio-slot convention (matches MonsterAudioConfig): the asset id comes from
+-- a SoundService attribute so live Studio experiments can wire real audio.
+-- Unset/zero leaves creaks and clatters silent rather than erroring.
+local SoundService = game:GetService("SoundService")
+local IMPACT_SOUND_ATTRIBUTE = "AmbienceImpactAssetId"
+
+local function impactSoundId(): string?
+	local assetId = SoundService:GetAttribute(IMPACT_SOUND_ATTRIBUTE)
+	if typeof(assetId) == "number" and assetId > 0 then
+		return "rbxassetid://" .. tostring(assetId)
+	end
+	if typeof(assetId) == "string" and assetId ~= "" then
+		return assetId
+	end
+	return nil
+end
 
 local SWEEP_INTERVAL_SECONDS = 20
 local CREAK_THROTTLE_SECONDS = 2.5
@@ -159,7 +172,7 @@ local function playImpactSound(part: BasePart, volume: number, playbackSpeed: nu
 	if part.Parent == nil then
 		return
 	end
-	local soundId = IMPACT_SOUND_ID
+	local soundId = impactSoundId()
 	if soundId == nil then
 		return
 	end
