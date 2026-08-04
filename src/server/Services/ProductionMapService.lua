@@ -396,6 +396,14 @@ local function createCabin(
 		Enum.Material.WoodPlanks
 	)
 	model.PrimaryPart = floor
+	-- Terrain marching-cubes smoothing bulges the grass surface above the
+	-- cabin floor unless the voxels are cleared a full band BELOW it too.
+	-- Inset 1 stud from the walls so no trench shows outside.
+	Workspace.Terrain:FillBlock(
+		CFrame.new(position + Vector3.new(0, 0.4, 0)),
+		Vector3.new(width - 2, 8, 15),
+		Enum.Material.Air
+	)
 	createPart(
 		model,
 		"BackWall",
@@ -1609,6 +1617,11 @@ function ProductionMapService:Build()
 		dockLight.Parent = dockLamp
 		-- Boathouse: open east wall faces the water
 		local bhX, bhZ = 74, 68
+		Workspace.Terrain:FillBlock(
+			CFrame.new(bhX, 1.4, bhZ),
+			Vector3.new(9, 7, 7),
+			Enum.Material.Air
+		)
 		createPart(self.dayCamp, "BoathouseFloor", Vector3.new(10, 0.6, 8),
 			CFrame.new(bhX, 0.8, bhZ), dockDark, Enum.Material.WoodPlanks)
 		createPart(self.dayCamp, "BoathouseWestWall", Vector3.new(0.7, 7, 8),
