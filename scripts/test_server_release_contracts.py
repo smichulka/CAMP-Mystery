@@ -3863,11 +3863,11 @@ class ServerReleaseContracts(unittest.TestCase):
         # ProductionMapService: weather fog stacks multiplicatively with the
         # generator consequence instead of replacing it
         self.assertIn(
-            "FogStart = (if powered then 120 else 85) * weather.fogStartMultiplier",
+            "FogStart = (if powered then 160 else 110) * weather.fogStartMultiplier",
             map_service,
         )
         self.assertIn(
-            "FogEnd = (if powered then 1000 else 750) * weather.fogEndMultiplier",
+            "FogEnd = (if powered then 1200 else 900) * weather.fogEndMultiplier",
             map_service,
         )
         # Rain emitter, seeded storm lightning, and blood-moon night palette

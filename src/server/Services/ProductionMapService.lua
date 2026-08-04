@@ -90,7 +90,7 @@ export type ProductionMapService = typeof(
 local DAY_AMBIENT = Color3.fromRGB(128, 139, 121)
 -- Full-moon night: bright enough to read the whole map, cool blue so it
 -- still reads as night rather than an underexposed day.
-local NIGHT_AMBIENT = Color3.fromRGB(82, 92, 116)
+local NIGHT_AMBIENT = Color3.fromRGB(94, 104, 130)
 local DOOR_TWEEN = TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 -- Baseline day fog distances used when weather thickens the air; clear days
 -- keep fog pushed out past the horizon.
@@ -1319,8 +1319,11 @@ local function createStreetlight(parent: Instance, position: Vector3, startsDark
 	createPart(parent, "LampDrop", Vector3.new(0.38, 1.5, 0.38),
 		CFrame.new(position + Vector3.new(3.0, 16.45, 0)), poleC, Enum.Material.Metal)
 	-- Lantern cage (dark frame surrounding the glow bulb)
-	createPart(parent, "LanternFrame", Vector3.new(1.55, 1.90, 1.55),
+	-- Translucent panes: the amber bulb must read through the cage at night,
+	-- otherwise the lantern head shows as a dead metal box.
+	local frame = createPart(parent, "LanternFrame", Vector3.new(1.55, 1.90, 1.55),
 		CFrame.new(position + Vector3.new(3.0, 15.2, 0)), poleC, Enum.Material.Metal)
+	frame.Transparency = 0.45
 	-- Glowing amber bulb inside the cage
 	local glow = createPart(parent, "LanternGlow", Vector3.new(0.95, 1.20, 0.95),
 		CFrame.new(position + Vector3.new(3.0, 15.2, 0)),
@@ -3937,36 +3940,36 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		-- Weather fog stacks multiplicatively with the generator consequence:
 		-- a powered camp still sees farther through the same weather.
 		TweenService:Create(Lighting, transition, {
-			Brightness = (if powered then 1.6 else 1.35)
+			Brightness = (if powered then 1.85 else 1.55)
 				* weather.brightnessMultiplier,
 			Ambient = weather.nightAmbientOverride
 				or scaleColor(NIGHT_AMBIENT, weather.ambientMultiplier),
 			OutdoorAmbient = weather.nightOutdoorAmbientOverride
 				or scaleColor(
 					if powered
-						then Color3.fromRGB(108, 120, 150)
-						else Color3.fromRGB(88, 100, 130),
+						then Color3.fromRGB(126, 138, 170)
+						else Color3.fromRGB(104, 116, 148),
 					weather.ambientMultiplier
 				),
 			FogColor = weather.nightFogColorOverride or Color3.fromRGB(52, 62, 82),
-			FogStart = (if powered then 120 else 85) * weather.fogStartMultiplier,
-			FogEnd = (if powered then 1000 else 750) * weather.fogEndMultiplier,
+			FogStart = (if powered then 160 else 110) * weather.fogStartMultiplier,
+			FogEnd = (if powered then 1200 else 900) * weather.fogEndMultiplier,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = math.min(0.34 * weather.atmosphereDensityMultiplier, 0.58),
+				Density = math.min(0.26 * weather.atmosphereDensityMultiplier, 0.55),
 				Offset = 0,
 				Color = weather.nightAtmosphereColorOverride
 					or Color3.fromRGB(118, 132, 152),
 				Decay = weather.nightAtmosphereDecayOverride
 					or Color3.fromRGB(48, 58, 84),
 				Glare = 0.14,
-				Haze = 1.9,
+				Haze = 1.6,
 			}):Play()
 		end
 		if color and color:IsA("ColorCorrectionEffect") then
 			TweenService:Create(color, transition, {
-				Brightness = 0.02,
+				Brightness = 0.05,
 				Contrast = 0.16,
 				-- The blood moon keeps more color so the red reads as red.
 				Saturation = if weather.nightTintOverride then -0.18 else -0.26,
