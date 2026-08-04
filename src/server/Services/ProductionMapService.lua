@@ -7,6 +7,18 @@ local Workspace = game:GetService("Workspace")
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
+-- Deduction-depth handlers wired by the runtime after construction.
+type ColdCaseHandler = (player: Player, fileIndex: number) -> string?
+type KeyPickupHandler = (player: Player, keyId: string) -> boolean
+type LockedRoomHandler = (player: Player, roomId: string) -> (boolean, string?)
+type SupplyCacheHandler = (player: Player) -> (boolean, string?)
+
+export type KeySpot = {
+	keyId: string,
+	position: Vector3,
+	objectText: string,
+	pickupLine: string,
+}
 
 type InteractiveDoor = {
 	part: Part,
@@ -14,6 +26,16 @@ type InteractiveDoor = {
 	closedCFrame: CFrame,
 	openCFrame: CFrame,
 	isOpen: boolean,
+}
+
+type LockedRoom = {
+	roomId: string,
+	door: BasePart,
+	prompt: ProximityPrompt,
+	closedCFrame: CFrame,
+	openCFrame: CFrame,
+	isOpen: boolean,
+	showFeedback: (text: string, duration: number?) -> (),
 }
 
 type ProductionMapServiceState = {
@@ -27,6 +49,13 @@ type ProductionMapServiceState = {
 	onEvidence: EvidenceHandler,
 	evidenceClaimed: { [string]: boolean },
 	interactiveDoors: { InteractiveDoor },
+	coldCaseHandler: ColdCaseHandler?,
+	keyPickupHandler: KeyPickupHandler?,
+	lockedRoomHandler: LockedRoomHandler?,
+	supplyCacheHandler: SupplyCacheHandler?,
+	lockedRooms: { [string]: LockedRoom },
+	dayKeysFolder: Folder?,
+	supplyCache: BasePart?,
 }
 
 local ProductionMapService = {}
@@ -237,6 +266,46 @@ local function createInspectPrompt(
 		end)
 	end)
 	return prompt
+end
+
+-- A reusable transient billboard for props whose response text changes per
+-- round (cold case files, locked doors, the supply cache).
+local function createFeedbackBillboard(
+	parent: BasePart,
+	widthOffset: number?
+): (text: string, duration: number?) -> ()
+	local feedback = Instance.new("BillboardGui")
+	feedback.Name = "InteractionFeedback"
+	feedback.Size = UDim2.fromOffset(widthOffset or 300, 96)
+	feedback.StudsOffset = Vector3.new(0, 4, 0)
+	feedback.AlwaysOnTop = true
+	feedback.MaxDistance = 70
+	feedback.Enabled = false
+	feedback.Parent = parent
+	local label = Instance.new("TextLabel")
+	label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+	label.BackgroundTransparency = 0.08
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamMedium
+	label.Text = ""
+	label.TextColor3 = Color3.fromRGB(244, 224, 176)
+	label.TextSize = 14
+	label.TextWrapped = true
+	label.Parent = feedback
+
+	local version = 0
+	return function(text: string, duration: number?)
+		version += 1
+		local current = version
+		label.Text = text
+		feedback.Enabled = true
+		task.delay(duration or 4, function()
+			if feedback.Parent and version == current then
+				feedback.Enabled = false
+			end
+		end)
+	end
 end
 
 local function createInteractiveDoor(
@@ -1397,6 +1466,13 @@ function ProductionMapService.new(
 		onEvidence = onEvidence,
 		evidenceClaimed = {},
 		interactiveDoors = {},
+		coldCaseHandler = nil,
+		keyPickupHandler = nil,
+		lockedRoomHandler = nil,
+		supplyCacheHandler = nil,
+		lockedRooms = {},
+		dayKeysFolder = nil,
+		supplyCache = nil,
 	}, ProductionMapService)
 	hideDefaultBaseplate()
 	configureLighting()
@@ -2673,6 +2749,313 @@ function ProductionMapService:Build()
 		socket.CanCollide = false
 		table.insert(self.evidenceSockets, socket)
 	end
+
+	-- Deduction-depth props live in the night town regardless of whether the
+	-- surrounding buildings are authored or procedural.
+	self:_buildColdCaseCabinet()
+	self:_buildLockedRooms()
+end
+
+-- Filing cabinet inside the police station holding three seeded cold-case
+-- files. File text comes from the runtime via SetColdCaseHandler so summaries
+-- can change every round.
+function ProductionMapService:_buildColdCaseCabinet()
+	local cabinetColor = Color3.fromRGB(74, 82, 88)
+	local drawerColor = Color3.fromRGB(60, 68, 74)
+	-- Police station interior: building at (92, 0, -360), rotated +90 deg, so
+	-- the interior back wall sits near world X = 110. The cabinet stands
+	-- against it, drawers facing into the room (-X).
+	local body = createPart(
+		self.nightTown,
+		"ColdCaseCabinet",
+		Vector3.new(1.8, 5.6, 3.2),
+		CFrame.new(109.2, 2.8, -346),
+		cabinetColor,
+		Enum.Material.Metal
+	)
+	local signPlate = createPart(
+		self.nightTown,
+		"ColdCaseSign",
+		Vector3.new(2.8, 1, 0.25),
+		CFrame.new(108.1, 6, -346) * CFrame.Angles(0, math.rad(90), 0),
+		Color3.fromRGB(30, 34, 40),
+		Enum.Material.SmoothPlastic
+	)
+	createSign(signPlate, "COLD CASES", Color3.fromRGB(226, 190, 114))
+	local showFeedback = createFeedbackBillboard(body, 340)
+	for fileIndex = 1, 3 do
+		local drawer = createPart(
+			self.nightTown,
+			"ColdCaseFile" .. tostring(fileIndex),
+			Vector3.new(0.3, 1.5, 2.6),
+			CFrame.new(108.15, 0.6 + fileIndex * 1.7, -346),
+			drawerColor,
+			Enum.Material.Metal
+		)
+		createPart(
+			self.nightTown,
+			"ColdCaseHandle" .. tostring(fileIndex),
+			Vector3.new(0.15, 0.2, 1),
+			CFrame.new(107.95, 0.6 + fileIndex * 1.7, -346),
+			Color3.fromRGB(198, 165, 32),
+			Enum.Material.Metal
+		).CanCollide = false
+		local prompt = createPrompt(
+			drawer,
+			"Open File",
+			"Cold case file " .. tostring(fileIndex),
+			0.45
+		)
+		prompt.RequiresLineOfSight = false
+		prompt.Triggered:Connect(function(player: Player)
+			local handler = self.coldCaseHandler
+			if not handler then
+				return
+			end
+			local summary = handler(player, fileIndex)
+			if summary then
+				showFeedback(summary, 8)
+			end
+		end)
+	end
+end
+
+local LOCKED_ROOM_DEFINITIONS: {
+	{
+		roomId: string,
+		objectText: string,
+		existingDoorName: string?,
+		fallbackCFrame: CFrame,
+		fallbackSize: Vector3,
+		color: Color3,
+	}
+} = {
+	{
+		roomId = "motel-room-3",
+		objectText = "Motel Room 3",
+		-- The procedural motel strip names its doors MotelDoor1..4; an
+		-- authored town using the same names is picked up automatically.
+		existingDoorName = "MotelDoor3",
+		fallbackCFrame = CFrame.new(187.9, 3.6, -224.5),
+		fallbackSize = Vector3.new(0.4, 7, 3.2),
+		color = Color3.fromRGB(58, 84, 88),
+	},
+	{
+		roomId = "police-evidence-room",
+		objectText = "Police Evidence Room",
+		existingDoorName = nil,
+		-- Against the police station's interior back wall, facing the room.
+		fallbackCFrame = CFrame.new(109.55, 3.9, -370),
+		fallbackSize = Vector3.new(0.5, 7.4, 4.6),
+		color = Color3.fromRGB(52, 60, 68),
+	},
+}
+
+-- Two night interiors are locked behind day-camp keys: motel room 3 and the
+-- police evidence room. Prompts always show; the runtime handler decides
+-- whether the player carries the matching key.
+function ProductionMapService:_buildLockedRooms()
+	for _, definition in LOCKED_ROOM_DEFINITIONS do
+		local door: BasePart? = nil
+		local existingName = definition.existingDoorName
+		if existingName then
+			local found = self.nightTown:FindFirstChild(existingName, true)
+			if found and found:IsA("BasePart") then
+				door = found
+			end
+		end
+		if not door then
+			door = createPart(
+				self.nightTown,
+				"LockedDoor_" .. definition.roomId,
+				definition.fallbackSize,
+				definition.fallbackCFrame,
+				definition.color,
+				Enum.Material.Wood
+			)
+		end
+		local lockedDoor = door :: BasePart
+		lockedDoor:SetAttribute("WorldInteraction", "LockedDoor")
+		local prompt = createPrompt(lockedDoor, "Try Door", definition.objectText, 0.4)
+		prompt.MaxActivationDistance = 10
+		prompt.RequiresLineOfSight = false
+		local closedCFrame = lockedDoor.CFrame
+		local hinge = CFrame.new(0, 0, -lockedDoor.Size.Z / 2)
+		local openCFrame = closedCFrame
+			* hinge
+			* CFrame.Angles(0, math.rad(-104), 0)
+			* hinge:Inverse()
+		local room: LockedRoom = {
+			roomId = definition.roomId,
+			door = lockedDoor,
+			prompt = prompt,
+			closedCFrame = closedCFrame,
+			openCFrame = openCFrame,
+			isOpen = false,
+			showFeedback = createFeedbackBillboard(lockedDoor),
+		}
+		self.lockedRooms[definition.roomId] = room
+		prompt.Triggered:Connect(function(player: Player)
+			if room.isOpen then
+				return
+			end
+			local handler = self.lockedRoomHandler
+			if not handler then
+				return
+			end
+			local opened, message = handler(player, room.roomId)
+			if opened then
+				room.isOpen = true
+				prompt.Enabled = false
+				room.door.CanCollide = false
+				TweenService:Create(
+					room.door,
+					DOOR_TWEEN,
+					{ CFrame = room.openCFrame }
+				):Play()
+			end
+			if message then
+				room.showFeedback(message, 5)
+			end
+		end)
+	end
+end
+
+function ProductionMapService:SetColdCaseHandler(handler: ColdCaseHandler?)
+	self.coldCaseHandler = handler
+end
+
+function ProductionMapService:SetKeyPickupHandler(handler: KeyPickupHandler?)
+	self.keyPickupHandler = handler
+end
+
+function ProductionMapService:SetLockedRoomHandler(handler: LockedRoomHandler?)
+	self.lockedRoomHandler = handler
+end
+
+function ProductionMapService:SetSupplyCacheHandler(handler: SupplyCacheHandler?)
+	self.supplyCacheHandler = handler
+end
+
+-- Day-only key pickups at seeded hiding spots. The runtime spawns these when
+-- Day begins and clears them at dusk; picked-up keys never respawn.
+function ProductionMapService:SpawnDayKeys(spots: { KeySpot })
+	self:ClearDayKeys()
+	local folder = Instance.new("Folder")
+	folder.Name = "DayKeys"
+	folder.Parent = self.dayCamp
+	self.dayKeysFolder = folder
+	for _, spot in spots do
+		local key = createPart(
+			folder,
+			"HiddenKey_" .. spot.keyId,
+			Vector3.new(1.1, 0.28, 0.5),
+			CFrame.new(spot.position),
+			Color3.fromRGB(214, 178, 84),
+			Enum.Material.Metal
+		)
+		key.CanCollide = false
+		local prompt = createPrompt(key, "Take Key", spot.objectText, 0.5)
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = 8
+		prompt.Triggered:Connect(function(player: Player)
+			local handler = self.keyPickupHandler
+			if not handler or key.Parent == nil then
+				return
+			end
+			if handler(player, spot.keyId) then
+				-- Leave a short confirmation floating where the key was.
+				local marker = createPart(
+					folder,
+					"KeyTakenMarker",
+					Vector3.new(0.2, 0.2, 0.2),
+					CFrame.new(spot.position),
+					Color3.fromRGB(214, 178, 84),
+					Enum.Material.Metal,
+					1
+				)
+				marker.CanCollide = false
+				marker.CanQuery = false
+				local showFeedback = createFeedbackBillboard(marker)
+				showFeedback(spot.pickupLine, 4)
+				task.delay(4.5, function()
+					if marker.Parent then
+						marker:Destroy()
+					end
+				end)
+				key:Destroy()
+			end
+		end)
+	end
+end
+
+function ProductionMapService:ClearDayKeys()
+	local folder = self.dayKeysFolder
+	if folder then
+		folder:Destroy()
+		self.dayKeysFolder = nil
+	end
+end
+
+-- One seeded crate in the outskirts opens with a 3-second pry and rewards the
+-- finder through the runtime handler.
+function ProductionMapService:SpawnSupplyCache(position: Vector3)
+	self:ClearSupplyCache()
+	local crate = createPart(
+		self.nightTown,
+		"SupplyCache",
+		Vector3.new(3, 2.6, 3),
+		CFrame.new(position),
+		Color3.fromRGB(96, 74, 44),
+		Enum.Material.WoodPlanks
+	)
+	local seam = createPart(
+		crate,
+		"SupplyCacheSeam",
+		Vector3.new(3.05, 0.2, 3.05),
+		CFrame.new(position + Vector3.new(0, 0.7, 0)),
+		Color3.fromRGB(226, 190, 114),
+		Enum.Material.Neon
+	)
+	seam.CanCollide = false
+	local prompt = createPrompt(crate, "Pry Open", "Weathered supply cache", 3)
+	prompt.RequiresLineOfSight = false
+	local showFeedback = createFeedbackBillboard(crate)
+	prompt.Triggered:Connect(function(player: Player)
+		local handler = self.supplyCacheHandler
+		if not handler then
+			return
+		end
+		local opened, message = handler(player)
+		if opened then
+			prompt.Enabled = false
+			seam.Material = Enum.Material.Wood
+			seam.Color = Color3.fromRGB(60, 46, 28)
+			crate.Color = Color3.fromRGB(70, 54, 32)
+		end
+		if message then
+			showFeedback(message, 5)
+		end
+	end)
+	self.supplyCache = crate
+end
+
+function ProductionMapService:ClearSupplyCache()
+	local crate = self.supplyCache
+	if crate then
+		crate:Destroy()
+		self.supplyCache = nil
+	end
+end
+
+function ProductionMapService:ResetLockedRooms()
+	for _, room in self.lockedRooms do
+		room.isOpen = false
+		room.door.CFrame = room.closedCFrame
+		room.door.CanCollide = true
+		room.prompt.Enabled = true
+		room.prompt.ActionText = "Try Door"
+	end
 end
 
 function ProductionMapService:GetEvidenceAliases(): { string }
@@ -2926,6 +3309,9 @@ end
 function ProductionMapService:ResetRound()
 	self:ClearEvidence()
 	self:ResetObjectives()
+	self:ClearDayKeys()
+	self:ClearSupplyCache()
+	self:ResetLockedRooms()
 	for _, door in self.interactiveDoors do
 		door.isOpen = false
 		door.part.CFrame = door.closedCFrame
