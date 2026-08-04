@@ -515,6 +515,43 @@ local function makeMenuButton(
 	return button
 end
 
+-- Small-viewport / touch-first HUD support. Phones report either a short
+-- viewport or touch without a keyboard; both get the compact layout pass.
+local COMPACT_UI_SCALE = 0.78
+
+local function isCompactViewport(viewport: Vector2): boolean
+	if viewport.X < viewport.Y then
+		-- Portrait viewports keep the dedicated narrow branch.
+		return false
+	end
+	if viewport.Y < 500 then
+		return true
+	end
+	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function ensureLayoutScale(host: Instance, name: string): UIScale
+	local existing = host:FindFirstChild(name)
+	if existing and existing:IsA("UIScale") then
+		return existing
+	end
+	local scale = Instance.new("UIScale")
+	scale.Name = name
+	scale.Parent = host
+	return scale
+end
+
+local function ensureMinSizeConstraint(host: Instance): UISizeConstraint
+	local existing = host:FindFirstChild("CompactMinSize")
+	if existing and existing:IsA("UISizeConstraint") then
+		return existing
+	end
+	local constraint = Instance.new("UISizeConstraint")
+	constraint.Name = "CompactMinSize"
+	constraint.Parent = host
+	return constraint
+end
+
 function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver?): GameView
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local existingScreen = playerGui:FindFirstChild("GameUI")
@@ -1299,6 +1336,15 @@ function GameView:_updateLayout()
 	local narrow = viewport.X < 560
 	local compact = not narrow and (viewport.X < 850 or viewport.Y < 560)
 	self.uiScale.Scale = 1
+	local compactTouch = isCompactViewport(viewport)
+	if compactTouch then
+		-- Phones and small touch screens get the dedicated compact pass in
+		-- _applyCompactTouchLayout; shrink the whole HUD and route the branch
+		-- chain below through the desktop path so the pass overrides it.
+		narrow = false
+		compact = false
+		self.uiScale.Scale = COMPACT_UI_SCALE
+	end
 
 	if narrow then
 		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
@@ -1405,6 +1451,8 @@ function GameView:_updateLayout()
 		end
 	end
 
+	self:_applyCompactTouchLayout(compactTouch, viewport)
+
 	if narrow then
 		for _, modal in {
 			self.notebook,
@@ -1443,6 +1491,196 @@ function GameView:_updateLayout()
 			resultProgression.Size = UDim2.fromOffset(170, 44)
 			resultProgression.Position = UDim2.new(0.5, -178, 1, -64)
 		end
+	end
+end
+
+-- Touch / small-viewport HUD pass. Runs after the desktop branch chain so
+-- every write here is additive; when `active` is false it restores the
+-- constructor defaults for the properties the desktop branches never touch.
+-- With the root anchored top-centre and scaled by COMPACT_UI_SCALE, the
+-- bottom strip of the physical screen stays free for Roblox's dynamic
+-- thumbstick (bottom-left ~180x180 px) and jump button (bottom-right
+-- ~180x180 px); no interactive HUD is placed inside those reserves.
+function GameView:_applyCompactTouchLayout(active: boolean, viewport: Vector2)
+	local topScale = ensureLayoutScale(self.topStatus, "CompactTopScale")
+	local missionScale = ensureLayoutScale(self.missionPanel, "CompactMissionScale")
+	local rosterPanel = self.rosterPanel
+	local rosterScale = if rosterPanel then ensureLayoutScale(rosterPanel, "CompactRosterScale") else nil
+	local toastLayout = self.toastList:FindFirstChildOfClass("UIListLayout")
+	local monsterPanel = self.monsterPanel
+	local hauntPanel = self.hauntPanel
+	local notebookButton = self.notebookButton
+	local settingsButton = self.settingsButton
+	local codexButton = self.codexButton
+	local lobby = self.lobbyPanel
+	local voteMin = ensureMinSizeConstraint(self.voteModal)
+	local targetMin = ensureMinSizeConstraint(self.targetModal)
+	local resultMin = ensureMinSizeConstraint(self.resultModal)
+
+	if active then
+		-- Centre the scaled canvas horizontally and pin it to the top so the
+		-- bottom edge of the screen carries no HUD at all.
+		self.root.AnchorPoint = Vector2.new(0.5, 0)
+		self.root.Position = UDim2.fromScale(0.5, 0)
+
+		-- Phase banner: top-centre, slightly reduced so long phase titles do
+		-- not reach the mission panel or the menu column.
+		topScale.Scale = 0.85
+		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
+		self.topStatus.Position = UDim2.new(0.5, 0, 0, 6)
+		self.topStatus.Size = UDim2.fromOffset(460, 96)
+
+		-- Menu cluster: compact column pinned to the top-right corner, clear
+		-- of the top-centre phase banner.
+		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
+		self.menuPanel.Position = UDim2.new(1, -6, 0, 6)
+		self.menuPanel.Size = UDim2.fromOffset(118, 112)
+		if notebookButton then
+			notebookButton.Size = UDim2.fromOffset(112, 34)
+			notebookButton.Position = UDim2.fromOffset(6, 0)
+		end
+		if settingsButton then
+			settingsButton.Size = UDim2.fromOffset(112, 34)
+			settingsButton.Position = UDim2.fromOffset(6, 38)
+		end
+		if codexButton then
+			codexButton.Size = UDim2.fromOffset(112, 34)
+			codexButton.Position = UDim2.fromOffset(6, 76)
+		end
+
+		-- Mission panel: keep the desktop-tuned inner layout but render it
+		-- smaller so it stays well left of the screen midline.
+		missionScale.Scale = 0.8
+		self.missionPanel.Position = UDim2.fromOffset(6, 6)
+		self.missionPanel.Size = UDim2.fromOffset(280, 310)
+
+		-- Bottom band: health and hotbar side by side, pulled toward the
+		-- centre so both bottom corners stay clear. The root is scaled and
+		-- centred, so convert the 180px screen reserves into layout-space
+		-- x coordinates for this viewport.
+		local halfX = viewport.X / 2
+		local reserveSpan = math.max(0, (halfX - 180) / COMPACT_UI_SCALE)
+		local leftClear = halfX - reserveSpan
+		local rightClear = halfX + reserveSpan
+		local healthX = leftClear + 8
+		local hotbarX = healthX + 202
+		self.healthPanel.AnchorPoint = Vector2.new(0, 1)
+		self.healthPanel.Position = UDim2.new(0, healthX, 1, -10)
+		self.healthPanel.Size = UDim2.fromOffset(190, 62)
+		self.hotbar.AnchorPoint = Vector2.new(0, 1)
+		self.hotbar.Position = UDim2.new(0, hotbarX, 1, -8)
+		self.hotbar.Size = UDim2.new(0, math.max(120, rightClear - 12 - hotbarX), 0, 74)
+		self.interaction.Position = UDim2.new(0.5, 0, 1, -92)
+		self.interaction.Size = UDim2.fromOffset(360, 54)
+
+		-- Toasts drop in under the phase banner instead of the bottom-right,
+		-- clear of the mission panel and the jump reserve.
+		self.toastList.AnchorPoint = Vector2.new(0.5, 0)
+		self.toastList.Position = UDim2.new(0.5, 0, 0, 104)
+		self.toastList.Size = UDim2.fromOffset(340, 150)
+		if toastLayout then
+			toastLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+		end
+		self.announcement.Size = UDim2.fromOffset(440, 82)
+
+		-- Side panels that default to the bottom-right corner move up above
+		-- the jump reserve; ghost haunt meter moves under the banner's right
+		-- edge so it cannot collide with the roster column.
+		if rosterPanel then
+			rosterPanel.AnchorPoint = Vector2.new(1, 0)
+			rosterPanel.Position = UDim2.new(1, -6, 0, 132)
+		end
+		if rosterScale then
+			rosterScale.Scale = 0.72
+		end
+		if monsterPanel then
+			monsterPanel.Position = UDim2.new(1, -6, 1, -140)
+		end
+		if hauntPanel then
+			hauntPanel.Position = UDim2.new(1, -140, 0, 110)
+		end
+
+		-- Lobby: compact bottom-centre sheet (hotbar and health are hidden
+		-- during the Lobby phase) with the ready/progress buttons on-screen.
+		if lobby then
+			lobby.AnchorPoint = Vector2.new(0.5, 1)
+			lobby.Position = UDim2.new(0.5, 0, 1, -10)
+			lobby.Size = UDim2.new(0, math.min(520, math.max(300, rightClear - leftClear - 16)), 0, 168)
+			local strip = lobby:FindFirstChild("HeaderStrip")
+			if strip and strip:IsA("GuiObject") then
+				strip.Size = UDim2.new(1, 0, 0, 32)
+			end
+			local progressionButton = lobby:FindFirstChild("Progression")
+			if progressionButton and progressionButton:IsA("GuiObject") then
+				progressionButton.Position = UDim2.new(0.55, 6, 0, 104)
+				progressionButton.Size = UDim2.new(0.45, -24, 0, 52)
+			end
+			self.lobbyText.Position = UDim2.fromOffset(18, 4)
+			self.lobbyText.Size = UDim2.new(1, -36, 0, 26)
+			self.lobbyRoster.Position = UDim2.fromOffset(18, 36)
+			self.lobbyRoster.Size = UDim2.new(1, -36, 0, 60)
+			self.lobbyTip.Visible = false
+			self.readyButton.Position = UDim2.fromOffset(18, 104)
+			self.readyButton.Size = UDim2.new(0.55, -24, 0, 52)
+		end
+
+		-- Keep the scale-sized modals usable on short viewports.
+		voteMin.MinSize = Vector2.new(440, 300)
+		targetMin.MinSize = Vector2.new(380, 300)
+		resultMin.MinSize = Vector2.new(460, 280)
+	else
+		self.root.AnchorPoint = Vector2.new(0, 0)
+		self.root.Position = UDim2.fromScale(0, 0)
+		topScale.Scale = 1
+		missionScale.Scale = 1
+		if notebookButton then
+			notebookButton.Size = UDim2.fromOffset(130, 40)
+		end
+		if settingsButton then
+			settingsButton.Size = UDim2.fromOffset(130, 40)
+		end
+		if codexButton then
+			codexButton.Size = UDim2.fromOffset(130, 40)
+		end
+		self.healthPanel.AnchorPoint = Vector2.new(0, 1)
+		self.toastList.AnchorPoint = Vector2.new(1, 1)
+		if toastLayout then
+			toastLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end
+		if rosterPanel then
+			rosterPanel.AnchorPoint = Vector2.new(1, 1)
+			rosterPanel.Position = UDim2.new(1, -18, 1, -96)
+		end
+		if rosterScale then
+			rosterScale.Scale = 1
+		end
+		if monsterPanel then
+			monsterPanel.Position = UDim2.new(1, -16, 1, -88)
+		end
+		if hauntPanel then
+			hauntPanel.Position = UDim2.new(1, -18, 0, 158)
+		end
+		if lobby then
+			local strip = lobby:FindFirstChild("HeaderStrip")
+			if strip and strip:IsA("GuiObject") then
+				strip.Size = UDim2.new(1, 0, 0, 44)
+			end
+			local progressionButton = lobby:FindFirstChild("Progression")
+			if progressionButton and progressionButton:IsA("GuiObject") then
+				progressionButton.Position = UDim2.new(1, -194, 0, 446)
+				progressionButton.Size = UDim2.fromOffset(176, 54)
+			end
+			self.lobbyText.Position = UDim2.fromOffset(18, 10)
+			self.lobbyText.Size = UDim2.new(1, -36, 0, 34)
+			self.lobbyRoster.Position = UDim2.fromOffset(18, 50)
+			self.lobbyRoster.Size = UDim2.new(1, -36, 0, 254)
+			self.lobbyTip.Visible = true
+			self.readyButton.Position = UDim2.fromOffset(18, 446)
+			self.readyButton.Size = UDim2.fromOffset(290, 54)
+		end
+		voteMin.MinSize = Vector2.zero
+		targetMin.MinSize = Vector2.zero
+		resultMin.MinSize = Vector2.zero
 	end
 end
 
