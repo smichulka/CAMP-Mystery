@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MatchConfig = require(Shared.Config:WaitForChild("MatchConfig"))
 local RoundConfig = require(Shared.Config:WaitForChild("RoundConfig"))
+local WeatherConfig = require(Shared.Config:WaitForChild("WeatherConfig"))
 local EquipmentRules = require(
 	script.Parent.Parent.Config:WaitForChild("EquipmentRules")
 )
@@ -118,6 +119,8 @@ type GameRuntimeServiceState = {
 	botEvidenceCount: number,
 	votingOpensAt: number?,
 	dayOutcomes: DayOutcomes?,
+	weatherId: string,
+	weatherSeed: number,
 	campfireStage: string?,
 	discussionLog: { GameTypes.DiscussionEntry },
 	presentedSuspicion: { [string]: number },
@@ -822,6 +825,8 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		evidenceAliasById = {},
 		mysteryClueIdsByLocation = {},
 		mysteryReady = false,
+		weatherId = "Clear",
+		weatherSeed = 0,
 		activeMatchRoundId = nil,
 		connections = {},
 		participants = participants,
@@ -1182,6 +1187,11 @@ function GameRuntimeService:BeginRound(
 	self.voting:BeginRound(roundId)
 	self.combat:BeginRound(roundId)
 	self.world:PrepareRound(roundId, seed)
+	-- Seeded weather: derived from the world round seed so every server (and
+	-- explicit-seed replay) agrees on the round's sky.
+	local worldSeed = self.world:GetPublicSnapshot().roundSeed
+	self.weatherId = WeatherConfig.SelectForRound(roundId, worldSeed)
+	self.weatherSeed = WeatherConfig.DeriveSeed(roundId, worldSeed)
 	self.characters:Reset()
 	self.counselors:BeginRound(roundId, seed)
 	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
@@ -1223,6 +1233,13 @@ function GameRuntimeService:BeginRound(
 	self.culpritParticipantId = culprit.participantId
 	local monsterId = self:_selectRoundMonster(roundId, seed)
 	self.monster:SelectForRound(roundId, culprit.participantId, monsterId)
+	-- Weather gameplay modifiers: rain and fog shrink the monster's reach,
+	-- a blood moon shortens its ability cooldowns.
+	local roundWeather = WeatherConfig.Get(self.weatherId)
+	self.monster:SetWeatherModifiers(
+		roundWeather.monsterRangeMultiplier,
+		roundWeather.monsterCooldownMultiplier
+	)
 	self.evidence:BeginRound(roundId, culprit.participantId, monsterId, seed)
 	local frameTarget = self:_defaultFrameTarget(culprit.participantId)
 	self.evidence:GenerateBaselineMystery(frameTarget)
@@ -1293,9 +1310,19 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 
 	if phase == "Day" then
 		self.world:SetObjectivePromptsEnabled(true)
+		-- Reveal the seeded weather: apply the day visuals and announce it.
+		local weather = WeatherConfig.Get(self.weatherId)
+		self.world:SetNight(false, {
+			weather = self.weatherId,
+			weatherSeed = self.weatherSeed,
+		})
+		self:_announce(weather.dayKind, weather.dayTitle, weather.dayMessage, 6)
 	elseif phase == "MurderPlanning" then
 		self.world:SetObjectivePromptsEnabled(false)
 		self.monster:BeginPlanning(self.roundId)
+		-- Dusk reinforcement; the Blood Moon gets its dramatic line here.
+		local weather = WeatherConfig.Get(self.weatherId)
+		self:_announce(weather.duskKind, weather.duskTitle, weather.duskMessage, 6)
 	elseif phase == "NightTransform" then
 		local outcomes: DayOutcomes = {
 			generator = self.completedObjectives.generator ~= nil,
@@ -1307,6 +1334,8 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.world:SetNight(true, {
 			generatorPowered = outcomes.generator,
 			firewoodStocked = outcomes.firewood,
+			weather = self.weatherId,
+			weatherSeed = self.weatherSeed,
 		})
 		if outcomes.supplies then
 			for _, campParticipant in self.participants:GetAll() do
@@ -1409,6 +1438,8 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	elseif phase == "Lobby" and previousPhase ~= "Lobby" then
 		self.world:ResetRound()
 		self.characters:Reset()
+		self.weatherId = "Clear"
+		self.weatherSeed = 0
 		self.lifecycle:Emit("RoundReset", {})
 	end
 
@@ -1507,6 +1538,9 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		resultMessage = self.resultMessage,
 		isNight = self.world:GetPublicSnapshot().isNight,
 		dayOutcomes = self.dayOutcomes,
+		weather = if self.roundId > 0 and self.phase ~= "Lobby"
+			then self.weatherId
+			else nil,
 		campfireStage = self.campfireStage,
 		votingOpensAt = self.votingOpensAt,
 		discussionLog = self.discussionLog,
@@ -2783,6 +2817,9 @@ function GameRuntimeService:_ApplyRewards()
 	local plan = self.murderPlan
 	local codexMonsterId = if plan then plan.monsterId else nil
 	local culpritId = self.culpritParticipantId
+	-- Blood Moon rounds pay out a modest bonus (clamped in RewardCalculation).
+	local weatherRewardMultiplier =
+		WeatherConfig.Get(self.weatherId).rewardMultiplier
 	for _, participant in self.participants:GetAll() do
 		-- Spectators earn nothing and ProfileService rejects their roleId;
 		-- skipping them keeps round-end logs clean.
@@ -2812,6 +2849,7 @@ function GameRuntimeService:_ApplyRewards()
 						and participant.vote.targetParticipantId == culpritId,
 					checkIns = self.checkInsByParticipantId[participant.participantId]
 						or 0,
+					rewardMultiplier = weatherRewardMultiplier,
 				})
 				if not result.applied and not result.duplicate then
 					warn(string.format(
@@ -3445,6 +3483,8 @@ function GameRuntimeService:_recoverRoundFailure(generation: number, failure: un
 	end)
 	self.winner = nil
 	self.resultMessage = nil
+	self.weatherId = "Clear"
+	self.weatherSeed = 0
 	self.phase = "Lobby"
 	self.phaseStartedAt = now()
 	self.phaseEndsAt = self.phaseStartedAt + phaseDuration("Lobby")

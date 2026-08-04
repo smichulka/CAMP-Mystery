@@ -19,6 +19,9 @@ type SocketReference = WorldTypes.SocketReference
 export type NightOptions = {
 	generatorPowered: boolean?,
 	firewoodStocked: boolean?,
+	-- Seeded round weather (WeatherConfig.WeatherId); nil keeps Clear.
+	weather: string?,
+	weatherSeed: number?,
 }
 
 export type GrayboxFallback = {

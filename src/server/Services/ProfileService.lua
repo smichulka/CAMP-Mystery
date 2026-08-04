@@ -970,6 +970,7 @@ function ProfileService:ApplyReward(
 			else nil,
 		identifiedMonster = input.identifiedMonster == true,
 		checkIns = finiteNumber(input.checkIns, 0),
+		rewardMultiplier = finiteNumber(input.rewardMultiplier, 1),
 	}
 	local grant = RewardCalculation.Calculate(normalizedInput)
 	local appliedByThisUpdate = false

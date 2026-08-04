@@ -1,9 +1,17 @@
 --!strict
 
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+
+local WeatherConfig = require(
+	ReplicatedStorage:WaitForChild("Shared")
+		:WaitForChild("Config")
+		:WaitForChild("WeatherConfig")
+)
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
@@ -27,6 +35,11 @@ type ProductionMapServiceState = {
 	onEvidence: EvidenceHandler,
 	evidenceClaimed: { [string]: boolean },
 	interactiveDoors: { InteractiveDoor },
+	weatherId: string,
+	weatherSeed: number,
+	rainPart: BasePart?,
+	-- Incremented to cancel the seeded storm lightning loop.
+	stormToken: number,
 }
 
 local ProductionMapService = {}
@@ -39,6 +52,18 @@ export type ProductionMapService = typeof(
 local DAY_AMBIENT = Color3.fromRGB(128, 139, 121)
 local NIGHT_AMBIENT = Color3.fromRGB(24, 29, 43)
 local DOOR_TWEEN = TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+-- Baseline day fog distances used when weather thickens the air; clear days
+-- keep fog pushed out past the horizon.
+local DAY_WEATHER_FOG_START = 60
+local DAY_WEATHER_FOG_END = 800
+
+local function scaleColor(color: Color3, factor: number): Color3
+	return Color3.new(
+		math.clamp(color.R * factor, 0, 1),
+		math.clamp(color.G * factor, 0, 1),
+		math.clamp(color.B * factor, 0, 1)
+	)
+end
 
 local OBJECTIVES = {
 	{
@@ -1397,6 +1422,10 @@ function ProductionMapService.new(
 		onEvidence = onEvidence,
 		evidenceClaimed = {},
 		interactiveDoors = {},
+		weatherId = "Clear",
+		weatherSeed = 0,
+		rainPart = nil,
+		stormToken = 0,
 	}, ProductionMapService)
 	hideDefaultBaseplate()
 	configureLighting()
@@ -2686,11 +2715,131 @@ end
 export type NightOptions = {
 	generatorPowered: boolean?,
 	firewoodStocked: boolean?,
+	-- Seeded round weather (WeatherConfig.WeatherId); nil keeps Clear.
+	weather: string?,
+	weatherSeed: number?,
 }
+
+-- One thin invisible sheet high above camp and town; rain particles fall from
+-- random points across it, so a single modest emitter covers the play area.
+function ProductionMapService:_ensureRainPart(): BasePart
+	local existing = self.rainPart
+	if existing and existing.Parent then
+		return existing
+	end
+	local sheet = createPart(
+		self.mapFolder,
+		"WeatherRainEmitter",
+		Vector3.new(280, 1, 560),
+		CFrame.new(0, 92, -130),
+		Color3.fromRGB(160, 176, 192),
+		Enum.Material.SmoothPlastic,
+		1
+	)
+	sheet.CanCollide = false
+	sheet.CanTouch = false
+	sheet.CanQuery = false
+	local drops = Instance.new("ParticleEmitter")
+	drops.Name = "RainDrops"
+	drops.Enabled = false
+	drops.Rate = 0
+	drops.Lifetime = NumberRange.new(1.1, 1.5)
+	drops.Speed = NumberRange.new(52, 70)
+	drops.EmissionDirection = Enum.NormalId.Bottom
+	drops.Acceleration = Vector3.new(0, -38, 0)
+	drops.Color = ColorSequence.new(Color3.fromRGB(188, 205, 224))
+	drops.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.22),
+		NumberSequenceKeypoint.new(1, 0.14),
+	})
+	drops.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.45),
+		NumberSequenceKeypoint.new(1, 0.75),
+	})
+	drops.Parent = sheet
+	self.rainPart = sheet
+	return sheet
+end
+
+function ProductionMapService:_applyRainForWeather(
+	weather: WeatherConfig.WeatherDefinition
+)
+	local sheet = self:_ensureRainPart()
+	local drops = sheet:FindFirstChild("RainDrops")
+	if drops and drops:IsA("ParticleEmitter") then
+		drops.Enabled = weather.rainEnabled
+		drops.Rate = if weather.rainEnabled then weather.rainRate else 0
+	end
+end
+
+function ProductionMapService:_stopLightning()
+	self.stormToken += 1
+end
+
+-- Seeded storm lightning: brief Brightness/ambient spikes at night, with an
+-- optional thunder one-shot from the WeatherThunderAssetId SoundService
+-- attribute (mirrors the MonsterAttack<Id>AssetId sting slot).
+function ProductionMapService:_startLightning(
+	weather: WeatherConfig.WeatherDefinition
+)
+	self.stormToken += 1
+	local token = self.stormToken
+	local rng = Random.new(self.weatherSeed + 1)
+	task.spawn(function()
+		while self.stormToken == token do
+			task.wait(rng:NextNumber(
+				math.max(weather.lightningMinSeconds, 4),
+				math.max(weather.lightningMaxSeconds, 6)
+			))
+			if self.stormToken ~= token then
+				break
+			end
+			local previousBrightness = Lighting.Brightness
+			local previousOutdoor = Lighting.OutdoorAmbient
+			for flash = 1, 2 do
+				Lighting.Brightness = previousBrightness + 1.6
+				Lighting.OutdoorAmbient = Color3.fromRGB(148, 158, 182)
+				task.wait(if flash == 1 then 0.07 else 0.12)
+				Lighting.Brightness = previousBrightness
+				Lighting.OutdoorAmbient = previousOutdoor
+				task.wait(0.06)
+			end
+			local thunderAssetId = SoundService:GetAttribute("WeatherThunderAssetId")
+			local thunderSoundId = if type(thunderAssetId) == "number" and thunderAssetId > 0
+				then "rbxassetid://" .. tostring(thunderAssetId)
+				elseif type(thunderAssetId) == "string" and thunderAssetId ~= "" then thunderAssetId
+				else ""
+			local emitter = self.rainPart
+			if thunderSoundId ~= "" and emitter then
+				local rumble = Instance.new("Sound")
+				rumble.Name = "WeatherThunder"
+				rumble.SoundId = thunderSoundId
+				rumble.Volume = 0.8
+				rumble.RollOffMode = Enum.RollOffMode.InverseTapered
+				rumble.RollOffMinDistance = 60
+				rumble.RollOffMaxDistance = 900
+				rumble.Parent = emitter
+				rumble.Ended:Once(function()
+					rumble:Destroy()
+				end)
+				rumble:Play()
+			end
+		end
+	end)
+end
 
 function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 	local powered = options ~= nil and options.generatorPowered == true
 	local stocked = options ~= nil and options.firewoodStocked == true
+	if options ~= nil and options.weather ~= nil then
+		self.weatherId = options.weather
+		self.weatherSeed = options.weatherSeed or 0
+	elseif options == nil and not isNight then
+		-- Bare day reset (round teardown) clears the round weather.
+		self.weatherId = "Clear"
+		self.weatherSeed = 0
+	end
+	local weather = WeatherConfig.Get(self.weatherId)
 	setFolderVisible(self.nightTown, isNight)
 	for _, descendant in self.dayCamp:GetDescendants() do
 		if descendant:IsA("SurfaceLight") then
@@ -2743,22 +2892,32 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 	)
 	if isNight then
 		Lighting.ClockTime = 1.25
+		-- Weather fog stacks multiplicatively with the generator consequence:
+		-- a powered camp still sees farther through the same weather.
 		TweenService:Create(Lighting, transition, {
-			Brightness = if powered then 0.85 else 0.62,
-			Ambient = NIGHT_AMBIENT,
-			OutdoorAmbient = if powered
-				then Color3.fromRGB(24, 30, 46)
-				else Color3.fromRGB(12, 16, 28),
-			FogColor = Color3.fromRGB(34, 42, 54),
-			FogStart = if powered then 40 else 14,
-			FogEnd = if powered then 260 else 165,
+			Brightness = (if powered then 0.85 else 0.62)
+				* weather.brightnessMultiplier,
+			Ambient = weather.nightAmbientOverride
+				or scaleColor(NIGHT_AMBIENT, weather.ambientMultiplier),
+			OutdoorAmbient = weather.nightOutdoorAmbientOverride
+				or scaleColor(
+					if powered
+						then Color3.fromRGB(24, 30, 46)
+						else Color3.fromRGB(12, 16, 28),
+					weather.ambientMultiplier
+				),
+			FogColor = weather.nightFogColorOverride or Color3.fromRGB(34, 42, 54),
+			FogStart = (if powered then 40 else 14) * weather.fogStartMultiplier,
+			FogEnd = (if powered then 260 else 165) * weather.fogEndMultiplier,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = 0.58,
+				Density = math.min(0.58 * weather.atmosphereDensityMultiplier, 0.72),
 				Offset = -0.12,
-				Color = Color3.fromRGB(82, 98, 112),
-				Decay = Color3.fromRGB(20, 26, 42),
+				Color = weather.nightAtmosphereColorOverride
+					or Color3.fromRGB(82, 98, 112),
+				Decay = weather.nightAtmosphereDecayOverride
+					or Color3.fromRGB(20, 26, 42),
 				Glare = 0,
 				Haze = 3.5,
 			}):Play()
@@ -2767,8 +2926,10 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 			TweenService:Create(color, transition, {
 				Brightness = -0.12,
 				Contrast = 0.28,
-				Saturation = -0.42,
-				TintColor = Color3.fromRGB(142, 168, 198),
+				-- The blood moon keeps more color so the red reads as red.
+				Saturation = if weather.nightTintOverride then -0.18 else -0.42,
+				TintColor = weather.nightTintOverride
+					or Color3.fromRGB(142, 168, 198),
 			}):Play()
 		end
 		if bloom and bloom:IsA("BloomEffect") then
@@ -2782,17 +2943,25 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		end
 	else
 		Lighting.ClockTime = 14.2
+		local weatherFoggedDay = weather.fogEndMultiplier < 1
 		TweenService:Create(Lighting, transition, {
-			Brightness = 2.1,
-			Ambient = DAY_AMBIENT,
-			OutdoorAmbient = Color3.fromRGB(135, 142, 128),
+			Brightness = 2.1 * weather.brightnessMultiplier,
+			Ambient = scaleColor(DAY_AMBIENT, weather.ambientMultiplier),
+			OutdoorAmbient = scaleColor(
+				Color3.fromRGB(135, 142, 128),
+				weather.ambientMultiplier
+			),
 			FogColor = Color3.fromRGB(188, 201, 188),
-			FogStart = 0,
-			FogEnd = 100000,
+			FogStart = if weatherFoggedDay
+				then DAY_WEATHER_FOG_START * weather.fogStartMultiplier
+				else 0,
+			FogEnd = if weatherFoggedDay
+				then DAY_WEATHER_FOG_END * weather.fogEndMultiplier
+				else 100000,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = 0.22,
+				Density = math.min(0.22 * weather.atmosphereDensityMultiplier, 0.45),
 				Offset = 0.05,
 				Color = Color3.fromRGB(199, 213, 200),
 				Decay = Color3.fromRGB(92, 111, 98),
@@ -2815,8 +2984,15 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 			}):Play()
 		end
 		if rays and rays:IsA("SunRaysEffect") then
-			rays.Enabled = true
+			rays.Enabled = weather.id == "Clear"
 		end
+	end
+
+	self:_applyRainForWeather(weather)
+	if isNight and weather.lightningEnabled then
+		self:_startLightning(weather)
+	else
+		self:_stopLightning()
 	end
 end
 
@@ -2893,6 +3069,7 @@ end
 function ProductionMapService:SpawnEvidence()
 	self:ClearEvidence()
 	self.evidenceClaimed = {}
+	local weather = WeatherConfig.Get(self.weatherId)
 	for _, socket in self.evidenceSockets do
 		local alias = socket.Name
 		local search = createPart(
@@ -2900,12 +3077,22 @@ function ProductionMapService:SpawnEvidence()
 			alias,
 			Vector3.new(3.5, 2, 3.5),
 			socket.CFrame,
-			Color3.fromRGB(173, 154, 92),
+			-- Blood Moon: search sites glow hotter so clues read through the
+			-- red haze.
+			if weather.evidenceGlowBoost
+				then Color3.fromRGB(236, 176, 96)
+				else Color3.fromRGB(173, 154, 92),
 			Enum.Material.Neon,
-			0.18
+			if weather.evidenceGlowBoost then 0.05 else 0.18
 		)
 		search:SetAttribute("EvidenceId", alias)
-		local prompt = createPrompt(search, "Search", "Possible evidence", 0.9)
+		-- Blood Moon: evidence interactions complete ~25% faster.
+		local prompt = createPrompt(
+			search,
+			"Search",
+			"Possible evidence",
+			0.9 * weather.evidenceHoldMultiplier
+		)
 		prompt.Triggered:Connect(function(player: Player)
 			if self.evidenceClaimed[alias] then
 				return

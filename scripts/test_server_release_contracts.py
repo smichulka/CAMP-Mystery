@@ -1588,8 +1588,13 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('"Target is out of range"', val_block)
         self.assertIn('"Line of sight is blocked"', val_block)
         self.assertIn("self.stamina < rule.staminaCost", val_block)
+        # Range check flows through the weather multiplier (1 on clear rounds)
         self.assertIn(
-            "(resolvedTargetPosition - sourcePosition).Magnitude > rule.rangeStuds", val_block
+            "local effectiveRange = rule.rangeStuds * self.abilityRangeMultiplier",
+            val_block,
+        )
+        self.assertIn(
+            "(resolvedTargetPosition - sourcePosition).Magnitude > effectiveRange", val_block
         )
 
         # _activateAbility: deducts stamina, assigns cooldown, bumps lastRequestSequence
@@ -1598,8 +1603,10 @@ class ServerReleaseContracts(unittest.TestCase):
         activate_block = monster[activate_start:activate_end]
         self.assertIn("self.lastRequestSequence = request.requestSequence", activate_block)
         self.assertIn("self.stamina -= validated.rule.staminaCost", activate_block)
+        # Cooldown assignment flows through the weather multiplier as well
+        self.assertIn("local cooldownEndsAt = validated.now", activate_block)
         self.assertIn(
-            "local cooldownEndsAt = validated.now + validated.rule.cooldownSeconds",
+            "validated.rule.cooldownSeconds * self.abilityCooldownMultiplier",
             activate_block,
         )
         self.assertIn("self.cooldownEndsAt[validated.rule.id] = cooldownEndsAt", activate_block)
@@ -3758,6 +3765,163 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("table.clear(self.snapshotHandlers)", dest_fn)
         self.assertIn("table.clear(self.resultHandlers)", dest_fn)
         self.assertIn("table.clear(self.boundNames)", dest_fn)
+
+
+    def test_seeded_weather_selection_is_deterministic_and_tunable(self) -> None:
+        weather = (
+            ROOT / "src" / "shared" / "Config" / "WeatherConfig.lua"
+        ).read_text(encoding="utf-8")
+
+        # Seed derivation mirrors the World/Mystery/Counselor pattern
+        self.assertIn("SEED_MODULUS = 2_147_483_647", weather)
+        self.assertIn("local function normalizeSeed(seed: number): number", weather)
+        self.assertIn(
+            "local function deriveSeed(roundId: number, roundSeed: number): number",
+            weather,
+        )
+        self.assertIn("WEATHER_SEED_SALT", weather)
+
+        # All five weather types with the shipped probability weights
+        for weather_id, weight in (
+            ("Clear", 40),
+            ("Fog", 25),
+            ("Rain", 20),
+            ("Storm", 10),
+            ("BloodMoon", 5),
+        ):
+            entry_start = weather.index(f'id = "{weather_id}"')
+            entry_block = weather[entry_start:entry_start + 200]
+            self.assertIn(f"weight = {weight}", entry_block, weather_id)
+
+        # Selection walks a frozen deterministic order, never the dictionary
+        self.assertIn("local order: { WeatherId } = table.freeze(", weather)
+        self.assertIn("function WeatherConfig.SelectForRound(", weather)
+        self.assertIn("deriveSeed(roundId, roundSeed) % totalWeight", weather)
+        self.assertIn("for _, weatherId in order do", weather)
+
+        # Unknown ids fall back to Clear so a stale snapshot cannot crash
+        self.assertIn("return resolved or byId.Clear", weather)
+
+        # Gameplay knobs: rain/fog shrink monster reach; blood moon speeds it
+        # up, quickens searches, and pays a modest bonus
+        self.assertIn("monsterRangeMultiplier = 0.8", weather)
+        self.assertIn("monsterRangeMultiplier = 0.85", weather)
+        self.assertIn("monsterCooldownMultiplier = 0.85", weather)
+        self.assertIn("evidenceHoldMultiplier = 0.75", weather)
+        self.assertIn("rewardMultiplier = 1.25", weather)
+
+    def test_weather_round_flow_announcements_and_night_composition(self) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        world = source("Services/WorldService.lua")
+        map_service = source("Services/ProductionMapService.lua")
+
+        # BeginRound derives weather from the world round seed and applies
+        # the monster modifiers server-side
+        begin_start = runtime.index("function GameRuntimeService:BeginRound(")
+        begin_end = runtime.index("function GameRuntimeService:EnterPhase(")
+        begin_block = runtime[begin_start:begin_end]
+        self.assertIn(
+            "self.weatherId = WeatherConfig.SelectForRound(roundId, worldSeed)",
+            begin_block,
+        )
+        self.assertIn(
+            "self.weatherSeed = WeatherConfig.DeriveSeed(roundId, worldSeed)",
+            begin_block,
+        )
+        self.assertIn("self.monster:SetWeatherModifiers(", begin_block)
+
+        # EnterPhase: day reveal + dusk reinforcement announcements, and the
+        # night transform passes weather through SetNight options
+        phase_start = runtime.index("function GameRuntimeService:EnterPhase(")
+        phase_end = runtime.index("function GameRuntimeService:_objectiveCount(")
+        phase_block = runtime[phase_start:phase_end]
+        self.assertIn(
+            "self:_announce(weather.dayKind, weather.dayTitle, weather.dayMessage, 6)",
+            phase_block,
+        )
+        self.assertIn(
+            "self:_announce(weather.duskKind, weather.duskTitle, weather.duskMessage, 6)",
+            phase_block,
+        )
+        night_call = phase_block.index("self.world:SetNight(true, {")
+        night_block = phase_block[night_call:night_call + 240]
+        self.assertIn("generatorPowered = outcomes.generator", night_block)
+        self.assertIn("firewoodStocked = outcomes.firewood", night_block)
+        self.assertIn("weather = self.weatherId", night_block)
+        self.assertIn("weatherSeed = self.weatherSeed", night_block)
+
+        # Runtime snapshot exposes the weather so the client can badge it
+        self.assertIn("weather = if self.roundId > 0 and self.phase ~= \"Lobby\"", runtime)
+
+        # WorldService NightOptions carries weather compatibly
+        options_start = world.index("export type NightOptions = {")
+        options_block = world[options_start:options_start + 260]
+        self.assertIn("generatorPowered: boolean?", options_block)
+        self.assertIn("firewoodStocked: boolean?", options_block)
+        self.assertIn("weather: string?", options_block)
+
+        # ProductionMapService: weather fog stacks multiplicatively with the
+        # generator consequence instead of replacing it
+        self.assertIn(
+            "FogStart = (if powered then 40 else 14) * weather.fogStartMultiplier",
+            map_service,
+        )
+        self.assertIn(
+            "FogEnd = (if powered then 260 else 165) * weather.fogEndMultiplier",
+            map_service,
+        )
+        # Rain emitter, seeded storm lightning, and blood-moon night palette
+        self.assertIn('"WeatherRainEmitter"', map_service)
+        self.assertIn("drops.Rate = if weather.rainEnabled then weather.rainRate else 0", map_service)
+        self.assertIn("function ProductionMapService:_startLightning(", map_service)
+        self.assertIn("Random.new(self.weatherSeed + 1)", map_service)
+        self.assertIn('SoundService:GetAttribute("WeatherThunderAssetId")', map_service)
+        self.assertIn("weather.nightAmbientOverride", map_service)
+        self.assertIn("weather.nightTintOverride", map_service)
+        # Blood moon searches: faster holds and a brighter glow
+        self.assertIn("0.9 * weather.evidenceHoldMultiplier", map_service)
+        self.assertIn("if weather.evidenceGlowBoost then 0.05 else 0.18", map_service)
+
+    def test_weather_monster_modifiers_and_reward_multiplier_clamps(self) -> None:
+        monster = source("Services/MonsterService.lua")
+        runtime = source("Services/GameRuntimeService.lua")
+        profile = source("Services/ProfileService.lua")
+        reward = (
+            ROOT / "src" / "server" / "Systems" / "RewardCalculation.lua"
+        ).read_text(encoding="utf-8")
+
+        # MonsterService: modifiers are clamped, applied to range and cooldown,
+        # and reset with the lifecycle
+        self.assertIn("function MonsterService:SetWeatherModifiers(", monster)
+        self.assertIn("math.clamp(rangeMultiplier or 1, 0.5, 1.5)", monster)
+        self.assertIn("math.clamp(cooldownMultiplier or 1, 0.5, 1.5)", monster)
+        self.assertIn(
+            "local effectiveRange = rule.rangeStuds * self.abilityRangeMultiplier",
+            monster,
+        )
+        self.assertIn(
+            "validated.rule.cooldownSeconds * self.abilityCooldownMultiplier",
+            monster,
+        )
+        reset_start = monster.index("function MonsterService:Reset(")
+        reset_block = monster[reset_start:]
+        self.assertIn("self.abilityRangeMultiplier = 1", reset_block)
+        self.assertIn("self.abilityCooldownMultiplier = 1", reset_block)
+
+        # Rewards: the blood-moon bonus flows through ApplyReward and is
+        # clamped in RewardCalculation so it can never zero or explode payouts
+        rewards_start = runtime.index("function GameRuntimeService:_ApplyRewards(")
+        rewards_end = runtime.index("function GameRuntimeService:_GetBotActions(", rewards_start)
+        rewards_block = runtime[rewards_start:rewards_end]
+        self.assertIn("WeatherConfig.Get(self.weatherId).rewardMultiplier", rewards_block)
+        self.assertIn("rewardMultiplier = weatherRewardMultiplier,", rewards_block)
+        self.assertIn(
+            "rewardMultiplier = finiteNumber(input.rewardMultiplier, 1),", profile
+        )
+        self.assertIn("math.clamp(rawMultiplier, 1, 2)", reward)
+        self.assertIn("if rewardMultiplier > 1 then", reward)
+        self.assertIn("xp = math.floor(xp * rewardMultiplier)", reward)
+        self.assertIn("campTokens = math.floor(campTokens * rewardMultiplier)", reward)
 
 
 if __name__ == "__main__":
