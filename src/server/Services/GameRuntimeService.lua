@@ -264,6 +264,27 @@ local SEARCH_LOCATIONS = {
 	"water-tower-base-clue",
 	"police-evidence-room-clue",
 	"outskirts-company-house-clue",
+	-- World-expansion search locations (Services/Map district packs).
+	"island-firewatch",
+	"waterfall-cave",
+	"greenhouse-potting-table",
+	"sawmill-blade",
+	"cornfield-scarecrow",
+	"quarters-footlocker",
+	"infirmary-logbook",
+	"archery-shed",
+	"graveyard-open-grave",
+	"water-tower-catwalk",
+	"town-square-fountain",
+	"drive-in-projector",
+	"derailed-boxcar",
+	"mines-ore-cart",
+	"ranger-station-desk",
+	"lookout-cab",
+	"cabin-zero-chimney",
+	"crypt-empty-niche",
+	"radio-shack-console",
+	"aurora-fire-ring",
 }
 local MONSTER_ORDER: { MonsterId } = require(Shared.Config:WaitForChild("MonsterOrder"))
 
@@ -1371,8 +1392,16 @@ function GameRuntimeService:_assignEvidenceLocations()
 	self.evidenceLocationById = {}
 	self.evidenceAliasById = {}
 	local records = self.evidence:GetAllServer()
+	-- Seeded shuffle so each round scatters its finds across the whole map
+	-- instead of always occupying the first few registered locations.
+	local shuffled = table.clone(SEARCH_LOCATIONS)
+	local rng = Random.new(self.roundId * 7919 + 37)
+	for index = #shuffled, 2, -1 do
+		local swap = rng:NextInteger(1, index)
+		shuffled[index], shuffled[swap] = shuffled[swap], shuffled[index]
+	end
 	for index, record in records do
-		local locationId = SEARCH_LOCATIONS[((index - 1) % #SEARCH_LOCATIONS) + 1]
+		local locationId = shuffled[((index - 1) % #shuffled) + 1]
 		self.evidenceLocationById[record.evidenceId] = locationId
 		self.evidenceAliasById[locationId] = record.evidenceId
 	end
@@ -2200,7 +2229,14 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 			SUPPLY_CACHE_SPOTS[cacheRandom:NextInteger(1, #SUPPLY_CACHE_SPOTS)]
 		)
 	elseif phase == "Investigation" then
-		self.world:SpawnEvidence()
+		local activeSearchLocations: { [string]: boolean } = {}
+		for _, locationId in self.evidenceLocationById do
+			activeSearchLocations[locationId] = true
+		end
+		for locationId in self.mysteryClueIdsByLocation do
+			activeSearchLocations[locationId] = true
+		end
+		self.world:SpawnEvidence(activeSearchLocations)
 		self.monster:Activate(self.roundId)
 		self.characters:PlayMonsterState("Hunt", true)
 		-- Spread bots across the camp so they look like active investigators
@@ -2638,6 +2674,7 @@ function GameRuntimeService:_CreateAttackEvidence(
 			and table.find(SEARCH_LOCATIONS, planLocation)
 		then planLocation
 		else SEARCH_LOCATIONS[((self.roundId - 1) % #SEARCH_LOCATIONS) + 1]
+	self.world:EnsureSearchSpawn(self.evidenceLocationById[record.evidenceId])
 	if not target.alive then
 		self.victimName = target.displayName
 	end
@@ -2653,6 +2690,7 @@ function GameRuntimeService:_CreateMonsterEvidence(monsterId: MonsterId)
 	)
 	self.evidenceLocationById[record.evidenceId] =
 		SEARCH_LOCATIONS[((#self.evidence:GetAllServer() - 1) % #SEARCH_LOCATIONS) + 1]
+	self.world:EnsureSearchSpawn(self.evidenceLocationById[record.evidenceId])
 end
 
 function GameRuntimeService:_ApplyMonsterAttack(

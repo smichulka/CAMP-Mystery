@@ -29,8 +29,10 @@ export type GrayboxFallback = {
 	SetObjectivePromptsEnabled: (self: any, enabled: boolean) -> (),
 	MarkObjectiveComplete: (self: any, objectiveId: string) -> (),
 	SetNight: (self: any, isNight: boolean, options: NightOptions?) -> (),
-	SpawnEvidence: (self: any) -> (),
+	SpawnEvidence: (self: any, activeAliasIds: { [string]: boolean }?) -> (),
 	ClearEvidence: (self: any) -> (),
+	-- Optional: fallbacks without it simply cannot late-spawn search glows.
+	EnsureSearchSpawn: ((self: any, aliasId: string) -> ())?,
 	-- Night side-objectives are optional so older graybox fallbacks (and test
 	-- doubles) remain valid without stubbing them.
 	SetSideObjectivePromptsEnabled: ((self: any, enabled: boolean) -> ())?,
@@ -306,11 +308,21 @@ function WorldService:SetNight(isNight: boolean, options: NightOptions?)
 	self:_mutated()
 end
 
-function WorldService:SpawnEvidence()
-	self.fallback:SpawnEvidence()
+function WorldService:SpawnEvidence(activeAliasIds: { [string]: boolean }?)
+	self.fallback:SpawnEvidence(activeAliasIds)
 	if not self.evidenceActive then
 		self.evidenceActive = true
 		self:_mutated()
+	end
+end
+
+function WorldService:EnsureSearchSpawn(aliasId: string)
+	if not self.evidenceActive then
+		return
+	end
+	local ensure = self.fallback.EnsureSearchSpawn
+	if ensure then
+		ensure(self.fallback, aliasId)
 	end
 end
 

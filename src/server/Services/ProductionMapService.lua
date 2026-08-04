@@ -231,6 +231,127 @@ local SEARCH_TARGETS = {
 		position = Vector3.new(-102, 3, -384),
 		color = Color3.fromRGB(91, 74, 63),
 	},
+	-- World-expansion search locations (district packs under Services/Map).
+	{
+		id = "island-firewatch",
+		name = "Island Firewatch Ruin",
+		position = Vector3.new(103, 9.8, 56.5),
+		color = Color3.fromRGB(96, 104, 88),
+	},
+	{
+		id = "waterfall-cave",
+		name = "Waterfall Cave",
+		position = Vector3.new(80, 3.6, 96),
+		color = Color3.fromRGB(88, 108, 122),
+	},
+	{
+		id = "greenhouse-potting-table",
+		name = "Greenhouse Potting Table",
+		position = Vector3.new(54, 3.3, 46.6),
+		color = Color3.fromRGB(96, 122, 84),
+	},
+	{
+		id = "sawmill-blade",
+		name = "Sawmill Blade",
+		position = Vector3.new(-32, 4.5, -85),
+		color = Color3.fromRGB(122, 96, 62),
+	},
+	{
+		id = "cornfield-scarecrow",
+		name = "Cornfield Scarecrow",
+		position = Vector3.new(62, 5.2, -100),
+		color = Color3.fromRGB(140, 124, 72),
+	},
+	{
+		id = "quarters-footlocker",
+		name = "Counselor Footlocker",
+		position = Vector3.new(-52.7, 2.1, 74.5),
+		color = Color3.fromRGB(108, 86, 60),
+	},
+	{
+		id = "infirmary-logbook",
+		name = "Infirmary Logbook",
+		position = Vector3.new(24, 3.2, 57.5),
+		color = Color3.fromRGB(168, 150, 140),
+	},
+	{
+		id = "archery-shed",
+		name = "Archery Shed",
+		position = Vector3.new(-50.8, 2.2, -71),
+		color = Color3.fromRGB(112, 92, 58),
+	},
+	{
+		id = "graveyard-open-grave",
+		name = "Open Grave",
+		position = Vector3.new(-22, 0.6, -470),
+		color = Color3.fromRGB(78, 72, 66),
+	},
+	{
+		id = "water-tower-catwalk",
+		name = "Water Tower Catwalk",
+		position = Vector3.new(110, 27.3, -283.2),
+		color = Color3.fromRGB(84, 98, 100),
+	},
+	{
+		id = "town-square-fountain",
+		name = "Dry Fountain",
+		position = Vector3.new(21, 1.8, -187),
+		color = Color3.fromRGB(120, 120, 112),
+	},
+	{
+		id = "drive-in-projector",
+		name = "Drive-In Projector",
+		position = Vector3.new(104, 2.6, -420.6),
+		color = Color3.fromRGB(96, 84, 78),
+	},
+	{
+		id = "derailed-boxcar",
+		name = "Derailed Boxcar",
+		position = Vector3.new(-146.8, 3, -225.1),
+		color = Color3.fromRGB(110, 68, 52),
+	},
+	{
+		id = "mines-ore-cart",
+		name = "Mine Ore Cart",
+		position = Vector3.new(104, 2, -48),
+		color = Color3.fromRGB(84, 78, 72),
+	},
+	{
+		id = "ranger-station-desk",
+		name = "Ranger Station Desk",
+		position = Vector3.new(-84.5, 16.8, -62),
+		color = Color3.fromRGB(104, 88, 60),
+	},
+	{
+		id = "lookout-cab",
+		name = "Lookout Cab",
+		position = Vector3.new(0, 35.6, 118),
+		color = Color3.fromRGB(118, 104, 76),
+	},
+	{
+		id = "cabin-zero-chimney",
+		name = "Cabin Zero Chimney",
+		position = Vector3.new(-74.5, 3, 85.5),
+		color = Color3.fromRGB(56, 52, 50),
+	},
+	{
+		id = "crypt-empty-niche",
+		name = "Empty Crypt Niche",
+		position = Vector3.new(-11, -6, -459),
+		color = Color3.fromRGB(92, 92, 98),
+	},
+	{
+		id = "radio-shack-console",
+		name = "Radio Shack Console",
+		position = Vector3.new(125.6, 3.4, -393),
+		color = Color3.fromRGB(90, 96, 108),
+	},
+	{
+		id = "aurora-fire-ring",
+		name = "Aurora Fire Ring",
+		position = Vector3.new(163, 1.4, 15),
+		color = Color3.fromRGB(86, 96, 82),
+	},
 }
 
 local function createPart(
@@ -315,10 +436,11 @@ local function createInspectPrompt(
 	local prompt = createPrompt(parent, "Inspect", objectText, 0.45)
 	local feedback = Instance.new("BillboardGui")
 	feedback.Name = "InteractionFeedback"
-	feedback.Size = UDim2.fromOffset(260, 58)
+	-- Stud-based sizing so world labels shrink with distance on phone screens.
+	feedback.Size = UDim2.new(8.5, 0, 2, 0)
 	feedback.StudsOffset = Vector3.new(0, 3.5, 0)
 	feedback.AlwaysOnTop = true
-	feedback.MaxDistance = 70
+	feedback.MaxDistance = 45
 	feedback.Enabled = false
 	feedback.Parent = parent
 	local label = Instance.new("TextLabel")
@@ -357,10 +479,10 @@ local function createFeedbackBillboard(
 ): (text: string, duration: number?) -> ()
 	local feedback = Instance.new("BillboardGui")
 	feedback.Name = "InteractionFeedback"
-	feedback.Size = UDim2.fromOffset(widthOffset or 300, 96)
+	feedback.Size = UDim2.new((widthOffset or 300) / 34, 0, 3, 0)
 	feedback.StudsOffset = Vector3.new(0, 4, 0)
 	feedback.AlwaysOnTop = true
-	feedback.MaxDistance = 70
+	feedback.MaxDistance = 45
 	feedback.Enabled = false
 	feedback.Parent = parent
 	local label = Instance.new("TextLabel")
@@ -2259,10 +2381,10 @@ function ProductionMapService:Build()
 			)
 			local dropMarker = Instance.new("BillboardGui")
 			dropMarker.Name = "DropZoneMarker"
-			dropMarker.Size = UDim2.fromOffset(170, 40)
+			dropMarker.Size = UDim2.new(6, 0, 1.5, 0)
 			dropMarker.StudsOffset = Vector3.new(0, 4, 0)
 			dropMarker.AlwaysOnTop = true
-			dropMarker.MaxDistance = 90
+			dropMarker.MaxDistance = 55
 			dropMarker.Parent = dropZone
 			local dropText = Instance.new("TextLabel")
 			dropText.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
@@ -2579,10 +2701,10 @@ function ProductionMapService:Build()
 		end
 		local marker = Instance.new("BillboardGui")
 		marker.Name = "ObjectiveMarker"
-		marker.Size = UDim2.fromOffset(200, 62)
+		marker.Size = UDim2.new(7, 0, 2.2, 0)
 		marker.StudsOffset = Vector3.new(0, 5.5, 0)
 		marker.AlwaysOnTop = true
-		marker.MaxDistance = 100
+		marker.MaxDistance = 55
 		marker.Parent = root
 		local markerText = Instance.new("TextLabel")
 		markerText.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
@@ -4125,42 +4247,65 @@ function ProductionMapService:ResetObjectives()
 	end
 end
 
-function ProductionMapService:SpawnEvidence()
+function ProductionMapService:_spawnSearchAt(socket: Part)
+	local alias = socket.Name
+	if self.evidenceFolder:FindFirstChild(alias) then
+		return
+	end
+	local weather = WeatherConfig.Get(self.weatherId)
+	local search = createPart(
+		self.evidenceFolder,
+		alias,
+		Vector3.new(3.5, 2, 3.5),
+		socket.CFrame,
+		-- Blood Moon: search sites glow hotter so clues read through the
+		-- red haze.
+		if weather.evidenceGlowBoost
+			then Color3.fromRGB(236, 176, 96)
+			else Color3.fromRGB(173, 154, 92),
+		Enum.Material.Neon,
+		if weather.evidenceGlowBoost then 0.05 else 0.18
+	)
+	search:SetAttribute("EvidenceId", alias)
+	-- Blood Moon: evidence interactions complete ~25% faster.
+	local prompt = createPrompt(
+		search,
+		"Search",
+		"Possible evidence",
+		0.9 * weather.evidenceHoldMultiplier
+	)
+	prompt.Triggered:Connect(function(player: Player)
+		if self.evidenceClaimed[alias] then
+			return
+		end
+		if self.onEvidence(player, alias) then
+			self.evidenceClaimed[alias] = true
+			search:Destroy()
+		end
+	end)
+end
+
+-- With ~27 registered search locations and only a handful of finds per
+-- round, glows spawn only where something is actually assigned; nil keeps
+-- the legacy spawn-everywhere behavior.
+function ProductionMapService:SpawnEvidence(activeAliasIds: { [string]: boolean }?)
 	self:ClearEvidence()
 	self.evidenceClaimed = {}
-	local weather = WeatherConfig.Get(self.weatherId)
 	for _, socket in self.evidenceSockets do
-		local alias = socket.Name
-		local search = createPart(
-			self.evidenceFolder,
-			alias,
-			Vector3.new(3.5, 2, 3.5),
-			socket.CFrame,
-			-- Blood Moon: search sites glow hotter so clues read through the
-			-- red haze.
-			if weather.evidenceGlowBoost
-				then Color3.fromRGB(236, 176, 96)
-				else Color3.fromRGB(173, 154, 92),
-			Enum.Material.Neon,
-			if weather.evidenceGlowBoost then 0.05 else 0.18
-		)
-		search:SetAttribute("EvidenceId", alias)
-		-- Blood Moon: evidence interactions complete ~25% faster.
-		local prompt = createPrompt(
-			search,
-			"Search",
-			"Possible evidence",
-			0.9 * weather.evidenceHoldMultiplier
-		)
-		prompt.Triggered:Connect(function(player: Player)
-			if self.evidenceClaimed[alias] then
-				return
-			end
-			if self.onEvidence(player, alias) then
-				self.evidenceClaimed[alias] = true
-				search:Destroy()
-			end
-		end)
+		if activeAliasIds == nil or activeAliasIds[socket.Name] == true then
+			self:_spawnSearchAt(socket)
+		end
+	end
+end
+
+-- Mid-round evidence (attacks, device traces) can land on a location whose
+-- glow was not spawned at Investigation start.
+function ProductionMapService:EnsureSearchSpawn(aliasId: string)
+	for _, socket in self.evidenceSockets do
+		if socket.Name == aliasId then
+			self:_spawnSearchAt(socket)
+			return
+		end
 	end
 end
 

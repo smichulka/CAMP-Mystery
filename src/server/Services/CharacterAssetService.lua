@@ -301,9 +301,11 @@ local function labelModel(model: Model, text: string, dotColor: Color3?)
 	end
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "CharacterLabel"
-	billboard.Size = UDim2.fromOffset(160, 30)
+	-- Stud-based sizing so labels shrink with distance instead of dominating
+	-- small phone screens.
+	billboard.Size = UDim2.new(5.2, 0, 1.1, 0)
 	billboard.StudsOffset = Vector3.new(0, anchor.Size.Y / 2 + 1.8, 0)
-	billboard.MaxDistance = 60
+	billboard.MaxDistance = 45
 	billboard.AlwaysOnTop = false
 	billboard.ResetOnSpawn = false
 	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -3450,10 +3452,10 @@ function CharacterAssetService:SetCounselorCornered(
 	local displayName = model:GetAttribute("DisplayName")
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "RescueBillboard"
-	billboard.Size = UDim2.fromOffset(150, 30)
+	billboard.Size = UDim2.new(5, 0, 1.1, 0)
 	billboard.StudsOffset = Vector3.new(0, 4.4, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 90
+	billboard.MaxDistance = 60
 	billboard.Parent = root
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
@@ -3907,10 +3909,10 @@ function CharacterAssetService:SpawnBodyMarker(
 	model.PrimaryPart = mound
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "BodyLabel"
-	billboard.Size = UDim2.fromOffset(170, 34)
+	billboard.Size = UDim2.new(6, 0, 1.3, 0)
 	billboard.StudsOffset = Vector3.new(0, 3, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 60
+	billboard.MaxDistance = 45
 	billboard.Parent = mound
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1

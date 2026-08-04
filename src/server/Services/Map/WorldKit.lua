@@ -127,10 +127,11 @@ end
 function WorldKit.billboardLabel(part: BasePart, text: string, color: Color3?): BillboardGui
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "WorldLabel"
-	billboard.Size = UDim2.fromOffset(190, 44)
+	-- Stud-based sizing so labels shrink with distance on phone screens.
+	billboard.Size = UDim2.new(6.6, 0, 1.6, 0)
 	billboard.StudsOffset = Vector3.new(0, 3.4, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 80
+	billboard.MaxDistance = 45
 	billboard.Parent = part
 	local label = Instance.new("TextLabel")
 	label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
