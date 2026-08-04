@@ -4319,6 +4319,21 @@ function GameView:_setDiscussionVisible(visible: boolean, round: any)
 	panel.Visible = true
 	Components.ClearGenerated(log)
 	local entries = asTable(round.discussionLog)
+	if next(entries) == nil then
+		local placeholder = Instance.new("TextLabel")
+		placeholder.Name = "EmptyHint"
+		placeholder:SetAttribute("Generated", true)
+		placeholder.BackgroundTransparency = 1
+		placeholder.Size = UDim2.new(1, -8, 0, 30)
+		placeholder.Font = Enum.Font.Gotham
+		placeholder.Text = "No evidence presented yet — open the notebook [N] to make your case."
+		placeholder.TextColor3 = Color3.fromRGB(150, 156, 148)
+		placeholder.TextSize = 14
+		placeholder.TextWrapped = true
+		placeholder.TextXAlignment = Enum.TextXAlignment.Left
+		placeholder.ZIndex = log.ZIndex + 1
+		placeholder.Parent = log
+	end
 	for index, entry in entries do
 		if type(entry) == "table" then
 			local line = Instance.new("TextLabel")
