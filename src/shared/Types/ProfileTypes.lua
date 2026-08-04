@@ -68,6 +68,8 @@ export type RewardInput = {
 	monsterId: string?,
 	identifiedMonster: boolean?,
 	checkIns: number?,
+	-- Event bonus (e.g. Blood Moon weather); clamped in RewardCalculation.
+	rewardMultiplier: number?,
 }
 
 export type RewardGrant = {

@@ -62,6 +62,18 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		-- Dusk buddy check-ins: small social bonus, capped so farming pairs
 		-- is pointless.
 		xp += math.min(math.floor(input.checkIns or 0), 3) * 5
+
+		-- Event bonus (Blood Moon weather): modest, clamped so a bad input
+		-- can never zero out or explode a round's payout.
+		local rawMultiplier = input.rewardMultiplier or 1
+		if rawMultiplier ~= rawMultiplier then
+			rawMultiplier = 1
+		end
+		local rewardMultiplier = math.clamp(rawMultiplier, 1, 2)
+		if rewardMultiplier > 1 then
+			xp = math.floor(xp * rewardMultiplier)
+			campTokens = math.floor(campTokens * rewardMultiplier)
+		end
 	end
 
 	local roleIsMurderer = input.roleId == "Murderer"

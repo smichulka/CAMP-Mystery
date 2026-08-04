@@ -81,6 +81,10 @@ type MonsterServiceState = {
 	stamina: number,
 	cooldownEndsAt: { [string]: number },
 	lastRequestSequence: number,
+	-- Weather modifiers: rain muffles hearing (range < 1), a blood moon makes
+	-- the monster faster (cooldowns < 1). Reset to 1 between rounds.
+	abilityRangeMultiplier: number,
+	abilityCooldownMultiplier: number,
 }
 
 local MonsterService = {}
@@ -136,7 +140,19 @@ function MonsterService.new(callbacks: Callbacks): MonsterService
 		stamina = 0,
 		cooldownEndsAt = {},
 		lastRequestSequence = 0,
+		abilityRangeMultiplier = 1,
+		abilityCooldownMultiplier = 1,
 	}, MonsterService)
+end
+
+-- Weather hook: scales ability reach and cooldowns for the round. Values are
+-- clamped so a bad config can never disable or trivialize the monster.
+function MonsterService:SetWeatherModifiers(
+	rangeMultiplier: number?,
+	cooldownMultiplier: number?
+)
+	self.abilityRangeMultiplier = math.clamp(rangeMultiplier or 1, 0.5, 1.5)
+	self.abilityCooldownMultiplier = math.clamp(cooldownMultiplier or 1, 0.5, 1.5)
 end
 
 function MonsterService:_now(): number
@@ -343,7 +359,8 @@ function MonsterService:_validateActivation(
 	end
 
 	local resolvedTargetPosition = targetPosition :: Vector3
-	if (resolvedTargetPosition - sourcePosition).Magnitude > rule.rangeStuds then
+	local effectiveRange = rule.rangeStuds * self.abilityRangeMultiplier
+	if (resolvedTargetPosition - sourcePosition).Magnitude > effectiveRange then
 		return { allowed = false, reason = "Target is out of range", serverNow = now }, nil
 	end
 	if
@@ -436,7 +453,8 @@ function MonsterService:_activateAbility(request: AbilityRequest): AbilityActiva
 
 	self.lastRequestSequence = request.requestSequence
 	self.stamina -= validated.rule.staminaCost
-	local cooldownEndsAt = validated.now + validated.rule.cooldownSeconds
+	local cooldownEndsAt = validated.now
+		+ validated.rule.cooldownSeconds * self.abilityCooldownMultiplier
 	self.cooldownEndsAt[validated.rule.id] = cooldownEndsAt
 
 	for _, effect in validated.rule.effects do
@@ -504,6 +522,8 @@ function MonsterService:Reset(roundId: number?)
 	self.stamina = 0
 	self.cooldownEndsAt = {}
 	self.lastRequestSequence = 0
+	self.abilityRangeMultiplier = 1
+	self.abilityCooldownMultiplier = 1
 	self:_mutated()
 end
 

@@ -62,6 +62,8 @@ export type RoundSnapshot = {
 	resultMessage: string?,
 	isNight: boolean,
 	dayOutcomes: DayOutcomeSnapshot?,
+	-- Seeded round weather (WeatherConfig.WeatherId); nil before a round.
+	weather: string?,
 	campfireStage: string?,
 	votingOpensAt: number?,
 	discussionLog: { DiscussionEntry }?,
