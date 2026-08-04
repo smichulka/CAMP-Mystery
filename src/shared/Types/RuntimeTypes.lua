@@ -23,6 +23,7 @@ export type ActionName =
 	| "Vote"
 	| "PresentEvidence"
 	| "BuddyCheckIn"
+	| "Sabotage"
 	| "GhostFlickerLight"
 	| "EquipItem"
 	| "UseItem"

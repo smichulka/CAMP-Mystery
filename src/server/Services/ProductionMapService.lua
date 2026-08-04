@@ -27,6 +27,10 @@ type ProductionMapServiceState = {
 	onEvidence: EvidenceHandler,
 	evidenceClaimed: { [string]: boolean },
 	interactiveDoors: { InteractiveDoor },
+	-- Seeded task pool: which stations are live this round. An empty map means
+	-- no round has started yet, so every station counts as active.
+	activeObjectiveIds: { [string]: boolean },
+	objectivePromptsEnabled: boolean,
 }
 
 local ProductionMapService = {}
@@ -69,6 +73,26 @@ local OBJECTIVES = {
 		position = Vector3.new(58, 16.4, -44),
 		color = Color3.fromRGB(139, 98, 52),
 	},
+	{
+		id = "waterpump",
+		name = "Prime the Water Pump",
+		position = Vector3.new(70, 2, 30),
+		color = Color3.fromRGB(74, 96, 108),
+	},
+	{
+		id = "trailclear",
+		name = "Clear the Trail",
+		position = Vector3.new(12, 2, 54),
+		color = Color3.fromRGB(86, 99, 62),
+	},
+	{
+		-- Two-person alibi task: the server requires two campers to lift
+		-- within a short window (see GameRuntimeService canoe handlers).
+		id = "canoe",
+		name = "Canoe Carry",
+		position = Vector3.new(74, 2, 64),
+		color = Color3.fromRGB(121, 85, 58),
+	},
 }
 
 local OBJECTIVE_EFFECT_LINES: { [string]: string } = {
@@ -76,6 +100,23 @@ local OBJECTIVE_EFFECT_LINES: { [string]: string } = {
 	generator = "Powers the camp lights tonight",
 	supplies = "Bonus night gear for every camper",
 	ropes = "Optional challenge — counts toward camp tasks",
+	waterpump = "Camp chore — counts toward camp tasks",
+	trailclear = "Camp chore — counts toward camp tasks",
+	canoe = "Lift with a buddy — you both earn a verified alibi",
+}
+
+-- Per-station prompt presentation; stations without an entry use the default
+-- single-press "Complete" interaction.
+local OBJECTIVE_PROMPTS: { [string]: { action: string, hold: number } } = {
+	firewood = { action = "Chop", hold = 0.35 },
+	supplies = { action = "Pick Up Crate", hold = 0.8 },
+	canoe = { action = "Lift Together", hold = 0.8 },
+}
+
+local WIRE_DEFINITIONS: { { id: string, color: Color3 } } = {
+	{ id = "red", color = Color3.fromRGB(203, 74, 61) },
+	{ id = "blue", color = Color3.fromRGB(74, 116, 203) },
+	{ id = "yellow", color = Color3.fromRGB(214, 183, 78) },
 }
 
 local SEARCH_TARGETS = {
@@ -1397,6 +1438,8 @@ function ProductionMapService.new(
 		onEvidence = onEvidence,
 		evidenceClaimed = {},
 		interactiveDoors = {},
+		activeObjectiveIds = {},
+		objectivePromptsEnabled = false,
 	}, ProductionMapService)
 	hideDefaultBaseplate()
 	configureLighting()
@@ -1980,6 +2023,25 @@ function ProductionMapService:Build()
 			)
 			statusLamp:SetAttribute("CompletionIndicator", true)
 			statusLamp.CanCollide = false
+			-- Wire-sequence minigame targets: three loose wires that must be
+			-- reconnected in a seeded order (validated server-side).
+			for wireIndex, wireDefinition in WIRE_DEFINITIONS do
+				local wirePart = createPart(
+					station,
+					"Wire" .. wireDefinition.id,
+					Vector3.new(0.6, 0.6, 0.6),
+					generator.CFrame * CFrame.new(-3.6, 0.4, (wireIndex - 2) * 1.6),
+					wireDefinition.color,
+					Enum.Material.Neon
+				)
+				wirePart.CanCollide = false
+				local wireId = wireDefinition.id
+				local wirePrompt = createPrompt(wirePart, "Connect", "Loose wire", 0.35)
+				wirePrompt.MaxActivationDistance = 10
+				wirePrompt.Triggered:Connect(function(player: Player)
+					self.onObjective(player, "generator#" .. wireId)
+				end)
+			end
 		elseif definition.id == "supplies" then
 			for crateIndex = 1, 4 do
 				local x = if crateIndex % 2 == 0 then 2.2 else -2.2
@@ -1993,6 +2055,127 @@ function ProductionMapService:Build()
 					Enum.Material.WoodPlanks
 				)
 			end
+			-- Carry minigame drop zone near the campfire: picking up a crate at
+			-- the pile and dropping it here completes the task (server-validated).
+			local dropZone = createPart(
+				station,
+				"SupplyDropZone",
+				Vector3.new(6, 0.4, 6),
+				CFrame.new(10, 0.45, 10),
+				Color3.fromRGB(96, 82, 54),
+				Enum.Material.WoodPlanks
+			)
+			local dropMarker = Instance.new("BillboardGui")
+			dropMarker.Name = "DropZoneMarker"
+			dropMarker.Size = UDim2.fromOffset(170, 40)
+			dropMarker.StudsOffset = Vector3.new(0, 4, 0)
+			dropMarker.AlwaysOnTop = true
+			dropMarker.MaxDistance = 90
+			dropMarker.Parent = dropZone
+			local dropText = Instance.new("TextLabel")
+			dropText.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+			dropText.BackgroundTransparency = 0.12
+			dropText.BorderSizePixel = 0
+			dropText.Size = UDim2.fromScale(1, 1)
+			dropText.Font = Enum.Font.GothamBold
+			dropText.Text = "SUPPLY DROP"
+			dropText.TextColor3 = Color3.fromRGB(244, 224, 176)
+			dropText.TextScaled = true
+			dropText.Parent = dropMarker
+			local dropPrompt = createPrompt(dropZone, "Drop Crate", "Supply drop", 0.5)
+			dropPrompt.Triggered:Connect(function(player: Player)
+				self.onObjective(player, "supplies#drop")
+			end)
+		elseif definition.id == "waterpump" then
+			createCylinder(
+				station,
+				"PumpBarrel",
+				Vector3.new(3.2, 2.2, 2.2),
+				CFrame.new(definition.position + Vector3.new(0, 0.9, 0))
+					* CFrame.Angles(0, 0, math.rad(90)),
+				Color3.fromRGB(88, 104, 112),
+				Enum.Material.Metal
+			)
+			createCylinder(
+				station,
+				"PumpSpout",
+				Vector3.new(2.6, 0.5, 0.5),
+				CFrame.new(definition.position + Vector3.new(1.6, 2, 0)),
+				Color3.fromRGB(62, 74, 80),
+				Enum.Material.CorrodedMetal
+			)
+			createPart(
+				station,
+				"PumpHandle",
+				Vector3.new(0.4, 2.6, 0.4),
+				CFrame.new(definition.position + Vector3.new(-1.2, 3, 0))
+					* CFrame.Angles(0, 0, math.rad(24)),
+				Color3.fromRGB(122, 66, 52),
+				Enum.Material.Metal
+			)
+			createPart(
+				station,
+				"PumpTrough",
+				Vector3.new(4.4, 1, 2),
+				CFrame.new(definition.position + Vector3.new(2.6, 0.4, 0)),
+				Color3.fromRGB(96, 78, 52),
+				Enum.Material.WoodPlanks
+			)
+		elseif definition.id == "trailclear" then
+			for branchIndex, branchSpec in {
+				{ offset = Vector3.new(-1.6, 0.5, 0.4), yaw = 24 },
+				{ offset = Vector3.new(0.8, 0.7, -0.8), yaw = -38 },
+				{ offset = Vector3.new(0.2, 1.4, 0.9), yaw = 74 },
+			} do
+				createCylinder(
+					station,
+					"FallenBranch" .. tostring(branchIndex),
+					Vector3.new(6.4, 0.7, 0.7),
+					CFrame.new(definition.position + branchSpec.offset)
+						* CFrame.Angles(0, math.rad(branchSpec.yaw), 0),
+					Color3.fromRGB(92, 64, 40),
+					Enum.Material.Wood
+				)
+			end
+			local leafPile = createPart(
+				station,
+				"LeafPile",
+				Vector3.new(3, 1.4, 3),
+				CFrame.new(definition.position + Vector3.new(2.2, 0.3, -2)),
+				Color3.fromRGB(74, 96, 54),
+				Enum.Material.Grass
+			)
+			leafPile.Shape = Enum.PartType.Ball
+			leafPile.CanCollide = false
+		elseif definition.id == "canoe" then
+			local hull = createPart(
+				station,
+				"CanoeHull",
+				Vector3.new(11, 1.1, 2.4),
+				CFrame.new(definition.position + Vector3.new(0, 1.5, 0))
+					* CFrame.Angles(0, math.rad(18), 0),
+				Color3.fromRGB(146, 84, 52),
+				Enum.Material.WoodPlanks
+			)
+			for standOffset = -1, 1, 2 do
+				createPart(
+					station,
+					"CanoeStand",
+					Vector3.new(0.7, 1.1, 3),
+					hull.CFrame * CFrame.new(standOffset * 3.6, -1, 0),
+					Color3.fromRGB(84, 60, 38),
+					Enum.Material.Wood
+				)
+			end
+			createPart(
+				station,
+				"CanoePaddle",
+				Vector3.new(0.35, 3.4, 0.35),
+				CFrame.new(definition.position + Vector3.new(3.4, 1.7, 2.4))
+					* CFrame.Angles(0, 0, math.rad(12)),
+				Color3.fromRGB(168, 128, 82),
+				Enum.Material.Wood
+			)
 		elseif definition.id == "ropes" then
 			-- Climbable ropes course: stepping stumps over a mud pit, a rope-rail
 			-- balance beam, rising jump pads, a wooden lattice climb, and the
@@ -2223,10 +2406,20 @@ function ProductionMapService:Build()
 		markerText.TextColor3 = Color3.fromRGB(244, 224, 176)
 		markerText.TextScaled = true
 		markerText.Parent = marker
-		local prompt = createPrompt(root, "Complete", definition.name, 1.1)
-		prompt.Triggered:Connect(function(player: Player)
-			self.onObjective(player, definition.id)
-		end)
+		-- The generator has no single-press completion: its three wire prompts
+		-- are the only way to finish it (seeded order, server-validated).
+		if definition.id ~= "generator" then
+			local promptConfig = OBJECTIVE_PROMPTS[definition.id]
+			local prompt = createPrompt(
+				root,
+				if promptConfig then promptConfig.action else "Complete",
+				definition.name,
+				if promptConfig then promptConfig.hold else 1.1
+			)
+			prompt.Triggered:Connect(function(player: Player)
+				self.onObjective(player, definition.id)
+			end)
+		end
 	end
 
 	local authoredTown = cloneAuthoredMap("NightTown")
@@ -2820,10 +3013,71 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 	end
 end
 
+-- Before a round seeds the pool the active map is empty, which means every
+-- station is treated as live (legacy behavior for tools and tests).
+function ProductionMapService:_isStationActive(objectiveId: string): boolean
+	if next(self.activeObjectiveIds) == nil then
+		return true
+	end
+	return self.activeObjectiveIds[objectiveId] == true
+end
+
+-- Tamper-evidence inspect prompts stay interactive regardless of the
+-- day-objective prompt toggles, so night investigators can still find them.
+local function isTamperPrompt(prompt: Instance): boolean
+	local holder = prompt.Parent
+	return holder ~= nil and holder.Name == "TamperEvidence"
+end
+
 function ProductionMapService:SetObjectivePromptsEnabled(enabled: boolean)
-	for _, descendant in self.objectivesFolder:GetDescendants() do
-		if descendant:IsA("ProximityPrompt") then
-			descendant.Enabled = enabled
+	self.objectivePromptsEnabled = enabled
+	for _, station in self.objectivesFolder:GetChildren() do
+		local active = self:_isStationActive(station.Name)
+		for _, descendant in station:GetDescendants() do
+			if descendant:IsA("ProximityPrompt") and not isTamperPrompt(descendant) then
+				descendant.Enabled = enabled and active
+			end
+		end
+	end
+end
+
+-- Applies the seeded pool for the round: inactive stations hide their prompts
+-- and billboards but keep their geometry so the camp still looks lived-in.
+function ProductionMapService:SetActiveObjectives(activeIds: { [string]: boolean })
+	self.activeObjectiveIds = table.clone(activeIds)
+	for _, station in self.objectivesFolder:GetChildren() do
+		local active = self:_isStationActive(station.Name)
+		for _, descendant in station:GetDescendants() do
+			if descendant:IsA("ProximityPrompt") and not isTamperPrompt(descendant) then
+				descendant.Enabled = self.objectivePromptsEnabled and active
+			elseif
+				descendant:IsA("BillboardGui")
+				and (
+					descendant.Name == "ObjectiveMarker"
+					or descendant.Name == "DropZoneMarker"
+				)
+			then
+				descendant.Enabled = active
+			end
+		end
+	end
+end
+
+-- Minigame progress feedback on the station billboard. An empty string
+-- restores the original station text.
+function ProductionMapService:SetObjectiveProgress(objectiveId: string, text: string)
+	local station = self.objectivesFolder:FindFirstChild(objectiveId)
+	if not station then
+		return
+	end
+	local marker = station:FindFirstChild("ObjectiveMarker", true)
+	if marker and marker:IsA("BillboardGui") then
+		local label = marker:FindFirstChildOfClass("TextLabel")
+		if label then
+			local originalText = label:GetAttribute("OriginalText")
+			label.Text = if text == "" and type(originalText) == "string"
+				then originalText
+				else text
 		end
 	end
 end
@@ -2851,13 +3105,83 @@ function ProductionMapService:MarkObjectiveComplete(objectiveId: string)
 			label.TextColor3 = Color3.fromRGB(111, 239, 144)
 		end
 	end
-	local prompt = station:FindFirstChildWhichIsA("ProximityPrompt", true)
-	if prompt then
-		prompt.Enabled = false
+	-- Disable every station prompt (wire targets and drop zones included).
+	for _, descendant in station:GetDescendants() do
+		if descendant:IsA("ProximityPrompt") and not isTamperPrompt(descendant) then
+			descendant.Enabled = false
+		end
 	end
 end
 
+-- Sabotage support: visually reverts a completed station so it can be redone.
+function ProductionMapService:MarkObjectiveIncomplete(objectiveId: string)
+	local station = self.objectivesFolder:FindFirstChild(objectiveId)
+	if not station then
+		return
+	end
+	local root = if station:IsA("Model")
+		then station:FindFirstChild("InteractionRoot")
+		else station
+	if root and root:IsA("BasePart") then
+		local original = root:GetAttribute("OriginalColor")
+		if typeof(original) == "Color3" then
+			root.Color = original
+		end
+	end
+	local indicator = station:FindFirstChild("StatusLamp", true)
+	if indicator and indicator:IsA("BasePart") then
+		indicator.Color = Color3.fromRGB(187, 72, 49)
+	end
+	local marker = station:FindFirstChild("ObjectiveMarker", true)
+	if marker and marker:IsA("BillboardGui") then
+		local label = marker:FindFirstChildOfClass("TextLabel")
+		if label then
+			local originalText = label:GetAttribute("OriginalText")
+			if type(originalText) == "string" then
+				label.Text = originalText
+			end
+			label.TextColor3 = Color3.fromRGB(244, 224, 176)
+		end
+	end
+	local active = self:_isStationActive(objectiveId)
+	for _, descendant in station:GetDescendants() do
+		if descendant:IsA("ProximityPrompt") and not isTamperPrompt(descendant) then
+			descendant.Enabled = self.objectivePromptsEnabled and active
+		end
+	end
+end
+
+-- A sabotaged station leaves a daytime hint: a small prop with an inspect
+-- prompt telling campers the repair was undone on purpose.
+function ProductionMapService:SpawnTamperEvidence(objectiveId: string)
+	local station = self.objectivesFolder:FindFirstChild(objectiveId)
+	if not station or station:FindFirstChild("TamperEvidence", true) then
+		return
+	end
+	local root = if station:IsA("Model")
+		then station:FindFirstChild("InteractionRoot")
+		else station
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+	local prop = createPart(
+		station,
+		"TamperEvidence",
+		Vector3.new(1.6, 1, 1.6),
+		root.CFrame * CFrame.new(3.2, 1.1, 3.2),
+		Color3.fromRGB(54, 46, 42),
+		Enum.Material.Slate
+	)
+	createInspectPrompt(
+		prop,
+		"Frayed handiwork",
+		"The repair has been undone. Deliberately."
+	)
+end
+
 function ProductionMapService:ResetObjectives()
+	self.activeObjectiveIds = {}
+	self.objectivePromptsEnabled = false
 	for _, station in self.objectivesFolder:GetChildren() do
 		local root = if station:IsA("Model")
 			then station:FindFirstChild("InteractionRoot")
@@ -2868,12 +3192,17 @@ function ProductionMapService:ResetObjectives()
 				root.Color = original
 			end
 		end
+		local tamper = station:FindFirstChild("TamperEvidence", true)
+		if tamper then
+			tamper:Destroy()
+		end
 		local indicator = station:FindFirstChild("StatusLamp", true)
 		if indicator and indicator:IsA("BasePart") then
 			indicator.Color = Color3.fromRGB(187, 72, 49)
 		end
 		local marker = station:FindFirstChild("ObjectiveMarker", true)
 		if marker and marker:IsA("BillboardGui") then
+			marker.Enabled = true
 			local label = marker:FindFirstChildOfClass("TextLabel")
 			if label then
 				local originalText = label:GetAttribute("OriginalText")
@@ -2883,9 +3212,14 @@ function ProductionMapService:ResetObjectives()
 				label.TextColor3 = Color3.fromRGB(244, 224, 176)
 			end
 		end
-		local prompt = station:FindFirstChildWhichIsA("ProximityPrompt", true)
-		if prompt then
-			prompt.Enabled = false
+		local dropMarker = station:FindFirstChild("DropZoneMarker", true)
+		if dropMarker and dropMarker:IsA("BillboardGui") then
+			dropMarker.Enabled = true
+		end
+		for _, descendant in station:GetDescendants() do
+			if descendant:IsA("ProximityPrompt") then
+				descendant.Enabled = false
+			end
 		end
 	end
 end

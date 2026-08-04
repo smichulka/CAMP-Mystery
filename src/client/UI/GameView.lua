@@ -2456,6 +2456,20 @@ function GameView:_chooseMurderPlan()
 			}, false)
 		end)
 	end
+	-- Sabotage shares the dusk menu: undo a finished camp task while unseen.
+	if self:_available(self.currentState, "Sabotage") then
+		local sabotageButton = Components.Button(self.targetList, {
+			name = "Plan_Sabotage",
+			text = "SABOTAGE A FINISHED TASK",
+			size = UDim2.new(1, -8, 0, 48),
+			color = Theme.Colors.Amber,
+		})
+		sabotageButton:SetAttribute("Generated", true)
+		sabotageButton.Activated:Connect(function()
+			setModalVisible(self.targetModal, false)
+			self:_send("Sabotage", {})
+		end)
+	end
 	setModalVisible(self.notebook, false)
 	setModalVisible(self.settings, false)
 	setModalVisible(self.targetModal, true)
@@ -2473,6 +2487,12 @@ function GameView:_requestRoleAction()
 	end
 	if self:_available(state, "BuddyCheckIn") then
 		self:_chooseParticipant("BuddyCheckIn", {}, false)
+		return
+	end
+	-- Daytime Murderer: sabotage is the only role action, sent directly; the
+	-- server picks the completed station the player is standing at.
+	if self:_available(state, "Sabotage") then
+		self:_send("Sabotage", {})
 		return
 	end
 	local player = if type(state) == "table" then state.player else nil
@@ -4959,8 +4979,12 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	local monsterEnabled = self:_available(state, "UseMonsterAbility")
 	local planEnabled = self:_available(state, "SetMurderPlan")
 	local buddyEnabled = self:_available(state, "BuddyCheckIn")
+	local sabotageEnabled = self:_available(state, "Sabotage")
 	local livingRoleActionEnabled = not ghost
 		and (roleEnabled or monsterEnabled or planEnabled or buddyEnabled)
+	if not ghost and sabotageEnabled then
+		livingRoleActionEnabled = true
+	end
 	Components.SetButtonEnabled(
 		self.roleAction,
 		livingRoleActionEnabled and not eliminated
@@ -4975,6 +4999,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		elseif monsterEnabled
 		then "USE MONSTER ABILITY"
 		elseif roleEnabled then "USE ROLE ABILITY"
+		elseif sabotageEnabled then "SABOTAGE A REPAIR"
 		elseif roleReason then string.upper(roleReason)
 		else "ABILITY UNAVAILABLE"
 	self.roleActionBaseText = roleActionText
