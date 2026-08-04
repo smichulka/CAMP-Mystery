@@ -984,6 +984,10 @@ local function buildCabinZero(dayCamp: Instance)
 	sootDisc.CanCollide = false
 
 	WorldKit.evidenceSocketMarker(ruins, "cabin-zero-chimney", Vector3.new(cx - 4.5, 3, cz + 3.5))
+	-- The authored anchor sits in the saddle between two perimeter domes and
+	-- ~2.5 below the camp grass; slide the finished ruin east onto the flat
+	-- and lift the slab just proud of grade.
+	ruins:PivotTo(ruins:GetPivot() + Vector3.new(7, 2.6, -2))
 end
 
 -- 9. RADIO TOWER HILL --------------------------------------------------------

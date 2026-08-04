@@ -1597,6 +1597,10 @@ end
 
 local function buildCampTerrain(parent: Instance)
 	local terrain = Workspace.Terrain
+	-- Terrain is fully code-sculpted; clear first so every build is
+	-- deterministic instead of accumulating over whatever the place file
+	-- carried (moved hills used to leave their old selves behind).
+	terrain:Clear()
 	-- Animated grass everywhere on grass terrain, cut short so porches/props stay visible
 	-- (Decoration/GrassLength may not exist depending on Studio version; both are optional cosmetics)
 	local cosmeticTerrain = terrain :: any
@@ -1619,12 +1623,20 @@ local function buildCampTerrain(parent: Instance)
 		end
 		local angle = (index / 14) * math.pi * 2
 		local radius = 105 + (index % 3) * 9
+		local center = Vector3.new(
+			math.cos(angle) * radius,
+			-3 + (index % 2),
+			12 + math.sin(angle) * radius
+		)
+		if index == 9 then
+			-- The formula drops this dome at (-65, -70), which swallowed the
+			-- supply cabin's south end and the archery lanes. Pulled
+			-- south-west: the ranger station keeps a lower rise under its
+			-- stilts and the camp-side toe clears every structure.
+			center = Vector3.new(-72, -2, -80)
+		end
 		terrain:FillBall(
-			Vector3.new(
-				math.cos(angle) * radius,
-				-3 + (index % 2),
-				12 + math.sin(angle) * radius
-			),
+			center,
 			20 + index % 4 * 2,
 			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
 		)
