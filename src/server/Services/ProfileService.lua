@@ -971,6 +971,7 @@ function ProfileService:ApplyReward(
 		identifiedMonster = input.identifiedMonster == true,
 		checkIns = finiteNumber(input.checkIns, 0),
 		rewardMultiplier = finiteNumber(input.rewardMultiplier, 1),
+		coldCasesReviewed = finiteNumber(input.coldCasesReviewed, 0),
 	}
 	local grant = RewardCalculation.Calculate(normalizedInput)
 	local appliedByThisUpdate = false

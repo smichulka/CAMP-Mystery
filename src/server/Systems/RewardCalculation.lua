@@ -70,6 +70,9 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		-- Ghost micro-objectives keep eliminated players earning at a gentle
 		-- rate; the cap stops idle hover-farming from paying out forever.
 		xp += math.min(math.floor(input.ghostObjectives or 0), 6) * 4
+		-- Cold case archive: reading all three police-station files is worth
+		-- one small courage bonus per round, never more.
+		xp += math.min(math.floor(input.coldCasesReviewed or 0), 1) * 15
 
 		-- Event bonus (Blood Moon weather): modest, clamped so a bad input
 		-- can never zero out or explode a round's payout. Applies after all

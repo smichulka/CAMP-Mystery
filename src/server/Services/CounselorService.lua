@@ -35,6 +35,9 @@ export type Callbacks = {
 		behavior: CounselorBehavior
 	) -> ())?,
 	onDialogue: ((response: CounselorDialogueResponse) -> ())?,
+	-- Fired exactly when the seeded contradiction counselor first walks back
+	-- their alibi (Schedule topic, second ask by this participant).
+	onContradictionSlip: ((participantId: string, counselorId: CounselorId) -> ())?,
 	onPublicStateChanged: ((snapshot: CounselorRosterSnapshot) -> ())?,
 }
 
@@ -789,6 +792,10 @@ function CounselorService:RequestDialogue(
 					3,
 					now
 				)
+				local onContradictionSlip = self.callbacks.onContradictionSlip
+				if onContradictionSlip then
+					onContradictionSlip(participantId, counselorId)
+				end
 			end
 		end
 	elseif topic == "Observation" and state.witnessStatement then

@@ -1,6 +1,8 @@
 --!strict
 
-export type EvidenceChannel = "Culprit" | "Monster"
+-- "Insight" cards are derived deductions created by the Detective's Combine
+-- action; they post to the culprit column of the board with a distinct look.
+export type EvidenceChannel = "Culprit" | "Monster" | "Insight"
 export type EvidenceAuthenticity = "Real" | "Fake" | "Ambiguous" | "Contaminated"
 export type VerificationState = "Unverified" | "VerifiedReal" | "VerifiedFake"
 

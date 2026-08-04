@@ -18,9 +18,19 @@ local EquipmentRules = require(
 local BotContributionConfig = require(
 	script.Parent.Parent.Config:WaitForChild("BotContributionConfig")
 )
+local EvidenceComboRules = require(
+	script.Parent.Parent.Config:WaitForChild("EvidenceComboRules")
+)
+local ColdCaseArchive = require(
+	script.Parent.Parent.Config:WaitForChild("ColdCaseArchive")
+)
+local MysteryCatalog = require(
+	script.Parent.Parent.Config:WaitForChild("MysteryCatalog")
+)
 local CombatTypes = require(Shared.Types:WaitForChild("CombatTypes"))
 local CounselorTypes = require(Shared.Types:WaitForChild("CounselorTypes"))
 local EquipmentTypes = require(Shared.Types:WaitForChild("EquipmentTypes"))
+local EvidenceTypes = require(Shared.Types:WaitForChild("EvidenceTypes"))
 local GameTypes = require(Shared.Types:WaitForChild("GameTypes"))
 local MonsterTypes = require(Shared.Types:WaitForChild("MonsterTypes"))
 local MysteryTypes = require(Shared.Types:WaitForChild("MysteryTypes"))
@@ -51,6 +61,9 @@ local BotRosterSystem = require(systems:WaitForChild("BotRosterSystem"))
 
 type ActionName = RuntimeTypes.ActionName
 type ActionResult = RuntimeTypes.ActionResult
+type ComboRecipe = EvidenceComboRules.ComboRecipe
+type EvidenceAuthenticity = EvidenceTypes.EvidenceAuthenticity
+type EvidenceRecord = EvidenceTypes.EvidenceRecord
 type GameState = RuntimeTypes.GameState
 type PhaseName = GameTypes.PhaseName
 type WinnerName = GameTypes.WinnerName
@@ -115,6 +128,11 @@ type GhostRuntimeState = {
 	echoCooldownEndsAt: number,
 }
 
+type ColdCaseFile = {
+	title: string,
+	summary: string,
+}
+
 type GameRuntimeServiceState = {
 	options: RuntimeOptions,
 	running: boolean,
@@ -171,6 +189,16 @@ type GameRuntimeServiceState = {
 	canoeAlibiPairs: { { firstName: string, secondName: string } },
 	verifiedAlibiIds: { [string]: boolean },
 	sabotageUsed: boolean,
+	activeComboRecipes: { ComboRecipe },
+	usedComboRecipeIds: { [string]: boolean },
+	comboCooldownAt: { [string]: number },
+	contradictionEvidenceIssued: boolean,
+	coldCaseFiles: { ColdCaseFile },
+	coldCaseReadsByParticipantId: { [string]: { [number]: boolean } },
+	coldCaseCompletedByParticipantId: { [string]: boolean },
+	keyHolderByRoomId: { [string]: string },
+	openedRoomIds: { [string]: boolean },
+	supplyCacheClaimedBy: string?,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -182,6 +210,7 @@ type GameRuntimeServiceState = {
 	counselors: CounselorService.CounselorService,
 	monster: MonsterService.MonsterService,
 	world: WorldService.WorldService,
+	map: ProductionMapService.ProductionMapService,
 	statusEffects: StatusEffectService.StatusEffectService,
 	roleAbilities: RoleAbilityService.RoleAbilityService,
 	voting: VotingService.VotingService,
@@ -237,6 +266,66 @@ local SEARCH_LOCATIONS = {
 	"outskirts-company-house-clue",
 }
 local MONSTER_ORDER: { MonsterId } = require(Shared.Config:WaitForChild("MonsterOrder"))
+
+-- Locked rooms + keys: two night interiors open only for players who found
+-- the matching key at a seeded day-camp hiding spot. Keys are personal and
+-- purely bonus — evidenceGoal never depends on them.
+local LOCKED_ROOM_IDS = { "motel-room-3", "police-evidence-room" }
+local ROOM_DISPLAY_NAMES: { [string]: string } = {
+	["motel-room-3"] = "Motel Room 3",
+	["police-evidence-room"] = "Police Evidence Room",
+}
+local KEY_PICKUP_LINES: { [string]: string } = {
+	["motel-room-3"] = "A brass key stamped MOTEL 3. Hold onto it until dark.",
+	["police-evidence-room"] = "A steel key stamped EVIDENCE. Hold onto it until dark.",
+}
+-- Hiding spot pool: props built by ProductionMapService's day camp.
+local KEY_HIDING_SPOTS: { { id: string, position: Vector3, objectText: string } } = {
+	{
+		id = "pine-mattress",
+		position = Vector3.new(-45.5, 2.9, 20.5),
+		objectText = "Under the bunk mattress",
+	},
+	{
+		id = "lodge-radio-desk",
+		position = Vector3.new(9.5, 3.8, 68.5),
+		objectText = "Behind the camp radio",
+	},
+	{
+		id = "creek-footlocker",
+		position = Vector3.new(62.5, 2.4, 24.5),
+		objectText = "Inside the footlocker",
+	},
+	{
+		id = "boathouse-canoe",
+		position = Vector3.new(74.2, 4.1, 68),
+		objectText = "Tucked in the racked canoe",
+	},
+	{
+		id = "lookout-desk",
+		position = Vector3.new(34, 27.9, -66.2),
+		objectText = "Under the fire watch log",
+	},
+}
+-- Cache behind each locked door: one culprit/witness card plus one combo
+-- ingredient (or a second monster reading) discovered by the opener.
+local LOCKED_ROOM_CACHES: { [string]: { { templateId: string, monster: boolean } } } = {
+	["motel-room-3"] = {
+		{ templateId = "witness-conflict", monster = false },
+		{ templateId = "attack-footprint", monster = false },
+	},
+	["police-evidence-room"] = {
+		{ templateId = "device-reading", monster = true },
+		{ templateId = "monster-trace", monster = true },
+	},
+}
+-- Outskirts supply cache: one seeded crate location per round (east district).
+local SUPPLY_CACHE_SPOTS: { Vector3 } = {
+	Vector3.new(226, 1.3, -262),
+	Vector3.new(160, 1.3, -128),
+	Vector3.new(210, 1.3, -368),
+}
+
 local DEVICE_EVIDENCE: { [EquipmentId]: boolean } = {
 	UVLight = true,
 	LaserProjector = true,
@@ -582,6 +671,26 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				murderPlan.frameParticipantId = destination.participantId
 			end
 		end
+		-- Personal deduction state (room keys, cold case reads, cache claim)
+		-- must follow a control transfer or a rejoining human loses them.
+		for roomId, holderId in runtime.keyHolderByRoomId do
+			if holderId == source.participantId then
+				runtime.keyHolderByRoomId[roomId] = destination.participantId
+			end
+		end
+		local coldCaseReads = runtime.coldCaseReadsByParticipantId[source.participantId]
+		if coldCaseReads then
+			runtime.coldCaseReadsByParticipantId[destination.participantId] =
+				coldCaseReads
+			runtime.coldCaseReadsByParticipantId[source.participantId] = nil
+		end
+		if runtime.coldCaseCompletedByParticipantId[source.participantId] then
+			runtime.coldCaseCompletedByParticipantId[destination.participantId] = true
+			runtime.coldCaseCompletedByParticipantId[source.participantId] = nil
+		end
+		if runtime.supplyCacheClaimedBy == source.participantId then
+			runtime.supplyCacheClaimedBy = destination.participantId
+		end
 		if destination.controller.kind == "Bot" then
 			runtime.computerPlayers:RegisterBot(destination.participantId)
 		end
@@ -729,6 +838,12 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 					sourceCharacter,
 					counselorModel
 				)
+		end,
+		onContradictionSlip = function(participantId: string, counselorId: string)
+			local runtime = runtimeRef
+			if runtime then
+				runtime:_onContradictionSlip(participantId, counselorId)
+			end
 		end,
 	})
 	local mystery = MysteryService.new({
@@ -984,6 +1099,16 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		canoeAlibiPairs = {},
 		verifiedAlibiIds = {},
 		sabotageUsed = false,
+		activeComboRecipes = {},
+		usedComboRecipeIds = {},
+		comboCooldownAt = {},
+		contradictionEvidenceIssued = false,
+		coldCaseFiles = {},
+		coldCaseReadsByParticipantId = {},
+		coldCaseCompletedByParticipantId = {},
+		keyHolderByRoomId = {},
+		openedRoomIds = {},
+		supplyCacheClaimedBy = nil,
 		activeMatchRoundId = nil,
 		connections = {},
 		participants = participants,
@@ -995,6 +1120,7 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		counselors = counselors,
 		monster = monster,
 		world = world,
+		map = mapService,
 		statusEffects = statusEffects,
 		roleAbilities = roleAbilities,
 		voting = voting,
@@ -1006,6 +1132,36 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		profile = profile,
 	}, GameRuntimeService)
 	runtimeRef = self
+	mapService:SetKeyPickupHandler(function(player: Player, keyId: string): boolean
+		local runtime = runtimeRef
+		if not runtime then
+			return false
+		end
+		return runtime:_pickupRoomKey(player, keyId)
+	end)
+	mapService:SetLockedRoomHandler(
+		function(player: Player, roomId: string): (boolean, string?)
+			local runtime = runtimeRef
+			if not runtime then
+				return false, nil
+			end
+			return runtime:_openLockedRoom(player, roomId)
+		end
+	)
+	mapService:SetColdCaseHandler(function(player: Player, fileIndex: number): string?
+		local runtime = runtimeRef
+		if not runtime then
+			return nil
+		end
+		return runtime:_inspectColdCase(player, fileIndex)
+	end)
+	mapService:SetSupplyCacheHandler(function(player: Player): (boolean, string?)
+		local runtime = runtimeRef
+		if not runtime then
+			return false, nil
+		end
+		return runtime:_openSupplyCache(player)
+	end)
 	lifecycle:On("ParticipantGhostTransition", function()
 		local runtime = runtimeRef
 		if runtime and runtime.running then
@@ -1300,6 +1456,433 @@ function GameRuntimeService:_beginMystery(seed: number?)
 		)
 	end
 	self.mysteryReady = true
+	self:_seedDeductionDepth(seed or self.roundId)
+end
+
+-- Seeds the round's combo recipes and cold case files once the mystery is
+-- fixed. Both layers are optional depth: rounds resolve identically if no
+-- player ever touches them.
+function GameRuntimeService:_seedDeductionDepth(seedValue: number)
+	local comboRandom = Random.new(seedValue + self.roundId * 7477 + 1049)
+	local recipePool = table.clone(EvidenceComboRules.recipes)
+	for index = #recipePool, 2, -1 do
+		local swapIndex = comboRandom:NextInteger(1, index)
+		recipePool[index], recipePool[swapIndex] =
+			recipePool[swapIndex], recipePool[index]
+	end
+	self.activeComboRecipes = {}
+	for index = 1, math.min(EvidenceComboRules.recipesPerRound, #recipePool) do
+		table.insert(self.activeComboRecipes, recipePool[index])
+	end
+	self.usedComboRecipeIds = {}
+
+	-- Cold cases come from mystery titles NOT chosen this round; one file is
+	-- the true monster written as an old sighting, one echoes its habits, and
+	-- one profiles the murderer archetype.
+	local plan = self.murderPlan
+	local monsterId: string = if plan then plan.monsterId else "BabyAlien"
+	local currentTitle = if self.mysteryReady
+		then self.mystery:GetPublicSnapshot().title
+		else ""
+	local unusedTitles: { string } = {}
+	for _, title in MysteryCatalog.titles do
+		if title ~= currentTitle then
+			table.insert(unusedTitles, title)
+		end
+	end
+	local caseRandom = Random.new(seedValue + self.roundId * 5407 + 733)
+	for index = #unusedTitles, 2, -1 do
+		local swapIndex = caseRandom:NextInteger(1, index)
+		unusedTitles[index], unusedTitles[swapIndex] =
+			unusedTitles[swapIndex], unusedTitles[index]
+	end
+	local sighting = ColdCaseArchive.monsterSightings[monsterId]
+		or "The file is water-damaged; only the year is still legible."
+	local echo = ColdCaseArchive.monsterEchoes[monsterId]
+		or "The follow-up page is missing from the folder."
+	local pattern = ColdCaseArchive.culpritPatterns[
+		caseRandom:NextInteger(1, #ColdCaseArchive.culpritPatterns)
+	]
+	local files: { ColdCaseFile } = {
+		{ title = unusedTitles[1] or "The Missing File", summary = sighting },
+		{ title = unusedTitles[2] or "The Water-Stained File", summary = echo },
+		{ title = unusedTitles[3] or "The Sealed File", summary = pattern },
+	}
+	for index = #files, 2, -1 do
+		local swapIndex = caseRandom:NextInteger(1, index)
+		files[index], files[swapIndex] = files[swapIndex], files[index]
+	end
+	self.coldCaseFiles = files
+end
+
+-- Two room keys hide at seeded day-camp spots drawn from a fixed prop pool.
+function GameRuntimeService:_spawnRoundKeys()
+	local keyRandom = Random.new(
+		self.world:GetPublicSnapshot().roundSeed + self.roundId * 2657 + 389
+	)
+	local spotPool = table.clone(KEY_HIDING_SPOTS)
+	for index = #spotPool, 2, -1 do
+		local swapIndex = keyRandom:NextInteger(1, index)
+		spotPool[index], spotPool[swapIndex] = spotPool[swapIndex], spotPool[index]
+	end
+	local spots: { ProductionMapService.KeySpot } = {}
+	for index, roomId in LOCKED_ROOM_IDS do
+		local spot = spotPool[index]
+		if spot then
+			table.insert(spots, {
+				keyId = roomId,
+				position = spot.position,
+				objectText = spot.objectText,
+				pickupLine = KEY_PICKUP_LINES[roomId] or "You pocket a small key.",
+			})
+		end
+	end
+	self.map:SpawnDayKeys(spots)
+end
+
+-- Creates an evidence record and immediately posts it to the shared board as
+-- discovered by the given participant. Used by insights, the contradiction
+-- hook, and locked-room caches; never by the baseline search flow.
+function GameRuntimeService:_grantDiscoveredEvidence(
+	participant: ParticipantState,
+	templateId: string,
+	locationId: string,
+	authenticity: EvidenceAuthenticity?,
+	suspectWeights: { [string]: number }?,
+	monsterWeights: { [string]: number }?,
+	descriptionOverride: string?
+): EvidenceRecord?
+	local record = self.evidence:Create(
+		templateId,
+		authenticity,
+		suspectWeights,
+		monsterWeights
+	)
+	if descriptionOverride then
+		record.description = descriptionOverride
+	end
+	local discovered = self.evidence:Discover(
+		participant.participantId,
+		record.evidenceId,
+		locationId,
+		now()
+	)
+	if not discovered then
+		return nil
+	end
+	self.participants:RecordEvidenceKnowledge(participant.participantId, {
+		evidenceId = record.evidenceId,
+		displayName = record.displayName,
+		confidence = 0.65,
+		isShared = true,
+		learnedAt = now(),
+	})
+	self.evidenceByParticipantId[participant.participantId] =
+		(self.evidenceByParticipantId[participant.participantId] or 0) + 1
+	return record
+end
+
+-- Contradiction evidence hook: the first player to press the seeded
+-- counselor into changing their story earns a shared witness card, once per
+-- round, attributed to that counselor.
+function GameRuntimeService:_onContradictionSlip(
+	participantId: string,
+	counselorId: string
+)
+	if self.contradictionEvidenceIssued or self.roundId == 0 then
+		return
+	end
+	local participant = self.participants:GetById(participantId)
+	if not participant or not participant.alive or participant.isGhost then
+		return
+	end
+	local counselorName = counselorId
+	for _, counselor in self.counselors:GetPublicSnapshot().counselors do
+		if counselor.counselorId == counselorId then
+			counselorName = counselor.displayName
+			break
+		end
+	end
+	local record = self:_grantDiscoveredEvidence(
+		participant,
+		"witness-story-change",
+		"counselor-interview",
+		"Ambiguous",
+		nil,
+		nil,
+		string.format(
+			"%s's account of the evening changed under repeat questioning. Their posted schedule disagrees with the first story.",
+			counselorName
+		)
+	)
+	if record then
+		self.contradictionEvidenceIssued = true
+		self:_announce(
+			"Info",
+			"The story changed",
+			string.format(
+				"%s caught %s changing their story. The slip is on the evidence board.",
+				participant.displayName,
+				counselorName
+			),
+			5
+		)
+	end
+end
+
+function GameRuntimeService:_pickupRoomKey(player: Player, keyId: string): boolean
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(player)
+	)
+	if not participant or self.phase ~= "Day" then
+		return false
+	end
+	if self.keyHolderByRoomId[keyId] then
+		return false
+	end
+	self.keyHolderByRoomId[keyId] = participant.participantId
+	return true
+end
+
+function GameRuntimeService:_openLockedRoom(
+	player: Player,
+	roomId: string
+): (boolean, string?)
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(player)
+	)
+	if not participant then
+		return false, nil
+	end
+	if self.phase ~= "Investigation" then
+		return false, "The door does not budge. Come back during the night investigation."
+	end
+	if self.openedRoomIds[roomId] then
+		return false, nil
+	end
+	if self.keyHolderByRoomId[roomId] ~= participant.participantId then
+		return false, "Locked tight. The key was hidden somewhere in camp during the day."
+	end
+	local cacheEntries = LOCKED_ROOM_CACHES[roomId]
+	if not cacheEntries then
+		return false, nil
+	end
+	self.openedRoomIds[roomId] = true
+	local culpritId = self.culpritParticipantId
+	local plan = self.murderPlan
+	local grantedNames: { string } = {}
+	for _, entry in cacheEntries do
+		local suspectWeights: { [string]: number }? = nil
+		local monsterWeights: { [string]: number }? = nil
+		if entry.monster then
+			if plan then
+				monsterWeights = { [plan.monsterId] = 0.6 }
+			end
+		elseif culpritId then
+			suspectWeights = { [culpritId] = 0.55 }
+		end
+		local record = self:_grantDiscoveredEvidence(
+			participant,
+			entry.templateId,
+			roomId,
+			nil,
+			suspectWeights,
+			monsterWeights,
+			nil
+		)
+		if record then
+			table.insert(grantedNames, record.displayName)
+		end
+	end
+	self:_announce(
+		"Success",
+		"A locked room opens",
+		string.format(
+			"%s unlocked the %s and recovered: %s.",
+			participant.displayName,
+			ROOM_DISPLAY_NAMES[roomId] or roomId,
+			table.concat(grantedNames, ", ")
+		),
+		6
+	)
+	self:Broadcast()
+	return true, "The key turns. Fresh evidence goes straight to the board."
+end
+
+function GameRuntimeService:_inspectColdCase(
+	player: Player,
+	fileIndex: number
+): string?
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(player)
+	)
+	if not participant then
+		return nil
+	end
+	if self.phase ~= "Investigation" then
+		return "The cabinet drawer is jammed. It only gives during the night investigation."
+	end
+	local file = self.coldCaseFiles[fileIndex]
+	if not file then
+		return nil
+	end
+	local reads = self.coldCaseReadsByParticipantId[participant.participantId]
+	if not reads then
+		reads = {}
+		self.coldCaseReadsByParticipantId[participant.participantId] = reads
+	end
+	reads[fileIndex] = true
+	local readCount = 0
+	for _ in reads do
+		readCount += 1
+	end
+	if
+		#self.coldCaseFiles > 0
+		and readCount >= #self.coldCaseFiles
+		and not self.coldCaseCompletedByParticipantId[participant.participantId]
+	then
+		self.coldCaseCompletedByParticipantId[participant.participantId] = true
+		self:_announce(
+			"Success",
+			"Cold cases reviewed",
+			participant.displayName
+				.. " studied every cold case. The old files sharpen their instincts.",
+			5
+		)
+	end
+	return string.format("COLD CASE — %s (unsolved)\n%s", file.title, file.summary)
+end
+
+function GameRuntimeService:_openSupplyCache(player: Player): (boolean, string?)
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(player)
+	)
+	if not participant then
+		return false, nil
+	end
+	if self.phase ~= "Investigation" then
+		return false, "The lid will not move yet."
+	end
+	if self.supplyCacheClaimedBy then
+		return false, "Already emptied. Someone got here first."
+	end
+	self.supplyCacheClaimedBy = participant.participantId
+	-- Mirrors the secured-supplies consequence: a FlareLantern granted through
+	-- the standard inventory path.
+	local granted, instanceId = self.inventory:Grant(
+		participant.participantId,
+		"FlareLantern"
+	)
+	if granted and instanceId then
+		self.participants:AddInventoryItem(participant.participantId, instanceId)
+	end
+	self:Broadcast()
+	return true,
+		participant.displayName .. " pried the cache open: one flare lantern, still good."
+end
+
+-- Detective-only combine: two owned evidence cards matching a seeded recipe
+-- become a shared Insight card. Invalid pairs get a gentle cooldown.
+function GameRuntimeService:_combineEvidence(
+	participant: ParticipantState,
+	payload: { [string]: unknown }
+): ActionResult
+	if participant.role ~= "Detective" then
+		return actionRejected("Only the Detective can combine evidence")
+	end
+	if self.phase ~= "Investigation" and self.phase ~= "Campfire" then
+		return actionRejected("Combinations happen at night or at the campfire")
+	end
+	if #self.activeComboRecipes == 0 then
+		return actionRejected("No combinations are possible before the mystery takes shape")
+	end
+	local firstId = getString(payload, "evidenceIdA")
+		or getString(payload, "firstEvidenceId")
+	local secondId = getString(payload, "evidenceIdB")
+		or getString(payload, "secondEvidenceId")
+	if not firstId or not secondId then
+		return actionRejected("Two evidence cards are required")
+	end
+	if firstId == secondId then
+		return actionRejected("Pick two different evidence cards")
+	end
+	local cooldownEndsAt = self.comboCooldownAt[participant.participantId]
+	if cooldownEndsAt and now() < cooldownEndsAt then
+		return actionRejected("Give it a moment before trying another combination")
+	end
+	local firstRecord = self.evidence:GetRecordServer(firstId)
+	local secondRecord = self.evidence:GetRecordServer(secondId)
+	if
+		not firstRecord
+		or not secondRecord
+		or not firstRecord.posted
+		or not secondRecord.posted
+	then
+		return actionRejected("Both cards must be on the evidence board")
+	end
+	local participantId = participant.participantId
+	if
+		not table.find(firstRecord.chainOfCustody, participantId)
+		or not table.find(secondRecord.chainOfCustody, participantId)
+	then
+		return actionRejected("Discover or verify a card before combining it")
+	end
+	local matched: ComboRecipe? = nil
+	for _, recipe in self.activeComboRecipes do
+		if not self.usedComboRecipeIds[recipe.id] then
+			local wantA = recipe.inputTemplateIds[1]
+			local wantB = recipe.inputTemplateIds[2]
+			if
+				(firstRecord.templateId == wantA and secondRecord.templateId == wantB)
+				or (firstRecord.templateId == wantB and secondRecord.templateId == wantA)
+			then
+				matched = recipe
+				break
+			end
+		end
+	end
+	if not matched then
+		self.comboCooldownAt[participantId] = now()
+			+ EvidenceComboRules.invalidComboCooldownSeconds
+		return actionRejected("Those clues do not fit together. Take a breath and look again.")
+	end
+	local suspectWeights: { [string]: number }? = nil
+	local culpritId = self.culpritParticipantId
+	if culpritId then
+		suspectWeights = { [culpritId] = 0.5 }
+	end
+	local insight = self:_grantDiscoveredEvidence(
+		participant,
+		matched.insightTemplateId,
+		"combined-insight",
+		"Real",
+		suspectWeights,
+		nil,
+		nil
+	)
+	if not insight then
+		return actionRejected("The insight could not be recorded")
+	end
+	self.usedComboRecipeIds[matched.id] = true
+	self:_announce(
+		"Success",
+		"Insight uncovered",
+		string.format(
+			"%s connected two clues: %s",
+			participant.displayName,
+			insight.displayName
+		),
+		5
+	)
+	return {
+		accepted = true,
+		reason = nil,
+		state = nil,
+		data = {
+			evidenceId = insight.evidenceId,
+			recipeId = matched.id,
+		},
+	}
 end
 
 function GameRuntimeService:_discoverMysteryAtLocation(
@@ -1397,6 +1980,16 @@ function GameRuntimeService:BeginRound(
 	self.rescueCounselorId = nil
 	self.ghostStateById = {}
 	self.murderScenePositions = {}
+	self.activeComboRecipes = {}
+	self.usedComboRecipeIds = {}
+	self.comboCooldownAt = {}
+	self.contradictionEvidenceIssued = false
+	self.coldCaseFiles = {}
+	self.coldCaseReadsByParticipantId = {}
+	self.coldCaseCompletedByParticipantId = {}
+	self.keyHolderByRoomId = {}
+	self.openedRoomIds = {}
+	self.supplyCacheClaimedBy = nil
 	self.characters:ClearBodyMarkers()
 
 	-- Seeded task pool: derive this round's active stations and the generator
@@ -1525,10 +2118,13 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 			weatherSeed = self.weatherSeed,
 		})
 		self:_announce(weather.dayKind, weather.dayTitle, weather.dayMessage, 6)
+		self:_spawnRoundKeys()
 	elseif phase == "MurderPlanning" then
 		self.world:SetObjectivePromptsEnabled(false)
 		-- A crate still on someone's back at dusk is set down where it stands.
 		self:_resetSupplyCarry()
+		-- Keys are Day-phase pickups only; unfound keys vanish at dusk.
+		self.map:ClearDayKeys()
 		self.monster:BeginPlanning(self.roundId)
 		-- Dusk reinforcement; the Blood Moon gets its dramatic line here.
 		local weather = WeatherConfig.Get(self.weatherId)
@@ -1597,6 +2193,12 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 				end
 			end
 		end
+		local cacheRandom = Random.new(
+			self.world:GetPublicSnapshot().roundSeed + self.roundId * 3671 + 97
+		)
+		self.map:SpawnSupplyCache(
+			SUPPLY_CACHE_SPOTS[cacheRandom:NextInteger(1, #SUPPLY_CACHE_SPOTS)]
+		)
 	elseif phase == "Investigation" then
 		self.world:SpawnEvidence()
 		self.monster:Activate(self.roundId)
@@ -1836,6 +2438,7 @@ function GameRuntimeService:_availableActions(
 		"UseRoleAbility",
 		"UseMonsterAbility",
 		"VerifyEvidence",
+		"CombineEvidence",
 		"AddEvidenceNote",
 		"SetSettings",
 		"BuyUpgrade",
@@ -1910,6 +2513,11 @@ function GameRuntimeService:_availableActions(
 			end
 		elseif name == "VerifyEvidence" then
 			enabled = active and participant ~= nil and participant.role == "Detective"
+		elseif name == "CombineEvidence" then
+			enabled = active
+				and participant ~= nil
+				and participant.role == "Detective"
+				and (self.phase == "Investigation" or self.phase == "Campfire")
 		elseif name == "BuyUpgrade" or name == "UnlockCosmetic" or name == "EquipCosmetic" then
 			enabled = participant ~= nil
 				and (self.phase == "Lobby" or self.phase == "Rewards")
@@ -3300,6 +3908,8 @@ function GameRuntimeService:_handleParticipantAction(
 		local verified, reason =
 			self.evidence:Verify(participant.participantId, evidenceId)
 		return { accepted = verified, reason = reason, state = nil, data = nil }
+	elseif actionName == "CombineEvidence" then
+		return self:_combineEvidence(participant, payload)
 	end
 	return actionRejected("Action is handled by another server domain")
 end
@@ -3840,6 +4450,11 @@ function GameRuntimeService:_ApplyRewards()
 						then self.ghostStateById[participant.participantId].objectivesCompleted
 						else 0,
 					rewardMultiplier = weatherRewardMultiplier,
+					coldCasesReviewed = if self.coldCaseCompletedByParticipantId[
+							participant.participantId
+						]
+						then 1
+						else 0,
 				})
 				if not result.applied and not result.duplicate then
 					warn(string.format(

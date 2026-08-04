@@ -374,9 +374,11 @@ function EvidenceService:GetBoardSnapshot(): EvidenceBoardSnapshot
 	for _, evidenceId in self.order do
 		local record = self.records[evidenceId]
 		if record and record.posted then
-			local destination = if record.channel == "Culprit"
-				then culpritEvidence
-				else monsterEvidence
+			-- Insight cards ride the culprit column; only true Monster-channel
+			-- records land on the monster side of the board.
+			local destination = if record.channel == "Monster"
+				then monsterEvidence
+				else culpritEvidence
 			table.insert(destination, toPublic(record))
 		end
 	end

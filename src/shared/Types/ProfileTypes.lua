@@ -70,6 +70,7 @@ export type RewardInput = {
 	checkIns: number?,
 	sideObjectives: number?,
 	ghostObjectives: number?,
+	coldCasesReviewed: number?,
 	-- Event bonus (e.g. Blood Moon weather); clamped in RewardCalculation.
 	rewardMultiplier: number?,
 }

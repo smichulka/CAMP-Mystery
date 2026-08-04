@@ -28,6 +28,9 @@ export type EvidenceCardEntry = {
 	channel: string?,
 	footer: string?,
 	iconAsset: string?,
+	-- Optional strip/footer tint for unverified cards (Insight cards use an
+	-- amber accent to stand apart from ordinary clues).
+	accentColor: Color3?,
 	layoutOrder: number?,
 }
 
@@ -170,7 +173,7 @@ function Components.EvidenceCard(parent: Instance, entry: EvidenceCardEntry): Fr
 	local stampColor = if status == "Confirmed"
 		then Theme.Notebook.StampConfirmed
 		elseif status == "Contradicted" then Theme.Notebook.StampDenied
-		else Theme.Colors.Gold
+		else entry.accentColor or Theme.Colors.Gold
 	if previousStatus == "Unconfirmed" and status ~= "Unconfirmed" then
 		Components.PlayUISound("stamp")
 	end
