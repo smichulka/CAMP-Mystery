@@ -3922,6 +3922,285 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("if rewardMultiplier > 1 then", reward)
         self.assertIn("xp = math.floor(xp * rewardMultiplier)", reward)
         self.assertIn("campTokens = math.floor(campTokens * rewardMultiplier)", reward)
+    def test_request_0164_station_minigames_replace_single_press_completion(
+        self,
+    ) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        world = source("Services/ProductionMapService.lua")
+
+        # CompleteObjective routes through the minigame dispatcher, not the
+        # direct completion helper
+        self.assertIn("then self:_advanceObjectiveTask(participant, objectiveId)", runtime)
+        advance_start = runtime.index("function GameRuntimeService:_advanceObjectiveTask(")
+        advance_end = runtime.index("function GameRuntimeService:_chopFirewood(", advance_start)
+        advance_fn = runtime[advance_start:advance_end]
+        # Step suffix parsing ("generator#red", "supplies#drop")
+        self.assertIn('string.find(requestedId, "#", 1, true)', advance_fn)
+        # Inactive and completed stations are rejected before any minigame step
+        self.assertIn('"That camp task is closed today"', advance_fn)
+        self.assertIn('"Objective is already complete"', advance_fn)
+
+        # Firewood: 3 chops inside a 0.8-3s server-validated window
+        self.assertIn("local CHOP_GOAL = 3", runtime)
+        self.assertIn("local CHOP_MINIMUM_GAP_SECONDS = 0.8", runtime)
+        self.assertIn("local CHOP_MAXIMUM_GAP_SECONDS = 3", runtime)
+        chop_start = runtime.index("function GameRuntimeService:_chopFirewood(")
+        chop_end = runtime.index("function GameRuntimeService:_connectGeneratorWire(", chop_start)
+        chop_fn = runtime[chop_start:chop_end]
+        self.assertIn("sinceLast < CHOP_MINIMUM_GAP_SECONDS", chop_fn)
+        self.assertIn("sinceLast > CHOP_MAXIMUM_GAP_SECONDS", chop_fn)
+        # Off-rhythm chops reset progress with a friendly message
+        self.assertIn("self.chopCount = 0", chop_fn)
+        self.assertIn('"Too fast! The axe glances off — find a steady rhythm."', chop_fn)
+        # Completion still runs the flag-setting helper (night consequences intact)
+        self.assertIn('self:_completeObjective(participant, "firewood", true)', chop_fn)
+
+        # Generator: seeded wire order, wrong wire resets the panel
+        wire_start = runtime.index("function GameRuntimeService:_connectGeneratorWire(")
+        wire_end = runtime.index("function GameRuntimeService:_resetSupplyCarry(", wire_start)
+        wire_fn = runtime[wire_start:wire_end]
+        self.assertIn("local expectedWireId = self.wireSequence[self.wireProgress + 1]", wire_fn)
+        self.assertIn("self.wireProgress = 0", wire_fn)
+        self.assertIn('"Sparks! Wrong wire — the panel resets."', wire_fn)
+        self.assertIn('self:_completeObjective(participant, "generator", true)', wire_fn)
+
+        # Supplies: server-welded crate; carrier death or crate removal resets
+        pickup_start = runtime.index("function GameRuntimeService:_pickUpSupplyCrate(")
+        pickup_end = runtime.index("function GameRuntimeService:_dropSupplyCrate(", pickup_start)
+        pickup_fn = runtime[pickup_start:pickup_end]
+        self.assertIn('"A crate is already on the move — escort the carrier!"', pickup_fn)
+        self.assertIn('Instance.new("WeldConstraint")', pickup_fn)
+        self.assertIn("weld.Part0 = root", pickup_fn)
+        self.assertIn("humanoid.Died:Connect(", pickup_fn)
+        self.assertIn("crate.AncestryChanged:Connect(", pickup_fn)
+        drop_start = runtime.index("function GameRuntimeService:_dropSupplyCrate(")
+        drop_end = runtime.index("function GameRuntimeService:_completeCanoePair(", drop_start)
+        drop_fn = runtime[drop_start:drop_end]
+        self.assertIn('self:_objectiveChildPart("supplies", "SupplyDropZone")', drop_fn)
+        self.assertIn('self:_completeObjective(participant, "supplies", false)', drop_fn)
+
+        # Bots keep working: the site delay stands in for the human minigame
+        self.assertIn("Bots bypass station minigames", runtime)
+
+        # Prompt triggers have no request/response channel back to the player,
+        # so minigame feedback rides a private notice on the announcement remote
+        self.assertIn("function GameRuntimeService:_noticePlayer(", runtime)
+        self.assertIn("runtime:_noticePlayer(", runtime)
+        bootstrap = source("Bootstrap.server.lua")
+        self.assertIn("onPlayerNotice = function(", bootstrap)
+        self.assertIn("announcement:FireClient(player, {", bootstrap)
+
+        # Map wiring: wire prompts and the drop zone route through onObjective
+        self.assertIn('self.onObjective(player, "generator#" .. wireId)', world)
+        self.assertIn('self.onObjective(player, "supplies#drop")', world)
+        # The generator has no single-press completion prompt
+        self.assertIn('if definition.id ~= "generator" then', world)
+        # Per-station prompt presentation for the chop and carry stations
+        self.assertIn('firewood = { action = "Chop", hold = 0.35 }', world)
+        self.assertIn('supplies = { action = "Pick Up Crate", hold = 0.8 }', world)
+        # Billboard progress feedback replicates via the marker label
+        self.assertIn("function ProductionMapService:SetObjectiveProgress(", world)
+        self.assertIn('self.world:SetObjectiveProgress(', runtime)
+
+    def test_request_0165_seeded_task_pool_activates_four_of_seven_stations(
+        self,
+    ) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        world = source("Services/ProductionMapService.lua")
+        world_service = source("Services/WorldService.lua")
+
+        # All seven stations are known objectives; the pool excludes ropes
+        self.assertIn(
+            '{ "firewood", "generator", "supplies", "ropes", "waterpump", "trailclear", "canoe" }',
+            runtime,
+        )
+        self.assertIn(
+            '{ "firewood", "generator", "supplies", "waterpump", "trailclear", "canoe" }',
+            runtime,
+        )
+        self.assertIn("local TASK_POOL_ACTIVE_COUNT = 3", runtime)
+
+        # BeginRound derives the pool selection and wire order from the world
+        # round seed (reproducible), with ropes always active
+        begin_start = runtime.index("function GameRuntimeService:BeginRound(")
+        begin_end = runtime.index("function GameRuntimeService:EnterPhase(", begin_start)
+        begin_block = runtime[begin_start:begin_end]
+        self.assertIn("local roundSeed = self.world:GetPublicSnapshot().roundSeed", begin_block)
+        self.assertIn("Random.new(roundSeed + TASK_POOL_SALT)", begin_block)
+        self.assertIn("{ ropes = true }", begin_block)
+        self.assertIn("self.world:SetActiveObjectives(activeObjectives)", begin_block)
+        # Per-round minigame and sabotage state resets
+        self.assertIn("self.wireSequence = {}", begin_block)
+        self.assertIn("self:_resetSupplyCarry()", begin_block)
+        self.assertIn("self.canoeAlibiPairs = {}", begin_block)
+        self.assertIn("self.sabotageUsed = false", begin_block)
+
+        # _completeObjective rejects inactive stations, so night-consequence
+        # flags simply stay in their "not done" state for closed stations
+        complete_start = runtime.index("function GameRuntimeService:_completeObjective(")
+        complete_end = runtime.index("function GameRuntimeService:_objectiveChildPart(", complete_start)
+        complete_fn = runtime[complete_start:complete_end]
+        self.assertIn("if not self.activeObjectiveIds[objectiveId] then", complete_fn)
+        self.assertIn('"That camp task is closed today"', complete_fn)
+        self.assertIn("self.world:MarkObjectiveComplete(objectiveId)", complete_fn)
+
+        # Bots only queue active stations and still skip the ropes obby
+        bot_start = runtime.index("function GameRuntimeService:_GetBotActions(")
+        bot_end = runtime.index("function GameRuntimeService:_ExecuteBotAction(", bot_start)
+        bot_block = runtime[bot_start:bot_end]
+        self.assertIn('objectiveId ~= "ropes"', bot_block)
+        self.assertIn("self.activeObjectiveIds[objectiveId] == true", bot_block)
+
+        # New stations exist in the map with cheap geometry
+        for token in ('id = "waterpump"', 'id = "trailclear"', 'id = "canoe"'):
+            self.assertIn(token, world)
+        # Inactive stations hide prompts and billboards but keep geometry
+        set_active_start = world.index("function ProductionMapService:SetActiveObjectives(")
+        set_active_end = world.index("function ProductionMapService:SetObjectiveProgress(", set_active_start)
+        set_active_fn = world[set_active_start:set_active_end]
+        self.assertIn('descendant.Name == "ObjectiveMarker"', set_active_fn)
+        self.assertIn('descendant.Name == "DropZoneMarker"', set_active_fn)
+        self.assertIn("descendant.Enabled = active", set_active_fn)
+        # Pre-round default keeps every station live (empty pool map)
+        self.assertIn("if next(self.activeObjectiveIds) == nil then", world)
+        # Prompt toggling respects the active pool
+        prompts_start = world.index("function ProductionMapService:SetObjectivePromptsEnabled(")
+        prompts_end = world.index("function ProductionMapService:SetActiveObjectives(", prompts_start)
+        prompts_fn = world[prompts_start:prompts_end]
+        self.assertIn("descendant.Enabled = enabled and active", prompts_fn)
+
+        # WorldService pass-throughs are optional so legacy fallbacks keep working
+        self.assertIn("SetActiveObjectives: ((self: any, activeIds: { [string]: boolean }) -> ())?", world_service)
+        self.assertIn("local setActive = self.fallback.SetActiveObjectives", world_service)
+        self.assertIn("local setProgress = self.fallback.SetObjectiveProgress", world_service)
+        self.assertIn("local markIncomplete = self.fallback.MarkObjectiveIncomplete", world_service)
+        self.assertIn("local spawnTamper = self.fallback.SpawnTamperEvidence", world_service)
+
+    def test_request_0166_canoe_two_person_alibi_pairing_and_campfire_surfacing(
+        self,
+    ) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+
+        self.assertIn("local CANOE_PAIR_WINDOW_SECONDS = 3", runtime)
+
+        # Human lift: solo rounds (one living human, even with bot fill)
+        # downgrade to a single press; a second participant inside the window
+        # completes the pair
+        lift_start = runtime.index("function GameRuntimeService:_liftCanoe(")
+        lift_end = runtime.index("function GameRuntimeService:_botCanoePress(", lift_start)
+        lift_fn = runtime[lift_start:lift_end]
+        self.assertIn(
+            "if self:_livingHumanCount() <= 1 or self:_livingParticipantCount() < 2 then",
+            lift_fn,
+        )
+        self.assertIn('self:_completeObjective(participant, "canoe", true)', lift_fn)
+        self.assertIn("at - self.canoeFirstPressAt <= CANOE_PAIR_WINDOW_SECONDS", lift_fn)
+        self.assertIn("self:_completeCanoePair(firstId, participant)", lift_fn)
+        self.assertIn('"You need a second pair of hands — call a buddy over!"', lift_fn)
+
+        # Pair completion records the verified-alibi flags and the named pair
+        pair_start = runtime.index("function GameRuntimeService:_completeCanoePair(")
+        pair_end = runtime.index("function GameRuntimeService:_liftCanoe(", pair_start)
+        pair_fn = runtime[pair_start:pair_end]
+        self.assertIn("self.verifiedAlibiIds[firstParticipantId] = true", pair_fn)
+        self.assertIn("self.verifiedAlibiIds[second.participantId] = true", pair_fn)
+        self.assertIn("table.insert(self.canoeAlibiPairs, {", pair_fn)
+        self.assertIn('"%s and %s worked the canoe together."', pair_fn)
+
+        # Campfire surfaces every recorded alibi in the vote context
+        campfire_pos = runtime.index('elseif phase == "Campfire" then')
+        resolution_pos = runtime.index('elseif phase == "Resolution" then', campfire_pos)
+        campfire_block = runtime[campfire_pos:resolution_pos]
+        self.assertIn("for _, alibiPair in self.canoeAlibiPairs do", campfire_block)
+        self.assertIn('"Verified alibi"', campfire_block)
+        self.assertIn('"%s and %s worked the canoe together during the day."', campfire_block)
+
+        # Bots pair with anyone standing nearby and otherwise wait holding an end
+        bot_start = runtime.index("function GameRuntimeService:_botCanoePress(")
+        bot_end = runtime.index("function GameRuntimeService:_sabotageObjective(", bot_start)
+        bot_fn = runtime[bot_start:bot_end]
+        self.assertIn("CANOE_BOT_PAIR_RANGE_STUDS", bot_fn)
+        self.assertIn("self:_completeCanoePair(firstId, participant).accepted", bot_fn)
+        self.assertIn("No partner yet", bot_fn)
+        # The bot executor routes the canoe through pairing, not direct completion
+        execute_start = runtime.index("function GameRuntimeService:_ExecuteBotAction(")
+        execute_end = runtime.index("function GameRuntimeService:_waitUntilPhaseEnds(", execute_start)
+        execute_block = runtime[execute_start:execute_end]
+        self.assertIn('if objectiveId == "canoe" then', execute_block)
+        self.assertIn("self:_botCanoePress(participant)", execute_block)
+
+    def test_request_0167_murderer_sabotage_once_unseen_revert_and_tamper_prop(
+        self,
+    ) -> None:
+        runtime = source("Services/GameRuntimeService.lua")
+        world = source("Services/ProductionMapService.lua")
+        types = (ROOT / "src" / "shared" / "Types" / "RuntimeTypes.lua").read_text(
+            encoding="utf-8"
+        )
+        view = (ROOT / "src" / "client" / "UI" / "GameView.lua").read_text(
+            encoding="utf-8"
+        )
+        bridge = (
+            ROOT / "src" / "client" / "Controllers" / "RemoteBridge.lua"
+        ).read_text(encoding="utf-8")
+
+        # Declared action with a server dispatch branch
+        self.assertIn('| "Sabotage"', types)
+        self.assertIn('elseif actionName == "Sabotage" then', runtime)
+        self.assertIn("return self:_sabotageObjective(participant, payload)", runtime)
+
+        # Availability: Murderer-only, Day/MurderPlanning, once per round
+        avail_start = runtime.index("function GameRuntimeService:_availableActions(")
+        avail_end = runtime.index("function GameRuntimeService:", avail_start + 1)
+        avail_block = runtime[avail_start:avail_end]
+        sabotage_gate_start = avail_block.index('name == "Sabotage"')
+        sabotage_gate_end = avail_block.index('name == "Vote"', sabotage_gate_start)
+        sabotage_gate = avail_block[sabotage_gate_start:sabotage_gate_end]
+        self.assertIn('participant.role == "Murderer"', sabotage_gate)
+        self.assertIn('self.phase == "Day" or self.phase == "MurderPlanning"', sabotage_gate)
+        self.assertIn("not self.sabotageUsed", sabotage_gate)
+
+        # Server validation: role, one-shot, station proximity, and a
+        # 25-stud living-witness sweep before anything reverts
+        self.assertIn("local SABOTAGE_CLEAR_RADIUS_STUDS = 25", runtime)
+        sab_start = runtime.index("function GameRuntimeService:_sabotageObjective(")
+        sab_end = runtime.index("function GameRuntimeService:_discoverEvidence(", sab_start)
+        sab_fn = runtime[sab_start:sab_end]
+        self.assertIn('"Only the Murderer can sabotage camp work"', sab_fn)
+        self.assertIn("if self.sabotageUsed then", sab_fn)
+        self.assertIn("SABOTAGE_STATION_RANGE_STUDS", sab_fn)
+        self.assertIn("SABOTAGE_CLEAR_RADIUS_STUDS", sab_fn)
+        self.assertIn('"Someone is too close — you would be seen"', sab_fn)
+        # Revert: completion cleared, completer credit removed, flags recompute
+        # at NightTransform from completedObjectives
+        self.assertIn("self.completedObjectives[objectiveId] = nil", sab_fn)
+        self.assertIn("self.objectivesByParticipantId[ownerId] = ownerCount - 1", sab_fn)
+        self.assertIn("self.sabotageUsed = true", sab_fn)
+        self.assertIn("self.world:MarkObjectiveIncomplete(objectiveId)", sab_fn)
+        self.assertIn("self.world:SpawnTamperEvidence(objectiveId)", sab_fn)
+
+        # Map: the tamper prop is inspectable, phrased for kids, and cleaned up
+        tamper_start = world.index("function ProductionMapService:SpawnTamperEvidence(")
+        tamper_end = world.index("function ProductionMapService:ResetObjectives(", tamper_start)
+        tamper_fn = world[tamper_start:tamper_end]
+        self.assertIn('"TamperEvidence"', tamper_fn)
+        self.assertIn('"The repair has been undone. Deliberately."', tamper_fn)
+        # Tamper inspect prompts survive the day-objective prompt toggles
+        self.assertIn("local function isTamperPrompt(", world)
+        reset_start = world.index("function ProductionMapService:ResetObjectives(")
+        reset_fn = world[reset_start:]
+        self.assertIn('station:FindFirstChild("TamperEvidence", true)', reset_fn)
+        # MarkObjectiveIncomplete restores the station visuals for a redo
+        incomplete_start = world.index("function ProductionMapService:MarkObjectiveIncomplete(")
+        incomplete_end = world.index("function ProductionMapService:SpawnTamperEvidence(", incomplete_start)
+        incomplete_fn = world[incomplete_start:incomplete_end]
+        self.assertIn('root:GetAttribute("OriginalColor")', incomplete_fn)
+        self.assertIn('label:GetAttribute("OriginalText")', incomplete_fn)
+
+        # Client surfacing follows the existing role-action patterns
+        self.assertIn('"SABOTAGE A REPAIR"', view)
+        self.assertIn('self:_send("Sabotage", {})', view)
+        self.assertIn('Sabotage = { "RoleAction", "RequestRoleAction" },', bridge)
 
 
 if __name__ == "__main__":

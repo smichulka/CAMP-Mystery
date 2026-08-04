@@ -35,6 +35,12 @@ export type GrayboxFallback = {
 	-- doubles) remain valid without stubbing them.
 	SetSideObjectivePromptsEnabled: ((self: any, enabled: boolean) -> ())?,
 	GetSideObjectivePosition: ((self: any, sideObjectiveId: string) -> Vector3?)?,
+	-- Optional seeded-task-pool extensions; fallbacks without them keep the
+	-- legacy always-on station behavior.
+	SetActiveObjectives: ((self: any, activeIds: { [string]: boolean }) -> ())?,
+	SetObjectiveProgress: ((self: any, objectiveId: string, text: string) -> ())?,
+	MarkObjectiveIncomplete: ((self: any, objectiveId: string) -> ())?,
+	SpawnTamperEvidence: ((self: any, objectiveId: string) -> ())?,
 }
 
 export type Callbacks = {
@@ -198,6 +204,37 @@ function WorldService:GetSideObjectivePosition(sideObjectiveId: string): Vector3
 		return forward(self.fallback, sideObjectiveId)
 	end
 	return nil
+end
+
+function WorldService:SetActiveObjectives(activeIds: { [string]: boolean })
+	local setActive = self.fallback.SetActiveObjectives
+	if setActive then
+		setActive(self.fallback, activeIds)
+	end
+end
+
+function WorldService:SetObjectiveProgress(objectiveId: string, text: string)
+	assert(objectiveId ~= "", "objectiveId must not be empty")
+	local setProgress = self.fallback.SetObjectiveProgress
+	if setProgress then
+		setProgress(self.fallback, objectiveId, text)
+	end
+end
+
+function WorldService:MarkObjectiveIncomplete(objectiveId: string)
+	assert(objectiveId ~= "", "objectiveId must not be empty")
+	local markIncomplete = self.fallback.MarkObjectiveIncomplete
+	if markIncomplete then
+		markIncomplete(self.fallback, objectiveId)
+	end
+end
+
+function WorldService:SpawnTamperEvidence(objectiveId: string)
+	assert(objectiveId ~= "", "objectiveId must not be empty")
+	local spawnTamper = self.fallback.SpawnTamperEvidence
+	if spawnTamper then
+		spawnTamper(self.fallback, objectiveId)
+	end
 end
 
 function WorldService:_stableState(isNight: boolean): TransitionState

@@ -58,6 +58,7 @@ local ACTION_REMOTES: { [string]: { string } } = {
 	VerifyEvidence = { "EvidenceAction", "RequestEvidenceAction" },
 	AddEvidenceNote = { "EvidenceAction", "RequestEvidenceAction" },
 	UseRoleAbility = { "RoleAction", "RequestRoleAction" },
+	Sabotage = { "RoleAction", "RequestRoleAction" },
 	UseMonsterAbility = { "MonsterAction", "ActivateMonsterAbility" },
 	SetSettings = { "UpdateSettings", "ProfileAction" },
 	CompleteObjective = { "InteractionAction", "RequestInteraction" },

@@ -74,6 +74,15 @@ export type RuntimeOptions = {
 		message: string,
 		duration: number?
 	) -> ())?,
+	-- Private toast for a single player; used for station-minigame feedback
+	-- where the action came from a world prompt rather than a UI request.
+	onPlayerNotice: ((
+		player: Player,
+		kind: string,
+		title: string,
+		message: string,
+		duration: number?
+	) -> ())?,
 }
 
 type MurderPlan = {
@@ -149,6 +158,19 @@ type GameRuntimeServiceState = {
 	rescueCounselorId: string?,
 	ghostStateById: { [string]: GhostRuntimeState },
 	murderScenePositions: { Vector3 },
+	activeObjectiveIds: { [string]: boolean },
+	chopCount: number,
+	chopLastAt: number,
+	wireSequence: { string },
+	wireProgress: number,
+	supplyCarrierId: string?,
+	supplyCrate: BasePart?,
+	supplyCarryConnections: { RBXScriptConnection },
+	canoeFirstPressId: string?,
+	canoeFirstPressAt: number,
+	canoeAlibiPairs: { { firstName: string, secondName: string } },
+	verifiedAlibiIds: { [string]: boolean },
+	sabotageUsed: boolean,
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -178,7 +200,27 @@ export type GameRuntimeService = typeof(
 	setmetatable({} :: GameRuntimeServiceState, GameRuntimeService)
 )
 
-local OBJECTIVE_IDS = { "firewood", "generator", "supplies", "ropes" }
+local OBJECTIVE_IDS =
+	{ "firewood", "generator", "supplies", "ropes", "waterpump", "trailclear", "canoe" }
+-- Seeded task pool: ropes is always active; TASK_POOL_ACTIVE_COUNT stations
+-- join it from this pool each round (derived from the world round seed), so
+-- four stations are live against an objectiveGoal of three.
+local TASK_POOL_IDS =
+	{ "firewood", "generator", "supplies", "waterpump", "trailclear", "canoe" }
+local TASK_POOL_ACTIVE_COUNT = 3
+local TASK_POOL_SALT = 104_729
+-- Firewood timing chops: successive prompt triggers must land inside this
+-- window or the stack progress resets.
+local CHOP_GOAL = 3
+local CHOP_MINIMUM_GAP_SECONDS = 0.8
+local CHOP_MAXIMUM_GAP_SECONDS = 3
+local WIRE_IDS = { "red", "blue", "yellow" }
+-- Canoe carry: two different campers must trigger the lift within this window.
+local CANOE_PAIR_WINDOW_SECONDS = 3
+local CANOE_BOT_PAIR_RANGE_STUDS = 12
+-- Sabotage: the Murderer must be at the station and unobserved.
+local SABOTAGE_STATION_RANGE_STUDS = 14
+local SABOTAGE_CLEAR_RADIUS_STUDS = 25
 -- Uniquely identifies this server instance in reward receipts (JobId is ""
 -- in Studio, where a timestamp keeps separate sessions distinct). Truncated
 -- so receiptIds stay within the profile identifier length limit.
@@ -601,10 +643,24 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 	local mapService = ProductionMapService.new(
 		function(player: Player, objectiveId: string)
 			local runtime = runtimeRef
-			if runtime then
-				runtime:HandleAction(player, "CompleteObjective", {
-					objectiveId = objectiveId,
-				})
+			if not runtime then
+				return
+			end
+			local result = runtime:HandleAction(player, "CompleteObjective", {
+				objectiveId = objectiveId,
+			})
+			-- Prompt triggers have no request/response channel back to the
+			-- player, so minigame progress and reset messages ride a private
+			-- notice instead of the global announcement feed.
+			local reason = result.reason
+			if reason and reason ~= "" then
+				runtime:_noticePlayer(
+					player,
+					if result.accepted then "Info" else "Warning",
+					if result.accepted then "Camp task" else "Try again",
+					reason,
+					3
+				)
 			end
 		end,
 		function(player: Player, evidenceId: string): boolean
@@ -915,6 +971,19 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		rescueCounselorId = nil,
 		ghostStateById = {},
 		murderScenePositions = {},
+		activeObjectiveIds = {},
+		chopCount = 0,
+		chopLastAt = 0,
+		wireSequence = {},
+		wireProgress = 0,
+		supplyCarrierId = nil,
+		supplyCrate = nil,
+		supplyCarryConnections = {},
+		canoeFirstPressId = nil,
+		canoeFirstPressAt = 0,
+		canoeAlibiPairs = {},
+		verifiedAlibiIds = {},
+		sabotageUsed = false,
 		activeMatchRoundId = nil,
 		connections = {},
 		participants = participants,
@@ -1006,6 +1075,19 @@ function GameRuntimeService:_announce(
 	local callback = self.options.onAnnouncement
 	if callback then
 		callback(kind, title, message, duration)
+	end
+end
+
+function GameRuntimeService:_noticePlayer(
+	player: Player,
+	kind: string,
+	title: string,
+	message: string,
+	duration: number?
+)
+	local callback = self.options.onPlayerNotice
+	if callback then
+		callback(player, kind, title, message, duration)
 	end
 end
 
@@ -1317,6 +1399,36 @@ function GameRuntimeService:BeginRound(
 	self.murderScenePositions = {}
 	self.characters:ClearBodyMarkers()
 
+	-- Seeded task pool: derive this round's active stations and the generator
+	-- wire order from the world round seed so they are reproducible per round.
+	local roundSeed = self.world:GetPublicSnapshot().roundSeed
+	local poolRandom = Random.new(roundSeed + TASK_POOL_SALT)
+	local pool = table.clone(TASK_POOL_IDS)
+	local activeObjectives: { [string]: boolean } = { ropes = true }
+	for _ = 1, math.min(TASK_POOL_ACTIVE_COUNT, #pool) do
+		local pickIndex = poolRandom:NextInteger(1, #pool)
+		activeObjectives[pool[pickIndex]] = true
+		table.remove(pool, pickIndex)
+	end
+	self.activeObjectiveIds = activeObjectives
+	self.world:SetActiveObjectives(activeObjectives)
+	local wirePool = table.clone(WIRE_IDS)
+	self.wireSequence = {}
+	while #wirePool > 0 do
+		local wireIndex = poolRandom:NextInteger(1, #wirePool)
+		table.insert(self.wireSequence, wirePool[wireIndex])
+		table.remove(wirePool, wireIndex)
+	end
+	self.wireProgress = 0
+	self.chopCount = 0
+	self.chopLastAt = 0
+	self:_resetSupplyCarry()
+	self.canoeFirstPressId = nil
+	self.canoeFirstPressAt = 0
+	self.canoeAlibiPairs = {}
+	self.verifiedAlibiIds = {}
+	self.sabotageUsed = false
+
 	for _, participantId in selectedIds do
 		self.inventory:RegisterParticipant(participantId)
 		local participant = self.participants:GetById(participantId)
@@ -1415,6 +1527,8 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self:_announce(weather.dayKind, weather.dayTitle, weather.dayMessage, 6)
 	elseif phase == "MurderPlanning" then
 		self.world:SetObjectivePromptsEnabled(false)
+		-- A crate still on someone's back at dusk is set down where it stands.
+		self:_resetSupplyCarry()
 		self.monster:BeginPlanning(self.roundId)
 		-- Dusk reinforcement; the Blood Moon gets its dramatic line here.
 		local weather = WeatherConfig.Get(self.weatherId)
@@ -1537,6 +1651,19 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.characters:ClearBodyMarkers()
 		-- Draw bots toward the campfire for the vote so they look like participants
 		self.characters:GatherBotsAt(Vector3.new(0, 3, 7), 4)
+		-- Canoe-carry alibis surface here so the vote can weigh them.
+		for _, alibiPair in self.canoeAlibiPairs do
+			self:_announce(
+				"Info",
+				"Verified alibi",
+				string.format(
+					"%s and %s worked the canoe together during the day.",
+					alibiPair.firstName,
+					alibiPair.secondName
+				),
+				6
+			)
+		end
 		self.campfireStage = "Discussion"
 		local discussionSeconds = campfireDiscussionSeconds()
 		self.votingOpensAt = self.phaseStartedAt + discussionSeconds
@@ -1701,6 +1828,7 @@ function GameRuntimeService:_availableActions(
 		"Vote",
 		"PresentEvidence",
 		"BuddyCheckIn",
+		"Sabotage",
 		"EquipItem",
 		"UseItem",
 		"DropItem",
@@ -1738,6 +1866,14 @@ function GameRuntimeService:_availableActions(
 				)
 		elseif name == "BuddyCheckIn" then
 			enabled = active and self.phase == "MurderPlanning"
+		elseif name == "Sabotage" then
+			-- Hidden Murderer tool: shows enabled only on the Murderer's own
+			-- client, once per round, while daylight work can still be undone.
+			enabled = active
+				and (self.phase == "Day" or self.phase == "MurderPlanning")
+				and participant ~= nil
+				and participant.role == "Murderer"
+				and not self.sabotageUsed
 		elseif name == "Vote" then
 			enabled = active
 				and self.phase == "Campfire"
@@ -1973,6 +2109,9 @@ function GameRuntimeService:_completeObjective(
 	if not table.find(OBJECTIVE_IDS, objectiveId) then
 		return actionRejected("Unknown objective")
 	end
+	if not self.activeObjectiveIds[objectiveId] then
+		return actionRejected("That camp task is closed today")
+	end
 	if
 		enforceSpatial ~= false
 		and not self:_isNearPart(participant, self:_objectivePart(objectiveId), 14)
@@ -1983,12 +2122,461 @@ function GameRuntimeService:_completeObjective(
 	self.objectivesByParticipantId[participant.participantId] =
 		(self.objectivesByParticipantId[participant.participantId] or 0) + 1
 	self.world:MarkObjectiveComplete(objectiveId)
+	if objectiveId == "supplies" then
+		-- A bot finishing the pile while a human carries a crate would strand
+		-- the welded prop; completion always clears the carry state.
+		self:_resetSupplyCarry()
+	end
 	if self:_objectiveCount() >= RoundConfig.objectiveGoal then
 		self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 1)
 	end
 	return {
 		accepted = true,
 		reason = nil,
+		state = nil,
+		data = { objectiveId = objectiveId },
+	}
+end
+
+local function taskProgressAccepted(objectiveId: string, reason: string): ActionResult
+	return {
+		accepted = true,
+		reason = reason,
+		state = nil,
+		data = { objectiveId = objectiveId, taskProgress = true },
+	}
+end
+
+function GameRuntimeService:_objectiveChildPart(
+	objectiveId: string,
+	childName: string
+): Instance?
+	local station = self:_objectivePart(objectiveId)
+	local model = if station then station.Parent else nil
+	if model and model:IsA("Model") then
+		return model:FindFirstChild(childName, true)
+	end
+	return nil
+end
+
+function GameRuntimeService:_livingParticipantCount(): number
+	local count = 0
+	for _, participant in self.participants:GetAll() do
+		if
+			participant.alive
+			and not participant.isGhost
+			and participant.role ~= "Spectator"
+		then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Routes station prompt triggers into their server-validated minigames. The
+-- requested id may carry a step suffix ("generator#red", "supplies#drop").
+function GameRuntimeService:_advanceObjectiveTask(
+	participant: ParticipantState,
+	requestedId: string
+): ActionResult
+	if self.phase ~= "Day" then
+		return actionRejected("Objectives are only active during the day")
+	end
+	local objectiveId = requestedId
+	local stepId: string? = nil
+	local separator = string.find(requestedId, "#", 1, true)
+	if separator then
+		objectiveId = string.sub(requestedId, 1, separator - 1)
+		stepId = string.sub(requestedId, separator + 1)
+	end
+	if not table.find(OBJECTIVE_IDS, objectiveId) then
+		return actionRejected("Unknown objective")
+	end
+	if not self.activeObjectiveIds[objectiveId] then
+		return actionRejected("That camp task is closed today")
+	end
+	if self.completedObjectives[objectiveId] then
+		return actionRejected("Objective is already complete")
+	end
+	if objectiveId == "firewood" then
+		return self:_chopFirewood(participant)
+	elseif objectiveId == "generator" then
+		return self:_connectGeneratorWire(participant, stepId)
+	elseif objectiveId == "supplies" then
+		return if stepId == "drop"
+			then self:_dropSupplyCrate(participant)
+			else self:_pickUpSupplyCrate(participant)
+	elseif objectiveId == "canoe" then
+		return self:_liftCanoe(participant)
+	end
+	return self:_completeObjective(participant, objectiveId, true)
+end
+
+-- Firewood timing chops: three triggers, each inside the server-validated
+-- rhythm window. Off-rhythm chops reset progress with a friendly message.
+function GameRuntimeService:_chopFirewood(participant: ParticipantState): ActionResult
+	if not self:_isNearPart(participant, self:_objectivePart("firewood"), 14) then
+		return actionRejected("Move closer to the objective")
+	end
+	local at = now()
+	local sinceLast = at - self.chopLastAt
+	if self.chopCount > 0 and sinceLast < CHOP_MINIMUM_GAP_SECONDS then
+		self.chopCount = 0
+		self.chopLastAt = at
+		self.world:SetObjectiveProgress("firewood", "")
+		return actionRejected("Too fast! The axe glances off — find a steady rhythm.")
+	end
+	if self.chopCount > 0 and sinceLast > CHOP_MAXIMUM_GAP_SECONDS then
+		self.chopCount = 1
+		self.chopLastAt = at
+		self.world:SetObjectiveProgress("firewood", "CHOP 1/3 — KEEP A STEADY RHYTHM")
+		return taskProgressAccepted(
+			"firewood",
+			"The stack settled — chop 1 of 3, keep the rhythm going."
+		)
+	end
+	self.chopCount += 1
+	self.chopLastAt = at
+	if self.chopCount >= CHOP_GOAL then
+		self.chopCount = 0
+		return self:_completeObjective(participant, "firewood", true)
+	end
+	self.world:SetObjectiveProgress(
+		"firewood",
+		string.format("CHOP %d/%d — KEEP A STEADY RHYTHM", self.chopCount, CHOP_GOAL)
+	)
+	return taskProgressAccepted(
+		"firewood",
+		string.format("Chop %d of %d — keep the rhythm.", self.chopCount, CHOP_GOAL)
+	)
+end
+
+-- Generator wire sequence: the three colored wires must be connected in the
+-- seeded round order; a wrong wire resets the panel.
+function GameRuntimeService:_connectGeneratorWire(
+	participant: ParticipantState,
+	wireId: string?
+): ActionResult
+	if not wireId or not table.find(WIRE_IDS, wireId) then
+		return actionRejected("Connect the colored wires in order to fix the generator")
+	end
+	if not self:_isNearPart(participant, self:_objectivePart("generator"), 14) then
+		return actionRejected("Move closer to the objective")
+	end
+	local expectedWireId = self.wireSequence[self.wireProgress + 1]
+	if wireId ~= expectedWireId then
+		self.wireProgress = 0
+		self.world:SetObjectiveProgress("generator", "")
+		return actionRejected("Sparks! Wrong wire — the panel resets.")
+	end
+	self.wireProgress += 1
+	if self.wireProgress >= #self.wireSequence then
+		self.wireProgress = 0
+		return self:_completeObjective(participant, "generator", true)
+	end
+	self.world:SetObjectiveProgress(
+		"generator",
+		string.format("WIRES %d/%d CONNECTED", self.wireProgress, #self.wireSequence)
+	)
+	return taskProgressAccepted(
+		"generator",
+		string.format("Wire connected — %d of %d.", self.wireProgress, #self.wireSequence)
+	)
+end
+
+function GameRuntimeService:_resetSupplyCarry()
+	for _, connection in self.supplyCarryConnections do
+		connection:Disconnect()
+	end
+	table.clear(self.supplyCarryConnections)
+	local crate = self.supplyCrate
+	self.supplyCrate = nil
+	if crate then
+		crate:Destroy()
+	end
+	if self.supplyCarrierId then
+		self.supplyCarrierId = nil
+		if not self.completedObjectives.supplies then
+			self.world:SetObjectiveProgress("supplies", "")
+		end
+	end
+end
+
+-- Supply carry: the crate is a server-welded prop; if the carrier dies or
+-- leaves, the crate resets to the pile.
+function GameRuntimeService:_pickUpSupplyCrate(
+	participant: ParticipantState
+): ActionResult
+	if not self:_isNearPart(participant, self:_objectivePart("supplies"), 14) then
+		return actionRejected("Move closer to the objective")
+	end
+	if self.supplyCarrierId then
+		return actionRejected("A crate is already on the move — escort the carrier!")
+	end
+	local player = findPlayerForParticipant(participant)
+	local character = if player then player.Character else nil
+	local root = if character
+		then character:FindFirstChild("HumanoidRootPart")
+		else nil
+	if not character or not root or not root:IsA("BasePart") then
+		return actionRejected("You need steady footing to lift the crate")
+	end
+	local crate = Instance.new("Part")
+	crate.Name = "CarriedSupplyCrate"
+	crate.Size = Vector3.new(2.4, 2.4, 2.4)
+	crate.Color = Color3.fromRGB(105, 78, 48)
+	crate.Material = Enum.Material.WoodPlanks
+	crate.CanCollide = false
+	crate.Massless = true
+	crate.CFrame = root.CFrame * CFrame.new(0, 3.4, 0)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = crate
+	weld.Parent = crate
+	crate.Parent = character
+	self.supplyCarrierId = participant.participantId
+	self.supplyCrate = crate
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		table.insert(self.supplyCarryConnections, humanoid.Died:Connect(function()
+			self:_resetSupplyCarry()
+		end))
+	end
+	table.insert(
+		self.supplyCarryConnections,
+		crate.AncestryChanged:Connect(function(_, parent: Instance?)
+			if parent == nil and self.supplyCrate == crate then
+				self:_resetSupplyCarry()
+			end
+		end)
+	)
+	self.world:SetObjectiveProgress(
+		"supplies",
+		"CRATE ON THE MOVE — CARRY IT TO THE CAMPFIRE DROP"
+	)
+	return taskProgressAccepted(
+		"supplies",
+		"Crate lifted! Walk it to the drop zone by the campfire."
+	)
+end
+
+function GameRuntimeService:_dropSupplyCrate(participant: ParticipantState): ActionResult
+	if self.supplyCarrierId ~= participant.participantId then
+		return actionRejected("Pick up a crate at the supply pile first")
+	end
+	local dropZone = self:_objectiveChildPart("supplies", "SupplyDropZone")
+	if not self:_isNearPart(participant, dropZone, 14) then
+		return actionRejected("Carry the crate to the drop zone by the campfire")
+	end
+	-- Spatial enforcement is against the drop zone, not the supply pile.
+	return self:_completeObjective(participant, "supplies", false)
+end
+
+function GameRuntimeService:_completeCanoePair(
+	firstParticipantId: string,
+	second: ParticipantState
+): ActionResult
+	local first = self.participants:GetById(firstParticipantId)
+	local result = self:_completeObjective(second, "canoe", false)
+	if result.accepted then
+		self.canoeFirstPressId = nil
+		if first then
+			-- Both lifters earn a verified alibi that the campfire surfaces.
+			self.verifiedAlibiIds[firstParticipantId] = true
+			self.verifiedAlibiIds[second.participantId] = true
+			table.insert(self.canoeAlibiPairs, {
+				firstName = first.displayName,
+				secondName = second.displayName,
+			})
+			self:_announce(
+				"Success",
+				"Canoe stowed",
+				string.format(
+					"%s and %s worked the canoe together.",
+					first.displayName,
+					second.displayName
+				),
+				5
+			)
+		end
+	end
+	return result
+end
+
+-- Canoe carry: two different campers must trigger the lift within the pair
+-- window. Solo/studio rounds (one living human, even with bot fill) downgrade
+-- to a single press so a lone camper can always finish the task.
+function GameRuntimeService:_liftCanoe(participant: ParticipantState): ActionResult
+	if not self:_isNearPart(participant, self:_objectivePart("canoe"), 14) then
+		return actionRejected("Move closer to the objective")
+	end
+	if self:_livingHumanCount() <= 1 or self:_livingParticipantCount() < 2 then
+		return self:_completeObjective(participant, "canoe", true)
+	end
+	local at = now()
+	local firstId = self.canoeFirstPressId
+	local windowOpen = at - self.canoeFirstPressAt <= CANOE_PAIR_WINDOW_SECONDS
+	if firstId and windowOpen and firstId ~= participant.participantId then
+		return self:_completeCanoePair(firstId, participant)
+	end
+	if firstId == participant.participantId and windowOpen then
+		return actionRejected("You need a second pair of hands — call a buddy over!")
+	end
+	self.canoeFirstPressId = participant.participantId
+	self.canoeFirstPressAt = at
+	self.world:SetObjectiveProgress(
+		"canoe",
+		"1/2 LIFTING — A BUDDY MUST GRAB ON WITHIN 3 SECONDS"
+	)
+	return taskProgressAccepted(
+		"canoe",
+		"You grab the canoe — a buddy must lift within 3 seconds!"
+	)
+end
+
+-- Bot canoe path: bots may pair with anyone standing nearby. A pending press
+-- is joined; otherwise a neighbor at the station forms the pair instantly.
+function GameRuntimeService:_botCanoePress(participant: ParticipantState): boolean
+	if self:_livingParticipantCount() < 2 then
+		return self:_completeObjective(participant, "canoe", true).accepted
+	end
+	local at = now()
+	local firstId = self.canoeFirstPressId
+	if
+		firstId
+		and firstId ~= participant.participantId
+		and at - self.canoeFirstPressAt <= CANOE_PAIR_WINDOW_SECONDS
+	then
+		return self:_completeCanoePair(firstId, participant).accepted
+	end
+	local canoePosition = self:_sitePartPosition(self:_objectivePart("canoe"))
+	if canoePosition then
+		for _, other in self.participants:GetAll() do
+			if
+				other.participantId ~= participant.participantId
+				and other.alive
+				and not other.isGhost
+				and other.role ~= "Spectator"
+			then
+				local position = participantPosition(other)
+				if
+					position
+					and (position - canoePosition).Magnitude
+						<= CANOE_BOT_PAIR_RANGE_STUDS
+				then
+					self.canoeFirstPressId = other.participantId
+					self.canoeFirstPressAt = at
+					return self:_completeCanoePair(other.participantId, participant).accepted
+				end
+			end
+		end
+	end
+	-- No partner yet: the bot grabs an end and waits for a buddy.
+	self.canoeFirstPressId = participant.participantId
+	self.canoeFirstPressAt = at
+	self.world:SetObjectiveProgress(
+		"canoe",
+		"1/2 LIFTING — A BUDDY MUST GRAB ON WITHIN 3 SECONDS"
+	)
+	return false
+end
+
+-- Murderer sabotage: once per round, at a completed station, only while no
+-- living non-murderer is close enough to see. The objective reverts and a
+-- tamper-evidence prop appears as a daytime hint.
+function GameRuntimeService:_sabotageObjective(
+	participant: ParticipantState,
+	payload: { [string]: unknown }
+): ActionResult
+	if self.phase ~= "Day" and self.phase ~= "MurderPlanning" then
+		return actionRejected("Sabotage only works before the night arrives")
+	end
+	if participant.role ~= "Murderer" then
+		return actionRejected("Only the Murderer can sabotage camp work")
+	end
+	if self.sabotageUsed then
+		return actionRejected("You already tampered with the camp today")
+	end
+	local objectiveId = getString(payload, "objectiveId")
+	if objectiveId then
+		if not self.completedObjectives[objectiveId] then
+			return actionRejected("That camp task is not finished")
+		end
+		if
+			not self:_isNearPart(
+				participant,
+				self:_objectivePart(objectiveId),
+				SABOTAGE_STATION_RANGE_STUDS
+			)
+		then
+			return actionRejected("Stand at the finished task to undo it")
+		end
+	else
+		for _, candidateId in OBJECTIVE_IDS do
+			if
+				self.completedObjectives[candidateId]
+				and self:_isNearPart(
+					participant,
+					self:_objectivePart(candidateId),
+					SABOTAGE_STATION_RANGE_STUDS
+				)
+			then
+				objectiveId = candidateId
+				break
+			end
+		end
+	end
+	if not objectiveId then
+		return actionRejected("Stand at a finished camp task to undo it")
+	end
+	local stationPart = self:_objectivePart(objectiveId)
+	local stationPosition = if stationPart and stationPart:IsA("BasePart")
+		then stationPart.Position
+		else nil
+	if not stationPosition then
+		return actionRejected("The station cannot be reached")
+	end
+	for _, witness in self.participants:GetAll() do
+		if
+			witness.participantId ~= participant.participantId
+			and witness.alive
+			and not witness.isGhost
+			and witness.role ~= "Spectator"
+		then
+			local witnessPosition = participantPosition(witness)
+			if
+				witnessPosition
+				and (witnessPosition - stationPosition).Magnitude
+					<= SABOTAGE_CLEAR_RADIUS_STUDS
+			then
+				return actionRejected("Someone is too close — you would be seen")
+			end
+		end
+	end
+	local ownerId = self.completedObjectives[objectiveId]
+	self.completedObjectives[objectiveId] = nil
+	if ownerId then
+		local ownerCount = self.objectivesByParticipantId[ownerId]
+		if ownerCount and ownerCount > 0 then
+			self.objectivesByParticipantId[ownerId] = ownerCount - 1
+		end
+	end
+	-- Reset any partial minigame state so the station can be redone honestly.
+	if objectiveId == "firewood" then
+		self.chopCount = 0
+	elseif objectiveId == "generator" then
+		self.wireProgress = 0
+	elseif objectiveId == "supplies" then
+		self:_resetSupplyCarry()
+	elseif objectiveId == "canoe" then
+		self.canoeFirstPressId = nil
+	end
+	self.sabotageUsed = true
+	self.world:MarkObjectiveIncomplete(objectiveId)
+	self.world:SpawnTamperEvidence(objectiveId)
+	return {
+		accepted = true,
+		reason = "The repair quietly comes undone.",
 		state = nil,
 		data = { objectiveId = objectiveId },
 	}
@@ -2418,8 +3006,10 @@ function GameRuntimeService:_handleParticipantAction(
 	elseif actionName == "CompleteObjective" then
 		local objectiveId = getString(payload, "objectiveId")
 		return if objectiveId
-			then self:_completeObjective(participant, objectiveId, true)
+			then self:_advanceObjectiveTask(participant, objectiveId)
 			else actionRejected("Objective ID is required")
+	elseif actionName == "Sabotage" then
+		return self:_sabotageObjective(participant, payload)
 	elseif actionName == "DiscoverEvidence" then
 		local evidenceId = getString(payload, "evidenceId")
 			or getString(payload, "locationId")
@@ -3636,6 +4226,7 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 			if
 				objectivesAllowed
 				and objectiveId ~= "ropes"
+				and self.activeObjectiveIds[objectiveId] == true
 				and not self.completedObjectives[objectiveId]
 			then
 				table.insert(actions, {
@@ -4000,7 +4591,15 @@ function GameRuntimeService:_ExecuteBotAction(
 			BotContributionConfig.siteRangeStuds,
 			BotContributionConfig.objectiveWorkSeconds,
 			function()
-				local accepted = self:_completeObjective(participant, objectiveId, true).accepted
+				-- Bots bypass station minigames: the site travel plus the
+				-- objectiveWorkSeconds delay stands in for the human effort.
+				-- The canoe still routes through pairing so alibis stay real.
+				local accepted: boolean
+				if objectiveId == "canoe" then
+					accepted = self:_botCanoePress(participant)
+				else
+					accepted = self:_completeObjective(participant, objectiveId, true).accepted
+				end
 				if accepted then
 					self.botObjectiveCount += 1
 				end

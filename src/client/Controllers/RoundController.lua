@@ -1404,12 +1404,18 @@ local function handleActionResult(payload: any)
 					dialogueText
 				)
 			else
+				-- Minigame steps (chops, wires, crate pickup) accept without
+				-- finishing the task; the server tags them as taskProgress.
+				local isTaskProgress = type(result.data) == "table"
+					and result.data.taskProgress == true
 				local toastTitle = if actionName == "Vote"
 					then "Vote cast"
 					elseif actionName == "UseItem" or actionName == "EquipItem"
 					then "Item used"
 					elseif actionName == "UseRoleAbility" or actionName == "UseMonsterAbility"
 					then "Ability activated"
+					elseif actionName == "CompleteObjective" and isTaskProgress
+					then "Camp task"
 					elseif actionName == "CompleteObjective"
 					then "Task complete"
 					elseif actionName == "DiscoverEvidence"

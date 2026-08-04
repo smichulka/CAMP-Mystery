@@ -80,6 +80,20 @@ local runtime = GameRuntimeService.new({
 			duration = duration,
 		})
 	end,
+	onPlayerNotice = function(
+		player: Player,
+		kind: string,
+		title: string,
+		message: string,
+		duration: number?
+	)
+		announcement:FireClient(player, {
+			kind = kind,
+			title = title,
+			message = message,
+			duration = duration,
+		})
+	end,
 })
 
 local profileStoreLabel = profileStoreResolution.mode
