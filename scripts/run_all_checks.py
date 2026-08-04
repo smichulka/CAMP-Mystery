@@ -42,6 +42,10 @@ def main() -> None:
         [sys.executable, "scripts/test_domain_contracts.py"],
     )
     run(
+        "Deduction depth contract tests",
+        [sys.executable, "scripts/test_deduction_depth.py"],
+    )
+    run(
         "Server release contract tests",
         [sys.executable, "scripts/test_server_release_contracts.py"],
     )
