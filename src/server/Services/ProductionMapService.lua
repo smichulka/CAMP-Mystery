@@ -1307,6 +1307,11 @@ local function buildCampTerrain(parent: Instance)
 		Enum.Material.Grass
 	)
 	for index = 1, 14 do
+		if index == 1 or index == 14 then
+			-- These two hill domes fall exactly on the lake bay and would
+			-- bury the dock; the lakefront sector stays open
+			continue
+		end
 		local angle = (index / 14) * math.pi * 2
 		local radius = 105 + (index % 3) * 9
 		terrain:FillBall(
@@ -1325,12 +1330,16 @@ local function buildCampTerrain(parent: Instance)
 		Enum.Material.Water
 	)
 	-- Widen the creek into a proper lake bay east of camp, with a sandy
-	-- beach along the western shore (the tree ring leaves this sector open)
+	-- beach along the western shore. Carve away any neighboring hill spill
+	-- above the waterline first so the bay stays open water.
+	terrain:FillCylinder(CFrame.new(105, 13, 48), 24, 42, Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(105, -0.8, 48), 4.8, 36, Enum.Material.Water)
 	terrain:FillCylinder(CFrame.new(112, -0.8, 22), 4.8, 26, Enum.Material.Water)
-	terrain:FillCylinder(CFrame.new(78, -1.6, 48), 3.6, 16, Enum.Material.Sand)
-	terrain:FillCylinder(CFrame.new(80, -1.6, 28), 3.6, 12, Enum.Material.Sand)
-	terrain:FillCylinder(CFrame.new(80, -1.6, 66), 3.6, 12, Enum.Material.Sand)
+	-- Sand needs full voxel depth to dominate the grass at terrain resolution;
+	-- a thin cap simply blends away
+	terrain:FillCylinder(CFrame.new(78, -3.2, 48), 8.5, 16, Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(80, -3.2, 28), 8.5, 12, Enum.Material.Sand)
+	terrain:FillCylinder(CFrame.new(80, -3.2, 66), 8.5, 12, Enum.Material.Sand)
 
 	-- Sits below the storm-cellar tunnel (floor ~-6.9) so the passage can be
 	-- carved through the terrain block above it
@@ -1555,10 +1564,13 @@ function ProductionMapService:Build()
 		-- beached and floating canoes, lifeguard chair, and buoy line
 		local dockWood = Color3.fromRGB(96, 70, 46)
 		local dockDark = Color3.fromRGB(72, 52, 34)
+		-- The terrain water voxelizes to a rendered surface at y=4.0 mid-bay
+		-- (measured via ReadVoxels), NOT the nominal fill top of 1.6 — every
+		-- floating part is pinned against the rendered surface
 		createPart(self.dayCamp, "DockWalk", Vector3.new(26, 0.5, 3.6),
-			CFrame.new(83, 1.9, 40), dockWood, Enum.Material.WoodPlanks)
+			CFrame.new(83, 5.25, 40), dockWood, Enum.Material.WoodPlanks)
 		createPart(self.dayCamp, "DockPlatform", Vector3.new(8, 0.5, 8),
-			CFrame.new(100, 1.9, 40), dockWood, Enum.Material.WoodPlanks)
+			CFrame.new(100, 5.25, 40), dockWood, Enum.Material.WoodPlanks)
 		local dockPostSpots = {
 			Vector3.new(74, 0, 38.5), Vector3.new(74, 0, 41.5),
 			Vector3.new(82, 0, 38.5), Vector3.new(82, 0, 41.5),
@@ -1568,14 +1580,24 @@ function ProductionMapService:Build()
 		}
 		for postIndex, postSpot in dockPostSpots do
 			createCylinder(self.dayCamp, "DockPost" .. tostring(postIndex),
-				Vector3.new(2.4, 0.55, 0.55),
-				CFrame.new(postSpot + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+				Vector3.new(5.2, 0.55, 0.55),
+				CFrame.new(postSpot + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 				dockDark, Enum.Material.Wood)
 		end
+		-- Boarding ramp from the beach up to the raised deck
+		local dockRamp = Instance.new("WedgePart")
+		dockRamp.Name = "DockRamp"
+		dockRamp.Anchored = true
+		dockRamp.Size = Vector3.new(3.6, 4.6, 7)
+		dockRamp.CFrame = CFrame.new(66.5, 3.2, 40) * CFrame.Angles(0, math.rad(90), 0)
+		dockRamp.Color = dockWood
+		dockRamp.Material = Enum.Material.WoodPlanks
+		dockRamp.TopSurface = Enum.SurfaceType.Smooth
+		dockRamp.Parent = self.dayCamp
 		createPart(self.dayCamp, "DockLanternPost", Vector3.new(0.4, 4, 0.4),
-			CFrame.new(103, 4.15, 43.5), dockDark, Enum.Material.Wood)
+			CFrame.new(103, 7.5, 43.5), dockDark, Enum.Material.Wood)
 		local dockLamp = createPart(self.dayCamp, "DockLantern", Vector3.new(0.8, 0.8, 0.8),
-			CFrame.new(103, 6.4, 43.5), Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
+			CFrame.new(103, 9.8, 43.5), Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
 		dockLamp.Shape = Enum.PartType.Ball
 		dockLamp.CanCollide = false
 		local dockLight = Instance.new("PointLight")
@@ -1613,7 +1635,7 @@ function ProductionMapService:Build()
 		local canoeSpots = {
 			{ cframe = CFrame.new(74.2, 3.35, 68), color = Color3.fromRGB(74, 110, 60) },
 			{ cframe = CFrame.new(80, 1.0, 26) * CFrame.Angles(0, math.rad(35), 0), color = Color3.fromRGB(52, 118, 124) },
-			{ cframe = CFrame.new(101, 1.85, 33) * CFrame.Angles(0, math.rad(75), 0), color = Color3.fromRGB(150, 54, 44) },
+			{ cframe = CFrame.new(101, 4.25, 33) * CFrame.Angles(0, math.rad(75), 0), color = Color3.fromRGB(150, 54, 44) },
 		}
 		for canoeIndex, canoe in canoeSpots do
 			local suffix = tostring(canoeIndex)
@@ -1640,17 +1662,17 @@ function ProductionMapService:Build()
 		for legX = -1, 1, 2 do
 			for legZ = -1, 1, 2 do
 				createPart(self.dayCamp, "LifeguardLeg", Vector3.new(0.35, 5, 0.35),
-					CFrame.new(70 + legX * 1.0, 2.5, 54 + legZ * 0.8),
+					CFrame.new(64 + legX * 1.0, 2.5, 58 + legZ * 0.8),
 					chairWhite, Enum.Material.SmoothPlastic)
 			end
 		end
 		createPart(self.dayCamp, "LifeguardSeat", Vector3.new(2.6, 0.4, 2.2),
-			CFrame.new(70, 5.2, 54), chairWhite, Enum.Material.SmoothPlastic)
+			CFrame.new(64, 5.2, 58), chairWhite, Enum.Material.SmoothPlastic)
 		createPart(self.dayCamp, "LifeguardBack", Vector3.new(0.3, 2.2, 2.6),
-			CFrame.new(68.9, 6.5, 54), Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
+			CFrame.new(62.9, 6.5, 58), Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
 		local buoySpots = {
-			Vector3.new(92, 1.75, 62), Vector3.new(103, 1.75, 66),
-			Vector3.new(114, 1.75, 63), Vector3.new(123, 1.75, 57),
+			Vector3.new(92, 4.15, 62), Vector3.new(103, 4.15, 66),
+			Vector3.new(114, 4.15, 63), Vector3.new(123, 4.15, 57),
 		}
 		for buoyIndex, buoySpot in buoySpots do
 			local buoy = createPart(self.dayCamp, "LakeBuoy" .. tostring(buoyIndex),
