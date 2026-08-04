@@ -92,6 +92,7 @@ end
 
 export type CameraOptions = {
 	onFlickerRequest: ((position: Vector3) -> ())?,
+	onHauntRequest: ((position: Vector3) -> ())?,
 }
 
 function CameraController.new(options: CameraOptions?): CameraController
@@ -104,6 +105,7 @@ function CameraController.new(options: CameraOptions?): CameraController
 		ghostMode = false,
 		destroyed = false,
 		onFlickerRequest = resolvedOptions.onFlickerRequest,
+		onHauntRequest = resolvedOptions.onHauntRequest,
 		position = initialCFrame.Position,
 		yaw = yaw,
 		pitch = pitch,
@@ -141,6 +143,8 @@ function CameraController.new(options: CameraOptions?): CameraController
 				self.gamepadSprint = true
 			elseif keyCode == Enum.KeyCode.G or keyCode == Enum.KeyCode.ButtonY then
 				self:_flickerNearestLight()
+			elseif keyCode == Enum.KeyCode.H or keyCode == Enum.KeyCode.ButtonX then
+				self:_requestHaunt()
 			end
 		end)
 	)
@@ -215,6 +219,23 @@ function CameraController:_flickerNearestLight()
 	end
 	self.lastFlickerAt = os.clock()
 	onFlickerRequest(camera.CFrame.Position)
+end
+
+-- The haunt is gated by the server-side haunt meter, so no local cooldown:
+-- this only forwards the ghost camera position as the chosen haunt spot.
+function CameraController:_requestHaunt()
+	if not self.ghostMode then
+		return
+	end
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local onHauntRequest = self.onHauntRequest
+	if not onHauntRequest then
+		return
+	end
+	onHauntRequest(camera.CFrame.Position)
 end
 
 function CameraController:_step(deltaTime: number)

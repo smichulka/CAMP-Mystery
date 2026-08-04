@@ -90,6 +90,9 @@ type GameViewState = {
 	ghostBadgePulse: Tween?,
 	ghostBadgeReducedMotion: boolean,
 	ghostMode: boolean,
+	hauntPanel: Frame?,
+	hauntFill: Frame?,
+	hauntHint: TextLabel?,
 	eliminatedBanner: Frame?,
 	eliminatedMode: boolean,
 	hotbar: ScrollingFrame,
@@ -925,6 +928,68 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	Components.Corner(ghostBadge, 15)
 	Components.Stroke(ghostBadge, Theme.Colors.Ghost, 1)
 
+	-- Haunt meter — ghost-only progress bar fed by GhostSync snapshots.
+	local hauntPanel = Instance.new("Frame")
+	hauntPanel.Name = "HauntPanel"
+	hauntPanel.AnchorPoint = Vector2.new(1, 0)
+	hauntPanel.Position = UDim2.new(1, -18, 0, 158)
+	hauntPanel.Size = UDim2.fromOffset(132, 52)
+	hauntPanel.BackgroundColor3 = Theme.Colors.Panel
+	hauntPanel.BackgroundTransparency = 0.08
+	hauntPanel.BorderSizePixel = 0
+	hauntPanel.Visible = false
+	hauntPanel.ZIndex = 35
+	hauntPanel.Parent = root
+	Components.Corner(hauntPanel, 8)
+	Components.Stroke(hauntPanel, Theme.Colors.Ghost, 1)
+
+	local hauntLabel = Components.Label(
+		hauntPanel,
+		"HauntLabel",
+		"HAUNT",
+		10,
+		Theme.Typography.CaptionFont
+	)
+	hauntLabel.Position = UDim2.fromOffset(10, 5)
+	hauntLabel.Size = UDim2.new(1, -20, 0, 12)
+	hauntLabel.TextColor3 = Theme.Colors.Ghost
+	hauntLabel.TextXAlignment = Enum.TextXAlignment.Left
+	hauntLabel.ZIndex = 36
+
+	local hauntTrack = Instance.new("Frame")
+	hauntTrack.Name = "HauntTrack"
+	hauntTrack.Position = UDim2.fromOffset(10, 20)
+	hauntTrack.Size = UDim2.new(1, -20, 0, 8)
+	hauntTrack.BackgroundColor3 = Theme.Colors.Ghost
+	hauntTrack.BackgroundTransparency = 0.55
+	hauntTrack.BorderSizePixel = 0
+	hauntTrack.ZIndex = 36
+	hauntTrack.Parent = hauntPanel
+	Components.Corner(hauntTrack, 4)
+
+	local hauntFill = Instance.new("Frame")
+	hauntFill.Name = "HauntFill"
+	hauntFill.Size = UDim2.fromScale(0, 1)
+	hauntFill.BackgroundColor3 = Theme.Colors.Ghost
+	hauntFill.BorderSizePixel = 0
+	hauntFill.ZIndex = 37
+	hauntFill.Parent = hauntTrack
+	Components.Corner(hauntFill, 4)
+
+	local hauntHint = Components.Label(
+		hauntPanel,
+		"HauntHint",
+		"Fill the meter with ghost deeds",
+		9,
+		Theme.Typography.CaptionFont
+	)
+	hauntHint.Position = UDim2.fromOffset(10, 32)
+	hauntHint.Size = UDim2.new(1, -20, 0, 16)
+	hauntHint.TextColor3 = Theme.Colors.TextMuted
+	hauntHint.TextXAlignment = Enum.TextXAlignment.Left
+	hauntHint.TextWrapped = true
+	hauntHint.ZIndex = 36
+
 	local eliminatedBanner = Instance.new("Frame")
 	eliminatedBanner.Name = "EliminatedBanner"
 	eliminatedBanner.AnchorPoint = Vector2.new(0.5, 0)
@@ -1039,6 +1104,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		ghostBadgePulse = nil,
 		ghostBadgeReducedMotion = false,
 		ghostMode = false,
+		hauntPanel = hauntPanel,
+		hauntFill = hauntFill,
+		hauntHint = hauntHint,
 		eliminatedBanner = nil,
 		eliminatedMode = false,
 		hotbar = hotbar,
@@ -4116,6 +4184,9 @@ function GameView:SetGhostMode(active: boolean)
 	if active then
 		self:HideInteraction()
 	end
+	if not active and self.hauntPanel then
+		self.hauntPanel.Visible = false
+	end
 	self.interaction.BackgroundTransparency = if active then 0.45 else Theme.PanelTransparency
 	self.interactionKey.TextTransparency = if active then 0.5 else 0
 	self.interactionText.TextTransparency = if active then 0.5 else 0
@@ -4126,6 +4197,40 @@ function GameView:SetGhostMode(active: boolean)
 		if child:IsA("TextButton") and active then
 			Components.SetButtonEnabled(child, false)
 		end
+	end
+end
+
+-- Ghost-only haunt meter, fed from GhostSync results and full-state snapshots.
+function GameView:UpdateGhostHaunt(ghost: any)
+	if self.destroyed then
+		return
+	end
+	local panel = self.hauntPanel
+	local fill = self.hauntFill
+	local hint = self.hauntHint
+	if not panel or not fill or not hint then
+		return
+	end
+	if not self.ghostMode or type(ghost) ~= "table" then
+		panel.Visible = false
+		return
+	end
+	local meter = if type(ghost.hauntMeter) == "number" then ghost.hauntMeter else 0
+	local maximum = if type(ghost.hauntMeterMax) == "number" and ghost.hauntMeterMax > 0
+		then ghost.hauntMeterMax
+		else 100
+	local fraction = math.clamp(meter / maximum, 0, 1)
+	panel.Visible = true
+	fill.Size = UDim2.fromScale(fraction, 1)
+	if ghost.hauntReady == true then
+		hint.Text = "HAUNT READY — press H"
+		hint.TextColor3 = Theme.Colors.Gold
+	else
+		hint.Text = string.format(
+			"Haunt energy %d%%",
+			math.floor(fraction * 100 + 0.5)
+		)
+		hint.TextColor3 = Theme.Colors.TextMuted
 	end
 end
 
