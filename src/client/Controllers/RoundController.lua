@@ -145,6 +145,11 @@ local lastHintRound: number? = nil
 local lastToastedRound: number? = nil
 local sentUrgencyWarning = false
 local seenHintPhases: { [string]: boolean } = {}
+-- Ghost objective sync: the free-fly camera position is reported once a
+-- second during Investigation so the server can score ghost objectives.
+local GHOST_SYNC_INTERVAL_SECONDS = 1
+local lastGhostSyncClock = 0
+local lastGhostSnapshot: any = nil
 
 local function playerRootPosition(): Vector3?
 	local character = Players.LocalPlayer.Character
@@ -496,6 +501,44 @@ local function refresh()
 			else {}
 		local phaseName = readString(round, "phase", "Lobby")
 		currentPlayerStatus:Update(participants, player, phaseName)
+	end
+end
+
+-- Applies a fresh ghost snapshot to the haunt meter UI and toasts the two
+-- transitions worth celebrating: an objective completing and the meter filling.
+local function applyGhostSnapshot(ghost: any)
+	local currentView = view
+	if currentView then
+		currentView:UpdateGhostHaunt(ghost)
+	end
+	if type(ghost) ~= "table" then
+		lastGhostSnapshot = nil
+		return
+	end
+	local previous = lastGhostSnapshot
+	lastGhostSnapshot = ghost
+	if type(previous) ~= "table" or not currentView then
+		return
+	end
+	local previousCount = if type(previous.objectivesCompleted) == "number"
+		then previous.objectivesCompleted
+		else 0
+	local currentCount = if type(ghost.objectivesCompleted) == "number"
+		then ghost.objectivesCompleted
+		else 0
+	if currentCount > previousCount then
+		currentView:Notify(
+			"Haunt energy rises",
+			"Your ghost deed left a chill in the air.",
+			"Info"
+		)
+	end
+	if ghost.hauntReady == true and previous.hauntReady ~= true then
+		currentView:Notify(
+			"HAUNT READY",
+			"Press H (X on controller) to haunt the spot you are hovering.",
+			"Success"
+		)
 	end
 end
 
@@ -1217,6 +1260,7 @@ local function updateReleaseExperience(
 	if currentView then
 		currentView:SetGhostMode(isGhost)
 	end
+	applyGhostSnapshot(if isGhost then (snapshot :: any).ghost else nil)
 	currentCamera:SetGhostMode(isGhost and not roundEnded)
 	InteractionController.SetPromptsEnabled(not isGhost and roleName ~= "Spectator")
 	local dreadFraction = monsterDreadFraction(snapshot)
@@ -1250,6 +1294,40 @@ end
 local function handleActionResult(payload: any)
 	local actionName: string? = table.remove(pendingActionNames, 1)
 	local currentView = view
+	-- GhostSync is a silent heartbeat: it never toasts, it only feeds the
+	-- haunt meter. Rejections (phase just ended, etc.) are dropped quietly.
+	if actionName == "GhostSync" then
+		if type(payload) == "table" and payload.accepted == true then
+			applyGhostSnapshot((payload :: any).data)
+		end
+		return
+	end
+	if actionName == "GhostHaunt" and type(payload) == "table" then
+		local hauntResult = payload :: ActionResult
+		if hauntResult.accepted == true then
+			if type(hauntResult.data) == "table" then
+				applyGhostSnapshot(hauntResult.data)
+			end
+			if currentView then
+				currentView:HandleActionResult(true)
+				currentView:Notify(
+					"Haunt unleashed",
+					"Something stirs where you pointed.",
+					"Success"
+				)
+			end
+		elseif currentView then
+			currentView:HandleActionResult(false)
+			currentView:Notify(
+				"Haunt failed",
+				if type(hauntResult.reason) == "string"
+					then hauntResult.reason
+					else "The haunt would not take.",
+				"Warning"
+			)
+		end
+		return
+	end
 	if type(payload) ~= "table" then
 		if currentView then
 			currentView:HandleActionResult(false)
@@ -1351,6 +1429,39 @@ local function handleActionResult(payload: any)
 	end
 end
 
+local function maybeSendGhostSync(snapshot: any)
+	if type(snapshot) ~= "table" then
+		return
+	end
+	local player = if type(snapshot.player) == "table" then snapshot.player else nil
+	if type(player) ~= "table" or player.isGhost ~= true then
+		return
+	end
+	local round = if type(snapshot.round) == "table" then snapshot.round else nil
+	if readString(round, "phase", "") ~= "Investigation" then
+		return
+	end
+	if os.clock() - lastGhostSyncClock < GHOST_SYNC_INTERVAL_SECONDS then
+		return
+	end
+	-- Never overlap another in-flight request: the action-result FIFO labels
+	-- results by send order, and the sync can always wait a beat.
+	if #pendingActionNames > 0 then
+		return
+	end
+	local currentCamera = Workspace.CurrentCamera
+	if not currentCamera then
+		return
+	end
+	lastGhostSyncClock = os.clock()
+	local position = currentCamera.CFrame.Position
+	requestAction("GhostSync", {
+		x = position.X,
+		y = position.Y,
+		z = position.Z,
+	})
+end
+
 function RoundController.Start()
 	if started then
 		return
@@ -1386,6 +1497,25 @@ function RoundController.Start()
 	local releaseCamera = CameraControllerModule.new({
 		onFlickerRequest = function(position: Vector3)
 			requestAction("GhostFlickerLight", {
+				x = position.X,
+				y = position.Y,
+				z = position.Z,
+			})
+		end,
+		onHauntRequest = function(position: Vector3)
+			local ghost = lastGhostSnapshot
+			if type(ghost) ~= "table" or ghost.hauntReady ~= true then
+				local currentView = view
+				if currentView then
+					currentView:Notify(
+						"Haunt not ready",
+						"Complete ghost objectives to fill your haunt meter.",
+						"Info"
+					)
+				end
+				return
+			end
+			requestAction("GhostHaunt", {
 				x = position.X,
 				y = position.Y,
 				z = position.Z,
@@ -1623,6 +1753,7 @@ function RoundController.Start()
 			local currentState = state
 			if currentState then
 				updateInvestigationUrgencyWarning(currentState)
+				maybeSendGhostSync(currentState)
 			end
 			task.wait(0.2)
 		end
@@ -1713,6 +1844,8 @@ function RoundController.Stop()
 	lastHintRound = nil
 	lastToastedRound = nil
 	sentUrgencyWarning = false
+	lastGhostSyncClock = 0
+	lastGhostSnapshot = nil
 	table.clear(pendingActionNames)
 	table.clear(seenHintPhases)
 end

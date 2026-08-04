@@ -62,9 +62,18 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		-- Dusk buddy check-ins: small social bonus, capped so farming pairs
 		-- is pointless.
 		xp += math.min(math.floor(input.checkIns or 0), 3) * 5
+		-- Night side-objectives (counselor rescue, radio beacon, fuse box):
+		-- worth a detour, capped so they never rival the main goals.
+		local sideObjectives = math.min(math.floor(input.sideObjectives or 0), 3)
+		xp += sideObjectives * 15
+		campTokens += sideObjectives * 2
+		-- Ghost micro-objectives keep eliminated players earning at a gentle
+		-- rate; the cap stops idle hover-farming from paying out forever.
+		xp += math.min(math.floor(input.ghostObjectives or 0), 6) * 4
 
 		-- Event bonus (Blood Moon weather): modest, clamped so a bad input
-		-- can never zero out or explode a round's payout.
+		-- can never zero out or explode a round's payout. Applies after all
+		-- flat bonuses so an event night lifts everything evenly.
 		local rawMultiplier = input.rewardMultiplier or 1
 		if rawMultiplier ~= rawMultiplier then
 			rawMultiplier = 1

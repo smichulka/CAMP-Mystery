@@ -3,6 +3,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
@@ -93,6 +94,18 @@ type DayOutcomes = {
 	supplies: boolean,
 }
 
+-- Server-side progress for one ghost's night objectives. Positions come from
+-- periodic GhostSync reports (the ghost is a free camera, so the server has
+-- no character to read); everything they are compared against is server data.
+type GhostRuntimeState = {
+	lastSyncAt: number,
+	hauntMeter: number,
+	objectivesCompleted: number,
+	coldSpotSeconds: number,
+	vigilSeconds: number,
+	echoCooldownEndsAt: number,
+}
+
 type GameRuntimeServiceState = {
 	options: RuntimeOptions,
 	running: boolean,
@@ -130,6 +143,12 @@ type GameRuntimeServiceState = {
 	checkInsByParticipantId: { [string]: number },
 	bodyReportedByVictimId: { [string]: boolean },
 	ghostFlickerAt: { [string]: number },
+	sideObjectivesCompleted: { [string]: string },
+	sideObjectivesByParticipantId: { [string]: number },
+	rescueState: string?,
+	rescueCounselorId: string?,
+	ghostStateById: { [string]: GhostRuntimeState },
+	murderScenePositions: { Vector3 },
 	activeMatchRoundId: string?,
 	connections: { RBXScriptConnection },
 	participants: ParticipantService.ParticipantService,
@@ -185,6 +204,39 @@ local DEVICE_EVIDENCE: { [EquipmentId]: boolean } = {
 	AudioRecorder = true,
 	EMFReader = true,
 }
+
+-- Night side-objectives: optional, once per round, server-validated.
+local SIDE_OBJECTIVE_RANGE_STUDS = 16
+local COUNSELOR_RESCUE_RANGE_STUDS = 14
+local RESCUE_SELF_RESOLVE_SECONDS = 60
+local RESCUE_LOCATIONS = {
+	"industrial-locker-hide",
+	"square-store-hide",
+	"police-cell-hide",
+	"outskirts-house-hide",
+	"water-tower-shed-hide",
+}
+local RESCUE_LOCATION_HINTS: { [string]: string } = {
+	["industrial-locker-hide"] = "the mill lockers",
+	["square-store-hide"] = "the general store",
+	["police-cell-hide"] = "the police station",
+	["outskirts-house-hide"] = "the company houses",
+	["water-tower-shed-hide"] = "the water tower shed",
+}
+-- Ghost objectives and the haunt meter. Sync steps are clamped so a stalled
+-- client cannot bank progress, and every gain is capped at the meter maximum.
+local HAUNT_METER_MAX = 100
+local GHOST_SYNC_MIN_INTERVAL_SECONDS = 0.5
+local GHOST_SYNC_MAX_STEP_SECONDS = 2
+local COLD_SPOT_RANGE_STUDS = 12
+local COLD_SPOT_GOAL_SECONDS = 10
+local VIGIL_RANGE_STUDS = 15
+local VIGIL_GOAL_SECONDS = 20
+local ECHO_RANGE_STUDS = 10
+local ECHO_COOLDOWN_SECONDS = 45
+local HAUNT_COLD_SPOT_GAIN = 40
+local HAUNT_VIGIL_GAIN = 35
+local HAUNT_ECHO_GAIN = 25
 
 local PHASE_NOTICES: {
 	[PhaseName]: {
@@ -334,6 +386,17 @@ local function getString(payload: { [string]: unknown }, key: string): string?
 	return if typeof(value) == "string" and value ~= "" then value else nil
 end
 
+local function finitePayloadCoordinate(
+	payload: { [string]: unknown },
+	key: string
+): number?
+	local value = payload[key]
+	if typeof(value) == "number" and value == value and math.abs(value) < 10000 then
+		return value
+	end
+	return nil
+end
+
 local function clonePayload(payload: unknown): { [string]: unknown }
 	return if typeof(payload) == "table" then payload :: { [string]: unknown } else {}
 end
@@ -456,6 +519,18 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				runtime.completedObjectives[objectiveId] = destination.participantId
 			end
 		end
+		runtime.sideObjectivesByParticipantId[destination.participantId] =
+			runtime.sideObjectivesByParticipantId[source.participantId]
+		runtime.sideObjectivesByParticipantId[source.participantId] = nil
+		for sideObjectiveId, ownerId in runtime.sideObjectivesCompleted do
+			if ownerId == source.participantId then
+				runtime.sideObjectivesCompleted[sideObjectiveId] =
+					destination.participantId
+			end
+		end
+		runtime.ghostStateById[destination.participantId] =
+			runtime.ghostStateById[source.participantId]
+		runtime.ghostStateById[source.participantId] = nil
 		local murderPlan = runtime.murderPlan
 		if murderPlan then
 			if murderPlan.victimParticipantId == source.participantId then
@@ -541,6 +616,13 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				evidenceId = evidenceId,
 			})
 			return result.accepted
+		end,
+		function(player: Player, sideObjectiveId: string): boolean
+			local runtime = runtimeRef
+			if not runtime then
+				return false
+			end
+			return runtime:_handleSideObjective(player, sideObjectiveId)
 		end
 	)
 
@@ -827,6 +909,12 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 		mysteryReady = false,
 		weatherId = "Clear",
 		weatherSeed = 0,
+		sideObjectivesCompleted = {},
+		sideObjectivesByParticipantId = {},
+		rescueState = nil,
+		rescueCounselorId = nil,
+		ghostStateById = {},
+		murderScenePositions = {},
 		activeMatchRoundId = nil,
 		connections = {},
 		participants = participants,
@@ -868,6 +956,8 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				if victim and victim.team == "Campers" then
 					local position = participantPosition(victim)
 					if position then
+						-- Ghosts can revisit the scene for the ECHO objective.
+						table.insert(runtime.murderScenePositions, position)
 						runtime.characters:SpawnBodyMarker(
 							participantId,
 							victim.displayName,
@@ -1219,6 +1309,12 @@ function GameRuntimeService:BeginRound(
 	self.checkInsByParticipantId = {}
 	self.bodyReportedByVictimId = {}
 	self.ghostFlickerAt = {}
+	self.sideObjectivesCompleted = {}
+	self.sideObjectivesByParticipantId = {}
+	self.rescueState = nil
+	self.rescueCounselorId = nil
+	self.ghostStateById = {}
+	self.murderScenePositions = {}
 	self.characters:ClearBodyMarkers()
 
 	for _, participantId in selectedIds do
@@ -1393,8 +1489,49 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.characters:PlayMonsterState("Hunt", true)
 		-- Spread bots across the camp so they look like active investigators
 		self.characters:ScatterBotsForInvestigation()
+		self.world:SetSideObjectivePromptsEnabled(true)
+		local generation = self.generation
+		local investigationRoundId = self.roundId
+		local investigationSeconds = self.phaseEndsAt - self.phaseStartedAt
+		local worldSeed = self.world:GetPublicSnapshot().roundSeed
+		-- Diegetic side-objective nudge once the opening scramble settles.
+		task.delay(8, function()
+			if not self.running or self.generation ~= generation then
+				return
+			end
+			if self.roundId ~= investigationRoundId or self.phase ~= "Investigation" then
+				return
+			end
+			self:_announce(
+				"Info",
+				"Night signals",
+				"Static crackles from the water tower. Near the mill, a dead fuse box waits in the dark.",
+				6
+			)
+		end)
+		-- Seeded counselor-rescue moment 35%-55% of the way through the night.
+		local rescueDelay = investigationSeconds * (0.35 + (worldSeed % 21) / 100)
+		task.delay(rescueDelay, function()
+			if not self.running or self.generation ~= generation then
+				return
+			end
+			if self.roundId ~= investigationRoundId or self.phase ~= "Investigation" then
+				return
+			end
+			self:_beginCounselorRescue()
+		end)
 	elseif phase == "Campfire" then
 		self.world:ClearEvidence()
+		self.world:SetSideObjectivePromptsEnabled(false)
+		-- A rescue nobody reached ends quietly; SetPhase already returned the
+		-- counselor to their campfire schedule slot.
+		if self.rescueState == "Active" then
+			self.rescueState = "Resolved"
+			local corneredCounselorId = self.rescueCounselorId
+			if corneredCounselorId then
+				self.characters:SetCounselorCornered(corneredCounselorId, false, nil)
+			end
+		end
 		self.monster:CampfireStop(self.roundId)
 		self.characters:ClearMonster()
 		self.characters:ClearBodyMarkers()
@@ -1671,6 +1808,9 @@ function GameRuntimeService:GetGameState(player: Player): GameState
 		privateMonster = privateMonster,
 		murderPlan = if participant and participant.role == "Murderer"
 			then self.murderPlan
+			else nil,
+		ghost = if participant and participant.isGhost
+			then self:_ghostSnapshot(participant.participantId)
 			else nil,
 		world = self.world:GetPublicSnapshot(),
 		profile = self.profile:GetSnapshot(player),
@@ -2647,6 +2787,248 @@ function GameRuntimeService:_ghostFlickerLight(
 	return { accepted = true, reason = nil, state = nil, data = nil }
 end
 
+function GameRuntimeService:_ghostStateFor(participantId: string): GhostRuntimeState
+	local state = self.ghostStateById[participantId]
+	if not state then
+		state = {
+			lastSyncAt = 0,
+			hauntMeter = 0,
+			objectivesCompleted = 0,
+			coldSpotSeconds = 0,
+			vigilSeconds = 0,
+			echoCooldownEndsAt = 0,
+		}
+		self.ghostStateById[participantId] = state
+	end
+	return state
+end
+
+function GameRuntimeService:_ghostSnapshot(
+	participantId: string
+): RuntimeTypes.GhostSnapshot
+	local state = self:_ghostStateFor(participantId)
+	return {
+		hauntMeter = state.hauntMeter,
+		hauntMeterMax = HAUNT_METER_MAX,
+		hauntReady = state.hauntMeter >= HAUNT_METER_MAX,
+		objectivesCompleted = state.objectivesCompleted,
+		coldSpotSeconds = state.coldSpotSeconds,
+		coldSpotGoalSeconds = COLD_SPOT_GOAL_SECONDS,
+		vigilSeconds = state.vigilSeconds,
+		vigilGoalSeconds = VIGIL_GOAL_SECONDS,
+		echoCooldownEndsAt = state.echoCooldownEndsAt,
+	}
+end
+
+function GameRuntimeService:_monsterPosition(): Vector3?
+	local tracked = self.characters:GetMonsterPosition()
+	if tracked then
+		return tracked
+	end
+	local culpritId = self.culpritParticipantId
+	local culprit = if culpritId then self.participants:GetById(culpritId) else nil
+	return if culprit then participantPosition(culprit) else nil
+end
+
+function GameRuntimeService:_completeGhostObjective(
+	state: GhostRuntimeState,
+	meterGain: number
+)
+	state.hauntMeter = math.clamp(state.hauntMeter + meterGain, 0, HAUNT_METER_MAX)
+	state.objectivesCompleted += 1
+end
+
+-- Ghost-only heartbeat: the free-flying ghost camera reports its position and
+-- the server accumulates objective progress against server-known positions.
+-- Steps are clamped so stalled or bursty clients cannot bank extra seconds.
+function GameRuntimeService:_ghostSync(
+	participant: ParticipantState,
+	payload: { [string]: unknown }
+): ActionResult
+	if self.phase ~= "Investigation" then
+		return actionRejected("Spirits only drift during the night")
+	end
+	local x = finitePayloadCoordinate(payload, "x")
+	local y = finitePayloadCoordinate(payload, "y")
+	local z = finitePayloadCoordinate(payload, "z")
+	if not x or not y or not z then
+		return actionRejected("Ghost position is required")
+	end
+	local state = self:_ghostStateFor(participant.participantId)
+	local nowAt = now()
+	local elapsed = nowAt - state.lastSyncAt
+	if elapsed < GHOST_SYNC_MIN_INTERVAL_SECONDS then
+		return {
+			accepted = true,
+			reason = nil,
+			state = nil,
+			data = self:_ghostSnapshot(participant.participantId),
+		}
+	end
+	local step = math.clamp(elapsed, 0, GHOST_SYNC_MAX_STEP_SECONDS)
+	state.lastSyncAt = nowAt
+	local origin = Vector3.new(x, y, z)
+
+	-- COLD SPOT: hover close to the murderer, ten cumulative seconds.
+	local monsterAt = self:_monsterPosition()
+	if monsterAt and (monsterAt - origin).Magnitude <= COLD_SPOT_RANGE_STUDS then
+		state.coldSpotSeconds += step
+		if state.coldSpotSeconds >= COLD_SPOT_GOAL_SECONDS then
+			state.coldSpotSeconds = 0
+			self:_completeGhostObjective(state, HAUNT_COLD_SPOT_GAIN)
+		end
+	end
+
+	-- VIGIL: an unbroken stretch beside any living participant.
+	local nearLiving = false
+	for _, other in self.participants:GetAll() do
+		if other.alive and not other.isGhost and other.role ~= "Spectator" then
+			local otherAt = participantPosition(other)
+			if otherAt and (otherAt - origin).Magnitude <= VIGIL_RANGE_STUDS then
+				nearLiving = true
+				break
+			end
+		end
+	end
+	if nearLiving then
+		state.vigilSeconds += step
+		if state.vigilSeconds >= VIGIL_GOAL_SECONDS then
+			state.vigilSeconds = 0
+			self:_completeGhostObjective(state, HAUNT_VIGIL_GAIN)
+		end
+	else
+		state.vigilSeconds = 0
+	end
+
+	-- ECHO: visit a murder scene; a cooldown keeps it a pilgrimage, not camping.
+	if nowAt >= state.echoCooldownEndsAt then
+		for _, sceneAt in self.murderScenePositions do
+			if (sceneAt - origin).Magnitude <= ECHO_RANGE_STUDS then
+				state.echoCooldownEndsAt = nowAt + ECHO_COOLDOWN_SECONDS
+				self:_completeGhostObjective(state, HAUNT_ECHO_GAIN)
+				break
+			end
+		end
+	end
+
+	return {
+		accepted = true,
+		reason = nil,
+		state = nil,
+		data = self:_ghostSnapshot(participant.participantId),
+	}
+end
+
+function GameRuntimeService:_flickerLightsNear(origin: Vector3): boolean
+	local nearest: Light? = nil
+	local nearestDistance = GHOST_FLICKER_RANGE_STUDS
+	for _, descendant in Workspace:GetDescendants() do
+		if
+			descendant:IsA("PointLight")
+			or descendant:IsA("SpotLight")
+			or descendant:IsA("SurfaceLight")
+		then
+			local lightParent = descendant.Parent
+			if lightParent and lightParent:IsA("BasePart") then
+				local distance = (lightParent.Position - origin).Magnitude
+				if distance <= nearestDistance then
+					nearest = descendant
+					nearestDistance = distance
+				end
+			end
+		end
+	end
+	if not nearest then
+		return false
+	end
+	local light = nearest :: Light
+	task.spawn(function()
+		local brightness = light.Brightness
+		for _ = 1, 3 do
+			if not light.Parent then
+				return
+			end
+			light.Brightness = 0
+			task.wait(0.14)
+			if not light.Parent then
+				return
+			end
+			light.Brightness = brightness
+			task.wait(0.18)
+		end
+	end)
+	return true
+end
+
+function GameRuntimeService:_playKnockAt(origin: Vector3)
+	local knock = Instance.new("Part")
+	knock.Name = "GhostKnock"
+	knock.Anchored = true
+	knock.CanCollide = false
+	knock.CanQuery = false
+	knock.CanTouch = false
+	knock.Transparency = 1
+	knock.Size = Vector3.new(1, 1, 1)
+	knock.CFrame = CFrame.new(origin)
+	local sound = Instance.new("Sound")
+	-- Drop-in audio slot mirroring the monster loops: set the SoundService
+	-- attribute GhostKnockAssetId to replace the built-in fallback.
+	local knockAssetId = SoundService:GetAttribute("GhostKnockAssetId")
+	sound.SoundId = if typeof(knockAssetId) == "number" and knockAssetId > 0
+		then "rbxassetid://" .. tostring(knockAssetId)
+		elseif typeof(knockAssetId) == "string" and knockAssetId ~= "" then knockAssetId
+		else "rbxasset://sounds/snap.mp3"
+	sound.PlaybackSpeed = 0.55
+	sound.Volume = 0.9
+	sound.RollOffMode = Enum.RollOffMode.InverseTapered
+	sound.RollOffMaxDistance = 60
+	sound.Parent = knock
+	knock.Parent = Workspace
+	task.spawn(function()
+		for _ = 1, 3 do
+			sound:Play()
+			task.wait(0.4)
+		end
+		task.wait(1.5)
+		if knock.Parent then
+			knock:Destroy()
+		end
+	end)
+end
+
+-- Spending a full haunt meter: one ambiguous nudge at a spot the ghost chose.
+-- A nearby lamp stutters; in the open dark, three knocks sound instead. Never
+-- text, never a name — a spooky hint the living must interpret themselves.
+function GameRuntimeService:_ghostHaunt(
+	participant: ParticipantState,
+	payload: { [string]: unknown }
+): ActionResult
+	if self.phase ~= "Investigation" then
+		return actionRejected("Haunts only land during the night")
+	end
+	local state = self:_ghostStateFor(participant.participantId)
+	if state.hauntMeter < HAUNT_METER_MAX then
+		return actionRejected("Your haunt is not ready")
+	end
+	local x = finitePayloadCoordinate(payload, "x")
+	local y = finitePayloadCoordinate(payload, "y")
+	local z = finitePayloadCoordinate(payload, "z")
+	if not x or not y or not z then
+		return actionRejected("Haunt position is required")
+	end
+	state.hauntMeter = 0
+	local origin = Vector3.new(x, y, z)
+	if not self:_flickerLightsNear(origin) then
+		self:_playKnockAt(origin)
+	end
+	return {
+		accepted = true,
+		reason = nil,
+		state = nil,
+		data = self:_ghostSnapshot(participant.participantId),
+	}
+end
+
 function GameRuntimeService:HandleAction(
 	player: Player,
 	actionName: string,
@@ -2775,6 +3157,18 @@ function GameRuntimeService:HandleAction(
 		and rawParticipant.isGhost
 	then
 		return self:_ghostFlickerLight(rawParticipant, clonePayload(payload))
+	elseif
+		actionName == "GhostSync"
+		and rawParticipant
+		and rawParticipant.isGhost
+	then
+		return self:_ghostSync(rawParticipant, clonePayload(payload))
+	elseif
+		actionName == "GhostHaunt"
+		and rawParticipant
+		and rawParticipant.isGhost
+	then
+		return self:_ghostHaunt(rawParticipant, clonePayload(payload))
 	end
 	if not participant then
 		return actionRejected(participantReason or "Player cannot act")
@@ -2849,6 +3243,12 @@ function GameRuntimeService:_ApplyRewards()
 						and participant.vote.targetParticipantId == culpritId,
 					checkIns = self.checkInsByParticipantId[participant.participantId]
 						or 0,
+					sideObjectives =
+						self.sideObjectivesByParticipantId[participant.participantId]
+							or 0,
+					ghostObjectives = if self.ghostStateById[participant.participantId]
+						then self.ghostStateById[participant.participantId].objectivesCompleted
+						else 0,
 					rewardMultiplier = weatherRewardMultiplier,
 				})
 				if not result.applied and not result.duplicate then
@@ -2900,6 +3300,211 @@ function GameRuntimeService:_reportBody(reporter: Player, victimParticipantId: s
 		),
 		6
 	)
+	self:Broadcast()
+end
+
+-- Night side-objectives: optional prompt-driven detours during Investigation.
+-- The ProximityPrompt supplies the hold duration; the server re-validates the
+-- phase, the once-per-round claim, and real proximity before paying out.
+function GameRuntimeService:_handleSideObjective(
+	player: Player,
+	sideObjectiveId: string
+): boolean
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(player)
+	)
+	if not participant then
+		return false
+	end
+	if self.phase ~= "Investigation" then
+		return false
+	end
+	if self.sideObjectivesCompleted[sideObjectiveId] then
+		return false
+	end
+	local siteAt = self.world:GetSideObjectivePosition(sideObjectiveId)
+	local position = participantPosition(participant)
+	if
+		not siteAt
+		or not position
+		or (siteAt - position).Magnitude > SIDE_OBJECTIVE_RANGE_STUDS
+	then
+		return false
+	end
+	self.sideObjectivesCompleted[sideObjectiveId] = participant.participantId
+	self.sideObjectivesByParticipantId[participant.participantId] =
+		(self.sideObjectivesByParticipantId[participant.participantId] or 0) + 1
+	if sideObjectiveId == "radio-beacon" then
+		self:_fireRadioBeacon()
+		self:_announce(
+			"Warning",
+			"The static clears",
+			"A beam cuts the dark — for three heartbeats, everyone knows where the monster stands.",
+			5
+		)
+	elseif sideObjectiveId == "fuse-box" then
+		self:_announce(
+			"Success",
+			"The mill lights hum back",
+			"Fresh lamplight pools around Mill No. 7 for the rest of the night.",
+			5
+		)
+	end
+	self:Broadcast()
+	return true
+end
+
+-- One shared monster-location ping: a short-lived beacon column every living
+-- player can see. Server-spawned, so its position is authoritative.
+function GameRuntimeService:_fireRadioBeacon()
+	local position = self:_monsterPosition()
+	if not position then
+		return
+	end
+	local beacon = Instance.new("Part")
+	beacon.Name = "MonsterPingBeacon"
+	beacon.Anchored = true
+	beacon.CanCollide = false
+	beacon.CanQuery = false
+	beacon.CanTouch = false
+	beacon.Size = Vector3.new(2.5, 44, 2.5)
+	beacon.CFrame = CFrame.new(position + Vector3.new(0, 22, 0))
+	beacon.Color = Color3.fromRGB(150, 200, 255)
+	beacon.Material = Enum.Material.Neon
+	beacon.Transparency = 0.35
+	local light = Instance.new("PointLight")
+	light.Brightness = 2.4
+	light.Range = 42
+	light.Color = beacon.Color
+	light.Parent = beacon
+	beacon.Parent = Workspace
+	task.delay(3, function()
+		if beacon.Parent then
+			beacon:Destroy()
+		end
+	end)
+end
+
+-- The seeded mid-night rescue: one counselor gets cornered somewhere in the
+-- night town. Reaching them and holding the escort prompt frees them; if no
+-- one comes within a minute they slip out on their own, so a solo round can
+-- never stall on this event.
+function GameRuntimeService:_beginCounselorRescue()
+	if self.phase ~= "Investigation" or self.rescueState ~= nil then
+		return
+	end
+	local roster = self.counselors:GetPublicSnapshot()
+	local available: { string } = {}
+	for _, counselor in roster.counselors do
+		if counselor.interactionAllowed then
+			table.insert(available, counselor.counselorId)
+		end
+	end
+	if #available == 0 then
+		return
+	end
+	local worldSeed = self.world:GetPublicSnapshot().roundSeed
+	local counselorId = available[(worldSeed % #available) + 1]
+	local locationId = RESCUE_LOCATIONS[(worldSeed % #RESCUE_LOCATIONS) + 1]
+	local cornered = self.counselors:SetCornered(counselorId, locationId, now())
+	if not cornered then
+		return
+	end
+	self.rescueState = "Active"
+	self.rescueCounselorId = counselorId
+	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
+	self.characters:SetCounselorCornered(counselorId, true, function(rescuer: Player)
+		self:_handleCounselorRescue(rescuer, counselorId)
+	end)
+	local hint = RESCUE_LOCATION_HINTS[locationId] or "the night town"
+	self:_announce(
+		"Warning",
+		"A cry in the dark",
+		string.format("Someone is cornered near %s. An escort could save them.", hint),
+		6
+	)
+	local generation = self.generation
+	local rescueRoundId = self.roundId
+	task.delay(RESCUE_SELF_RESOLVE_SECONDS, function()
+		if not self.running or self.generation ~= generation then
+			return
+		end
+		if self.roundId ~= rescueRoundId or self.phase ~= "Investigation" then
+			return
+		end
+		self:_resolveCounselorRescue(nil)
+	end)
+	self:Broadcast()
+end
+
+function GameRuntimeService:_handleCounselorRescue(
+	reporter: Player,
+	counselorId: string
+)
+	local participant = self:_validateActiveParticipant(
+		self:_participantForPlayer(reporter)
+	)
+	if not participant then
+		return
+	end
+	if self.phase ~= "Investigation" or self.rescueState ~= "Active" then
+		return
+	end
+	if self.rescueCounselorId ~= counselorId then
+		return
+	end
+	local counselorAt = self.characters:GetCounselorPosition(counselorId)
+	local position = participantPosition(participant)
+	if
+		not counselorAt
+		or not position
+		or (counselorAt - position).Magnitude > COUNSELOR_RESCUE_RANGE_STUDS
+	then
+		return
+	end
+	self:_resolveCounselorRescue(participant)
+end
+
+function GameRuntimeService:_resolveCounselorRescue(rescuer: ParticipantState?)
+	if self.rescueState ~= "Active" then
+		return
+	end
+	local counselorId = self.rescueCounselorId
+	if not counselorId then
+		return
+	end
+	self.rescueState = "Resolved"
+	self.characters:SetCounselorCornered(counselorId, false, nil)
+	if rescuer then
+		self.sideObjectivesCompleted["counselor-rescue"] = rescuer.participantId
+		self.sideObjectivesByParticipantId[rescuer.participantId] =
+			(self.sideObjectivesByParticipantId[rescuer.participantId] or 0) + 1
+		-- The grateful counselor blurts out what they saw: clear the threat
+		-- first so the witness-interview gate sees them as interactable, then
+		-- reuse the interview machinery so the hint lands through the normal
+		-- channel before they bolt.
+		self.counselors:ClearThreat(counselorId, now())
+		if self.mysteryReady then
+			self.mystery:InterviewCounselor(rescuer.participantId, counselorId, now())
+		end
+	end
+	self.counselors:RescueCornered(counselorId, now())
+	self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
+	if rescuer then
+		self:_announce(
+			"Success",
+			"Counselor rescued",
+			string.format("%s escorted a counselor to safety.", rescuer.displayName),
+			5
+		)
+	else
+		self:_announce(
+			"Info",
+			"They got away",
+			"The cornered counselor slipped to safety on their own.",
+			5
+		)
+	end
 	self:Broadcast()
 end
 
