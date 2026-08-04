@@ -885,11 +885,13 @@ local function buildGreenhouse(dayCamp: Instance)
 	)
 end
 
--- FEATURE 8: sawmill between camp and town (night-only with the town reveal)
+-- FEATURE 8: sawmill at the forest edge (night-only with the town reveal)
 local function buildSawmill(nightTown: Instance)
 	local sawmill = WorldKit.model(nightTown, "Sawmill")
-	-- Kept west of x=-26 so the structure never encroaches on the main road
-	-- corridor (x -25..25)
+	-- Authored at (-32, ·, -85), but that slot sits under the north perimeter
+	-- hills (terrain 17-21 against a 1-stud floor), so the whole build is
+	-- translated onto the flat west meadow after assembly — see the PivotTo
+	-- at the end of this function.
 	WorldKit.part(sawmill, "SawmillFloor", Vector3.new(12.5, 0.7, 16.5),
 		CFrame.new(-32, 0.95, -85), Color3.fromRGB(104, 100, 94), Enum.Material.Concrete)
 	for postX = -1, 1, 2 do
@@ -987,6 +989,9 @@ local function buildSawmill(nightTown: Instance)
 	workLamp.CanCollide = false
 	WorldKit.lamp(workLamp, { brightness = 1.3, range = 17 })
 	WorldKit.evidenceSocketMarker(sawmill, "sawmill-blade", Vector3.new(-32, 4.5, -85))
+	-- Relocate the finished assembly (marker included) to the flat west
+	-- meadow: the authored footprint is buried inside the north hills.
+	sawmill:PivotTo(sawmill:GetPivot() + Vector3.new(-70, 2.2, 7))
 end
 
 -- FEATURE 9: cornfield with trampled lanes, a scarecrow, and a broken wagon

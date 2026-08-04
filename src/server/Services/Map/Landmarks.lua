@@ -235,39 +235,44 @@ end
 -- 2. RANGER STATION ----------------------------------------------------------
 local function buildRangerStation(dayCamp: Instance)
 	local station = WorldKit.model(dayCamp, "RangerStation")
-	local deckTop = 14
+	-- The perimeter dome here crests at ~22 studs; the deck must clear it or
+	-- the cabin drowns in the hillside (it shipped buried at deckTop = 14).
+	local deckTop = 26
 
-	-- Stilt legs + braces (platform leans against the hill's west flank)
+	-- Stilt legs + braces (platform perches over the hill's west flank)
 	for _, legX in { -87.5, -76.5 } do
 		for _, legZ in { -66.5, -57.5 } do
-			WorldKit.part(station, "StiltLeg", Vector3.new(0.9, 15, 0.9),
-				CFrame.new(legX, 6.5, legZ), TIMBER, Enum.Material.Wood)
+			WorldKit.part(station, "StiltLeg", Vector3.new(0.9, deckTop + 1, 0.9),
+				CFrame.new(legX, (deckTop - 1) / 2, legZ), TIMBER, Enum.Material.Wood)
 		end
 	end
-	WorldKit.part(station, "StiltBraceN", Vector3.new(11.4, 0.5, 0.5),
-		CFrame.new(-82, 7, -66.5), TIMBER, Enum.Material.Wood)
-	WorldKit.part(station, "StiltBraceS", Vector3.new(11.4, 0.5, 0.5),
-		CFrame.new(-82, 7, -57.5), TIMBER, Enum.Material.Wood)
+	for _, braceY in { 7, 17 } do
+		WorldKit.part(station, "StiltBraceN", Vector3.new(11.4, 0.5, 0.5),
+			CFrame.new(-82, braceY, -66.5), TIMBER, Enum.Material.Wood)
+		WorldKit.part(station, "StiltBraceS", Vector3.new(11.4, 0.5, 0.5),
+			CFrame.new(-82, braceY, -57.5), TIMBER, Enum.Material.Wood)
+	end
 
 	local deck = WorldKit.part(station, "Deck", Vector3.new(14, 0.8, 14),
 		CFrame.new(-82, deckTop - 0.4, -62), WOOD_WEATHER, Enum.Material.WoodPlanks)
 	WorldKit.creakyFloor(deck)
 
-	-- One-room cabin (8 x 10) on the west side of the deck
-	WorldKit.part(station, "RoomWallW", Vector3.new(0.6, 5.5, 10),
-		CFrame.new(-85.7, deckTop + 2.75, -62), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "RoomWallN", Vector3.new(8, 5.5, 0.6),
-		CFrame.new(-82, deckTop + 2.75, -66.7), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "RoomWallS", Vector3.new(8, 5.5, 0.6),
-		CFrame.new(-82, deckTop + 2.75, -57.3), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "RoomWallEN", Vector3.new(0.6, 5.5, 3.2),
-		CFrame.new(-78.3, deckTop + 2.75, -65.2), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "RoomWallES", Vector3.new(0.6, 5.5, 3.2),
-		CFrame.new(-78.3, deckTop + 2.75, -58.8), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "RoomDoorHeader", Vector3.new(0.6, 1.4, 3.2),
-		CFrame.new(-78.3, deckTop + 4.8, -62), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	-- One-room cabin (8 x 10) on the west side of the deck. Walls are 7 tall
+	-- with a slim header so the doorway clears a full character (6.4 studs).
+	WorldKit.part(station, "RoomWallW", Vector3.new(0.6, 7, 10),
+		CFrame.new(-85.7, deckTop + 3.5, -62), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	WorldKit.part(station, "RoomWallN", Vector3.new(8, 7, 0.6),
+		CFrame.new(-82, deckTop + 3.5, -66.7), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	WorldKit.part(station, "RoomWallS", Vector3.new(8, 7, 0.6),
+		CFrame.new(-82, deckTop + 3.5, -57.3), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	WorldKit.part(station, "RoomWallEN", Vector3.new(0.6, 7, 3.2),
+		CFrame.new(-78.3, deckTop + 3.5, -65.2), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	WorldKit.part(station, "RoomWallES", Vector3.new(0.6, 7, 3.2),
+		CFrame.new(-78.3, deckTop + 3.5, -58.8), WOOD_WEATHER, Enum.Material.WoodPlanks)
+	WorldKit.part(station, "RoomDoorHeader", Vector3.new(0.6, 0.6, 3.2),
+		CFrame.new(-78.3, deckTop + 6.7, -62), WOOD_WEATHER, Enum.Material.WoodPlanks)
 	WorldKit.part(station, "RoomRoof", Vector3.new(9.6, 0.6, 11.6),
-		CFrame.new(-82, deckTop + 5.9, -62), Color3.fromRGB(88, 84, 76), Enum.Material.CorrodedMetal)
+		CFrame.new(-82, deckTop + 7.4, -62), Color3.fromRGB(88, 84, 76), Enum.Material.CorrodedMetal)
 
 	-- Deck railing on the open east side
 	WorldKit.part(station, "DeckRailE", Vector3.new(0.35, 0.35, 14),
@@ -277,17 +282,17 @@ local function buildRangerStation(dayCamp: Instance)
 	WorldKit.part(station, "DeckRailS", Vector3.new(3.4, 0.35, 0.35),
 		CFrame.new(-76.8, deckTop + 1.5, -55.2), WOOD_DARK, Enum.Material.Wood)
 
-	-- Long stair run up from the flat ground west of the hill to the deck's
-	-- southwest corner (the east flank is buried in the hillside)
-	WorldKit.stairs(station, "StationStairs",
-		CFrame.new(-105.2, 0.9, -53.4) * CFrame.Angles(0, math.rad(-90), 0),
-		14, 3, WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "StairLanding", Vector3.new(3.4, 0.5, 3.4),
-		CFrame.new(-88, deckTop - 0.25, -55.4), WOOD_WEATHER, Enum.Material.WoodPlanks)
-	WorldKit.part(station, "StairPostA", Vector3.new(0.5, 6, 0.5),
-		CFrame.new(-95.2, 3, -53.4), TIMBER, Enum.Material.Wood)
-	WorldKit.part(station, "StairPostB", Vector3.new(0.5, 11, 0.5),
-		CFrame.new(-90.4, 5.5, -53.4), TIMBER, Enum.Material.Wood)
+	-- Climbable truss ladder up the west face from the flat meadow ground.
+	-- (The old 14-step stair run started inside the west dome and was fully
+	-- buried; a ladder keeps access on the one side that stays open ground.)
+	local ladder = Instance.new("TrussPart")
+	ladder.Name = "StationLadder"
+	ladder.Size = Vector3.new(2, 28, 2)
+	ladder.CFrame = CFrame.new(-90.2, deckTop - 13, -62)
+	ladder.Anchored = true
+	ladder.Material = Enum.Material.Wood
+	ladder.Color = TIMBER
+	ladder.Parent = station
 
 	-- CB radio desk with a blinking indicator
 	WorldKit.part(station, "RadioDesk", Vector3.new(1.4, 0.35, 4.6),
@@ -333,7 +338,8 @@ local function buildRangerStation(dayCamp: Instance)
 		announce("Info", "Ranger Station", "From here you can see the whole valley.", 4)
 	end)
 
-	WorldKit.evidenceSocketMarker(station, "ranger-station-desk", Vector3.new(-84.5, 16.8, -62))
+	WorldKit.evidenceSocketMarker(station, "ranger-station-desk",
+		Vector3.new(-84.5, deckTop + 2.8, -62))
 end
 
 -- 3. CRASHED RANGER TRUCK ----------------------------------------------------

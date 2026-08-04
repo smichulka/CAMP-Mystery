@@ -766,7 +766,9 @@ local function buildSanitationRow(dayCamp: Instance)
 
 	for outhouseIndex, outhouseX in { -20, -24, -28 } do
 		local suffix = tostring(outhouseIndex)
-		local base = Vector3.new(outhouseX, 0, 68.5)
+		-- Camp-bowl grass sits at ~2.5, not 0: lift the floor above grade so
+		-- the doorway keeps full headroom from the outside approach.
+		local base = Vector3.new(outhouseX, 2, 68.5)
 		local floor = WorldKit.part(sanitation, "OuthouseFloor" .. suffix, Vector3.new(3, 0.4, 3),
 			CFrame.new(base + Vector3.new(0, 0.9, 0)), WOOD_FLOOR, Enum.Material.WoodPlanks)
 		WorldKit.creakyFloor(floor)
@@ -777,14 +779,14 @@ local function buildSanitationRow(dayCamp: Instance)
 			WorldKit.part(sanitation, "OuthouseSide" .. suffix, Vector3.new(0.3, 6.4, 3),
 				CFrame.new(base + Vector3.new(side * 1.35, 4.1, 0)), WOOD_WALL, Enum.Material.WoodPlanks)
 		end
-		WorldKit.part(sanitation, "OuthouseHeader" .. suffix, Vector3.new(3, 1.2, 0.3),
-			CFrame.new(base + Vector3.new(0, 6.7, -1.35)), WOOD_WALL, Enum.Material.WoodPlanks)
+		WorldKit.part(sanitation, "OuthouseHeader" .. suffix, Vector3.new(3, 0.5, 0.3),
+			CFrame.new(base + Vector3.new(0, 7.05, -1.35)), WOOD_WALL, Enum.Material.WoodPlanks)
 		WorldKit.part(sanitation, "OuthouseRoof" .. suffix, Vector3.new(3.6, 0.3, 3.9),
 			CFrame.new(base + Vector3.new(0, 7.6, 0.1)) * CFrame.Angles(math.rad(-8), 0, 0),
 			TIN_ROOF, Enum.Material.CorrodedMetal)
 		local door = WorldKit.hingedDoor(sanitation, "OuthouseDoor" .. suffix,
-			Vector3.new(2.2, 4.9, 0.25),
-			CFrame.new(base + Vector3.new(0, 3.55, -1.42)), WOOD_MID)
+			Vector3.new(2.2, 5.6, 0.25),
+			CFrame.new(base + Vector3.new(0, 3.9, -1.42)), WOOD_MID)
 		-- Crescent-moon cutout: pale disc with an offset door-colored overlap.
 		cyl(sanitation, "MoonDisc" .. suffix, Vector3.new(0.1, 0.7, 0.7),
 			CFrame.new(base + Vector3.new(0, 5.2, -1.62)) * CFrame.Angles(0, math.rad(90), 0),
@@ -858,13 +860,15 @@ type QuartersSpec = {
 
 local function buildCounselorQuarters(dayCamp: Instance): Vector3
 	local quarters = WorldKit.model(dayCamp, "CounselorQuarters")
+	-- Base Y lifts each floor above the camp-bowl grade (~2.5; FINCH sits on
+	-- a 4-stud rise) so doorways keep full headroom from the outside.
 	local specs: { QuartersSpec } = {
-		{ label = "HOLLOWAY", position = Vector3.new(-37, 0, 67) },
-		{ label = "ORTIZ", position = Vector3.new(-44, 0, 70.5) },
-		{ label = "REED", position = Vector3.new(-51, 0, 72) },
-		{ label = "BROOKS", position = Vector3.new(-58, 0, 73) },
-		{ label = "CHEN", position = Vector3.new(-64.5, 0, 70) },
-		{ label = "FINCH", position = Vector3.new(-69.5, 0, 63.5) },
+		{ label = "HOLLOWAY", position = Vector3.new(-37, 2, 67) },
+		{ label = "ORTIZ", position = Vector3.new(-44, 2, 70.5) },
+		{ label = "REED", position = Vector3.new(-51, 2, 72) },
+		{ label = "BROOKS", position = Vector3.new(-58, 2, 73) },
+		{ label = "CHEN", position = Vector3.new(-64.5, 2, 70) },
+		{ label = "FINCH", position = Vector3.new(-69.5, 3.5, 63.5) },
 	}
 	local reedFootlocker = Vector3.zero
 	for cabinIndex, spec in specs do
@@ -883,14 +887,14 @@ local function buildCounselorQuarters(dayCamp: Instance): Vector3
 				CFrame.new(base + Vector3.new(side * 2.15, 4.35, -3.3)), WOOD_WALL,
 				Enum.Material.WoodPlanks)
 		end
-		local header = WorldKit.part(quarters, "QuartersHeader" .. suffix, Vector3.new(2.6, 1.5, 0.4),
-			CFrame.new(base + Vector3.new(0, 6.85, -3.3)), WOOD_WALL, Enum.Material.WoodPlanks)
+		local header = WorldKit.part(quarters, "QuartersHeader" .. suffix, Vector3.new(2.6, 0.7, 0.4),
+			CFrame.new(base + Vector3.new(0, 7.25, -3.3)), WOOD_WALL, Enum.Material.WoodPlanks)
 		WorldKit.billboardLabel(header, spec.label)
 		WorldKit.part(quarters, "QuartersRoof" .. suffix, Vector3.new(7, 0.35, 8.6),
 			CFrame.new(base + Vector3.new(0, 8.1, 0.2)) * CFrame.Angles(math.rad(-9), 0, 0),
 			TIN_ROOF, Enum.Material.CorrodedMetal)
-		WorldKit.hingedDoor(quarters, "QuartersDoor" .. suffix, Vector3.new(2.2, 4.6, 0.3),
-			CFrame.new(base + Vector3.new(0, 3.5, -3.4)), WOOD_MID)
+		WorldKit.hingedDoor(quarters, "QuartersDoor" .. suffix, Vector3.new(2.2, 5.5, 0.3),
+			CFrame.new(base + Vector3.new(0, 3.95, -3.4)), WOOD_MID)
 		-- Cot with a canvas mattress along the west wall.
 		WorldKit.part(quarters, "QuartersCot" .. suffix, Vector3.new(2, 0.7, 4.2),
 			CFrame.new(base + Vector3.new(-1.75, 1.55, 0.4)), WOOD_MID, Enum.Material.Wood)
@@ -960,7 +964,9 @@ end
 
 local function buildInfirmary(dayCamp: Instance): Vector3
 	local infirmary = WorldKit.model(dayCamp, "Infirmary")
-	local base = Vector3.new(27, 0, 61)
+	-- Lifted above the ~2.5 camp-bowl grade so the west doorway keeps full
+	-- headroom from the outside approach.
+	local base = Vector3.new(27, 2, 61)
 
 	local floor = WorldKit.part(infirmary, "InfirmaryFloor", Vector3.new(10, 0.6, 12),
 		CFrame.new(base + Vector3.new(0, 0.8, 0)), WOOD_FLOOR, Enum.Material.WoodPlanks)
@@ -976,8 +982,8 @@ local function buildInfirmary(dayCamp: Instance): Vector3
 			CFrame.new(base + Vector3.new(-4.75, 4.85, side * 4.0)), WOOD_WALL,
 			Enum.Material.WoodPlanks)
 	end
-	WorldKit.part(infirmary, "InfirmaryDoorHeader", Vector3.new(0.5, 2.3, 3.5),
-		CFrame.new(base + Vector3.new(-4.75, 7.45, 0)), WOOD_WALL, Enum.Material.WoodPlanks)
+	WorldKit.part(infirmary, "InfirmaryDoorHeader", Vector3.new(0.5, 1.0, 3.5),
+		CFrame.new(base + Vector3.new(-4.75, 8.1, 0)), WOOD_WALL, Enum.Material.WoodPlanks)
 	for side = -1, 1, 2 do
 		WorldKit.part(infirmary, "InfirmaryRoof", Vector3.new(5.8, 0.5, 13),
 			CFrame.new(base + Vector3.new(side * 2.7, 9.6, 0)) * CFrame.Angles(0, 0, side * math.rad(-20)),
@@ -1059,33 +1065,35 @@ end
 local function buildArcheryRange(dayCamp: Instance): Vector3
 	local range = WorldKit.model(dayCamp, "ArcheryRange")
 
+	-- Whole range shifted east (+10) off the perimeter dome's flank: at the
+	-- authored x the bales/targets were sunk up to 12 studs into the hill.
 	local laneZs = { -58.6, -61.6, -64.6 }
 	local targetFaces: { Vector3 } = {}
 	for targetIndex, laneZ in laneZs do
 		local suffix = tostring(targetIndex)
 		WorldKit.part(range, "RangeBale" .. suffix, Vector3.new(1.7, 2.8, 3.0),
-			CFrame.new(-51.6, 1.9, laneZ), HAY, Enum.Material.Grass)
+			CFrame.new(-40.6, 3.3, laneZ), HAY, Enum.Material.Grass)
 		cyl(range, "RangeFace" .. suffix, Vector3.new(0.2, 2.0, 2.0),
-			CFrame.new(-50.6, 2.6, laneZ), Color3.fromRGB(228, 224, 210), Enum.Material.SmoothPlastic)
+			CFrame.new(-39.6, 4.0, laneZ), Color3.fromRGB(228, 224, 210), Enum.Material.SmoothPlastic)
 			.CanCollide = false
 		cyl(range, "RangeRing" .. suffix, Vector3.new(0.24, 1.3, 1.3),
-			CFrame.new(-50.56, 2.6, laneZ), Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
+			CFrame.new(-39.56, 4.0, laneZ), Color3.fromRGB(190, 58, 48), Enum.Material.SmoothPlastic)
 			.CanCollide = false
 		cyl(range, "RangeBull" .. suffix, Vector3.new(0.28, 0.55, 0.55),
-			CFrame.new(-50.52, 2.6, laneZ), Color3.fromRGB(198, 165, 32), Enum.Material.SmoothPlastic)
+			CFrame.new(-39.52, 4.0, laneZ), Color3.fromRGB(198, 165, 32), Enum.Material.SmoothPlastic)
 			.CanCollide = false
-		table.insert(targetFaces, Vector3.new(-50.4, 2.6, laneZ))
+		table.insert(targetFaces, Vector3.new(-39.4, 4.0, laneZ))
 	end
 
 	-- Shooting-line fence.
 	for _, postZ in { -57.5, -62, -66.5 } do
 		WorldKit.part(range, "RangeFencePost", Vector3.new(0.45, 3.4, 0.45),
-			CFrame.new(-38, 2.1, postZ), WOOD_MID, Enum.Material.Wood)
+			CFrame.new(-28, 2.1, postZ), WOOD_MID, Enum.Material.Wood)
 	end
 	local topRail = WorldKit.part(range, "RangeFenceRailTop", Vector3.new(0.3, 0.25, 9.4),
-		CFrame.new(-38, 3.35, -62), WOOD_MID, Enum.Material.Wood)
+		CFrame.new(-28, 3.35, -62), WOOD_MID, Enum.Material.Wood)
 	WorldKit.part(range, "RangeFenceRailLow", Vector3.new(0.3, 0.25, 9.4),
-		CFrame.new(-38, 2.35, -62), WOOD_MID, Enum.Material.Wood)
+		CFrame.new(-28, 2.35, -62), WOOD_MID, Enum.Material.Wood)
 
 	local bowRelease = attachSound(topRail, "BowRelease", "ArcheryBowAssetId",
 		"rbxassetid://12222095", 0.55, 1.6) -- placeholder: replace with final asset
@@ -1098,7 +1106,7 @@ local function buildArcheryRange(dayCamp: Instance): Vector3
 		shotBusy = true
 		bowRelease:Play()
 		local target = targetFaces[math.random(1, #targetFaces)]
-		local start = Vector3.new(-38.8, 3.6, target.Z + math.random(-6, 6) * 0.1)
+		local start = Vector3.new(-28.8, 3.6, target.Z + math.random(-6, 6) * 0.1)
 		local apex = start:Lerp(target, 0.5) + Vector3.new(0, 2.6, 0)
 		local arrow = WorldKit.part(range, "PracticeArrow", Vector3.new(0.1, 0.1, 2.4),
 			CFrame.lookAt(start, apex), Color3.fromRGB(122, 92, 58), Enum.Material.Wood)
@@ -1119,9 +1127,10 @@ local function buildArcheryRange(dayCamp: Instance): Vector3
 		end)
 	end)
 
-	-- Equipment shed, door facing the range. Sits over the storm-cellar
-	-- surface seam (anchored parts, so the low-occupancy strip is hidden).
-	local shedBase = Vector3.new(-50.5, 0, -70.5)
+	-- Equipment shed, door facing the range. Shifted east with the range,
+	-- sitting in the shallow dip at the dome's toe (grade ~0.5-2 here). The
+	-- base map's stray HayBale lands inside — free set dressing.
+	local shedBase = Vector3.new(-39, 0, -70.5)
 	WorldKit.part(range, "ShedFloor", Vector3.new(6, 0.5, 8),
 		CFrame.new(shedBase + Vector3.new(0, 0.85, 0)), WOOD_FLOOR, Enum.Material.WoodPlanks)
 	WorldKit.part(range, "ShedSouthWall", Vector3.new(6, 6.5, 0.4),
@@ -1134,13 +1143,13 @@ local function buildArcheryRange(dayCamp: Instance): Vector3
 			CFrame.new(shedBase + Vector3.new(side * 2.15, 4.35, -3.8)), WOOD_WALL,
 			Enum.Material.WoodPlanks)
 	end
-	WorldKit.part(range, "ShedHeader", Vector3.new(2.6, 1.6, 0.4),
-		CFrame.new(shedBase + Vector3.new(0, 6.8, -3.8)), WOOD_WALL, Enum.Material.WoodPlanks)
+	WorldKit.part(range, "ShedHeader", Vector3.new(2.6, 0.7, 0.4),
+		CFrame.new(shedBase + Vector3.new(0, 7.25, -3.8)), WOOD_WALL, Enum.Material.WoodPlanks)
 	WorldKit.part(range, "ShedRoof", Vector3.new(6.8, 0.35, 9),
 		CFrame.new(shedBase + Vector3.new(0, 8.2, 0.2)) * CFrame.Angles(math.rad(8), 0, 0),
 		TIN_ROOF, Enum.Material.CorrodedMetal)
-	WorldKit.hingedDoor(range, "ShedDoor", Vector3.new(2.4, 4.8, 0.3),
-		CFrame.new(shedBase + Vector3.new(0, 3.6, -3.9)), WOOD_MID)
+	WorldKit.hingedDoor(range, "ShedDoor", Vector3.new(2.4, 5.6, 0.3),
+		CFrame.new(shedBase + Vector3.new(0, 3.9, -3.9)), WOOD_MID)
 
 	-- Bow rack on the west interior wall: three bows, one conspicuously
 	-- empty hook with a lore tag.
