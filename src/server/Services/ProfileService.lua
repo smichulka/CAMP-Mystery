@@ -970,6 +970,7 @@ function ProfileService:ApplyReward(
 			else nil,
 		identifiedMonster = input.identifiedMonster == true,
 		checkIns = finiteNumber(input.checkIns, 0),
+		coldCasesReviewed = finiteNumber(input.coldCasesReviewed, 0),
 	}
 	local grant = RewardCalculation.Calculate(normalizedInput)
 	local appliedByThisUpdate = false

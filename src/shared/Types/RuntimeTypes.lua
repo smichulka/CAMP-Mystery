@@ -31,6 +31,7 @@ export type ActionName =
 	| "UseRoleAbility"
 	| "UseMonsterAbility"
 	| "VerifyEvidence"
+	| "CombineEvidence"
 	| "AddEvidenceNote"
 	| "SetSettings"
 	| "BuyUpgrade"

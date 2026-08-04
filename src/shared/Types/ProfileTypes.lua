@@ -68,6 +68,7 @@ export type RewardInput = {
 	monsterId: string?,
 	identifiedMonster: boolean?,
 	checkIns: number?,
+	coldCasesReviewed: number?,
 }
 
 export type RewardGrant = {

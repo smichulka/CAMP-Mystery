@@ -62,6 +62,9 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		-- Dusk buddy check-ins: small social bonus, capped so farming pairs
 		-- is pointless.
 		xp += math.min(math.floor(input.checkIns or 0), 3) * 5
+		-- Cold case archive: reading all three police-station files is worth
+		-- one small courage bonus per round, never more.
+		xp += math.min(math.floor(input.coldCasesReviewed or 0), 1) * 15
 	end
 
 	local roleIsMurderer = input.roleId == "Murderer"
