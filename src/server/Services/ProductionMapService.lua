@@ -1478,11 +1478,13 @@ function ProductionMapService:Build()
 			self.interactiveDoors,
 			createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 0.5, -42), 18)
 		)
+		-- Cylinder axis is X; the roll stands it upright. Base stays planted at
+		-- terrain level (Y 0.5) while the pit rises well proud of the grass.
 		local fire = createPart(
 			self.dayCamp,
 			"Campfire",
-			Vector3.new(2, 8, 8),
-			CFrame.new(0, 1.5, 2) * CFrame.Angles(0, 0, math.rad(90)),
+			Vector3.new(3.4, 8, 8),
+			CFrame.new(0, 2.2, 2) * CFrame.Angles(0, 0, math.rad(90)),
 			Color3.fromRGB(124, 78, 48),
 			Enum.Material.Slate
 		)

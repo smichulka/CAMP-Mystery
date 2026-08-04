@@ -2826,7 +2826,7 @@ function GameRuntimeService:_ApplyRewards()
 	end
 end
 
-local CAMPFIRE_POSITION = Vector3.new(0, 1.5, 2)
+local CAMPFIRE_POSITION = Vector3.new(0, 2.2, 2)
 local CAMPFIRE_SAFE_RADIUS_STUDS = 18
 
 function GameRuntimeService:_reportBody(reporter: Player, victimParticipantId: string)
