@@ -377,17 +377,21 @@ local function ensureFarScenery()
 	end
 end
 
--- Non-destructive sky pass: if the place already has a Sky we leave every
--- property alone; if none exists we add one with engine-default properties and
--- only raise StarCount so the night reads as a deep star field. Existing
--- Atmosphere/ColorCorrection instances are never touched here.
+-- Non-destructive sky pass: if the place already has a Sky we own
+-- (CampNightSky) we keep its full-moon settings current; a foreign Sky is
+-- left entirely alone. If none exists we add one with engine-default
+-- properties, a deep star field, and an oversized moon so every night reads
+-- as a full moon. Existing Atmosphere/ColorCorrection instances are never
+-- touched here.
 local function ensureSky()
-	if Lighting:FindFirstChildOfClass("Sky") ~= nil then
+	local existing = Lighting:FindFirstChildOfClass("Sky")
+	if existing ~= nil and existing.Name ~= "CampNightSky" then
 		return
 	end
-	local sky = Instance.new("Sky")
+	local sky = existing or Instance.new("Sky")
 	sky.Name = "CampNightSky"
 	sky.StarCount = 5000
+	sky.MoonAngularSize = 18
 	sky.Parent = Lighting
 end
 
