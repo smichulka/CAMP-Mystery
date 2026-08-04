@@ -573,7 +573,10 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	screen.ResetOnSpawn = false
 	screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	pcall(function()
-		screen.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+		-- CoreUISafeInsets keeps the HUD's top row below the Roblox topbar;
+		-- DeviceSafeInsets let the phase header and role chip collide with
+		-- the core chrome on desktop.
+		screen.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 	end)
 
 	local previous = screen:FindFirstChild("CampMysteryHUD")
@@ -3073,6 +3076,7 @@ function GameView:_rebuildLobbyRoster(lobby: any)
 		)
 		name.Position = UDim2.fromOffset(16, 0)
 		name.Size = UDim2.new(1, -58, 1, 0)
+		name.TextTruncate = Enum.TextTruncate.AtEnd
 		name.TextColor3 = Theme.Notebook.InkMuted
 		local dot = Instance.new("Frame")
 		dot.Name = "ReadyDot"
@@ -4248,7 +4252,9 @@ function GameView:_ensureDiscussionPanel()
 	panel.BackgroundTransparency = 0.1
 	panel.BorderSizePixel = 0
 	panel.Visible = false
-	panel.ZIndex = 40
+	-- Below the modal layer (20): the hint tells players to open the
+	-- notebook [N], so the notebook must draw over this ambient panel.
+	panel.ZIndex = 15
 	panel.Parent = self.root
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 10)

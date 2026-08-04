@@ -60,8 +60,13 @@ function TutorialView.new(parent: Instance): TutorialView
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "TutorialUI"
 	screenGui.DisplayOrder = 60
-	screenGui.IgnoreGuiInset = true
+	-- Respect the topbar inset: contextual hint cards anchor near the top
+	-- edge and were clipped under the Roblox chrome with IgnoreGuiInset.
+	screenGui.IgnoreGuiInset = false
 	screenGui.ResetOnSpawn = false
+	pcall(function()
+		screenGui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	end)
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = hostGui
 

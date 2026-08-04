@@ -34,7 +34,7 @@ class ClientReleaseContractTests(unittest.TestCase):
 
     def test_ui_uses_safe_insets_and_explicit_responsive_layouts(self) -> None:
         source = read("src/client/UI/GameView.lua")
-        self.assertIn("Enum.ScreenInsets.DeviceSafeInsets", source)
+        self.assertIn("Enum.ScreenInsets.CoreUISafeInsets", source)
         self.assertIn("local narrow = viewport.X < 560", source)
         self.assertIn("local compact =", source)
         self.assertIn("self.uiScale.Scale = 1", source)
