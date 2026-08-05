@@ -1638,6 +1638,7 @@ function GameView:_applyCompactTouchLayout(active: boolean, viewport: Vector2)
 			end
 			self.lobbyText.Position = UDim2.fromOffset(18, 4)
 			self.lobbyText.Size = UDim2.new(1, -36, 0, 26)
+			self.lobbyRoster.Visible = true
 			self.lobbyRoster.Position = UDim2.fromOffset(18, 36)
 			self.lobbyRoster.Size = UDim2.new(1, -36, 0, 60)
 			self.lobbyTip.Visible = false
@@ -1682,22 +1683,25 @@ function GameView:_applyCompactTouchLayout(active: boolean, viewport: Vector2)
 			hauntPanel.Position = UDim2.new(1, -18, 0, 158)
 		end
 		if lobby then
+			-- Desktop restore matches the compact ready-up card that
+			-- _buildLobby authors. The old values here re-created the retired
+			-- 520x520 layout (buttons at y 446) inside a ~172px panel, pushing
+			-- READY UP off the bottom of the screen.
 			local strip = lobby:FindFirstChild("HeaderStrip")
 			if strip and strip:IsA("GuiObject") then
-				strip.Size = UDim2.new(1, 0, 0, 44)
+				strip.Size = UDim2.new(1, 0, 0, 28)
 			end
 			local progressionButton = lobby:FindFirstChild("Progression")
 			if progressionButton and progressionButton:IsA("GuiObject") then
-				progressionButton.Position = UDim2.new(1, -194, 0, 446)
-				progressionButton.Size = UDim2.fromOffset(176, 54)
+				progressionButton.Position = UDim2.fromOffset(12, 98)
+				progressionButton.Size = UDim2.new(1, -24, 0, 44)
 			end
-			self.lobbyText.Position = UDim2.fromOffset(18, 10)
-			self.lobbyText.Size = UDim2.new(1, -36, 0, 34)
-			self.lobbyRoster.Position = UDim2.fromOffset(18, 50)
-			self.lobbyRoster.Size = UDim2.new(1, -36, 0, 254)
-			self.lobbyTip.Visible = true
-			self.readyButton.Position = UDim2.fromOffset(18, 446)
-			self.readyButton.Size = UDim2.fromOffset(290, 54)
+			self.lobbyText.Position = UDim2.fromOffset(12, 4)
+			self.lobbyText.Size = UDim2.new(1, -24, 0, 20)
+			self.lobbyRoster.Visible = false
+			self.lobbyTip.Visible = false
+			self.readyButton.Position = UDim2.fromOffset(12, 38)
+			self.readyButton.Size = UDim2.new(1, -24, 0, 52)
 		end
 		voteMin.MinSize = Vector2.zero
 		targetMin.MinSize = Vector2.zero
