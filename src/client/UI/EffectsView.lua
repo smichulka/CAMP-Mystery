@@ -211,7 +211,12 @@ function EffectsView.new(parent: Instance): EffectsView
 
 	local statusOverlay = Instance.new("Frame")
 	statusOverlay.Name = "MonsterStatusOverlay"
-	statusOverlay.Size = UDim2.fromScale(1, 1)
+	-- Stretch past the topbar inset so the danger border hugs the REAL screen
+	-- edges; sized to the inset area only, its top stroke floated 58px down
+	-- the screen and read as a stray red line across the view.
+	local topInset = game:GetService("GuiService"):GetGuiInset()
+	statusOverlay.Position = UDim2.fromOffset(0, -topInset.Y)
+	statusOverlay.Size = UDim2.new(1, 0, 1, topInset.Y)
 	statusOverlay.BackgroundColor3 = Theme.Colors.Danger
 	statusOverlay.BackgroundTransparency = 1
 	statusOverlay.BorderSizePixel = 0

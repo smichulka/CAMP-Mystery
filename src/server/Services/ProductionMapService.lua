@@ -1660,9 +1660,10 @@ local function expandedGroundHeight(x: number, z: number): number
 		end
 	end
 	for index = 2, 13 do
-		if index == 10 or index == 11 then
-			-- Skipped in buildCampTerrain (they sat on the town road); keep
-			-- this height model in lockstep so no tree seats on a ghost hill.
+		if index == 10 or index == 11 or index == 12 then
+			-- Skipped in buildCampTerrain (they sat on the town's north
+			-- band); keep this height model in lockstep so no tree seats on
+			-- a ghost hill.
 			continue
 		end
 		if index == 9 then
@@ -1713,11 +1714,12 @@ local function buildCampTerrain(parent: Instance)
 			-- bury the dock; the lakefront sector stays open
 			continue
 		end
-		if index == 10 or index == 11 then
-			-- The formula drops these two on the town's main-road corridor
-			-- (x -50..54, z -75..-134): they buried the road shoulders, the
-			-- main-road-clue-a evidence socket, the sawmill blade, and the
-			-- cornfield's west edge. The south foothill span stays open so
+		if index == 10 or index == 11 or index == 12 then
+			-- The formula drops these three on the town's north band: 10/11
+			-- straddled the main-road corridor (burying the road shoulders,
+			-- the main-road-clue-a evidence socket, and the sawmill blade),
+			-- and 12 sat on the cornfield's north edge (149 of 169 stalks
+			-- read buried in-boot). The south foothill span stays open so
 			-- the night road can descend into Hollow Creek.
 			continue
 		end

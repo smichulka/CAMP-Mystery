@@ -68,9 +68,9 @@ local state = {
 local function hillGroundHeight(x: number, z: number): number
 	local height = 0.5
 	for index = 2, 13 do
-		if index == 10 or index == 11 then
-			-- Skipped in the terrain build (they sat on the town road
-			-- corridor); without this the S thicket seats 17 studs in the air.
+		if index == 10 or index == 11 or index == 12 then
+			-- Skipped in the terrain build (they sat on the town's north
+			-- band); without this the S thicket seats 17 studs in the air.
 			continue
 		end
 		local angle = (index / 14) * math.pi * 2
@@ -78,12 +78,19 @@ local function hillGroundHeight(x: number, z: number): number
 		local centerX = math.cos(angle) * radius
 		local centerZ = 12 + math.sin(angle) * radius
 		local ballRadius = 20 + index % 4 * 2
+		if index == 9 then
+			-- buildCampTerrain moves this dome to (-72, -80) r22 (the ranger
+			-- override); mirroring the formula spot floated the SW thicket's
+			-- mushroom rings 3 studs off the real slope.
+			centerX, centerZ, ballRadius = -72, -80, 22
+		end
 		local dx = x - centerX
 		local dz = z - centerZ
 		local flat = math.sqrt(dx * dx + dz * dz)
 		if flat < ballRadius - 0.5 then
 			local bulge = math.sqrt(ballRadius * ballRadius - flat * flat)
-			height = math.max(height, -3 + (index % 2) + bulge)
+			local domeY = if index == 9 then -2 else -3 + (index % 2)
+			height = math.max(height, domeY + bulge)
 		end
 	end
 	return height
@@ -1086,6 +1093,11 @@ local function buildCornfield(nightTown: Instance)
 	WorldKit.part(wagon, "WagonAxle", Vector3.new(0.3, 0.3, 3.4),
 		wagonCFrame * CFrame.new(-1.2, -0.4, 0) * CFrame.Angles(math.rad(8), 0, 0),
 		Color3.fromRGB(58, 62, 66), Enum.Material.Metal)
+	-- The field's Y values were authored against the town ground plane (y 0),
+	-- but this field sits on the expanded camp slab whose voxel surface
+	-- renders ~2.9: without the lift only the stalk tips poked out of the
+	-- grass (149 of 169 stalks read buried in the 2026-08-04 audit).
+	cornfield:TranslateBy(Vector3.new(0, 2.5, 0))
 end
 
 -- FEATURE 10: wildlife props (loops start in LakeAndWilds.Start)

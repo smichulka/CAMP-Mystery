@@ -112,7 +112,11 @@ local RIDGE_SLABS: { { size: Vector3, cframe: CFrame } } = {
 		cframe = CFrame.new(-780, 50, -150) * CFrame.Angles(0, math.rad(82), 0),
 	},
 }
-local RIDGE_COLOR = Color3.fromRGB(18, 24, 30)
+-- Night silhouette vs. daylight haze: a single near-black slab color read as
+-- a giant artificial wall against the daytime sky (audited 2026-08-05).
+-- SetNight retints the ridge parts between these.
+local RIDGE_COLOR_NIGHT = Color3.fromRGB(18, 24, 30)
+local RIDGE_COLOR_DAY = Color3.fromRGB(96, 110, 128)
 
 local started = false
 local nightActive = false
@@ -343,22 +347,44 @@ end
 -- ---------------------------------------------------------------------------
 -- Far scenery + sky (build-once, self-healing after map clears)
 
+-- Each ridge entry becomes three overlapping peaks (a pair of mirrored wedges
+-- per peak, triangle profile facing the camp) instead of one monolithic wedge:
+-- the old single parts showed the camp their flat rectangular backs, which
+-- read as giant slabs floating in the sky, especially in daylight.
+local RIDGE_PEAKS: { { offset: number, width: number, height: number } } = {
+	{ offset = -0.30, width = 0.62, height = 1.00 },
+	{ offset = 0.06, width = 0.50, height = 0.72 },
+	{ offset = 0.34, width = 0.54, height = 0.86 },
+}
+
 local function buildFarScenery(dayCamp: Instance)
 	local folder = Instance.new("Folder")
 	folder.Name = FAR_SCENERY_FOLDER_NAME
+	local color = if nightActive then RIDGE_COLOR_NIGHT else RIDGE_COLOR_DAY
 	for index, slab in RIDGE_SLABS do
-		local ridge = Instance.new("WedgePart")
-		ridge.Name = "MountainRidge" .. index
-		ridge.Anchored = true
-		ridge.CanCollide = false
-		ridge.CanQuery = false
-		ridge.CanTouch = false
-		ridge.CastShadow = false
-		ridge.Size = slab.size
-		ridge.CFrame = slab.cframe
-		ridge.Color = RIDGE_COLOR
-		ridge.Material = Enum.Material.SmoothPlastic
-		ridge.Parent = folder
+		local length = slab.size.X
+		local depth = slab.size.Z
+		for peakIndex, peak in RIDGE_PEAKS do
+			local peakHeight = slab.size.Y * peak.height
+			local halfWidth = (peak.width * length) / 2
+			local baseY = -slab.size.Y / 2 + peakHeight / 2
+			for side = -1, 1, 2 do
+				local flank = Instance.new("WedgePart")
+				flank.Name = string.format("MountainRidge%d_%d%s", index, peakIndex, if side < 0 then "L" else "R")
+				flank.Anchored = true
+				flank.CanCollide = false
+				flank.CanQuery = false
+				flank.CanTouch = false
+				flank.CastShadow = false
+				flank.Size = Vector3.new(depth, peakHeight, halfWidth)
+				flank.CFrame = slab.cframe
+					* CFrame.new(peak.offset * length + side * halfWidth / 2, baseY, 0)
+					* CFrame.Angles(0, side * math.rad(90), 0)
+				flank.Color = color
+				flank.Material = Enum.Material.SmoothPlastic
+				flank.Parent = folder
+			end
+		end
 	end
 	folder.Parent = dayCamp
 end
@@ -614,6 +640,18 @@ end
 
 function WorldAmbience.SetNight(isNight: boolean)
 	nightActive = isNight
+	-- Distant ridges: hazy blue-grey by day, near-black silhouette at night.
+	local mapFolder = findMapFolder()
+	local dayCamp = if mapFolder then mapFolder:FindFirstChild("DayCamp") else nil
+	local scenery = if dayCamp then dayCamp:FindFirstChild(FAR_SCENERY_FOLDER_NAME) else nil
+	if scenery then
+		local color = if isNight then RIDGE_COLOR_NIGHT else RIDGE_COLOR_DAY
+		for _, part in scenery:GetChildren() do
+			if part:IsA("BasePart") then
+				part.Color = color
+			end
+		end
+	end
 end
 
 function WorldAmbience.SetWeather(weatherId: string?)

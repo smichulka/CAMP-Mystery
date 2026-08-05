@@ -567,6 +567,24 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		screen.Name = "GameUI"
 		screen.Parent = playerGui
 	end
+	-- A StarterGui template used to clone an empty second "GameUI" on spawn
+	-- (client boot races the first character spawn, so FindFirstChild missed
+	-- it). The template is gone from the project, but scrub stragglers so the
+	-- HUD never has an identically-named sibling.
+	for _, sibling in playerGui:GetChildren() do
+		if sibling ~= screen and sibling.Name == "GameUI" then
+			sibling:Destroy()
+		end
+	end
+	playerGui.ChildAdded:Connect(function(child)
+		if child ~= screen and child.Name == "GameUI" then
+			task.defer(function()
+				if child.Parent == playerGui then
+					child:Destroy()
+				end
+			end)
+		end
+	end)
 	screen.DisplayOrder = 10
 	screen.Enabled = true
 	screen.IgnoreGuiInset = false
@@ -1382,7 +1400,7 @@ function GameView:_updateLayout()
 		if self.lobbyPanel then
 			self.lobbyPanel.AnchorPoint = Vector2.new(0.5, 1)
 			self.lobbyPanel.Position = UDim2.new(0.5, 0, 1, -8)
-			self.lobbyPanel.Size = UDim2.new(1, -16, 0, 104)
+			self.lobbyPanel.Size = UDim2.new(1, -16, 0, 172)
 		end
 	elseif compact then
 		self.topStatus.AnchorPoint = Vector2.new(1, 0)
@@ -1417,7 +1435,7 @@ function GameView:_updateLayout()
 		if self.lobbyPanel then
 			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
 			self.lobbyPanel.Position = UDim2.new(1, -10, 1, -10)
-			self.lobbyPanel.Size = UDim2.fromOffset(300, 104)
+			self.lobbyPanel.Size = UDim2.fromOffset(300, 172)
 		end
 	else
 		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
@@ -1450,7 +1468,7 @@ function GameView:_updateLayout()
 		if self.lobbyPanel then
 			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
 			self.lobbyPanel.Position = UDim2.new(1, -18, 1, -18)
-			self.lobbyPanel.Size = UDim2.fromOffset(300, 104)
+			self.lobbyPanel.Size = UDim2.fromOffset(300, 172)
 		end
 	end
 
@@ -2480,7 +2498,11 @@ end
 function GameView:_buildAnnouncements()
 	local banner = Components.Panel(self.root, "Announcement")
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position = UDim2.new(0.5, 0, 0, -110)
+	-- Parked height must clear the REAL screen top, not just the inset origin:
+	-- ScreenGuis render into the topbar zone, so at -110 the banner's bottom
+	-- 30px (the body line) stayed visible under the topbar. 82 tall + 58 inset
+	-- + margin = park at -160.
+	banner.Position = UDim2.new(0.5, 0, 0, -160)
 	banner.Size = UDim2.fromOffset(520, 82)
 	banner.ZIndex = 30
 	local title = Components.Label(
@@ -2524,14 +2546,20 @@ function GameView:_buildAnnouncements()
 end
 
 function GameView:_buildLobby()
+	-- Compact bottom-right ready-up card. The original 520x520 center panel
+	-- (roster, camp tip, buttons at y 446) never survived _applyLayout: every
+	-- branch shrank the panel to ~104px while the children kept their tall
+	-- offsets, so READY UP rendered ~320px BELOW the screen edge and was
+	-- unclickable. The card now owns a layout that fits the size the relayout
+	-- actually gives it; the roster and tip stay as hidden data targets.
 	local lobby = Components.Panel(self.root, "Lobby")
-	lobby.AnchorPoint = Vector2.new(0.5, 0.5)
-	lobby.Position = UDim2.fromScale(0.5, 0.56)
-	lobby.Size = UDim2.fromOffset(520, 520)
+	lobby.AnchorPoint = Vector2.new(1, 1)
+	lobby.Position = UDim2.new(1, -18, 1, -18)
+	lobby.Size = UDim2.fromOffset(300, 172)
 	-- Rustic cabin-wood header strip across the top of the lobby panel
 	local headerStrip = Instance.new("Frame")
 	headerStrip.Name = "HeaderStrip"
-	headerStrip.Size = UDim2.new(1, 0, 0, 44)
+	headerStrip.Size = UDim2.new(1, 0, 0, 28)
 	headerStrip.Position = UDim2.fromOffset(0, 0)
 	headerStrip.BackgroundColor3 = Theme.Colors.WoodRust
 	headerStrip.BackgroundTransparency = 0.30
@@ -2543,11 +2571,11 @@ function GameView:_buildLobby()
 		lobby,
 		"LobbyText",
 		"CAMPERS ARE ARRIVING",
-		Theme.Typography.HeadingSize,
+		Theme.Typography.CaptionSize,
 		Theme.Typography.HeadingFont
 	)
-	text.Position = UDim2.fromOffset(18, 10)
-	text.Size = UDim2.new(1, -36, 0, 34)
+	text.Position = UDim2.fromOffset(12, 4)
+	text.Size = UDim2.new(1, -24, 0, 20)
 	text.TextXAlignment = Enum.TextXAlignment.Center
 	text.TextColor3 = Theme.Colors.Gold
 	text.ZIndex = 2
@@ -2560,6 +2588,7 @@ function GameView:_buildLobby()
 	roster.BorderSizePixel = 0
 	roster.CanvasSize = UDim2.fromOffset(0, 0)
 	roster.ScrollBarThickness = 4
+	roster.Visible = false
 	roster.Parent = lobby
 	local rosterLayout = Components.List(roster, 6)
 	addCanvasSizing(roster, rosterLayout)
@@ -2567,6 +2596,7 @@ function GameView:_buildLobby()
 	local tip = Components.Panel(lobby, "CampTip")
 	tip.Position = UDim2.fromOffset(18, 312)
 	tip.Size = UDim2.new(1, -36, 0, 118)
+	tip.Visible = false
 	tip.BackgroundColor3 = Theme.Colors.MossStone
 	local tipCategory = Components.Label(
 		tip,
@@ -2593,8 +2623,8 @@ function GameView:_buildLobby()
 	local ready = Components.Button(lobby, {
 		name = "Ready",
 		text = "READY UP",
-		size = UDim2.fromOffset(290, 54),
-		position = UDim2.fromOffset(18, 446),
+		size = UDim2.new(1, -24, 0, 52),
+		position = UDim2.fromOffset(12, 38),
 		color = Theme.Colors.Success,
 	})
 	ready.Activated:Connect(function()
@@ -2610,8 +2640,8 @@ function GameView:_buildLobby()
 	local progression = Components.Button(lobby, {
 		name = "Progression",
 		text = "PROGRESS",
-		size = UDim2.fromOffset(176, 54),
-		position = UDim2.new(1, -194, 0, 446),
+		size = UDim2.new(1, -24, 0, 44),
+		position = UDim2.fromOffset(12, 98),
 		color = Theme.Colors.Gold,
 	})
 	progression.TextColor3 = Theme.Colors.Background
@@ -6407,7 +6437,12 @@ function GameView:PlayWinReveal(winner: string, isHumanWin: boolean, localRole: 
 		else Theme.Colors.DangerBright
 	local overlay = Instance.new("CanvasGroup")
 	overlay.Name = "WinRevealOverlay"
-	overlay.Size = UDim2.fromScale(1, 1)
+	-- Cover the real screen, not just the inset area, so the cinematic block
+	-- reaches the top edge and the faction strips hug the actual borders
+	-- instead of drawing a floating line under the topbar.
+	local winInset = game:GetService("GuiService"):GetGuiInset()
+	overlay.Position = UDim2.fromOffset(0, -winInset.Y)
+	overlay.Size = UDim2.new(1, 0, 1, winInset.Y)
 	overlay.BackgroundColor3 = Theme.Colors.Background
 	overlay.BackgroundTransparency = 0
 	overlay.BorderSizePixel = 0
@@ -6438,10 +6473,13 @@ function GameView:PlayWinReveal(winner: string, isHumanWin: boolean, localRole: 
 	local safeWinner = if winner ~= ""
 		then string.upper(string.sub(winner, 1, 48))
 		else if isHumanWin then "CAMPERS" else "MONSTER"
+	-- "CAMPERS WIN" but "MURDERER WINS" — match the verb to the noun's number
+	-- (the results modal already uses the singular form).
+	local winVerb = if string.sub(safeWinner, -1) == "S" then " WIN" else " WINS"
 	local title = Components.Label(
 		overlay,
 		"WinnerTitle",
-		safeWinner .. " WIN",
+		safeWinner .. winVerb,
 		64,
 		Theme.Typography.DisplayFont
 	)
@@ -7307,12 +7345,12 @@ function GameView:Announce(payload: any)
 		if not self.destroyed and token == self.announcementToken and self.announcement.Parent then
 			self.topStatus.Visible = true
 			if reducedMotion then
-				self.announcement.Position = UDim2.new(0.5, 0, 0, -110)
+				self.announcement.Position = UDim2.new(0.5, 0, 0, -160)
 			else
 				TweenService:Create(
 					self.announcement,
 					TweenInfo.new(0.2),
-					{ Position = UDim2.new(0.5, 0, 0, -110) }
+					{ Position = UDim2.new(0.5, 0, 0, -160) }
 				):Play()
 			end
 		end

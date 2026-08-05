@@ -79,8 +79,8 @@ local function groundHeight(x: number, z: number): number
 		end
 	end
 	for index = 2, 13 do
-		if index == 10 or index == 11 then
-			-- Skipped in the terrain build: they sat on the town road corridor.
+		if index == 10 or index == 11 or index == 12 then
+			-- Skipped in the terrain build: they sat on the town's north band.
 			continue
 		end
 		if index == 9 then

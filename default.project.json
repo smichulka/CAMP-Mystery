@@ -94,15 +94,7 @@
       }
     },
     "StarterGui": {
-      "$className": "StarterGui",
-      "GameUI": {
-        "$className": "ScreenGui",
-        "$properties": {
-          "DisplayOrder": 10,
-          "IgnoreGuiInset": false,
-          "ResetOnSpawn": false
-        }
-      }
+      "$className": "StarterGui"
     },
     "Workspace": {
       "$className": "Workspace",
