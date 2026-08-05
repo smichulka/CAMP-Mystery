@@ -7018,6 +7018,10 @@ function GameView:PlayPhaseTitleCard(phaseName: string, isReconnect: boolean, lo
 		or isReconnect
 		or self.roleRevealActive
 		or type(entry) ~= "table"
+		-- The letterbox band would print straight across the results modal
+		-- (vote tally / mystery-resolved card); with that card up the phase
+		-- change is already narrated on screen.
+		or modalTargetVisible(self.resultModal)
 	then
 		return
 	end
