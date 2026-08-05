@@ -1745,18 +1745,42 @@ local function buildCampTerrain(parent: Instance)
 	end
 	-- Creek runs the full expanded slab now (300 long instead of 170); the
 	-- 0.08 yaw swings the north mouth east to (116, 161) and the south mouth
-	-- west to (92, -138), both clear of the boundary domes. The north arm cuts
-	-- across hill dome 2's east toe (76.7, 108), so shave that bank above the
-	-- waterline first or the fill leaves a floating hillside slice (same
-	-- pattern as the bay carve below).
+	-- west to (92, -138), both clear of the boundary domes.
+	--
+	-- ENGINE RULE (measured in-boot 2026-08-04): filling Water into a voxel
+	-- row that still holds ANY solid occupancy does nothing, silently — even
+	-- the 0.13-occupancy sliver the slab top leaves in the y 0..4 row blocks
+	-- it. Water only floods rows that are already open air, then occupies
+	-- them fully (which is why the rendered surface sits at 4.0, the top of
+	-- the y 0..4 row). The bay below only shows water because of its r42 Air
+	-- carve; so EVERY water region here gets an Air carve above the waterline
+	-- first. The carves also shave hill-dome toes that would otherwise hang
+	-- as floating slices over the water (dome 2's east toe at the north arm).
+	-- The mid-run through the mines bluff (z -58..-15) stays uncarved: the
+	-- bluff there is a dry gorge notch, as shipped, and carving it would
+	-- expose the mines' sealed rock rooms.
 	terrain:FillBlock(
-		CFrame.new(99.5, 13, 112),
-		Vector3.new(16, 24, 44),
+		CFrame.new(104, 13, 12) * CFrame.Angles(0, 0.08, 0) * CFrame.new(0, 0, 65),
+		Vector3.new(37, 24, 170),
 		Enum.Material.Air
 	)
 	terrain:FillBlock(
-		CFrame.new(104, -0.8, 12) * CFrame.Angles(0, 0.08, 0),
-		Vector3.new(31, 4.8, 300),
+		CFrame.new(99.5, 13, -75),
+		Vector3.new(27, 24, 34),
+		Enum.Material.Air
+	)
+	terrain:FillBlock(
+		CFrame.new(93, 13, -115),
+		Vector3.new(34, 24, 46),
+		Enum.Material.Air
+	)
+	-- Water band y -4..4: fully covers the y 0..4 voxel row so block fills
+	-- read 1.0 there like cylinder fills do (a nominal-band block fill only
+	-- wrote 0.4 and rendered its surface 2.4 studs below the bay's). The
+	-- full-grass bed rows below stay solid, so nothing deepens.
+	terrain:FillBlock(
+		CFrame.new(104, 0, 12) * CFrame.Angles(0, 0.08, 0),
+		Vector3.new(31, 8, 300),
 		Enum.Material.Water
 	)
 	-- Widen the creek into a proper lake bay east of camp, with a sandy
@@ -1776,20 +1800,28 @@ local function buildCampTerrain(parent: Instance)
 	-- which is what carves the island's shoreline) so the ruins sit across
 	-- open water on every side. Every fill keeps the bay's vertical band
 	-- (top y=1.6 -> rendered surface ~4.0) so WATER_SURFACE_Y consumers and
-	-- every pinned floating prop stay calibrated.
-	terrain:FillCylinder(CFrame.new(122, -0.8, 72), 4.8, 30, Enum.Material.Water) -- bay-to-north neck
-	terrain:FillCylinder(CFrame.new(152, -0.8, 102), 4.8, 45, Enum.Material.Water) -- north basin
-	terrain:FillCylinder(CFrame.new(192, -0.8, 84), 4.8, 20, Enum.Material.Water) -- northeast corner
+	-- every pinned floating prop stay calibrated. Air carves first (see the
+	-- engine rule at the creek fills), radius/size +3 over the water's.
+	terrain:FillCylinder(CFrame.new(122, 13, 72), 24, 33, Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(152, 13, 102), 24, 48, Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(192, 13, 84), 24, 23, Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(203, 13, 20), Vector3.new(26, 24, 146), Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(170, 13, -68), 24, 45, Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(158, 13, -36), 24, 33, Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(120.5, 13, -72), Vector3.new(22, 24, 28), Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(122, 0, 72), 8, 30, Enum.Material.Water) -- bay-to-north neck
+	terrain:FillCylinder(CFrame.new(152, 0, 102), 8, 45, Enum.Material.Water) -- north basin
+	terrain:FillCylinder(CFrame.new(192, 0, 84), 8, 20, Enum.Material.Water) -- northeast corner
 	terrain:FillBlock(
-		CFrame.new(203, -0.8, 20),
-		Vector3.new(22, 4.8, 140),
+		CFrame.new(203, 0, 20),
+		Vector3.new(22, 8, 140),
 		Enum.Material.Water
 	) -- east channel behind Aurora
-	terrain:FillCylinder(CFrame.new(170, -0.8, -68), 4.8, 42, Enum.Material.Water) -- south basin
-	terrain:FillCylinder(CFrame.new(158, -0.8, -36), 4.8, 30, Enum.Material.Water) -- south basin, Aurora shore
+	terrain:FillCylinder(CFrame.new(170, 0, -68), 8, 42, Enum.Material.Water) -- south basin
+	terrain:FillCylinder(CFrame.new(158, 0, -36), 8, 30, Enum.Material.Water) -- south basin, Aurora shore
 	terrain:FillBlock(
-		CFrame.new(120.5, -0.8, -72),
-		Vector3.new(18, 4.8, 24),
+		CFrame.new(120.5, 0, -72),
+		Vector3.new(18, 8, 24),
 		Enum.Material.Water
 	) -- strait joining the creek to the south basin (south of the mines bluff)
 	-- Beaches on the enlarged shoreline (full voxel depth, same as the bay's)
