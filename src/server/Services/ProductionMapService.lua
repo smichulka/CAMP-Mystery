@@ -1595,6 +1595,92 @@ local function hideDefaultBaseplate()
 	end
 end
 
+-- World footprint. The original camp shipped on a 250x205 slab (~51k studs^2,
+-- ~43k of it dry land) with a ~7.5k studs^2 creek-and-bay lake. The expanded
+-- slab is 450x320 (x -200..250, z -148..172): dry land roughly doubles
+-- (~95k studs^2) and the water roughly triples (~26k studs^2) by wrapping the
+-- Camp Aurora bank with north/east/south basins.
+local WORLD_SLAB_CFRAME = CFrame.new(25, -3.5, 12)
+local WORLD_SLAB_SIZE = Vector3.new(450, 8, 320)
+
+-- Outer boundary hill ring. The original 14-dome ring stays put as interior
+-- foothills (the ranger station stilts and several props sit on those slopes),
+-- so the world's edge moves out to this second ring instead. The east span is
+-- omitted where the expanded lake now reaches. Rows are {x, y, z, ballRadius};
+-- positions were checked against every water fill below so no dome pokes a
+-- floating cap above a Water region.
+local OUTER_HILL_DOMES: { { number } } = {
+	{ 64, -3, 152, 26 }, -- west bank of the creek's north gate
+	{ 50.7, -3, 168, 24 },
+	{ 0, -2, 188, 27 },
+	{ -47, -3, 156.6, 30 },
+	{ -96.4, -2, 144.7, 33 },
+	{ -142.4, -3, 115.5, 24 },
+	{ -144.6, -2, 59, 27 },
+	{ -164, -3, 12, 30 },
+	{ -167.4, -2, -42.4, 33 },
+	{ -123, -3, -77.3, 24 },
+	{ -96.4, -2, -120.7, 27 },
+	{ -54, -3, -138, 28 },
+	{ 0, -2, -140, 33 },
+	{ 50.7, -3, -144, 24 },
+	{ 138, -3, -136, 24 }, -- between the creek mouth and the south basin
+}
+
+-- Far-shore ridge enclosing the tripled lake from the east, plus corner
+-- fillers that close the gaps back to the boundary ring.
+local FAR_SHORE_DOMES: { { number } } = {
+	{ 250, -3, -118, 28 },
+	{ 252, -2, -84, 30 },
+	{ 249, -3, -50, 26 },
+	{ 251, -2, -16, 32 },
+	{ 250, -3, 18, 28 },
+	{ 252, -2, 52, 30 },
+	{ 249, -3, 86, 26 },
+	{ 251, -2, 120, 32 },
+	{ 250, -3, 150, 28 },
+	{ 222, -3, -130, 26 }, -- southeast corner fillers
+	{ 187, -3, -141, 30 },
+	{ 158, -2, 178, 28 }, -- northeast corner fillers
+	{ 200, -3, 160, 26 },
+}
+
+-- Ground height across the expanded band: flat slab, the original dome ring
+-- (including the index-9 ranger override), and both new dome tables. Used to
+-- seat the outer tree wall on whatever hill happens to be underneath.
+local function expandedGroundHeight(x: number, z: number): number
+	local height = 0.5
+	local function raiseFor(cx: number, cy: number, cz: number, ballRadius: number)
+		local dx = x - cx
+		local dz = z - cz
+		local flat = math.sqrt(dx * dx + dz * dz)
+		if flat < ballRadius - 0.5 then
+			height = math.max(height, cy + math.sqrt(ballRadius * ballRadius - flat * flat))
+		end
+	end
+	for index = 2, 13 do
+		if index == 9 then
+			raiseFor(-72, -2, -80, 22)
+		else
+			local angle = (index / 14) * math.pi * 2
+			local radius = 105 + (index % 3) * 9
+			raiseFor(
+				math.cos(angle) * radius,
+				-3 + (index % 2),
+				12 + math.sin(angle) * radius,
+				20 + index % 4 * 2
+			)
+		end
+	end
+	for _, dome in OUTER_HILL_DOMES do
+		raiseFor(dome[1], dome[2], dome[3], dome[4])
+	end
+	for _, dome in FAR_SHORE_DOMES do
+		raiseFor(dome[1], dome[2], dome[3], dome[4])
+	end
+	return height
+end
+
 local function buildCampTerrain(parent: Instance)
 	local terrain = Workspace.Terrain
 	-- Terrain is fully code-sculpted; clear first so every build is
@@ -1611,8 +1697,8 @@ local function buildCampTerrain(parent: Instance)
 		cosmeticTerrain.GrassLength = 0.3
 	end)
 	terrain:FillBlock(
-		CFrame.new(0, -3.5, 12),
-		Vector3.new(250, 8, 205),
+		WORLD_SLAB_CFRAME,
+		WORLD_SLAB_SIZE,
 		Enum.Material.Grass
 	)
 	for index = 1, 14 do
@@ -1641,9 +1727,36 @@ local function buildCampTerrain(parent: Instance)
 			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
 		)
 	end
+	-- Doubled camp: outer boundary ring and far-shore ridge. The old ring
+	-- above becomes interior foothills; these domes are the new world edge.
+	for index, dome in OUTER_HILL_DOMES do
+		terrain:FillBall(
+			Vector3.new(dome[1], dome[2], dome[3]),
+			dome[4],
+			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+		)
+	end
+	for index, dome in FAR_SHORE_DOMES do
+		terrain:FillBall(
+			Vector3.new(dome[1], dome[2], dome[3]),
+			dome[4],
+			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+		)
+	end
+	-- Creek runs the full expanded slab now (300 long instead of 170); the
+	-- 0.08 yaw swings the north mouth east to (116, 161) and the south mouth
+	-- west to (92, -138), both clear of the boundary domes. The north arm cuts
+	-- across hill dome 2's east toe (76.7, 108), so shave that bank above the
+	-- waterline first or the fill leaves a floating hillside slice (same
+	-- pattern as the bay carve below).
+	terrain:FillBlock(
+		CFrame.new(99.5, 13, 112),
+		Vector3.new(16, 24, 44),
+		Enum.Material.Air
+	)
 	terrain:FillBlock(
 		CFrame.new(104, -0.8, 12) * CFrame.Angles(0, 0.08, 0),
-		Vector3.new(31, 4.8, 170),
+		Vector3.new(31, 4.8, 300),
 		Enum.Material.Water
 	)
 	-- Widen the creek into a proper lake bay east of camp, with a sandy
@@ -1658,13 +1771,39 @@ local function buildCampTerrain(parent: Instance)
 	terrain:FillCylinder(CFrame.new(80, -3.2, 28), 8.5, 12, Enum.Material.Sand)
 	terrain:FillCylinder(CFrame.new(80, -3.2, 66), 8.5, 12, Enum.Material.Sand)
 
+	-- Lake x3: the bay above stays the camp-side shore; these basins wrap the
+	-- Camp Aurora bank (Landmarks re-grasses its 76x64 rectangle afterwards,
+	-- which is what carves the island's shoreline) so the ruins sit across
+	-- open water on every side. Every fill keeps the bay's vertical band
+	-- (top y=1.6 -> rendered surface ~4.0) so WATER_SURFACE_Y consumers and
+	-- every pinned floating prop stay calibrated.
+	terrain:FillCylinder(CFrame.new(122, -0.8, 72), 4.8, 30, Enum.Material.Water) -- bay-to-north neck
+	terrain:FillCylinder(CFrame.new(152, -0.8, 102), 4.8, 45, Enum.Material.Water) -- north basin
+	terrain:FillCylinder(CFrame.new(192, -0.8, 84), 4.8, 20, Enum.Material.Water) -- northeast corner
+	terrain:FillBlock(
+		CFrame.new(203, -0.8, 20),
+		Vector3.new(22, 4.8, 140),
+		Enum.Material.Water
+	) -- east channel behind Aurora
+	terrain:FillCylinder(CFrame.new(170, -0.8, -68), 4.8, 42, Enum.Material.Water) -- south basin
+	terrain:FillCylinder(CFrame.new(158, -0.8, -36), 4.8, 30, Enum.Material.Water) -- south basin, Aurora shore
+	terrain:FillBlock(
+		CFrame.new(120.5, -0.8, -72),
+		Vector3.new(18, 4.8, 24),
+		Enum.Material.Water
+	) -- strait joining the creek to the south basin (south of the mines bluff)
+	-- Beaches on the enlarged shoreline (full voxel depth, same as the bay's)
+	terrain:FillCylinder(CFrame.new(97, -3.2, 70), 8.5, 8, Enum.Material.Sand) -- swimming-hole cove
+	terrain:FillCylinder(CFrame.new(133, -3.2, -52), 8.5, 9, Enum.Material.Sand) -- south basin head
+	terrain:FillCylinder(CFrame.new(160, -3.2, 149), 8.5, 8, Enum.Material.Sand) -- north basin head
+
 	-- Sits below the storm-cellar tunnel (floor ~-6.9) so the passage can be
 	-- carved through the terrain block above it
 	local bounds = createPart(
 		parent,
 		"CampGround",
-		Vector3.new(250, 1, 205),
-		CFrame.new(0, -9, 12),
+		Vector3.new(WORLD_SLAB_SIZE.X, 1, WORLD_SLAB_SIZE.Z),
+		CFrame.new(25, -9, 12),
 		Color3.fromRGB(59, 82, 52),
 		Enum.Material.Grass,
 		1
@@ -1875,6 +2014,28 @@ function ProductionMapService:Build()
 					12 + math.sin(angle) * radius
 				),
 				18 + index % 5 * 2.5,
+				if index % 2 == 0
+					then Color3.fromRGB(43, 85, 57)
+					else Color3.fromRGB(50, 94, 61)
+			)
+		end
+		-- Outer tree wall at the doubled boundary. The east span stays open
+		-- (indices 1-7 and 41-48) exactly like the inner ring's lakefront gap,
+		-- because that whole sector is now the tripled lake. Trunks ride
+		-- expandedGroundHeight so pines climb the boundary domes instead of
+		-- drowning in them.
+		for index = 1, 48 do
+			if index <= 7 or index >= 41 then
+				continue
+			end
+			local angle = (index / 48) * math.pi * 2
+			local radius = 133 + (index % 4) * 13
+			local treeX = math.cos(angle) * radius
+			local treeZ = 12 + math.sin(angle) * radius
+			createPineTree(
+				self.dayCamp,
+				Vector3.new(treeX, expandedGroundHeight(treeX, treeZ), treeZ),
+				19 + index % 6 * 2.5,
 				if index % 2 == 0
 					then Color3.fromRGB(43, 85, 57)
 					else Color3.fromRGB(50, 94, 61)
@@ -3215,7 +3376,7 @@ end
 -- optionally so the map service works before/without any given pack.
 -- PolishPack runs last: it decorates structures the other packs build.
 local EXPANSION_MODULE_NAMES =
-	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "PolishPack" }
+	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "PolishPack" }
 
 local function optionalMapModule(name: string): any
 	local servicesFolder = script.Parent
