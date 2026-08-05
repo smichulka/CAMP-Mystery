@@ -219,16 +219,29 @@ function EffectsView.new(parent: Instance): EffectsView
 	statusOverlay.Parent = root
 	-- Stretch past the topbar inset so the danger border hugs the REAL screen
 	-- edges; sized to the inset area only, its top stroke floated 58px down
-	-- the screen and read as a stray red line across the view. The inset is
-	-- read from the root's own absolute offset and tracked via signal because
-	-- GuiService:GetGuiInset() reports 0 during early client boot.
+	-- the screen and read as a stray red line across the view. GetGuiInset
+	-- reports 0 during early client boot (and GuiObject.AbsolutePosition is
+	-- inset-relative here, so it can't be used either) — read TopbarInset and
+	-- track its change signal, with a delayed re-check as a fallback.
+	local GuiService = game:GetService("GuiService")
 	local function applyStatusInset()
-		local inset = math.max(0, root.AbsolutePosition.Y)
+		local inset = 0
+		local ok, rect = pcall(function()
+			return (GuiService :: any).TopbarInset
+		end)
+		if ok and rect ~= nil then
+			inset = rect.Height
+		else
+			inset = GuiService:GetGuiInset().Y
+		end
 		statusOverlay.Position = UDim2.fromOffset(0, -inset)
 		statusOverlay.Size = UDim2.new(1, 0, 1, inset)
 	end
 	applyStatusInset()
-	root:GetPropertyChangedSignal("AbsolutePosition"):Connect(applyStatusInset)
+	pcall(function()
+		GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(applyStatusInset)
+	end)
+	task.delay(5, applyStatusInset)
 
 	local statusStroke = Instance.new("UIStroke")
 	statusStroke.Name = "StatusBorder"
