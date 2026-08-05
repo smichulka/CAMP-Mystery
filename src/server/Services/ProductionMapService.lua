@@ -918,7 +918,9 @@ local function createCabin(
 	-- the porch shut (players had to hop the railing; pathfinding read the
 	-- main cabins as unreachable).
 	local railY = 4.0
-	local entryGap = 5.0
+	-- 7 studs: a 5-stud gap read as closed on the navigation mesh (agent
+	-- radius 2 + voxel padding), so paths kept vaulting the railing instead.
+	local entryGap = 7.0
 	local railSegment = (width - 4.0 - entryGap) / 2
 	for side = -1, 1, 2 do
 		createPart(model, "PorchRailFront" .. (if side < 0 then "L" else "R"),
@@ -1164,13 +1166,15 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(hSide * (signW / 2 - 0.8), 9.15, -12.3)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
-	-- Two-step approach from porch down to ground (Cabin 2/4 reference: raised porch feel)
-	createPart(model, "PorchStep1", Vector3.new(4.2, 0.38, 1.5),
-		CFrame.new(position + Vector3.new(0, 0.19, -13.4)),
+	-- Boardwalk ramp through the railing gap. The old two-step approach was
+	-- authored for a ground plane at ~0.5, but the expanded slab's voxel
+	-- surface renders ~2.4-2.5 — both steps sat fully under the grass, and
+	-- with no walkable rise the porch was only enterable by vaulting the
+	-- rail. The wedge runs from the deck (top ~1.5) up to grade (~2.5).
+	createWedge(model, "PorchRamp", Vector3.new(4.6, 1.15, 3.6),
+		CFrame.new(position + Vector3.new(0, 1.58, -13.8))
+			* CFrame.Angles(0, math.pi, 0),
 		Color3.fromRGB(72, 50, 32), Enum.Material.WoodPlanks)
-	createPart(model, "PorchStep2", Vector3.new(4.6, 0.20, 1.4),
-		CFrame.new(position + Vector3.new(0, 0.10, -14.9)),
-		Color3.fromRGB(62, 44, 28), Enum.Material.WoodPlanks)
 	-- Wooden bench on left porch side (Cabin 4 reference: low bench/railing against left wall)
 	createPart(model, "BenchSeat", Vector3.new(3.4, 0.28, 1.8),
 		CFrame.new(position + Vector3.new(-(width / 2 - 3.2), 1.52, -10.4)),
