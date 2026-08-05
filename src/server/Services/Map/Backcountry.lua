@@ -42,7 +42,8 @@ local FERN_GREEN = Color3.fromRGB(84, 122, 66)
 -- FAR_SHORE_DOMES tables — so props seat on whatever slope is underneath.
 -- Same mirroring pattern LakeAndWilds uses for its hillGroundHeight.
 local EXPANDED_DOMES: { { number } } = {
-	-- outer boundary ring
+	-- outer boundary ring (south span removed: it buried the night town's
+	-- north band — keep in lockstep with ProductionMapService)
 	{ 64, -3, 152, 26 },
 	{ 50.7, -3, 168, 24 },
 	{ 0, -2, 188, 27 },
@@ -52,13 +53,8 @@ local EXPANDED_DOMES: { { number } } = {
 	{ -144.6, -2, 59, 27 },
 	{ -164, -3, 12, 30 },
 	{ -167.4, -2, -42.4, 33 },
-	{ -123, -3, -77.3, 24 },
-	{ -96.4, -2, -120.7, 27 },
-	{ -54, -3, -138, 28 },
-	{ 0, -2, -140, 33 },
-	{ 50.7, -3, -144, 24 },
-	{ 138, -3, -136, 24 },
-	-- far-shore ridge + corner fillers
+	-- far-shore ridge + corner fillers (southeast fillers removed: they sat
+	-- on the Moonlight Diner)
 	{ 250, -3, -118, 28 },
 	{ 252, -2, -84, 30 },
 	{ 249, -3, -50, 26 },
@@ -68,8 +64,6 @@ local EXPANDED_DOMES: { { number } } = {
 	{ 249, -3, 86, 26 },
 	{ 251, -2, 120, 32 },
 	{ 250, -3, 150, 28 },
-	{ 222, -3, -130, 26 },
-	{ 187, -3, -141, 30 },
 	{ 158, -2, 178, 28 },
 	{ 200, -3, 160, 26 },
 }
@@ -85,6 +79,10 @@ local function groundHeight(x: number, z: number): number
 		end
 	end
 	for index = 2, 13 do
+		if index == 10 or index == 11 then
+			-- Skipped in the terrain build: they sat on the town road corridor.
+			continue
+		end
 		if index == 9 then
 			raiseFor(-72, -2, -80, 22)
 		else
@@ -360,7 +358,10 @@ local function buildScatter(parent: Instance)
 		local z = 12 + math.sin(angle) * radius
 		local inLakeSector = x > 82
 		local inCreekRun = x > 74 and z < -55
-		if inLakeSector or inCreekRun then
+		-- With the south boundary domes gone, scatter there would stand on the
+		-- night town's main road instead of hiding inside a hill.
+		local onTownRoad = z < -95 and x > -36 and x < 36
+		if inLakeSector or inCreekRun or onTownRoad then
 			continue
 		end
 		local kind = index % 5
@@ -410,9 +411,11 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 		Vector2.new(-88, 20), Vector2.new(-97, 28), Vector2.new(-104, 36),
 		Vector2.new(-112, 48), Vector2.new(-118, 62), Vector2.new(-120, 78),
 	})
+	-- Stops short of z -110: TownApproachDayWall stands there by day, and the
+	-- town's fence line takes over at night.
 	laidTrail(pack, "SouthMeadowTrail", {
-		Vector2.new(0, -86), Vector2.new(1, -96), Vector2.new(0, -106),
-		Vector2.new(-8, -112), Vector2.new(-20, -114), Vector2.new(-32, -115),
+		Vector2.new(0, -86), Vector2.new(1, -96), Vector2.new(-4, -103),
+		Vector2.new(-14, -106), Vector2.new(-26, -107),
 	})
 	laidTrail(pack, "CreeksideTrail", {
 		Vector2.new(12, -84), Vector2.new(26, -93),

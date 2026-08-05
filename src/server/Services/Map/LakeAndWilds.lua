@@ -68,6 +68,11 @@ local state = {
 local function hillGroundHeight(x: number, z: number): number
 	local height = 0.5
 	for index = 2, 13 do
+		if index == 10 or index == 11 then
+			-- Skipped in the terrain build (they sat on the town road
+			-- corridor); without this the S thicket seats 17 studs in the air.
+			continue
+		end
 		local angle = (index / 14) * math.pi * 2
 		local radius = 105 + (index % 3) * 9
 		local centerX = math.cos(angle) * radius

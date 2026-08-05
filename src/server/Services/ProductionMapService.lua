@@ -1609,6 +1609,13 @@ local WORLD_SLAB_SIZE = Vector3.new(450, 8, 320)
 -- omitted where the expanded lake now reaches. Rows are {x, y, z, ballRadius};
 -- positions were checked against every water fill below so no dome pokes a
 -- floating cap above a Water region.
+--
+-- The SOUTH span (z < -60) is omitted on purpose: Hollow Creek town occupies
+-- z -45..-445, and a hill row there buried the town's whole north band (main
+-- road, Diner, Residential A, storm-cellar hatch, cornfield, sawmill — audited
+-- in-boot 2026-08-04, burial depths 15-33 studs). The day-phase boundary that
+-- those domes provided is now TownApproachDayWall (see buildCampTerrain), an
+-- invisible wall that switches off at night when the town becomes real.
 local OUTER_HILL_DOMES: { { number } } = {
 	{ 64, -3, 152, 26 }, -- west bank of the creek's north gate
 	{ 50.7, -3, 168, 24 },
@@ -1619,16 +1626,12 @@ local OUTER_HILL_DOMES: { { number } } = {
 	{ -144.6, -2, 59, 27 },
 	{ -164, -3, 12, 30 },
 	{ -167.4, -2, -42.4, 33 },
-	{ -123, -3, -77.3, 24 },
-	{ -96.4, -2, -120.7, 27 },
-	{ -54, -3, -138, 28 },
-	{ 0, -2, -140, 33 },
-	{ 50.7, -3, -144, 24 },
-	{ 138, -3, -136, 24 }, -- between the creek mouth and the south basin
 }
 
 -- Far-shore ridge enclosing the tripled lake from the east, plus corner
--- fillers that close the gaps back to the boundary ring.
+-- fillers that close the gaps back to the boundary ring. The old southeast
+-- corner fillers are gone: they sat on the Moonlight Diner (28 studs of hill
+-- over its floor) and the east cross street.
 local FAR_SHORE_DOMES: { { number } } = {
 	{ 250, -3, -118, 28 },
 	{ 252, -2, -84, 30 },
@@ -1639,8 +1642,6 @@ local FAR_SHORE_DOMES: { { number } } = {
 	{ 249, -3, 86, 26 },
 	{ 251, -2, 120, 32 },
 	{ 250, -3, 150, 28 },
-	{ 222, -3, -130, 26 }, -- southeast corner fillers
-	{ 187, -3, -141, 30 },
 	{ 158, -2, 178, 28 }, -- northeast corner fillers
 	{ 200, -3, 160, 26 },
 }
@@ -1659,6 +1660,11 @@ local function expandedGroundHeight(x: number, z: number): number
 		end
 	end
 	for index = 2, 13 do
+		if index == 10 or index == 11 then
+			-- Skipped in buildCampTerrain (they sat on the town road); keep
+			-- this height model in lockstep so no tree seats on a ghost hill.
+			continue
+		end
 		if index == 9 then
 			raiseFor(-72, -2, -80, 22)
 		else
@@ -1705,6 +1711,14 @@ local function buildCampTerrain(parent: Instance)
 		if index == 1 or index == 14 then
 			-- These two hill domes fall exactly on the lake bay and would
 			-- bury the dock; the lakefront sector stays open
+			continue
+		end
+		if index == 10 or index == 11 then
+			-- The formula drops these two on the town's main-road corridor
+			-- (x -50..54, z -75..-134): they buried the road shoulders, the
+			-- main-road-clue-a evidence socket, the sawmill blade, and the
+			-- cornfield's west edge. The south foothill span stays open so
+			-- the night road can descend into Hollow Creek.
 			continue
 		end
 		local angle = (index / 14) * math.pi * 2
@@ -1843,6 +1857,25 @@ local function buildCampTerrain(parent: Instance)
 	bounds.CanCollide = false
 	bounds.CanTouch = false
 	bounds.CanQuery = false
+
+	-- Day-phase stand-in for the removed south boundary domes: while the town
+	-- is intangible (daytime), this keeps campers (and swimmers crossing the
+	-- south basin) from wandering onto its non-collidable ground and falling
+	-- through the world. SetNight lowers it when the town turns solid. Spans
+	-- the full slab width, tall enough that nothing hops it off a hill toe.
+	local dayWall = createPart(
+		parent,
+		"TownApproachDayWall",
+		-- Wider than the slab: the far-shore ridge dome bulges past the east
+		-- edge and its outer flank would otherwise walk around the wall's end.
+		Vector3.new(520, 34, 2),
+		CFrame.new(25, 13, -110),
+		Color3.fromRGB(59, 82, 52),
+		Enum.Material.SmoothPlastic,
+		1
+	)
+	dayWall.CanTouch = false
+	dayWall.CanQuery = false
 end
 
 local function cloneAuthoredMap(folderName: string): Model?
@@ -2036,6 +2069,11 @@ function ProductionMapService:Build()
 				-- camp looks onto the lake instead of a tree wall
 				continue
 			end
+			if index == 22 or index == 23 then
+				-- These two land at (-11, -96) and (12, -105): mid-asphalt on
+				-- the town's main road now that the south foothills are gone.
+				continue
+			end
 			local angle = (index / 30) * math.pi * 2
 			local radius = 91 + (index % 4) * 9
 			createPineTree(
@@ -2064,6 +2102,11 @@ function ProductionMapService:Build()
 			local radius = 133 + (index % 4) * 13
 			local treeX = math.cos(angle) * radius
 			local treeZ = 12 + math.sin(angle) * radius
+			if treeZ < -60 and treeX > -160 and treeX < 250 then
+				-- Town overlap: with the south boundary domes removed these
+				-- trunks would stand on Hollow Creek's streets and yards.
+				continue
+			end
 			createPineTree(
 				self.dayCamp,
 				Vector3.new(treeX, expandedGroundHeight(treeX, treeZ), treeZ),
@@ -4071,6 +4114,12 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 	end
 	local weather = WeatherConfig.Get(self.weatherId)
 	setFolderVisible(self.nightTown, isNight)
+	-- The south day-wall only exists while the town is intangible; at night
+	-- the road into Hollow Creek must be walkable.
+	local dayWall = self.dayCamp:FindFirstChild("TownApproachDayWall")
+	if dayWall and dayWall:IsA("BasePart") then
+		dayWall.CanCollide = not isNight
+	end
 	for _, descendant in self.dayCamp:GetDescendants() do
 		if descendant:IsA("SurfaceLight") then
 			-- Cabin window lights only burn at night if the generator was repaired.
