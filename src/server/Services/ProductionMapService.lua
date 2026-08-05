@@ -267,7 +267,9 @@ local SEARCH_TARGETS = {
 	{
 		id = "quarters-footlocker",
 		name = "Counselor Footlocker",
-		position = Vector3.new(-52.7, 2.1, 74.5),
+		-- Terrain surface renders at 2.5 here; at y 2.1 the search glow
+		-- spawned buried to its lid (glows copy the socket CFrame verbatim).
+		position = Vector3.new(-52.7, 3.4, 74.5),
 		color = Color3.fromRGB(108, 86, 60),
 	},
 	{
@@ -333,7 +335,9 @@ local SEARCH_TARGETS = {
 	{
 		id = "cabin-zero-chimney",
 		name = "Cabin Zero Chimney",
-		position = Vector3.new(-74.5, 3, 85.5),
+		-- On the NW hillside: terrain renders at 5.6 here, so a y-3 socket
+		-- put the search glow fully inside the slope.
+		position = Vector3.new(-74.5, 6.8, 85.5),
 		color = Color3.fromRGB(56, 52, 50),
 	},
 	{
@@ -351,7 +355,9 @@ local SEARCH_TARGETS = {
 	{
 		id = "aurora-fire-ring",
 		name = "Aurora Fire Ring",
-		position = Vector3.new(163, 1.4, 15),
+		-- Terrain surface renders at 2.5 on the Aurora bank; y 1.4 buried
+		-- the search glow under the grass.
+		position = Vector3.new(163, 3.4, 15),
 		color = Color3.fromRGB(86, 96, 82),
 	},
 }
@@ -906,10 +912,20 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(side * (width / 2 - 1.5), 4.5, -12)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
-	-- Porch railing: front rail + side returns + balusters between corner posts (Cabin 4 reference)
+	-- Porch railing: front rail + side returns + balusters between corner posts
+	-- (Cabin 4 reference). The front rail is split into two segments leaving a
+	-- 5-stud entry gap over the door steps — the old full-width rail fenced
+	-- the porch shut (players had to hop the railing; pathfinding read the
+	-- main cabins as unreachable).
 	local railY = 4.0
-	createPart(model, "PorchRailFront", Vector3.new(width - 4.0, 0.28, 0.22),
-		CFrame.new(position + Vector3.new(0, railY, -12)), trimColor, Enum.Material.WoodPlanks)
+	local entryGap = 5.0
+	local railSegment = (width - 4.0 - entryGap) / 2
+	for side = -1, 1, 2 do
+		createPart(model, "PorchRailFront" .. (if side < 0 then "L" else "R"),
+			Vector3.new(railSegment, 0.28, 0.22),
+			CFrame.new(position + Vector3.new(side * (entryGap / 2 + railSegment / 2), railY, -12)),
+			trimColor, Enum.Material.WoodPlanks)
+	end
 	for side = -1, 1, 2 do
 		createPart(model, "PorchRailSide" .. (if side < 0 then "L" else "R"),
 			Vector3.new(0.22, 0.28, 3.5),
@@ -917,6 +933,10 @@ local function createCabin(
 			trimColor, Enum.Material.WoodPlanks)
 	end
 	for b = 1, 3 do
+		if b == 2 then
+			-- Center baluster stood dead-middle of the entry gap.
+			continue
+		end
 		local bX = -(width / 2 - 2.5) + (width - 5.0) / 4 * b
 		createPart(model, "PorchBaluster" .. tostring(b), Vector3.new(0.20, railY - 1.1, 0.20),
 			CFrame.new(position + Vector3.new(bX, (1.1 + railY) / 2, -12)),

@@ -211,18 +211,24 @@ function EffectsView.new(parent: Instance): EffectsView
 
 	local statusOverlay = Instance.new("Frame")
 	statusOverlay.Name = "MonsterStatusOverlay"
-	-- Stretch past the topbar inset so the danger border hugs the REAL screen
-	-- edges; sized to the inset area only, its top stroke floated 58px down
-	-- the screen and read as a stray red line across the view.
-	local topInset = game:GetService("GuiService"):GetGuiInset()
-	statusOverlay.Position = UDim2.fromOffset(0, -topInset.Y)
-	statusOverlay.Size = UDim2.new(1, 0, 1, topInset.Y)
 	statusOverlay.BackgroundColor3 = Theme.Colors.Danger
 	statusOverlay.BackgroundTransparency = 1
 	statusOverlay.BorderSizePixel = 0
 	statusOverlay.Visible = false
 	statusOverlay.ZIndex = 50
 	statusOverlay.Parent = root
+	-- Stretch past the topbar inset so the danger border hugs the REAL screen
+	-- edges; sized to the inset area only, its top stroke floated 58px down
+	-- the screen and read as a stray red line across the view. The inset is
+	-- read from the root's own absolute offset and tracked via signal because
+	-- GuiService:GetGuiInset() reports 0 during early client boot.
+	local function applyStatusInset()
+		local inset = math.max(0, root.AbsolutePosition.Y)
+		statusOverlay.Position = UDim2.fromOffset(0, -inset)
+		statusOverlay.Size = UDim2.new(1, 0, 1, inset)
+	end
+	applyStatusInset()
+	root:GetPropertyChangedSignal("AbsolutePosition"):Connect(applyStatusInset)
 
 	local statusStroke = Instance.new("UIStroke")
 	statusStroke.Name = "StatusBorder"
