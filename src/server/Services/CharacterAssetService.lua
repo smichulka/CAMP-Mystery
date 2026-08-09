@@ -2155,14 +2155,16 @@ local function buildProceduralBotCharacter(
 		local murdEyeR = makePart(model, "MurdEyeR", Vector3.new(0.22 * scale, 0.18 * scale, 0.14),
 			at * CFrame.new( 0.35 * scale, headY + 0.10 * scale, -(td / 2 + 0.04)), Color3.fromRGB(255, 28, 28))
 		murdEyeR.Material = Enum.Material.Neon
-		-- Sinister slow pulse — eyes dim and blaze on a 1.1 Hz cycle
+		-- Sinister slow pulse — eyes dim and blaze on a 1.1 Hz cycle.
+		-- 10 Hz updates: replication tops out around 20 Hz anyway, and a
+		-- 1.1 Hz glow reads identically while writing 6x fewer properties.
 		task.spawn(function()
 			local pt = 0
 			while murdEyeL.Parent ~= nil do
 				local alpha = 0.04 + math.sin(pt * 1.1) * 0.08
 				murdEyeL.Transparency = alpha
 				murdEyeR.Transparency = alpha
-				pt += task.wait()
+				pt += task.wait(0.1)
 			end
 		end)
 		-- Hip knife sheathed at the right side
@@ -2221,6 +2223,8 @@ local function buildProceduralBotCharacter(
 		local medCrossV = makePart(model, "MedCrossV", Vector3.new(0.22 * scale, 0.84 * scale, 0.1),
 			at * CFrame.new(0, th / 2 - 0.5, -(td / 2 + 0.07)), crossBaseColor)
 		task.spawn(function()
+			-- 20 Hz keeps the short 0.12s lub-dub spikes intact while
+			-- writing 3x fewer replicated color changes.
 			local t = 0
 			while medCrossH.Parent ~= nil do
 				local cycle = t % 1.3
@@ -2237,7 +2241,7 @@ local function buildProceduralBotCharacter(
 				local c = crossBaseColor:Lerp(crossBeatColor, beat)
 				medCrossH.Color = c
 				medCrossV.Color = c
-				t += task.wait()
+				t += task.wait(0.05)
 			end
 		end)
 		-- White medical shoes
@@ -2326,12 +2330,13 @@ local function buildProceduralBotCharacter(
 			at * CFrame.new(0, th / 2 - 0.67 * scale, -(td / 2 + 0.30 * scale)), Color3.fromRGB(200, 100, 255))
 		aura.Material = Enum.Material.Neon
 		aura.Transparency = 0.28
-		-- Mystical slow glow pulse — orb breathes between nearly opaque and bright
+		-- Mystical slow glow pulse — orb breathes between nearly opaque and
+		-- bright. 10 Hz is indistinguishable for a 1.75 Hz sine.
 		task.spawn(function()
 			local pt = 0
 			while orb.Parent ~= nil do
 				orb.Transparency = 0.10 + math.sin(pt * 1.75) * 0.15
-				pt += task.wait()
+				pt += task.wait(0.1)
 			end
 		end)
 		-- Smaller satellite orb offset from the main crystal
@@ -3134,20 +3139,43 @@ function CharacterAssetService:_idleBreath(id: string, model: Model, duration: n
 	local tokenBefore = self.counselorMoveTokens[id] or 0
 	local baseCF = model:GetPivot()
 	local began = os.clock()
+	-- Breathing is a 0.028-stud sway: 15 Hz writes read identically (client
+	-- replication coalesces to ~20 Hz regardless), and when no player is
+	-- within eyeshot the pivots are skipped entirely. Ten idle bots at 60 Hz
+	-- were the single largest source of replicated property churn.
+	local nearCheckAt = 0
+	local playerNear = true
 	while os.clock() - began < duration do
 		if model.Parent == nil then break end
 		if (self.counselorMoveTokens[id] or 0) ~= tokenBefore then break end
 		local t = os.clock() - began
-		local breathRate = 1.6 + (nameHash(id) % 5) * 0.10   -- 1.6–2.0 Hz, unique per character
-		local breathY  = math.sin(t * breathRate) * 0.028
-		local swayX    = math.sin(t * 0.52) * 0.016   -- slow side-to-side weight shift
-		local gazeYaw  = math.sin(t * 0.38) * 0.08    -- very slow gaze drift left/right
-		model:PivotTo(baseCF * CFrame.new(swayX, breathY, 0) * CFrame.Angles(0, gazeYaw, 0))
-		local pp = model.PrimaryPart
-		if pp then
-			applyArmSwing(model, pp.CFrame, math.sin(t * breathRate) * 0.07)
+		if os.clock() >= nearCheckAt then
+			nearCheckAt = os.clock() + 1
+			playerNear = false
+			local here = baseCF.Position
+			for _, player in Players:GetPlayers() do
+				local character = player.Character
+				local root = if character then character.PrimaryPart else nil
+				if root and (root.Position - here).Magnitude < 80 then
+					playerNear = true
+					break
+				end
+			end
 		end
-		task.wait()
+		if playerNear then
+			local breathRate = 1.6 + (nameHash(id) % 5) * 0.10   -- 1.6–2.0 Hz, unique per character
+			local breathY  = math.sin(t * breathRate) * 0.028
+			local swayX    = math.sin(t * 0.52) * 0.016   -- slow side-to-side weight shift
+			local gazeYaw  = math.sin(t * 0.38) * 0.08    -- very slow gaze drift left/right
+			model:PivotTo(baseCF * CFrame.new(swayX, breathY, 0) * CFrame.Angles(0, gazeYaw, 0))
+			local pp = model.PrimaryPart
+			if pp then
+				applyArmSwing(model, pp.CFrame, math.sin(t * breathRate) * 0.07)
+			end
+			task.wait(1 / 15)
+		else
+			task.wait(0.4)
+		end
 	end
 	-- Restore neutral pose when idling ends normally (before the next move begins)
 	if model.Parent ~= nil and (self.counselorMoveTokens[id] or 0) == tokenBefore then
@@ -3241,7 +3269,8 @@ function CharacterAssetService:_smoothPivotCounselor(
 			if pp then
 				applyArmSwing(model, pp.CFrame, math.sin(phase) * 0.28)
 			end
-			task.wait()
+			-- 30 Hz: still above the ~20 Hz replication ceiling clients see.
+			task.wait(1 / 30)
 		end
 	end)
 end
@@ -4091,7 +4120,8 @@ function CharacterAssetService:MoveBotCharacterToward(
 				local swingAmp = if resolved < 2.5 then 0.42 else 0.28
 				applyArmSwing(model, pp.CFrame, math.sin(phase) * swingAmp)
 			end
-			task.wait()
+			-- 30 Hz: still above the ~20 Hz replication ceiling clients see.
+			task.wait(1 / 30)
 		end
 	end)
 end
