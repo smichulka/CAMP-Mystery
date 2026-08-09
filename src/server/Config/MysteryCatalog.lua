@@ -77,6 +77,7 @@ local catalog: MysteryCatalogDefinition = {
 				"ranger-station-desk",
 				"quarters-footlocker",
 				"infirmary-logbook",
+				"frontier-watch-cache",
 			},
 		},
 		{
@@ -91,6 +92,7 @@ local catalog: MysteryCatalogDefinition = {
 				"aurora-fire-ring",
 				"lookout-cab",
 				"mines-ore-cart",
+				"frontier-watch-cache",
 			},
 		},
 		{
@@ -119,6 +121,7 @@ local catalog: MysteryCatalogDefinition = {
 				"ranger-station-desk",
 				"radio-shack-console",
 				"lookout-cab",
+				"logging-camp-ledger",
 			},
 		},
 		{
@@ -152,6 +155,7 @@ local catalog: MysteryCatalogDefinition = {
 				"sawmill-blade",
 				"greenhouse-potting-table",
 				"waterfall-cave",
+				"logging-camp-ledger",
 			},
 		},
 	},

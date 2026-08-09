@@ -360,6 +360,21 @@ local SEARCH_TARGETS = {
 		position = Vector3.new(163, 3.4, 15),
 		color = Color3.fromRGB(86, 96, 82),
 	},
+	-- Fourth expansion (HighFrontier pack): the doubled band's two landmarks.
+	{
+		id = "frontier-watch-cache",
+		name = "Ranger Cache",
+		-- Beside the frontier watchtower's base, atop the strapped crate.
+		position = Vector3.new(-61.5, 3.4, 373.6),
+		color = Color3.fromRGB(94, 102, 84),
+	},
+	{
+		id = "logging-camp-ledger",
+		name = "Foreman's Ledger",
+		-- Open on its lectern at the old logging camp in the west reach.
+		position = Vector3.new(-419, 3.9, 173),
+		color = Color3.fromRGB(112, 92, 62),
+	},
 }
 
 local function createPart(
@@ -1658,13 +1673,15 @@ local function hideDefaultBaseplate()
 end
 
 -- World footprint. The original camp shipped on a 250x205 slab; the world-x2
--- pass grew it to 450x320. This third expansion opens the NORTH and WEST
--- backcountry: 560x440 (x -310..250, z -148..292). The south edge stays at
--- -148 — Hollow Creek town owns everything past it and extending the slab
--- south buries the town's street grid (learned the hard way, 2026-08-04).
--- The east edge stays at 250 where the far-shore ridge walls the lake.
-local WORLD_SLAB_CFRAME = CFrame.new(-30, -3.5, 72)
-local WORLD_SLAB_SIZE = Vector3.new(560, 8, 440)
+-- pass grew it to 450x320; the third expansion to 560x440. This FOURTH
+-- expansion doubles the play area: 800x620 (x -550..250, z -148..472), still
+-- growing only NORTH and WEST. The south edge stays at -148 — Hollow Creek
+-- town owns everything past it and extending the slab south buries the town's
+-- street grid (learned the hard way, 2026-08-04). The east edge stays at 250
+-- where the far-shore ridge walls the lake; north of the lake the ridge now
+-- continues as boundary domes up to the new north edge.
+local WORLD_SLAB_CFRAME = CFrame.new(-150, -3.5, 162)
+local WORLD_SLAB_SIZE = Vector3.new(800, 8, 620)
 
 -- Outer boundary hill ring. The original 14-dome ring stays put as interior
 -- foothills (the ranger station stilts and several props sit on those slopes),
@@ -1679,24 +1696,41 @@ local WORLD_SLAB_SIZE = Vector3.new(560, 8, 440)
 -- in-boot 2026-08-04, burial depths 15-33 studs). The day-phase boundary that
 -- those domes provided is now TownApproachDayWall (see buildCampTerrain), an
 -- invisible wall that switches off at night when the town becomes real.
--- Third expansion: the ring moved out again (~radius 250-290 from the camp
--- center) so the meadow between the interior foothills and the world edge
--- roughly doubles. The creek's north mouth keeps an open gate at x 90..140,
--- and the arc still ends where the lake (east) and the town band (south)
--- take over as natural boundaries.
+-- Fourth expansion: the ring moved out to the doubled slab's edge (north
+-- z ~455-470, west x ~-490..-536) and gained a NORTHEAST span along x ~250
+-- that continues the far-shore ridge from the lake's north end up to the new
+-- corner — without it the whole band north of the lake was open world edge.
+-- The creek's north mouth (now at x ~140, z ~470 after the 0.08-yaw drift)
+-- keeps an open gate at x ~112..168. The arc still ends where the lake (east)
+-- and the town band (south) take over as natural boundaries.
 local OUTER_HILL_DOMES: { { number } } = {
-	{ 170, -3, 262, 30 }, -- east bank of the creek's north gate
-	{ 232, -2, 238, 32 }, -- northeast corner toward the lake meadow
-	{ 60, -2, 280, 30 }, -- west bank of the creek's north gate
-	{ -10, -3, 284, 32 },
-	{ -80, -2, 276, 32 },
-	{ -150, -3, 252, 34 },
-	{ -212, -2, 210, 32 },
-	{ -258, -3, 150, 34 },
-	{ -284, -2, 80, 32 },
-	{ -294, -3, 8, 34 },
-	{ -284, -2, -64, 32 },
-	{ -242, -3, -120, 30 }, -- southwest corner above the town's west strip
+	-- northeast span: far-shore ridge continued north of the lake
+	{ 250, -3, 196, 30 },
+	{ 252, -2, 258, 32 },
+	{ 249, -3, 320, 30 },
+	{ 251, -2, 382, 32 },
+	{ 246, -3, 436, 32 }, -- northeast corner
+	-- north span (east and west banks of the creek's gate)
+	{ 198, -3, 464, 30 }, -- east bank of the creek's north gate
+	{ 92, -2, 466, 30 }, -- west bank of the creek's north gate
+	{ 24, -2, 466, 32 },
+	{ -48, -3, 470, 32 },
+	{ -120, -2, 464, 34 },
+	{ -192, -3, 468, 32 },
+	{ -264, -2, 460, 34 },
+	{ -336, -3, 466, 32 },
+	{ -408, -2, 458, 34 },
+	{ -472, -3, 448, 32 }, -- turning the northwest corner
+	-- west span
+	{ -516, -2, 396, 34 },
+	{ -534, -3, 330, 32 },
+	{ -524, -2, 264, 34 },
+	{ -536, -3, 198, 32 },
+	{ -526, -2, 132, 34 },
+	{ -534, -3, 66, 32 },
+	{ -524, -2, 0, 34 },
+	{ -532, -3, -66, 32 },
+	{ -488, -2, -118, 32 }, -- southwest corner above the town's west strip
 }
 
 -- Far-shore ridge enclosing the tripled lake from the east, plus corner
@@ -1859,6 +1893,14 @@ local function buildCampTerrain(parent: Instance)
 		Vector3.new(37, 24, 150),
 		Enum.Material.Air
 	)
+	-- Fourth expansion: the creek runs on to the doubled slab's north edge
+	-- (local z 290..460, mouth at ~(140, 470)); the boundary-gate domes at
+	-- x 92 and 198 flank it and this carve shaves any dome toe over the water.
+	terrain:FillBlock(
+		CFrame.new(104, 13, 12) * CFrame.Angles(0, 0.08, 0) * CFrame.new(0, 0, 375),
+		Vector3.new(37, 24, 170),
+		Enum.Material.Air
+	)
 	terrain:FillBlock(
 		CFrame.new(99.5, 13, -75),
 		Vector3.new(27, 24, 34),
@@ -1884,6 +1926,14 @@ local function buildCampTerrain(parent: Instance)
 	terrain:FillBlock(
 		CFrame.new(104, 0, 12) * CFrame.Angles(0, 0.08, 0) * CFrame.new(0, 0, 215),
 		Vector3.new(31, 8, 160),
+		Enum.Material.Water
+	)
+	-- Fourth-expansion water run to the new north gate. Ends at local z 455
+	-- (world z ~465) so the surface stays inside the slab instead of standing
+	-- as a bare water face past the terrain edge.
+	terrain:FillBlock(
+		CFrame.new(104, 0, 12) * CFrame.Angles(0, 0.08, 0) * CFrame.new(0, 0, 372.5),
+		Vector3.new(31, 8, 165),
 		Enum.Material.Water
 	)
 	-- Widen the creek into a proper lake bay east of camp, with a sandy
@@ -1957,9 +2007,9 @@ local function buildCampTerrain(parent: Instance)
 		"TownApproachDayWall",
 		-- Wider than the slab: the far-shore ridge dome bulges past the east
 		-- edge and its outer flank would otherwise walk around the wall's end.
-		-- Width tracks the third-expansion slab (x -310..250).
-		Vector3.new(660, 34, 2),
-		CFrame.new(-30, 13, -110),
+		-- Width tracks the fourth-expansion slab (x -550..250).
+		Vector3.new(900, 34, 2),
+		CFrame.new(-150, 13, -110),
 		Color3.fromRGB(59, 82, 52),
 		Enum.Material.SmoothPlastic,
 		1
@@ -2185,11 +2235,11 @@ function ProductionMapService:Build()
 					else Color3.fromRGB(50, 94, 61)
 			)
 		end
-		-- Outer tree wall at the third-expansion boundary (radius 205-250).
+		-- Mid-country forest belt at the old third-expansion line (radius
+		-- 205-250). The boundary moved out again, so this ring now stands
+		-- mid-meadow as the belt you pass through into the high frontier.
 		-- The east span stays open (indices 1-7 and 41-48) exactly like the
 		-- inner ring's lakefront gap, because that whole sector is the lake.
-		-- Trunks ride expandedGroundHeight so pines climb the boundary domes
-		-- instead of drowning in them.
 		for index = 1, 48 do
 			if index <= 7 or index >= 41 then
 				continue
@@ -2215,6 +2265,41 @@ function ProductionMapService:Build()
 					then Color3.fromRGB(43, 85, 57)
 					else Color3.fromRGB(50, 94, 61)
 			)
+		end
+		-- Boundary tree wall at the fourth-expansion edge. Three straight
+		-- runs trace the doubled slab's open sides (north, west, and the
+		-- northeast span north of the lake); the lake and the town own the
+		-- other two. Trunks ride expandedGroundHeight so pines climb the
+		-- moved boundary domes instead of drowning in them.
+		local boundaryRuns: { { number } } = {
+			-- { fromX, fromZ, toX, toZ }
+			{ -510, 446, 228, 446 }, -- north edge
+			{ -512, -120, -512, 432 }, -- west edge
+			{ 234, 200, 234, 428 }, -- northeast span, north of the lake
+		}
+		for runIndex, run in boundaryRuns do
+			local fromX, fromZ, toX, toZ = run[1], run[2], run[3], run[4]
+			local runLength = math.sqrt((toX - fromX) ^ 2 + (toZ - fromZ) ^ 2)
+			local steps = math.floor(runLength / 18)
+			for step = 0, steps do
+				local alpha = step / math.max(steps, 1)
+				-- Deterministic jitter keeps the wall from reading as a fence
+				local seed = runIndex * 97 + step * 31
+				local treeX = fromX + (toX - fromX) * alpha + (seed % 11) - 5
+				local treeZ = fromZ + (toZ - fromZ) * alpha + (seed % 7) - 3
+				if treeZ > 430 and treeX > 112 and treeX < 172 then
+					-- Creek's fourth-expansion gate: keep the mouth clear.
+					continue
+				end
+				createPineTree(
+					self.dayCamp,
+					Vector3.new(treeX, expandedGroundHeight(treeX, treeZ), treeZ),
+					19 + seed % 6 * 2.5,
+					if seed % 2 == 0
+						then Color3.fromRGB(43, 85, 57)
+						else Color3.fromRGB(50, 94, 61)
+				)
+			end
 		end
 		for index = 1, 18 do
 			local angle = index * 2.17
@@ -3573,7 +3658,7 @@ end
 -- optionally so the map service works before/without any given pack.
 -- PolishPack runs last: it decorates structures the other packs build.
 local EXPANSION_MODULE_NAMES =
-	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "PolishPack" }
+	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "HighFrontier", "PolishPack" }
 
 local function optionalMapModule(name: string): any
 	local servicesFolder = script.Parent
@@ -4125,10 +4210,10 @@ function ProductionMapService:_ensureRainPart(): BasePart
 	local sheet = createPart(
 		self.mapFolder,
 		"WeatherRainEmitter",
-		-- Covers the third-expansion slab (x -310..250, z -148..292) plus the
+		-- Covers the fourth-expansion slab (x -550..250, z -148..472) plus the
 		-- town band to the south (z to -445).
-		Vector3.new(580, 1, 760),
-		CFrame.new(-30, 92, -78),
+		Vector3.new(820, 1, 930),
+		CFrame.new(-150, 92, 10),
 		Color3.fromRGB(160, 176, 192),
 		Enum.Material.SmoothPlastic,
 		1

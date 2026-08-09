@@ -107,19 +107,29 @@ local RIDGE_SLABS: { { size: Vector3, cframe: CFrame } } = {
 		size = Vector3.new(380, 170, 90),
 		cframe = CFrame.new(430, 45, -760) * CFrame.Angles(0, math.rad(-18), 0),
 	},
+	-- Fourth expansion pushed the playable west edge to x -550; the west
+	-- range moved out with it so it stays a distant silhouette instead of a
+	-- wall at the boundary domes.
 	{
-		size = Vector3.new(460, 180, 90),
-		cframe = CFrame.new(-780, 50, -150) * CFrame.Angles(0, math.rad(82), 0),
+		size = Vector3.new(560, 190, 90),
+		cframe = CFrame.new(-1020, 55, 120) * CFrame.Angles(0, math.rad(82), 0),
 	},
 	-- Third expansion opened the north backcountry; these give the new
-	-- horizon the same distant-range depth the south already had.
+	-- horizon the same distant-range depth the south already had. Fourth
+	-- expansion moved them out past the doubled slab's z 472 edge.
 	{
-		size = Vector3.new(500, 210, 90),
-		cframe = CFrame.new(-120, 65, 860) * CFrame.Angles(0, math.rad(-6), 0),
+		size = Vector3.new(560, 220, 90),
+		cframe = CFrame.new(-160, 70, 1040) * CFrame.Angles(0, math.rad(-6), 0),
 	},
 	{
-		size = Vector3.new(420, 170, 80),
-		cframe = CFrame.new(340, 50, 800) * CFrame.Angles(0, math.rad(14), 0),
+		size = Vector3.new(460, 180, 80),
+		cframe = CFrame.new(330, 55, 980) * CFrame.Angles(0, math.rad(14), 0),
+	},
+	-- Northwest corner fill: from the new high meadow the gap between the
+	-- west and north ranges was open sky.
+	{
+		size = Vector3.new(440, 170, 80),
+		cframe = CFrame.new(-760, 50, 800) * CFrame.Angles(0, math.rad(38), 0),
 	},
 }
 -- Night silhouette vs. daylight haze: a single near-black slab color read as

@@ -285,6 +285,9 @@ local SEARCH_LOCATIONS = {
 	"crypt-empty-niche",
 	"radio-shack-console",
 	"aurora-fire-ring",
+	-- Fourth expansion (HighFrontier pack).
+	"frontier-watch-cache",
+	"logging-camp-ledger",
 }
 local MONSTER_ORDER: { MonsterId } = require(Shared.Config:WaitForChild("MonsterOrder"))
 

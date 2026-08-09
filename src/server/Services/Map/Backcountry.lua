@@ -42,20 +42,33 @@ local FERN_GREEN = Color3.fromRGB(84, 122, 66)
 -- FAR_SHORE_DOMES tables — so props seat on whatever slope is underneath.
 -- Same mirroring pattern LakeAndWilds uses for its hillGroundHeight.
 local EXPANDED_DOMES: { { number } } = {
-	-- outer boundary ring, third-expansion positions (radius ~250-290; keep
-	-- in lockstep with ProductionMapService.OUTER_HILL_DOMES)
-	{ 170, -3, 262, 30 },
-	{ 232, -2, 238, 32 },
-	{ 60, -2, 280, 30 },
-	{ -10, -3, 284, 32 },
-	{ -80, -2, 276, 32 },
-	{ -150, -3, 252, 34 },
-	{ -212, -2, 210, 32 },
-	{ -258, -3, 150, 34 },
-	{ -284, -2, 80, 32 },
-	{ -294, -3, 8, 34 },
-	{ -284, -2, -64, 32 },
-	{ -242, -3, -120, 30 },
+	-- outer boundary ring, fourth-expansion positions (the doubled slab's
+	-- north/west edges plus the northeast span; keep in lockstep with
+	-- ProductionMapService.OUTER_HILL_DOMES)
+	{ 250, -3, 196, 30 },
+	{ 252, -2, 258, 32 },
+	{ 249, -3, 320, 30 },
+	{ 251, -2, 382, 32 },
+	{ 246, -3, 436, 32 },
+	{ 198, -3, 464, 30 },
+	{ 92, -2, 466, 30 },
+	{ 24, -2, 466, 32 },
+	{ -48, -3, 470, 32 },
+	{ -120, -2, 464, 34 },
+	{ -192, -3, 468, 32 },
+	{ -264, -2, 460, 34 },
+	{ -336, -3, 466, 32 },
+	{ -408, -2, 458, 34 },
+	{ -472, -3, 448, 32 },
+	{ -516, -2, 396, 34 },
+	{ -534, -3, 330, 32 },
+	{ -524, -2, 264, 34 },
+	{ -536, -3, 198, 32 },
+	{ -526, -2, 132, 34 },
+	{ -534, -3, 66, 32 },
+	{ -524, -2, 0, 34 },
+	{ -532, -3, -66, 32 },
+	{ -488, -2, -118, 32 },
 	-- far-shore ridge + corner fillers (southeast fillers removed: they sat
 	-- on the Moonlight Diner)
 	{ 250, -3, -118, 28 },
