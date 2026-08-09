@@ -3397,13 +3397,25 @@ function CharacterAssetService:SpawnMonster(
 	model:PivotTo(at)
 	model.Parent = self.container
 	-- Positional hunt-loop slot: set the SoundService attribute
-	-- "MonsterHunt<Id>AssetId" to a final asset id and that monster emits it
-	-- in 3D while spawned; unset slots stay silent. Drop-in, no code changes.
+	-- "MonsterHunt<Id>AssetId" to override the built-in loop for a monster.
+	-- Defaults are free Pro Sound Effects picks from the Creator Store, each
+	-- verified loading in-boot 2026-08-09 — before them, every monster
+	-- hunted in complete silence.
+	local DEFAULT_HUNT_LOOPS: { [string]: string } = {
+		BabyAlien = "rbxassetid://9118060631", -- rat squeaks: skittering hisses
+		Screamer = "rbxassetid://9114170094", -- reverberant screeching wails
+		Wendigo = "rbxassetid://9125842137", -- deep guttural growling
+		ShadowMonster = "rbxassetid://9113324097", -- hollow basement-wind drone
+		Chupacabra = "rbxassetid://9113956718", -- coyote yelps and whines
+		Dullahan = "rbxassetid://9120013312", -- slowed airy thunder whomps
+		Entity = "rbxassetid://9114169982", -- whispering pass-bys and wails
+		Banshee = "rbxassetid://9120052030", -- sustained pack howling
+	}
 	local huntAssetId = SoundService:GetAttribute("MonsterHunt" .. monsterId .. "AssetId")
 	local huntSoundId = if type(huntAssetId) == "number" and huntAssetId > 0
 		then "rbxassetid://" .. tostring(huntAssetId)
 		elseif type(huntAssetId) == "string" and huntAssetId ~= "" then huntAssetId
-		else ""
+		else DEFAULT_HUNT_LOOPS[monsterId] or ""
 	if huntSoundId ~= "" then
 		local emitter = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
 		if emitter then

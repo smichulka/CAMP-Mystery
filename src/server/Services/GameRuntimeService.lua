@@ -4215,7 +4215,9 @@ function GameRuntimeService:_playKnockAt(origin: Vector3)
 	sound.SoundId = if typeof(knockAssetId) == "number" and knockAssetId > 0
 		then "rbxassetid://" .. tostring(knockAssetId)
 		elseif typeof(knockAssetId) == "string" and knockAssetId ~= "" then knockAssetId
-		else "rbxasset://sounds/snap.mp3"
+		-- Wood Knock Hits 3 (Pro Sound Effects, free Creator Store, verified
+		-- loading in-boot 2026-08-09); pitched down by PlaybackSpeed below.
+		else "rbxassetid://9120918417"
 	sound.PlaybackSpeed = 0.55
 	sound.Volume = 0.9
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered

@@ -4129,7 +4129,10 @@ function ProductionMapService:_startLightning(
 			local thunderSoundId = if type(thunderAssetId) == "number" and thunderAssetId > 0
 				then "rbxassetid://" .. tostring(thunderAssetId)
 				elseif type(thunderAssetId) == "string" and thunderAssetId ~= "" then thunderAssetId
-				else ""
+				-- Thunder And Rain 1 (Pro Sound Effects, free Creator Store,
+				-- verified loading in-boot 2026-08-09). Storm rounds were
+				-- flashing lightning in total silence before this default.
+				else "rbxassetid://9120015808"
 			local emitter = self.rainPart
 			if thunderSoundId ~= "" and emitter then
 				local rumble = Instance.new("Sound")
