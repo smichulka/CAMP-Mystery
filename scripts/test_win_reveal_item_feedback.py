@@ -57,7 +57,10 @@ class WinRevealItemFeedbackTests(unittest.TestCase):
             "topStrip.Size = UDim2.new(1, 0, 0, 4)",
             "bottomStrip.Size = UDim2.new(1, 0, 0, 4)",
             "Theme.Colors.DangerBright",
-            'safeWinner .. " WIN"',
+            # "CAMPERS WIN" but "MURDERER WINS": the verb agrees with the
+            # winner noun's number (fixed 2026-08-05).
+            'local winVerb = if string.sub(safeWinner, -1) == "S" then " WIN" else " WINS"',
+            "safeWinner .. winVerb,",
             "64,",
             '"The mystery is solved."',
             '"The monster escapes into the night."',
