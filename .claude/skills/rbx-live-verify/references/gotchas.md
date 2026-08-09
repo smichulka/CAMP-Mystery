@@ -72,6 +72,23 @@ Interior-ring skips currently: indices 1, 14 (lakefront), 9 (moved to
   are the classic hitch source here. Scope lookups to their real containers
   (monster → `Runtime.Characters.GeneratedCharacters`).
 
+## Driving Studio via computer-use (no MCP bridge)
+
+Verified working 2026-08-09 with full-tier access to "Roblox Studio":
+- Rojo plugin flow: bottom-right toast → **Connect** → a "Confirm sync"
+  diff dialog → **Accept**. If it reports "couldn't connect", check the
+  `rojo` process actually owns port 34872 before blaming the plugin.
+- Toolbar Play (▶) / Stop (⏹) buttons work; boot to playable takes ~30s.
+- The **command bar does NOT execute from synthetic Enter/Run clicks** —
+  don't waste rounds on it. Instead, add permanent `print` telemetry to the
+  server code (Rojo-synced, takes effect next play session) and read the
+  **Output panel** (Window menu → Output), which is fully legible via zoom.
+- In-game GUI buttons (briefing Skip, READY UP, results Continue) click fine
+  at their screen positions.
+- Boot-health lines to look for in Output: `PolishPack: 100/100`,
+  `Shadow trim: N small parts`, `Production server started`,
+  `Investigation search sites: ...` each round.
+
 ## Studio MCP mechanics
 
 - Play sessions snapshot scripts at start; verify Rojo sync in the **Edit**
