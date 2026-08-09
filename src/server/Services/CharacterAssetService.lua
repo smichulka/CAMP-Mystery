@@ -3071,6 +3071,13 @@ function CharacterAssetService.new(): CharacterAssetService
 	end
 	local container = Instance.new("Folder")
 	container.Name = "GeneratedCharacters"
+	-- With workspace streaming on, character models must stream whole:
+	-- a counselor or monster with a streamed-out arm reads as a bug.
+	container.ChildAdded:Connect(function(child)
+		if child:IsA("Model") then
+			child.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+		end
+	end)
 	container.Parent = characters
 	return setmetatable({
 		container = container,

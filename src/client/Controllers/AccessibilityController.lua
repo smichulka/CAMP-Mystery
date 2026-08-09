@@ -27,6 +27,7 @@ type AccessibilityControllerState = {
 	},
 	shakeToken: number,
 	destroyed: boolean,
+	lastEvidenceScanAt: number,
 }
 
 local AccessibilityController = {}
@@ -64,6 +65,7 @@ function AccessibilityController.new(root: GuiObject?): AccessibilityController
 		},
 		shakeToken = 0,
 		destroyed = false,
+		lastEvidenceScanAt = 0,
 	}, AccessibilityController)
 	self:_applyRootAttributes()
 	return self
@@ -146,6 +148,14 @@ function AccessibilityController:RegisterEvidence(gui: GuiObject)
 end
 
 function AccessibilityController:ScanEvidence(root: Instance)
+	-- Called on every state snapshot; the full-GUI walk only needs to catch
+	-- newly built evidence rows, so cap it at one sweep per 1.5s to keep
+	-- broadcast bursts (combat, votes) from stacking GUI scans in one frame.
+	local clockNow = os.clock()
+	if clockNow - self.lastEvidenceScanAt < 1.5 then
+		return
+	end
+	self.lastEvidenceScanAt = clockNow
 	for _, descendant in root:GetDescendants() do
 		if descendant:IsA("GuiObject") then
 			local isEvidence = descendant:GetAttribute("IsEvidence") == true

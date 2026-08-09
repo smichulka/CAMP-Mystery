@@ -98,6 +98,11 @@
     },
     "Workspace": {
       "$className": "Workspace",
+      "$properties": {
+        "StreamingEnabled": true,
+        "StreamingMinRadius": 128,
+        "StreamingIntegrityMode": "Disabled"
+      },
       "Runtime": {
         "$className": "Folder",
         "Characters": {
