@@ -612,6 +612,55 @@ local function footprintLoop()
 	end
 end
 
+-- Distant raven craws over the graveyard and the Cabin Zero ruin at night:
+-- free Pro Sound Effects one-shots (verified loading in-boot 2026-08-09).
+-- A transient emitter per craw, parented to the Map folder so the day/night
+-- visibility sweep never touches a sound mid-flight.
+local RAVEN_CRAW_IDS = {
+	"rbxassetid://9118066673",
+	"rbxassetid://9118066003",
+	"rbxassetid://9118066965",
+}
+local RAVEN_PERCHES = {
+	Vector3.new(-22, 8, -470), -- graveyard
+	Vector3.new(-11, 6, -455), -- crypt approach
+	Vector3.new(-70, 12, 84), -- Cabin Zero ruin
+}
+
+local function ravenLoop()
+	while true do
+		task.wait(rng:NextNumber(45, 110))
+		local mapFolder = findMapFolder()
+		if nightActive and mapFolder then
+			local perch = RAVEN_PERCHES[rng:NextInteger(1, #RAVEN_PERCHES)]
+			local emitter = Instance.new("Part")
+			emitter.Name = "RavenCraw"
+			emitter.Anchored = true
+			emitter.CanCollide = false
+			emitter.CanQuery = false
+			emitter.CanTouch = false
+			emitter.Transparency = 1
+			emitter.Size = Vector3.new(1, 1, 1)
+			emitter.CFrame = CFrame.new(perch)
+			local craw = Instance.new("Sound")
+			craw.SoundId = RAVEN_CRAW_IDS[rng:NextInteger(1, #RAVEN_CRAW_IDS)]
+			craw.Volume = 0.5
+			craw.PlaybackSpeed = 0.92 + rng:NextNumber() * 0.16
+			craw.RollOffMode = Enum.RollOffMode.InverseTapered
+			craw.RollOffMinDistance = 40
+			craw.RollOffMaxDistance = 260
+			craw.Parent = emitter
+			emitter.Parent = mapFolder
+			craw:Play()
+			task.delay(6, function()
+				if emitter.Parent then
+					emitter:Destroy()
+				end
+			end)
+		end
+	end
+end
+
 -- ---------------------------------------------------------------------------
 -- Public contract
 
@@ -636,6 +685,7 @@ function WorldAmbience.Start()
 	task.spawn(sweepLoop)
 	task.spawn(ropeSwingLoop)
 	task.spawn(footprintLoop)
+	task.spawn(ravenLoop)
 end
 
 function WorldAmbience.SetNight(isNight: boolean)
