@@ -42,17 +42,20 @@ local FERN_GREEN = Color3.fromRGB(84, 122, 66)
 -- FAR_SHORE_DOMES tables — so props seat on whatever slope is underneath.
 -- Same mirroring pattern LakeAndWilds uses for its hillGroundHeight.
 local EXPANDED_DOMES: { { number } } = {
-	-- outer boundary ring (south span removed: it buried the night town's
-	-- north band — keep in lockstep with ProductionMapService)
-	{ 64, -3, 152, 26 },
-	{ 50.7, -3, 168, 24 },
-	{ 0, -2, 188, 27 },
-	{ -47, -3, 156.6, 30 },
-	{ -96.4, -2, 144.7, 33 },
-	{ -142.4, -3, 115.5, 24 },
-	{ -144.6, -2, 59, 27 },
-	{ -164, -3, 12, 30 },
-	{ -167.4, -2, -42.4, 33 },
+	-- outer boundary ring, third-expansion positions (radius ~250-290; keep
+	-- in lockstep with ProductionMapService.OUTER_HILL_DOMES)
+	{ 170, -3, 262, 30 },
+	{ 232, -2, 238, 32 },
+	{ 60, -2, 280, 30 },
+	{ -10, -3, 284, 32 },
+	{ -80, -2, 276, 32 },
+	{ -150, -3, 252, 34 },
+	{ -212, -2, 210, 32 },
+	{ -258, -3, 150, 34 },
+	{ -284, -2, 80, 32 },
+	{ -294, -3, 8, 34 },
+	{ -284, -2, -64, 32 },
+	{ -242, -3, -120, 30 },
 	-- far-shore ridge + corner fillers (southeast fillers removed: they sat
 	-- on the Moonlight Diner)
 	{ 250, -3, -118, 28 },
@@ -351,18 +354,21 @@ end
 -- the creek's south run.
 local function buildScatter(parent: Instance)
 	local scatter = WorldKit.model(parent, "BackcountryScatter")
-	for index = 1, 40 do
+	-- Two golden-angle bands: the original ring hugging the interior
+	-- foothills, and a wider band (third expansion) filling the new meadow
+	-- out toward the moved boundary.
+	local function scatterAt(index: number, radius: number)
 		local angle = index * 2.39996
-		local radius = 118 + (index % 7) * 4.3
 		local x = math.cos(angle) * radius
 		local z = 12 + math.sin(angle) * radius
-		local inLakeSector = x > 82
+		local inLakeSector = x > 82 and z < 160
 		local inCreekRun = x > 74 and z < -55
+		local inCreekNorthRun = x > 60 and x < 150 and z > 160
 		-- With the south boundary domes gone, scatter there would stand on the
 		-- night town's main road instead of hiding inside a hill.
 		local onTownRoad = z < -95 and x > -36 and x < 36
-		if inLakeSector or inCreekRun or onTownRoad then
-			continue
+		if inLakeSector or inCreekRun or inCreekNorthRun or onTownRoad then
+			return
 		end
 		local kind = index % 5
 		local ground = groundHeight(x, z)
@@ -387,6 +393,12 @@ local function buildScatter(parent: Instance)
 				CFrame.new(x, ground + 0.5, z) * CFrame.Angles(0, angle, math.rad(90)),
 				PINE_TRUNK, Enum.Material.Wood, Enum.PartType.Cylinder)
 		end
+	end
+	for index = 1, 40 do
+		scatterAt(index, 118 + (index % 7) * 4.3)
+	end
+	for index = 41, 84 do
+		scatterAt(index, 168 + (index % 9) * 7.5)
 	end
 	-- Far-shore pine row along the ridge toe so the lake has a treed horizon
 	for index = 1, 10 do

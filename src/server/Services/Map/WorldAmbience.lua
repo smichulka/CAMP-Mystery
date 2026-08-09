@@ -111,6 +111,16 @@ local RIDGE_SLABS: { { size: Vector3, cframe: CFrame } } = {
 		size = Vector3.new(460, 180, 90),
 		cframe = CFrame.new(-780, 50, -150) * CFrame.Angles(0, math.rad(82), 0),
 	},
+	-- Third expansion opened the north backcountry; these give the new
+	-- horizon the same distant-range depth the south already had.
+	{
+		size = Vector3.new(500, 210, 90),
+		cframe = CFrame.new(-120, 65, 860) * CFrame.Angles(0, math.rad(-6), 0),
+	},
+	{
+		size = Vector3.new(420, 170, 80),
+		cframe = CFrame.new(340, 50, 800) * CFrame.Angles(0, math.rad(14), 0),
+	},
 }
 -- Night silhouette vs. daylight haze: a single near-black slab color read as
 -- a giant artificial wall against the daytime sky (audited 2026-08-05).
