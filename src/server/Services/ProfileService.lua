@@ -474,6 +474,10 @@ local function grantEligibleCosmetics(profile: PlayerProfile)
 				definition.unlockKind == "Level"
 				and accountLevel >= definition.unlockAmount
 			)
+			or (
+				definition.unlockKind == "Streak"
+				and profile.streakCount >= definition.unlockAmount
+			)
 		then
 			profile.ownedCosmetics[definition.id] = true
 		end
@@ -886,6 +890,11 @@ function ProfileService:UnlockCosmetic(
 		if definition.unlockKind == "Level" then
 			if ProgressionConfig.levelFromXP(profile.totalXP) < definition.unlockAmount then
 				return false, "AccountLevelRequired"
+			end
+		elseif definition.unlockKind == "Streak" then
+			-- Earned by returning daily, never purchasable.
+			if profile.streakCount < definition.unlockAmount then
+				return false, "StreakRequired"
 			end
 		elseif definition.unlockKind == "CampTokens" then
 			if profile.campTokens < definition.unlockAmount then

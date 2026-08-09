@@ -192,6 +192,16 @@ class DomainContractTests(unittest.TestCase):
         config = read("src/shared/Config/ProgressionConfig.lua")
         self.assertIn("streakPerDayBonus = 0.10", config)
         self.assertIn("streakBonusMaxDays = 5", config)
+        # Streak-exclusive cosmetics (2026-08-09): granted server-side when the
+        # stored streak reaches the threshold, and never manually purchasable.
+        catalog = read("src/shared/Config/CosmeticCatalog.lua")
+        self.assertIn('"Streak"', catalog)
+        self.assertIn('id = "title-week-one-legend"', catalog)
+        self.assertIn(
+            'definition.unlockKind == "Streak"\n\t\t\t\tand profile.streakCount >= definition.unlockAmount',
+            profile_service,
+        )
+        self.assertIn('return false, "StreakRequired"', profile_service)
 
     def test_launch_has_no_monetization_surface(self) -> None:
         forbidden = {

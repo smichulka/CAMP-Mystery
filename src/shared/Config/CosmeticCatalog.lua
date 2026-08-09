@@ -1,7 +1,9 @@
 --!strict
 
 export type CosmeticCategory = "Outfit" | "Title" | "Emote"
-export type UnlockKind = "Default" | "CampTokens" | "Level"
+-- "Streak": granted automatically when the daily play streak reaches
+-- unlockAmount consecutive days (never purchasable).
+export type UnlockKind = "Default" | "CampTokens" | "Level" | "Streak"
 
 export type CosmeticDefinition = {
 	id: string,
@@ -133,6 +135,20 @@ local definitions: { CosmeticDefinition } = {
 		category = "Title",
 		unlockKind = "Level",
 		unlockAmount = 20,
+	},
+	{
+		id = "title-regular-camper",
+		displayName = "Regular Camper",
+		category = "Title",
+		unlockKind = "Streak",
+		unlockAmount = 3,
+	},
+	{
+		id = "title-week-one-legend",
+		displayName = "Week One Legend",
+		category = "Title",
+		unlockKind = "Streak",
+		unlockAmount = 7,
 	},
 	-- ── Emotes ───────────────────────────────────────────────────────────────
 	{

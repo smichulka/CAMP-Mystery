@@ -2087,6 +2087,8 @@ function GameView:_updateProgression(state: any)
 				elseif isOwned then "Owned"
 				elseif definition.unlockKind == "Level"
 					then "Requires level " .. tostring(definition.unlockAmount)
+				elseif definition.unlockKind == "Streak"
+					then "Play " .. tostring(definition.unlockAmount) .. " days in a row"
 				else tostring(definition.unlockAmount) .. " tokens")
 		self:_progressionCard(
 			definition.displayName,
@@ -5592,14 +5594,34 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					ProgressionConfig.rewards.streakBonusMaxDays
 				) * ProgressionConfig.rewards.streakPerDayBonus * 100 + 0.5
 			)
-			self:Notify(
-				string.format("Day %d streak!", streakDays),
-				string.format(
-					"Camp rewards pay +%d%% today. Play tomorrow to keep it going.",
-					bonusPercent
-				),
-				"Success"
+			-- Aspirational milestone (first-week retention pattern): name the
+			-- next streak-exclusive title so the goal is visible before it's
+			-- reached, not only after.
+			local nextMilestone: string? = nil
+			local nextDays = math.huge
+			for _, definition in CosmeticCatalog.definitions do
+				if definition.unlockKind == "Streak"
+					and definition.unlockAmount > streakDays
+					and definition.unlockAmount < nextDays
+				then
+					nextDays = definition.unlockAmount
+					nextMilestone = definition.displayName
+				end
+			end
+			local body = string.format(
+				"Camp rewards pay +%d%% today. Play tomorrow to keep it going.",
+				bonusPercent
 			)
+			if nextMilestone then
+				body = string.format(
+					"Camp rewards pay +%d%% today. %d more day%s to the \"%s\" title.",
+					bonusPercent,
+					nextDays - streakDays,
+					if nextDays - streakDays == 1 then "" else "s",
+					nextMilestone
+				)
+			end
+			self:Notify(string.format("Day %d streak!", streakDays), body, "Success", 8)
 		end
 	end
 	local settings = if type(profileData) == "table" then profileData.settings else nil
