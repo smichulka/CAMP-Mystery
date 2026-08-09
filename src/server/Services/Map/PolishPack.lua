@@ -688,12 +688,34 @@ local builders: { Builder } = {
 	end },
 	{ label = "38 chapel spider web", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishSpiderWeb")
+		local center = Vector3.new(-25.4, 10.2, 48.4)
 		for index = 0, 2 do
 			local rod = WorldKit.part(m, "WebRod" .. index, Vector3.new(0.06, 1.7, 0.06),
-				CFrame.new(-25.4, 10.2, 48.4) * CFrame.Angles(0, 0, math.rad(index * 60 - 60)),
+				CFrame.new(center.X, center.Y, center.Z) * CFrame.Angles(0, 0, math.rad(index * 60 - 60)),
 				WHITE, Enum.Material.Neon)
 			rod.Transparency = 0.55
 			rod.CanCollide = false
+		end
+		-- Orbital threads between the spokes; without them the web read as a
+		-- bare six-spoke asterisk up close. Spokes are Y-long rods rotated
+		-- about Z, so their standard-angle positions are 30 + k*60; chord
+		-- midpoints land on k*60, and a Y-long part rotated by that same
+		-- angle lies tangent to the ring there.
+		for _, ringRadius in { 0.34, 0.62 } do
+			for segment = 0, 5 do
+				local midAngle = math.rad(segment * 60)
+				local chord = 2 * ringRadius * math.sin(math.rad(30))
+				local thread = WorldKit.part(m, "WebThread",
+					Vector3.new(0.035, chord * 1.06, 0.035),
+					CFrame.new(
+						center.X + math.cos(midAngle) * ringRadius,
+						center.Y + math.sin(midAngle) * ringRadius,
+						center.Z
+					) * CFrame.Angles(0, 0, midAngle),
+					WHITE, Enum.Material.Neon)
+				thread.Transparency = 0.62
+				thread.CanCollide = false
+			end
 		end
 	end },
 
