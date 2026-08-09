@@ -445,6 +445,26 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 	WorldKit.signpost(pack, Vector3.new(6, groundHeight(6, -78), -78),
 		{ "SOUTH MEADOW", "CREEKSIDE CAMP" })
 
+	-- Footbridge over the creek's north run (third expansion): without it the
+	-- meadow north of the lake is cut off by water — pathfinding read the
+	-- whole northeast band as NoPath. Deck top 4.4 clears the rendered water
+	-- (bay rule: surfaces render up to ~4.0); one 0.95 step at each end.
+	local bridge = WorldKit.model(pack, "NorthCreekBridge")
+	WorldKit.part(bridge, "BridgeDeck", Vector3.new(46, 0.4, 3.8),
+		CFrame.new(119, 4.2, 216), PLANK, Enum.Material.WoodPlanks)
+	for railSide = -1, 1, 2 do
+		WorldKit.part(bridge, "BridgeRail", Vector3.new(46, 0.25, 0.2),
+			CFrame.new(119, 5.6, 216 + railSide * 1.7), PLANK_DARK, Enum.Material.Wood)
+		for _, postX in { 98, 119, 140 } do
+			WorldKit.part(bridge, "BridgePost", Vector3.new(0.4, 4.4, 0.4),
+				CFrame.new(postX, 3.4, 216 + railSide * 1.7), PLANK_DARK, Enum.Material.Wood)
+		end
+	end
+	WorldKit.part(bridge, "BridgeStepW", Vector3.new(2.4, 0.35, 3.8),
+		CFrame.new(94.8, 3.28, 216), PLANK_DARK, Enum.Material.WoodPlanks)
+	WorldKit.part(bridge, "BridgeStepE", Vector3.new(2.4, 0.35, 3.8),
+		CFrame.new(143.2, 3.28, 216), PLANK_DARK, Enum.Material.WoodPlanks)
+
 	buildCampsite(pack, "WestRidgeCamp", -120, 85, 140)
 	buildCampsite(pack, "NorthPassCamp", -58, 126, -35)
 	buildCampsite(pack, "CreeksideCamp", 65, -100, 78)
