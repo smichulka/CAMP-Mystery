@@ -1,6 +1,7 @@
 --!strict
 
 local GuiService = game:GetService("GuiService")
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
@@ -105,6 +106,8 @@ type GameViewState = {
 	rosterPanel: Frame?,
 	rosterPanelVisible: boolean,
 	lastRosterSignature: string,
+	evidenceSignature: string,
+	inventorySignature: string,
 	notebook: Frame,
 	evidenceList: ScrollingFrame,
 	evidenceSummary: TextLabel,
@@ -1178,6 +1181,8 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		rosterPanel = rosterPanel,
 		rosterPanelVisible = false,
 		lastRosterSignature = "",
+		evidenceSignature = "",
+		inventorySignature = "",
 		notebook = notebook,
 		evidenceList = nil :: any,
 		evidenceSummary = nil :: any,
@@ -3249,6 +3254,21 @@ function GameView:_updateLobby(state: any, phase: string)
 end
 
 function GameView:_updateInventory(state: any)
+	local inventory = if type(state) == "table" then state.inventory else nil
+	-- Same skip-identical guard as the evidence list: the hotbar buttons
+	-- (with their connections and icons) were destroyed and rebuilt on every
+	-- snapshot even when nothing about the loadout changed.
+	local signatureOk, signature = pcall(HttpService.JSONEncode, HttpService, {
+		inventory = inventory,
+		slot = self.selectedInventorySlot,
+		eliminated = self.eliminatedMode,
+	})
+	if signatureOk then
+		if signature == self.inventorySignature then
+			return
+		end
+		self.inventorySignature = signature
+	end
 	local selected = GuiService.SelectedObject
 	local restoreControllerFocus = not self.eliminatedMode
 		and selected ~= nil
@@ -3260,7 +3280,6 @@ function GameView:_updateInventory(state: any)
 		GuiService.SelectedObject = nil
 	end
 	Components.ClearGenerated(self.hotbar)
-	local inventory = if type(state) == "table" then state.inventory else nil
 	local items = if type(inventory) == "table" then asTable(inventory.items) else {}
 	self.inventoryItems = items
 	if self.selectedInventorySlot < 1 or self.selectedInventorySlot > #items then
@@ -3761,12 +3780,29 @@ function GameView:ShowKeybindHint(phaseName: string)
 end
 
 function GameView:_updateEvidence(state: any, round: any)
-	Components.ClearGenerated(self.evidenceList)
 	local board = if type(state) == "table" then state.evidence else nil
 	local mystery = if type(state) == "table" then state.mystery else nil
 	local counselors = if type(state) == "table" then state.counselors else nil
 	local localPlayer = if type(state) == "table" then state.player else nil
 	local localRole = readString(localPlayer, "role", "")
+	-- Evidence changes a handful of times per round, but this rebuild ran on
+	-- every state snapshot (including the 3s keepalive), tearing down and
+	-- recreating the whole notebook list each time. Skip when the inputs are
+	-- byte-identical; a spurious mismatch merely costs one rebuild.
+	local signatureOk, signature = pcall(HttpService.JSONEncode, HttpService, {
+		board = board,
+		mystery = mystery,
+		counselors = counselors,
+		role = localRole,
+		legacy = if type(round) == "table" then round.evidence else nil,
+	})
+	if signatureOk then
+		if signature == self.evidenceSignature then
+			return
+		end
+		self.evidenceSignature = signature
+	end
+	Components.ClearGenerated(self.evidenceList)
 	local counselorRoster = if type(counselors) == "table"
 		then asTable(counselors.counselors)
 		else {}
