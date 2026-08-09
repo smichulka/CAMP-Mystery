@@ -463,14 +463,17 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 				CFrame.new(postX, 3.4, 216 + railSide * 2.6), PLANK_DARK, Enum.Material.Wood)
 		end
 	end
-	-- End ramps, not steps: ~1-stud step rises read as jump-only links on
-	-- the navigation mesh and cut the bridge out of no-jump paths. Wedge
-	-- yaw -90 ascends toward +X, +90 toward -X (the far-ridge peak pattern).
-	WorldKit.wedge(bridge, "BridgeRampW", Vector3.new(5.2, 1.9, 6),
-		CFrame.new(93, 3.45, 216) * CFrame.Angles(0, math.rad(-90), 0),
+	-- End ramps as pitched planks that OVERLAP under the deck edge. Two
+	-- navmesh lessons cost a boot each: ~1-stud step rises read as
+	-- jump-only links, and a wedge whose zero-width apex merely touches the
+	-- deck edge leaves a hairline seam the mesh also treats as a jump. An
+	-- angled slab buried into the ground at the foot and sliced by the deck
+	-- edge at the top gives one continuous walk surface.
+	WorldKit.part(bridge, "BridgeRampW", Vector3.new(8, 0.4, 5.2),
+		CFrame.new(92.6, 3.4, 216) * CFrame.Angles(0, 0, math.rad(16)),
 		PLANK_DARK, Enum.Material.WoodPlanks)
-	WorldKit.wedge(bridge, "BridgeRampE", Vector3.new(5.2, 1.9, 6),
-		CFrame.new(145, 3.45, 216) * CFrame.Angles(0, math.rad(90), 0),
+	WorldKit.part(bridge, "BridgeRampE", Vector3.new(8, 0.4, 5.2),
+		CFrame.new(145.4, 3.4, 216) * CFrame.Angles(0, 0, math.rad(-16)),
 		PLANK_DARK, Enum.Material.WoodPlanks)
 
 	buildCampsite(pack, "WestRidgeCamp", -120, 85, 140)
