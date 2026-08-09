@@ -72,6 +72,14 @@ Interior-ring skips currently: indices 1, 14 (lakefront), 9 (moved to
   are the classic hitch source here. Scope lookups to their real containers
   (monster → `Runtime.Characters.GeneratedCharacters`).
 
+## MCP call budget
+
+`execute_luau` requests time out around the one-minute mark (MCP -32001).
+Never put `task.wait(...)` loops longer than ~45s inside a single call —
+run short probes and do the waiting OUTSIDE (background Bash sleep, then
+probe again). Phase-dependent checks (monster spawned, evidence placed)
+should poll with instant-return snippets.
+
 ## Driving Studio via computer-use (no MCP bridge)
 
 Verified working 2026-08-09 with full-tier access to "Roblox Studio":
