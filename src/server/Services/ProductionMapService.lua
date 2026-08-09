@@ -3471,6 +3471,28 @@ function ProductionMapService:Build()
 	self:_buildColdCaseCabinet()
 	self:_buildLockedRooms()
 	self:_buildExpansions()
+	self:_trimSmallPartShadows()
+end
+
+-- One post-build pass: small dressing parts (weeds, corn blades, road
+-- stripes, balusters, pebbles — a few thousand across both districts) each
+-- get drawn into the shadow atlas despite casting shadows nobody can see.
+-- Turning CastShadow off for sub-1.5-stud-volume parts is a pure GPU win,
+-- which matters most on the phones this game needs to feel smooth on.
+function ProductionMapService:_trimSmallPartShadows()
+	local trimmed = 0
+	for _, descendant in self.mapFolder:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.CastShadow then
+			local size = descendant.Size
+			if size.X * size.Y * size.Z < 1.5 then
+				descendant.CastShadow = false
+				trimmed += 1
+			end
+		end
+	end
+	if trimmed > 0 then
+		print(string.format("[CAMP-Mystery] Shadow trim: %d small parts", trimmed))
+	end
 end
 
 -- World-expansion district builders live under Services/Map and are loaded

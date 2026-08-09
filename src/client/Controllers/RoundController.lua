@@ -165,17 +165,29 @@ local function replicatedMonsterPosition(snapshot: any): Vector3?
 	if type(participantId) ~= "string" or participantId == "" then
 		return nil
 	end
-	for _, descendant in Workspace:GetDescendants() do
-		if descendant:IsA("Model")
-			and descendant:GetAttribute("ParticipantId") == participantId
-			and type(descendant:GetAttribute("MonsterId")) == "string"
+	-- Spawned monsters live in Runtime.Characters.GeneratedCharacters (same
+	-- home resolveActiveMonsterId reads). This used to walk the ENTIRE
+	-- workspace — tens of thousands of instances per state snapshot — which
+	-- hitched every broadcast once the full map existed.
+	local runtime = Workspace:FindFirstChild("Runtime")
+	local characters = if runtime then runtime:FindFirstChild("Characters") else nil
+	local generated = if characters
+		then characters:FindFirstChild("GeneratedCharacters")
+		else nil
+	if not generated then
+		return nil
+	end
+	for _, child in generated:GetChildren() do
+		if child:IsA("Model")
+			and child:GetAttribute("ParticipantId") == participantId
+			and type(child:GetAttribute("MonsterId")) == "string"
 		then
-			local root = descendant.PrimaryPart
-				or descendant:FindFirstChild("HumanoidRootPart", true)
+			local root = child.PrimaryPart
+				or child:FindFirstChild("HumanoidRootPart", true)
 			if root and root:IsA("BasePart") then
 				return root.Position
 			end
-			return descendant:GetPivot().Position
+			return child:GetPivot().Position
 		end
 	end
 	return nil

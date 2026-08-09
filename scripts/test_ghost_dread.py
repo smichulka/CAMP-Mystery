@@ -81,8 +81,12 @@ class GhostDreadTests(unittest.TestCase):
         controller = read("src/client/Controllers/RoundController.lua")
         for token in (
             'require(script.Parent:WaitForChild("CameraController"))',
-            'descendant:GetAttribute("ParticipantId") == participantId',
-            'type(descendant:GetAttribute("MonsterId")) == "string"',
+            # Monster lookup is scoped to Runtime.Characters.GeneratedCharacters
+            # (2026-08-09): the old whole-workspace GetDescendants walk hitched
+            # every state snapshot once the full map existed.
+            'characters:FindFirstChild("GeneratedCharacters")',
+            'child:GetAttribute("ParticipantId") == participantId',
+            'type(child:GetAttribute("MonsterId")) == "string"',
             'phase ~= "Investigation" and phase ~= "NightTransform"',
             "if distance <= 8 then",
             "if distance ~= distance or math.abs(distance) == math.huge or distance > 40 then",
