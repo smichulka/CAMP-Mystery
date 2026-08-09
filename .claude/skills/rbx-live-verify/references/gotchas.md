@@ -17,14 +17,29 @@ usually right and the mental model is what needs fixing.
   Size carves to whole 4-stud cells.
 - Marching-cubes smoothing makes analytic height mirrors wrong by 1-3 studs on
   slopes — mushrooms/props seated by formula can sink or float there.
+- The flat slab's rendered surface is **+2.0 over nominal everywhere** (0.5 →
+  2.5). Every ground prop seated by the analytic model shipped ~1.9 studs
+  under the grass until 2026-08-09; the packs now raycast the real surface.
+- **Boot-time terrain raycasts can miss fresh chunks.** After the boot
+  `Terrain:Clear()` + refill, rays through far chunks (the northern meadow)
+  returned nil at build time and hit fine seconds later. The packs'
+  `groundHeight` retries a nil hit up to 8×0.25s before falling back to the
+  analytic model; a water hit is definitive and falls back immediately.
 
 ## Height-mirror lockstep
 
 Terrain hills are FillBall domes whose layout is **mirrored analytically** in
-four places. Change one, change all, or props seat on ghost hills:
+several places. Change one, change all, or props seat on ghost hills:
 1. `ProductionMapService` — the FillBall loops AND `expandedGroundHeight`
-2. `Map/Backcountry.lua` — `EXPANDED_DOMES` table AND its `groundHeight`
-3. `Map/LakeAndWilds.lua` — `hillGroundHeight` (includes the index-9 override)
+2. `Map/Backcountry.lua` — `EXPANDED_DOMES` table AND `analyticGroundHeight`
+3. `Map/HighFrontier.lua` — `EXPANDED_DOMES` table AND `analyticGroundHeight`
+4. `Map/LakeAndWilds.lua` — `analyticHillGroundHeight` (has the index-9
+   override)
+
+Since 2026-08-09 the pack functions raycast the real terrain first and use
+the analytic model only as a fallback (off-terrain points, water hits, and
+the boot-time chunk lag above), so the mirrors matter less for seating — but
+they still gate WHERE things build, so keep them in lockstep anyway.
 
 Interior-ring skips currently: indices 1, 14 (lakefront), 9 (moved to
 -72,-80 r22), 10/11/12 (sat on the town's north band).

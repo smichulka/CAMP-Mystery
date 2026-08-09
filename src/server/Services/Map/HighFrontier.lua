@@ -19,6 +19,8 @@
 -- Integration: registered in ProductionMapService's EXPANSION_MODULE_NAMES
 -- after Backcountry (trails join Backcountry's trailheads).
 
+local Workspace = game:GetService("Workspace")
+
 local WorldKit = require(script.Parent:WaitForChild("WorldKit"))
 
 local HighFrontier = {}
@@ -81,7 +83,7 @@ local EXPANDED_DOMES: { { number } } = {
 	-- meadow now — keep in lockstep with ProductionMapService)
 }
 
-local function groundHeight(x: number, z: number): number
+local function analyticGroundHeight(x: number, z: number): number
 	local height = 0.5
 	local function raiseFor(cx: number, cy: number, cz: number, ballRadius: number)
 		local dx = x - cx
@@ -113,6 +115,32 @@ local function groundHeight(x: number, z: number): number
 		raiseFor(dome[1], dome[2], dome[3], dome[4])
 	end
 	return height
+end
+
+-- Seats content on the RENDERED terrain surface — the analytic model above
+-- underestimates the voxelized surface by ~2 studs (slab nominal top y 0.5
+-- renders at ~2.5, measured in-boot 2026-08-09). Raycast is authoritative;
+-- the analytic model is the fallback past the terrain edge or over water.
+local seatRayParams = RaycastParams.new()
+seatRayParams.FilterType = Enum.RaycastFilterType.Include
+seatRayParams.FilterDescendantsInstances = { Workspace.Terrain }
+
+local function groundHeight(x: number, z: number): number
+	-- Terrain queries in the far chunks can lag the boot-time Clear+refill by
+	-- a beat: rays through the northern meadow missed at build time and hit
+	-- fine seconds later (measured 2026-08-09). Retry a null hit briefly; a
+	-- water hit is definitive and falls straight back to the model.
+	for _ = 1, 8 do
+		local hit = Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
+		if hit then
+			if hit.Material == Enum.Material.Water then
+				break
+			end
+			return hit.Position.Y
+		end
+		task.wait(0.25)
+	end
+	return analyticGroundHeight(x, z)
 end
 
 local function verticalCylinder(

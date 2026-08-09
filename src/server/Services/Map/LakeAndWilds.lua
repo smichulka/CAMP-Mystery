@@ -65,7 +65,7 @@ local state = {
 
 -- Mirrors the buildCampTerrain hill-ring FillBall layout (indices 1 and 14 are
 -- skipped there for the lakefront gap) so slope props can sit on the terrain.
-local function hillGroundHeight(x: number, z: number): number
+local function analyticHillGroundHeight(x: number, z: number): number
 	local height = 0.5
 	for index = 2, 13 do
 		if index == 10 or index == 11 or index == 12 then
@@ -94,6 +94,32 @@ local function hillGroundHeight(x: number, z: number): number
 		end
 	end
 	return height
+end
+
+-- Seats content on the RENDERED terrain surface — the analytic model above
+-- underestimates the voxelized surface by ~2 studs (slab nominal top y 0.5
+-- renders at ~2.5, measured in-boot 2026-08-09; thicket mushrooms and deer
+-- trails had shipped under the grass). Raycast is authoritative; the model
+-- is the fallback past the terrain edge or over water.
+local seatRayParams = RaycastParams.new()
+seatRayParams.FilterType = Enum.RaycastFilterType.Include
+seatRayParams.FilterDescendantsInstances = { Workspace.Terrain }
+
+local function hillGroundHeight(x: number, z: number): number
+	-- Terrain queries in far chunks can lag the boot-time Clear+refill by a
+	-- beat (measured 2026-08-09). Retry a null hit briefly; a water hit is
+	-- definitive and falls straight back to the model.
+	for _ = 1, 8 do
+		local hit = Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
+		if hit then
+			if hit.Material == Enum.Material.Water then
+				break
+			end
+			return hit.Position.Y
+		end
+		task.wait(0.25)
+	end
+	return analyticHillGroundHeight(x, z)
 end
 
 local function verticalCylinder(

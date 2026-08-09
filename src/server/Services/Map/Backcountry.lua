@@ -84,7 +84,7 @@ local EXPANDED_DOMES: { { number } } = {
 	-- meadow now — keep in lockstep with ProductionMapService)
 }
 
-local function groundHeight(x: number, z: number): number
+local function analyticGroundHeight(x: number, z: number): number
 	local height = 0.5
 	local function raiseFor(cx: number, cy: number, cz: number, ballRadius: number)
 		local dx = x - cx
@@ -116,6 +116,36 @@ local function groundHeight(x: number, z: number): number
 		raiseFor(dome[1], dome[2], dome[3], dome[4])
 	end
 	return height
+end
+
+-- Seats content on the RENDERED terrain surface. The analytic dome model
+-- above underestimates the voxelized surface by ~2 studs (the slab's nominal
+-- top is y 0.5 but renders at ~2.5 — measured in-boot 2026-08-09; every
+-- ground-level Backcountry prop had shipped ~1.9 studs under the grass), so
+-- a terrain raycast is authoritative. Build order guarantees the terrain
+-- exists (Build runs after buildCampTerrain). The analytic model remains as
+-- the fallback for points past the terrain edge, and for rays that hit
+-- water — content never seats on the creek surface.
+local seatRayParams = RaycastParams.new()
+seatRayParams.FilterType = Enum.RaycastFilterType.Include
+seatRayParams.FilterDescendantsInstances = { Workspace.Terrain }
+
+local function groundHeight(x: number, z: number): number
+	-- Terrain queries in the far chunks can lag the boot-time Clear+refill by
+	-- a beat: rays through the northern meadow missed at build time and hit
+	-- fine seconds later (measured 2026-08-09). Retry a null hit briefly; a
+	-- water hit is definitive and falls straight back to the model.
+	for _ = 1, 8 do
+		local hit = Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
+		if hit then
+			if hit.Material == Enum.Material.Water then
+				break
+			end
+			return hit.Position.Y
+		end
+		task.wait(0.25)
+	end
+	return analyticGroundHeight(x, z)
 end
 
 local function verticalCylinder(
@@ -450,9 +480,13 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 		Vector2.new(12, -84), Vector2.new(26, -93),
 		Vector2.new(42, -96), Vector2.new(56, -99),
 	})
+	-- Rerouted 2026-08-09: the water-sports basin flooded the old straight
+	-- line (its start at (150,150) is open water now). The long way runs
+	-- north of the basin's lobe, then south down the dry strip under the
+	-- far-shore ridge (water ends at x 208, carve at 211).
 	laidTrail(pack, "OverlookTrail", {
-		Vector2.new(150, 150), Vector2.new(168, 146), Vector2.new(184, 140),
-		Vector2.new(198, 130), Vector2.new(208, 118), Vector2.new(216, 106),
+		Vector2.new(148, 212), Vector2.new(178, 198), Vector2.new(212, 182),
+		Vector2.new(215, 150), Vector2.new(216, 122), Vector2.new(216, 106),
 	})
 
 	WorldKit.signpost(pack, Vector3.new(-38, groundHeight(-38, 92), 92),
