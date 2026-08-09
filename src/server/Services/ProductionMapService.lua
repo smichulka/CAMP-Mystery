@@ -994,12 +994,15 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(width / 2 + leanW - 0.25, leanLo / 2, 2 + lSide * (leanD / 2 - 0.25))),
 			trimColor, Enum.Material.WoodPlanks)
 	end
-	-- Simple wooden porch chair on one side (Cabin 2 reference: chair visible on porch)
+	-- Simple wooden porch chair on one side (Cabin 2 reference: chair visible
+	-- on porch). The lodge's chair sits on the WEST deck — the east side is
+	-- the storm-cellar hatch opening.
 	local chairColor = Color3.fromRGB(68, 46, 28)
+	local chairX = if name == "CounselorLodge" then -width * 0.25 else width * 0.25
 	createPart(model, "ChairSeat", Vector3.new(1.7, 0.28, 1.5),
-		CFrame.new(position + Vector3.new(width * 0.25, 1.64, -9.8)), chairColor, Enum.Material.WoodPlanks)
+		CFrame.new(position + Vector3.new(chairX, 1.64, -9.8)), chairColor, Enum.Material.WoodPlanks)
 	createPart(model, "ChairBack", Vector3.new(1.7, 1.15, 0.22),
-		CFrame.new(position + Vector3.new(width * 0.25, 2.35, -9.1)), chairColor, Enum.Material.WoodPlanks)
+		CFrame.new(position + Vector3.new(chairX, 2.35, -9.1)), chairColor, Enum.Material.WoodPlanks)
 	local doorState = createInteractiveDoor(
 		model,
 		"Door",
