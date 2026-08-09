@@ -148,6 +148,29 @@ class DomainContractTests(unittest.TestCase):
         ):
             self.assertIn(token, source)
 
+    def test_mystery_locations_are_registered_search_targets(self) -> None:
+        # Every locationId a clue template can select must exist as a
+        # SEARCH_TARGETS socket, or the assigned clue spawns no world glow and
+        # the round ships an unfindable objective. Added 2026-08-09 when the
+        # catalog expanded beyond the original seven town spots.
+        import re
+
+        catalog = read("src/server/Config/MysteryCatalog.lua")
+        map_service = read("src/server/Services/ProductionMapService.lua")
+        registered = set(re.findall(r'id = "([a-z0-9-]+)"', map_service))
+        used: set[str] = set()
+        for block in re.findall(r"locationIds = \{([^}]*)\}", catalog):
+            used.update(re.findall(r'"([a-z0-9-]+)"', block))
+        self.assertTrue(used, "catalog should declare clue locations")
+        unregistered = sorted(used - registered)
+        self.assertFalse(
+            unregistered,
+            f"clue locations missing from SEARCH_TARGETS: {unregistered}",
+        )
+        # The expansion districts must stay in play: at least a dozen distinct
+        # locations beyond the original seven.
+        self.assertGreaterEqual(len(used), 19, sorted(used))
+
     def test_daily_streak_is_server_authoritative_and_bounded(self) -> None:
         profile_service = read("src/server/Services/ProfileService.lua")
         for token in (

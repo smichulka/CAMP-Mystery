@@ -29,6 +29,12 @@ local catalog: MysteryCatalogDefinition = {
 		"Fog Over Black Pine",
 		"The Light Beneath the Water Tower",
 		"Last Call at the General Store",
+		"Ashes on the Aurora Shore",
+		"The Sawmill Whistle",
+		"What the Cornfield Kept",
+		"No One at the Lookout",
+		"The Boxcar Ledger",
+		"Silence at the Ranger Station",
 	},
 	culpritClues = {
 		{
@@ -40,6 +46,9 @@ local catalog: MysteryCatalogDefinition = {
 				"main-road-clue-a",
 				"square-gas-station-clue",
 				"industrial-machine-clue",
+				"derailed-boxcar",
+				"cornfield-scarecrow",
+				"sawmill-blade",
 			},
 		},
 		{
@@ -51,6 +60,9 @@ local catalog: MysteryCatalogDefinition = {
 				"residential-bedroom-clue",
 				"outskirts-company-house-clue",
 				"water-tower-base-clue",
+				"archery-shed",
+				"greenhouse-potting-table",
+				"cabin-zero-chimney",
 			},
 		},
 		{
@@ -62,6 +74,9 @@ local catalog: MysteryCatalogDefinition = {
 				"police-evidence-room-clue",
 				"square-gas-station-clue",
 				"residential-bedroom-clue",
+				"ranger-station-desk",
+				"quarters-footlocker",
+				"infirmary-logbook",
 			},
 		},
 		{
@@ -73,6 +88,9 @@ local catalog: MysteryCatalogDefinition = {
 				"water-tower-base-clue",
 				"main-road-clue-a",
 				"outskirts-company-house-clue",
+				"aurora-fire-ring",
+				"lookout-cab",
+				"mines-ore-cart",
 			},
 		},
 		{
@@ -84,6 +102,9 @@ local catalog: MysteryCatalogDefinition = {
 				"industrial-machine-clue",
 				"police-evidence-room-clue",
 				"main-road-clue-a",
+				"water-tower-catwalk",
+				"sawmill-blade",
+				"drive-in-projector",
 			},
 		},
 		{
@@ -95,6 +116,42 @@ local catalog: MysteryCatalogDefinition = {
 				"police-evidence-room-clue",
 				"residential-bedroom-clue",
 				"square-gas-station-clue",
+				"ranger-station-desk",
+				"radio-shack-console",
+				"lookout-cab",
+			},
+		},
+		{
+			id = "culprit-ash-streak",
+			channel = "Culprit",
+			title = "Cold Ash Streak",
+			publicDescription = "A gray smear matches the camp's fire-duty ash cans. Several campers hauled ash before nightfall, so the streak narrows the roster only a little.",
+			locationIds = {
+				"aurora-fire-ring",
+				"town-square-fountain",
+				"cabin-zero-chimney",
+			},
+		},
+		{
+			id = "culprit-fletching-nick",
+			channel = "Culprit",
+			title = "Torn Fletching Vane",
+			publicDescription = "A torn plastic vane comes from the archery range's practice arrows. Range hours list more than one certified camper for the day.",
+			locationIds = {
+				"archery-shed",
+				"lookout-cab",
+				"derailed-boxcar",
+			},
+		},
+		{
+			id = "culprit-resin-smear",
+			channel = "Culprit",
+			title = "Fresh Pine Resin Smear",
+			publicDescription = "Sticky resin was tracked from fresh-cut lumber. The sawmill and the greenhouse both handled cut pine today, and neither logs visitors.",
+			locationIds = {
+				"sawmill-blade",
+				"greenhouse-potting-table",
+				"waterfall-cave",
 			},
 		},
 	},
@@ -107,6 +164,7 @@ local catalog: MysteryCatalogDefinition = {
 			locationIds = {
 				"outskirts-company-house-clue",
 				"industrial-machine-clue",
+				"derailed-boxcar",
 			},
 		},
 		{
@@ -117,6 +175,7 @@ local catalog: MysteryCatalogDefinition = {
 			locationIds = {
 				"residential-bedroom-clue",
 				"police-evidence-room-clue",
+				"quarters-footlocker",
 			},
 		},
 		{
@@ -127,6 +186,7 @@ local catalog: MysteryCatalogDefinition = {
 			locationIds = {
 				"square-gas-station-clue",
 				"water-tower-base-clue",
+				"town-square-fountain",
 			},
 		},
 		{
@@ -137,6 +197,17 @@ local catalog: MysteryCatalogDefinition = {
 			locationIds = {
 				"main-road-clue-a",
 				"industrial-machine-clue",
+				"greenhouse-potting-table",
+			},
+		},
+		{
+			id = "planted-medical-wrap",
+			channel = "Culprit",
+			title = "Unused Medical Wrap",
+			publicDescription = "A pristine bandage roll from infirmary stock sits far from any treated injury — carried there, or placed there.",
+			locationIds = {
+				"infirmary-logbook",
+				"crypt-empty-niche",
 			},
 		},
 	},
@@ -147,7 +218,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Low Three-Toed Tracks",
 				publicDescription = "Tiny tracks cross beneath a collapsed barrier where a human-sized pursuer could not fit.",
-				locationIds = { "residential-bedroom-clue", "main-road-clue-a", "outskirts-company-house-clue" },
+				locationIds = { "residential-bedroom-clue", "main-road-clue-a", "outskirts-company-house-clue", "cornfield-scarecrow" },
 				monsterCandidates = { "BabyAlien", "Chupacabra", "ShadowMonster" },
 			},
 			{
@@ -155,7 +226,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Corrosive Droplets",
 				publicDescription = "Small droplets etched shallow pits into metal before quickly becoming inert.",
-				locationIds = { "industrial-machine-clue", "police-evidence-room-clue" },
+				locationIds = { "industrial-machine-clue", "police-evidence-room-clue", "mines-ore-cart" },
 				monsterCandidates = { "BabyAlien", "Entity" },
 			},
 			{
@@ -163,7 +234,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Floor-Level Laser Breaks",
 				publicDescription = "A laser grid recorded rapid movement less than two feet above the floor.",
-				locationIds = { "square-gas-station-clue", "water-tower-base-clue" },
+				locationIds = { "square-gas-station-clue", "water-tower-base-clue", "drive-in-projector" },
 				monsterCandidates = { "BabyAlien", "Chupacabra" },
 			},
 		},
@@ -173,7 +244,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Clipped Directional Audio",
 				publicDescription = "The recorder clipped around a narrow directional sound powerful enough to overload its input.",
-				locationIds = { "main-road-clue-a", "police-evidence-room-clue" },
+				locationIds = { "main-road-clue-a", "police-evidence-room-clue", "radio-shack-console" },
 				monsterCandidates = { "Screamer", "Banshee", "Wendigo" },
 			},
 			{
@@ -181,7 +252,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Synchronized Device Failure",
 				publicDescription = "Several powered devices failed in a line, then recovered seconds later.",
-				locationIds = { "industrial-machine-clue", "square-gas-station-clue" },
+				locationIds = { "industrial-machine-clue", "square-gas-station-clue", "drive-in-projector" },
 				monsterCandidates = { "Screamer", "ShadowMonster", "Entity" },
 			},
 			{
@@ -189,7 +260,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Abrupt Silence Window",
 				publicDescription = "The audio trace shows a loud burst followed by a distinct recovery pause.",
-				locationIds = { "water-tower-base-clue", "outskirts-company-house-clue" },
+				locationIds = { "water-tower-base-clue", "outskirts-company-house-clue", "waterfall-cave" },
 				monsterCandidates = { "Screamer", "Banshee" },
 			},
 		},
@@ -199,7 +270,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "High Bark Gouges",
 				publicDescription = "Paired gouges sit too high and too far apart to be ordinary tool marks.",
-				locationIds = { "outskirts-company-house-clue", "main-road-clue-a" },
+				locationIds = { "outskirts-company-house-clue", "main-road-clue-a", "graveyard-open-grave" },
 				monsterCandidates = { "Wendigo", "Dullahan" },
 			},
 			{
@@ -207,7 +278,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Impossible Voice Overlap",
 				publicDescription = "A familiar voice appears on the recording while its owner was documented elsewhere.",
-				locationIds = { "residential-bedroom-clue", "police-evidence-room-clue" },
+				locationIds = { "residential-bedroom-clue", "police-evidence-room-clue", "cornfield-scarecrow" },
 				monsterCandidates = { "Wendigo", "Entity", "Banshee" },
 			},
 			{
@@ -215,7 +286,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Unbroken Pursuit Path",
 				publicDescription = "Tracks follow an injured camper around blind corners without any search pattern.",
-				locationIds = { "water-tower-base-clue", "industrial-machine-clue" },
+				locationIds = { "water-tower-base-clue", "industrial-machine-clue", "mines-ore-cart" },
 				monsterCandidates = { "Wendigo", "Chupacabra" },
 			},
 		},
@@ -225,7 +296,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Localized Light Drain",
 				publicDescription = "Bulbs dimmed in sequence despite stable power at the generator.",
-				locationIds = { "square-gas-station-clue", "industrial-machine-clue" },
+				locationIds = { "square-gas-station-clue", "industrial-machine-clue", "drive-in-projector" },
 				monsterCandidates = { "ShadowMonster", "Screamer", "Entity" },
 			},
 			{
@@ -233,7 +304,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Detached Silhouette",
 				publicDescription = "A camera caught a silhouette that does not align with any nearby body or light source.",
-				locationIds = { "residential-bedroom-clue", "police-evidence-room-clue" },
+				locationIds = { "residential-bedroom-clue", "police-evidence-room-clue", "crypt-empty-niche" },
 				monsterCandidates = { "ShadowMonster", "Entity" },
 			},
 			{
@@ -241,7 +312,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Cold Black Residue",
 				publicDescription = "Powdery residue appears only inside the darkest section of the room.",
-				locationIds = { "outskirts-company-house-clue", "water-tower-base-clue" },
+				locationIds = { "outskirts-company-house-clue", "water-tower-base-clue", "mines-ore-cart" },
 				monsterCandidates = { "ShadowMonster", "Dullahan" },
 			},
 		},
@@ -251,7 +322,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Blood-Oriented Trail",
 				publicDescription = "The pursuit route changes abruptly to follow the freshest blood instead of the nearest movement.",
-				locationIds = { "main-road-clue-a", "residential-bedroom-clue" },
+				locationIds = { "main-road-clue-a", "residential-bedroom-clue", "cornfield-scarecrow" },
 				monsterCandidates = { "Chupacabra", "Wendigo", "Banshee" },
 			},
 			{
@@ -259,7 +330,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Four-Part Claw Furrow",
 				publicDescription = "A low wall holds four deep furrows and signs of a long horizontal leap.",
-				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue" },
+				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue", "sawmill-blade" },
 				monsterCandidates = { "Chupacabra", "BabyAlien" },
 			},
 			{
@@ -267,7 +338,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "UV-Reactive Saliva",
 				publicDescription = "A clear residue fluoresces strongly under ultraviolet light near the attack path.",
-				locationIds = { "water-tower-base-clue", "police-evidence-room-clue" },
+				locationIds = { "water-tower-base-clue", "police-evidence-room-clue", "waterfall-cave" },
 				monsterCandidates = { "Chupacabra", "Entity" },
 			},
 		},
@@ -277,7 +348,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Moving Frost Line",
 				publicDescription = "Frost formed in a straight pursuing line while nearby surfaces stayed warm.",
-				locationIds = { "main-road-clue-a", "water-tower-base-clue" },
+				locationIds = { "main-road-clue-a", "water-tower-base-clue", "waterfall-cave" },
 				monsterCandidates = { "Dullahan", "Wendigo", "Entity" },
 			},
 			{
@@ -285,7 +356,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Headless Pursuer Photograph",
 				publicDescription = "A blurred pursuer has clear shoulders but no visible head above them.",
-				locationIds = { "police-evidence-room-clue", "square-gas-station-clue" },
+				locationIds = { "police-evidence-room-clue", "square-gas-station-clue", "drive-in-projector" },
 				monsterCandidates = { "Dullahan", "ShadowMonster" },
 			},
 			{
@@ -293,7 +364,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Accelerating Sightline Tracks",
 				publicDescription = "Stride length increased only while the path remained in direct view of the victim.",
-				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue" },
+				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue", "lookout-cab" },
 				monsterCandidates = { "Dullahan", "BabyAlien" },
 			},
 		},
@@ -303,7 +374,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Repeated Anchor Distortion",
 				publicDescription = "Three fixed points show the same distortion with no connecting tracks between them.",
-				locationIds = { "police-evidence-room-clue", "industrial-machine-clue" },
+				locationIds = { "police-evidence-room-clue", "industrial-machine-clue", "crypt-empty-niche" },
 				monsterCandidates = { "Entity", "ShadowMonster", "BabyAlien" },
 			},
 			{
@@ -311,7 +382,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Inside-Surface Handprint",
 				publicDescription = "A handprint appears on the sealed side of an undamaged pane.",
-				locationIds = { "residential-bedroom-clue", "square-gas-station-clue" },
+				locationIds = { "residential-bedroom-clue", "square-gas-station-clue", "lookout-cab" },
 				monsterCandidates = { "Entity", "Banshee" },
 			},
 			{
@@ -319,7 +390,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Structured Spirit Response",
 				publicDescription = "A Spirit Box answered a question from two locations within the same second.",
-				locationIds = { "outskirts-company-house-clue", "water-tower-base-clue" },
+				locationIds = { "outskirts-company-house-clue", "water-tower-base-clue", "graveyard-open-grave" },
 				monsterCandidates = { "Entity", "Wendigo" },
 			},
 		},
@@ -329,7 +400,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Layered Wail Recording",
 				publicDescription = "The recording holds overlapping vocal bands from one moving source.",
-				locationIds = { "main-road-clue-a", "square-gas-station-clue" },
+				locationIds = { "main-road-clue-a", "square-gas-station-clue", "island-firewatch" },
 				monsterCandidates = { "Banshee", "Screamer", "Wendigo" },
 			},
 			{
@@ -337,7 +408,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Circular Panic Pattern",
 				publicDescription = "Witnesses reported the same sudden fear inside a clear radius around the attack.",
-				locationIds = { "water-tower-base-clue", "residential-bedroom-clue" },
+				locationIds = { "water-tower-base-clue", "residential-bedroom-clue", "graveyard-open-grave" },
 				monsterCandidates = { "Banshee", "Dullahan" },
 			},
 			{
@@ -345,7 +416,7 @@ local catalog: MysteryCatalogDefinition = {
 				channel = "Monster",
 				title = "Injured-Target Turn",
 				publicDescription = "The pursuer abandoned a closer target immediately after an injured camper cried out.",
-				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue" },
+				locationIds = { "industrial-machine-clue", "outskirts-company-house-clue", "infirmary-logbook" },
 				monsterCandidates = { "Banshee", "Chupacabra" },
 			},
 		},
