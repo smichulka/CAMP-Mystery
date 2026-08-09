@@ -77,8 +77,8 @@ local EXPANDED_DOMES: { { number } } = {
 	{ 249, -3, 86, 26 },
 	{ 251, -2, 120, 32 },
 	{ 250, -3, 150, 28 },
-	{ 158, -2, 178, 28 },
-	{ 200, -3, 160, 26 },
+	-- (northeast corner fillers removed: the water-sports basin owns that
+	-- meadow now — keep in lockstep with ProductionMapService)
 }
 
 local function groundHeight(x: number, z: number): number
@@ -439,7 +439,8 @@ local function buildScatter(parent: Instance)
 		-- Sector skips: east edge and lake, town band, the creek's north
 		-- corridor, and anything past the slab edge.
 		local offSlab = x > 235 or x < -540 or z > 462 or z < -100
-		local inLakeSector = x > 82 and z < 160
+		-- z bound covers the water-sports basin's north lobe (water to z 190)
+		local inLakeSector = x > 82 and z < 200
 		local inCreekCorridor = z > 160 and x > 60 and x < 175
 		if offSlab or inLakeSector or inCreekCorridor then
 			return

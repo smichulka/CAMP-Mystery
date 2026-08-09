@@ -1747,8 +1747,10 @@ local FAR_SHORE_DOMES: { { number } } = {
 	{ 249, -3, 86, 26 },
 	{ 251, -2, 120, 32 },
 	{ 250, -3, 150, 28 },
-	{ 158, -2, 178, 28 }, -- northeast corner fillers
-	{ 200, -3, 160, 26 },
+	-- The two northeast corner fillers (158,178 / 200,160) are gone: the
+	-- water-sports basin owns that meadow now, and the fourth-expansion
+	-- boundary span along x ~250 closes the gap they used to plug. Keep the
+	-- Backcountry/HighFrontier dome mirrors in lockstep with this removal.
 }
 
 -- Ground height across the expanded band: flat slab, the original dome ring
@@ -1958,13 +1960,33 @@ local function buildCampTerrain(parent: Instance)
 	terrain:FillCylinder(CFrame.new(122, 13, 72), 24, 33, Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(152, 13, 102), 24, 48, Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(192, 13, 84), 24, 23, Enum.Material.Air)
+	-- Water-sports basin: the old r45 north basin opens into one big body
+	-- (x 132..208, z 78..190 plus the r45 west bulge) filling the northeast
+	-- meadow the corner-filler domes used to occupy. East edge stops at x 208
+	-- (carve 211) so the walk strip under the far-shore ridge — the "long way"
+	-- to the Aurora Overlook at (219, 102) — stays dry; the north lobe stops
+	-- at z 190 (carve 193) short of Backcountry's extended scatter skip
+	-- (z < 200) and west of it the creek keeps an 8-stud bank (creek carve
+	-- reaches x ~137 there). Same vertical band as every other lake fill.
+	terrain:FillBlock(CFrame.new(170, 13, 122), Vector3.new(82, 24, 94), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(178, 13, 178), Vector3.new(66, 24, 30), Enum.Material.Air)
 	terrain:FillBlock(CFrame.new(203, 13, 20), Vector3.new(26, 24, 146), Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(170, 13, -68), 24, 45, Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(158, 13, -36), 24, 33, Enum.Material.Air)
 	terrain:FillBlock(CFrame.new(120.5, 13, -72), Vector3.new(22, 24, 28), Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(122, 0, 72), 8, 30, Enum.Material.Water) -- bay-to-north neck
-	terrain:FillCylinder(CFrame.new(152, 0, 102), 8, 45, Enum.Material.Water) -- north basin
+	terrain:FillCylinder(CFrame.new(152, 0, 102), 8, 45, Enum.Material.Water) -- north basin, west bulge
 	terrain:FillCylinder(CFrame.new(192, 0, 84), 8, 20, Enum.Material.Water) -- northeast corner
+	terrain:FillBlock(
+		CFrame.new(170, 0, 122),
+		Vector3.new(76, 8, 88),
+		Enum.Material.Water
+	) -- water-sports basin, main body
+	terrain:FillBlock(
+		CFrame.new(178, 0, 178),
+		Vector3.new(60, 8, 24),
+		Enum.Material.Water
+	) -- water-sports basin, north lobe
 	terrain:FillBlock(
 		CFrame.new(203, 0, 20),
 		Vector3.new(22, 8, 140),
@@ -1977,10 +1999,14 @@ local function buildCampTerrain(parent: Instance)
 		Vector3.new(18, 8, 24),
 		Enum.Material.Water
 	) -- strait joining the creek to the south basin (south of the mines bluff)
-	-- Beaches on the enlarged shoreline (full voxel depth, same as the bay's)
+	-- Beaches on the enlarged shoreline (full voxel depth, same as the bay's).
+	-- The old north-basin-head beach at (160, 149) is open water now; its
+	-- replacement sits on the water-sports basin's north shore, plus a cove
+	-- on the east strip below the Aurora Overlook.
 	terrain:FillCylinder(CFrame.new(97, -3.2, 70), 8.5, 8, Enum.Material.Sand) -- swimming-hole cove
 	terrain:FillCylinder(CFrame.new(133, -3.2, -52), 8.5, 9, Enum.Material.Sand) -- south basin head
-	terrain:FillCylinder(CFrame.new(160, -3.2, 149), 8.5, 8, Enum.Material.Sand) -- north basin head
+	terrain:FillCylinder(CFrame.new(172, -3.2, 192), 8.5, 8, Enum.Material.Sand) -- north-shore beach
+	terrain:FillCylinder(CFrame.new(206, -3.2, 120), 8.5, 8, Enum.Material.Sand) -- overlook cove
 
 	-- Sits below the storm-cellar tunnel (floor ~-6.9) so the passage can be
 	-- carved through the terrain block above it

@@ -80,8 +80,8 @@ local EXPANDED_DOMES: { { number } } = {
 	{ 249, -3, 86, 26 },
 	{ 251, -2, 120, 32 },
 	{ 250, -3, 150, 28 },
-	{ 158, -2, 178, 28 },
-	{ 200, -3, 160, 26 },
+	-- (northeast corner fillers removed: the water-sports basin owns that
+	-- meadow now — keep in lockstep with ProductionMapService)
 }
 
 local function groundHeight(x: number, z: number): number
@@ -358,7 +358,9 @@ local function buildOverlook(parent: Instance)
 	beacon.CanCollide = false
 	WorldKit.lamp(beacon, { brightness = 1.3, range = 22 })
 
-	WorldKit.signpost(parent, Vector3.new(150, groundHeight(150, 150), 150),
+	-- North shore of the water-sports basin (its old spot at (150, 150) is
+	-- open water since the basin expansion)
+	WorldKit.signpost(parent, Vector3.new(184, groundHeight(184, 196), 196),
 		{ "AURORA OVERLOOK", "THE LONG WAY" })
 end
 
@@ -374,7 +376,9 @@ local function buildScatter(parent: Instance)
 		local angle = index * 2.39996
 		local x = math.cos(angle) * radius
 		local z = 12 + math.sin(angle) * radius
-		local inLakeSector = x > 82 and z < 160
+		-- z bound covers the water-sports basin's north lobe (water to z 190,
+		-- carve to 193)
+		local inLakeSector = x > 82 and z < 200
 		local inCreekRun = x > 74 and z < -55
 		local inCreekNorthRun = x > 60 and x < 150 and z > 160
 		-- With the south boundary domes gone, scatter there would stand on the
