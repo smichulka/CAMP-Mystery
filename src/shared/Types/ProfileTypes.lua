@@ -49,6 +49,11 @@ export type PlayerProfile = {
 	monsterStats: { [string]: MonsterStatRecord },
 	settings: PlayerSettings,
 	recentRewardReceipts: { string },
+	-- Daily play streak: last UTC day index a rewarded round was played, and
+	-- the run of consecutive days ending on that day. Additive v1 fields —
+	-- absent values sanitize to 0 (no streak).
+	streakLastDay: number,
+	streakCount: number,
 }
 
 export type ProfileSnapshot = {
@@ -73,6 +78,9 @@ export type RewardInput = {
 	coldCasesReviewed: number?,
 	-- Event bonus (e.g. Blood Moon weather); clamped in RewardCalculation.
 	rewardMultiplier: number?,
+	-- Server-injected by ProfileService from the stored profile — never
+	-- trusted from callers. Day count of the player's current daily streak.
+	dailyStreakCount: number?,
 }
 
 export type RewardGrant = {
@@ -92,6 +100,10 @@ export type RewardGrant = {
 	monsterEncounter: number,
 	monsterSurvival: number,
 	monsterIdentification: number,
+	-- Daily streak this grant was computed with (0 when not participating)
+	-- and the bonus percent applied to xp/campTokens, for UI display.
+	dailyStreak: number,
+	streakBonusPercent: number,
 }
 
 export type RewardResult = {

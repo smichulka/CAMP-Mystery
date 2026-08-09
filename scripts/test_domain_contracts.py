@@ -135,6 +135,41 @@ class DomainContractTests(unittest.TestCase):
         self.assertIn("recentRewardReceipts", source)
         self.assertIn("UpdateAsync", source)
 
+    def test_reward_normalization_keeps_every_calculator_input(self) -> None:
+        # Regression guard (2026-08-09): ApplyReward's normalizedInput silently
+        # dropped sideObjectives/ghostObjectives for a while, zeroing those
+        # payouts. Every optional field RewardCalculation reads must survive
+        # normalization.
+        source = read("src/server/Services/ProfileService.lua")
+        for token in (
+            "sideObjectives = finiteNumber(input.sideObjectives, 0)",
+            "ghostObjectives = finiteNumber(input.ghostObjectives, 0)",
+            "dailyStreakCount = advancedStreak(state.profile)",
+        ):
+            self.assertIn(token, source)
+
+    def test_daily_streak_is_server_authoritative_and_bounded(self) -> None:
+        profile_service = read("src/server/Services/ProfileService.lua")
+        for token in (
+            "local function currentUtcDay()",
+            "local function advancedStreak(",
+            "profile.streakLastDay == today - 1",
+            # advance persists inside the UpdateAsync transform via applyGrant
+            "if grant.roundsPlayed > 0 then",
+        ):
+            self.assertIn(token, profile_service)
+        calculation = read("src/server/Systems/RewardCalculation.lua")
+        for token in (
+            "input.dailyStreakCount or 1",
+            "rewards.streakBonusMaxDays",
+            "rewards.streakPerDayBonus",
+            "dailyStreak = streakDays",
+        ):
+            self.assertIn(token, calculation)
+        config = read("src/shared/Config/ProgressionConfig.lua")
+        self.assertIn("streakPerDayBonus = 0.10", config)
+        self.assertIn("streakBonusMaxDays = 5", config)
+
     def test_launch_has_no_monetization_surface(self) -> None:
         forbidden = {
             "MarketplaceService",

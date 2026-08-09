@@ -15,6 +15,7 @@ local Motion = require(script.Parent:WaitForChild("Motion"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
+local ProgressionConfig = require(SharedConfig:WaitForChild("ProgressionConfig"))
 local PublicMonsterCatalog = require(SharedConfig:WaitForChild("PublicMonsterCatalog"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local KeybindHints = require(SharedConfig:WaitForChild("KeybindHints"))
@@ -108,6 +109,7 @@ type GameViewState = {
 	lastRosterSignature: string,
 	evidenceSignature: string,
 	inventorySignature: string,
+	streakToastShown: boolean,
 	notebook: Frame,
 	evidenceList: ScrollingFrame,
 	evidenceSummary: TextLabel,
@@ -1183,6 +1185,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		lastRosterSignature = "",
 		evidenceSignature = "",
 		inventorySignature = "",
+		streakToastShown = false,
 		notebook = notebook,
 		evidenceList = nil :: any,
 		evidenceSummary = nil :: any,
@@ -4632,7 +4635,7 @@ function GameView:UpdateGhostHaunt(ghost: any)
 	end
 end
 
-function GameView:_animateRewards(targetXP: number, targetTokens: number)
+function GameView:_animateRewards(targetXP: number, targetTokens: number, suffix: string?)
 	if self.lastAnimatedXP == targetXP
 		and self.lastAnimatedTokens == targetTokens
 	then
@@ -4644,9 +4647,10 @@ function GameView:_animateRewards(targetXP: number, targetTokens: number)
 	local token = self.rewardAnimationToken
 	local function setRewardText(xp: number, tokens: number)
 		self.rewardText.Text = string.format(
-			"TOTAL XP  %d     CAMP TOKENS  %d",
+			"TOTAL XP  %d     CAMP TOKENS  %d%s",
 			xp,
-			tokens
+			tokens,
+			suffix or ""
 		)
 	end
 	if Motion.IsReducedMotion(self.resultModal) then
@@ -5535,13 +5539,31 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		if type(profileData) == "table" then
 			local totalXP = readNumber(profileData, "totalXP", 0)
 			local tokens = readNumber(profileData, "campTokens", 0)
+			-- Daily streak footnote: only from day 2 (a "day 1 streak" reads
+			-- as noise) — mirrors the server's ProgressionConfig bonus curve.
+			local streakDays = math.floor(readNumber(profileData, "streakCount", 0))
+			local streakSuffix = ""
+			if streakDays >= 2 then
+				local bonusPercent = math.floor(
+					math.min(
+						streakDays - 1,
+						ProgressionConfig.rewards.streakBonusMaxDays
+					) * ProgressionConfig.rewards.streakPerDayBonus * 100 + 0.5
+				)
+				streakSuffix = string.format(
+					"     DAY %d STREAK  +%d%%",
+					streakDays,
+					bonusPercent
+				)
+			end
 			if phase == "Rewards" then
-				self:_animateRewards(totalXP, tokens)
+				self:_animateRewards(totalXP, tokens, streakSuffix)
 			else
 				self.rewardText.Text = string.format(
-				"TOTAL XP  %d     CAMP TOKENS  %d",
+				"TOTAL XP  %d     CAMP TOKENS  %d%s",
 					totalXP,
-					tokens
+					tokens,
+					streakSuffix
 				)
 			end
 		else
@@ -5557,6 +5579,29 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 
 	local profile = if type(state) == "table" then state.profile else nil
 	local profileData = if type(profile) == "table" then profile.profile else nil
+	-- One welcome-back toast per session: returning players see their streak
+	-- the first time their profile arrives, so the bonus feels earned rather
+	-- than silently applied at round end.
+	if type(profileData) == "table" and not self.streakToastShown then
+		self.streakToastShown = true
+		local streakDays = math.floor(readNumber(profileData, "streakCount", 0))
+		if streakDays >= 2 then
+			local bonusPercent = math.floor(
+				math.min(
+					streakDays - 1,
+					ProgressionConfig.rewards.streakBonusMaxDays
+				) * ProgressionConfig.rewards.streakPerDayBonus * 100 + 0.5
+			)
+			self:Notify(
+				string.format("Day %d streak!", streakDays),
+				string.format(
+					"Camp rewards pay +%d%% today. Play tomorrow to keep it going.",
+					bonusPercent
+				),
+				"Success"
+			)
+		end
+	end
 	local settings = if type(profileData) == "table" then profileData.settings else nil
 	if type(settings) == "table" then
 		local changed = false

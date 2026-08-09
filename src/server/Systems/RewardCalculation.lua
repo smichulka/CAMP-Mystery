@@ -88,6 +88,27 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 		end
 	end
 
+	-- Daily play streak: +streakPerDayBonus per consecutive day beyond the
+	-- first, capped at streakBonusMaxDays. Injected server-side by
+	-- ProfileService from the stored profile, so a caller can never fake it.
+	-- Applied last so a returning player's bonus lifts the whole round evenly,
+	-- same shape as the event multiplier above.
+	local streakDays = 0
+	local streakBonus = 0
+	if input.participated then
+		local rawStreak = input.dailyStreakCount or 1
+		if rawStreak ~= rawStreak then
+			rawStreak = 1
+		end
+		streakDays = math.clamp(math.floor(rawStreak), 1, 100000)
+		streakBonus = math.min(streakDays - 1, rewards.streakBonusMaxDays)
+			* rewards.streakPerDayBonus
+		if streakBonus > 0 then
+			xp = math.floor(xp * (1 + streakBonus))
+			campTokens = math.floor(campTokens * (1 + streakBonus))
+		end
+	end
+
 	local roleIsMurderer = input.roleId == "Murderer"
 	local monsterId = input.monsterId
 	return {
@@ -117,6 +138,8 @@ function RewardCalculation.Calculate(input: RewardInput): RewardGrant
 				and input.identifiedMonster == true
 			then 1
 			else 0,
+		dailyStreak = streakDays,
+		streakBonusPercent = math.floor(streakBonus * 100 + 0.5),
 	}
 end
 

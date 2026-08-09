@@ -32,6 +32,11 @@ local REWARDS = table.freeze({
 	roleContributionXP = 5,
 	maxRewardedObjectives = 5,
 	maxRewardedEvidence = 5,
+	-- Daily play streak: +10% XP and camp tokens per consecutive UTC day
+	-- beyond the first, capped at +50% (day 6 and onward). Come back
+	-- tomorrow and the campfire pays a little better.
+	streakPerDayBonus = 0.10,
+	streakBonusMaxDays = 5,
 })
 
 local function levelFromXP(xp: number): number

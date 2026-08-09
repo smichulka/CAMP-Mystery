@@ -155,7 +155,27 @@ local function defaultProfile(): PlayerProfile
 		monsterStats = {},
 		settings = deepCopy(ProgressionConfig.defaultSettings),
 		recentRewardReceipts = {},
+		streakLastDay = 0,
+		streakCount = 0,
 	}
+end
+
+-- UTC day index, identical on every server, so a streak never depends on
+-- which server the player happens to land on.
+local function currentUtcDay(): number
+	return math.floor(os.time() / 86400)
+end
+
+-- What the player's streak becomes if a rewarded round lands today: same-day
+-- play keeps it, consecutive-day play extends it, a gap resets it to 1.
+local function advancedStreak(profile: PlayerProfile): number
+	local today = currentUtcDay()
+	if profile.streakLastDay == today then
+		return math.max(profile.streakCount, 1)
+	elseif profile.streakLastDay == today - 1 then
+		return profile.streakCount + 1
+	end
+	return 1
 end
 
 local function sanitizeStringMap(source: unknown): { [string]: boolean }
@@ -202,6 +222,10 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 		0,
 		ProgressionConfig.maxCampTokens
 	)
+	-- Daily streak (additive v1 fields): absent or invalid values read as 0,
+	-- which advancedStreak treats as "no streak yet".
+	profile.streakLastDay = safeInteger(raw.streakLastDay, 0, 100_000_000)
+	profile.streakCount = safeInteger(raw.streakCount, 0, 1_000_000)
 
 	if typeof(raw.roleMastery) == "table" then
 		local count = 0
@@ -414,6 +438,14 @@ local function applyGrant(profile: PlayerProfile, grant: RewardGrant)
 		2_000_000_000
 	)
 	stats.survivals = addClamped(stats.survivals, grant.survivals, 2_000_000_000)
+
+	-- A rewarded round played today advances the daily streak. Computed
+	-- against the profile being mutated (inside the UpdateAsync transform),
+	-- so server-hopping around midnight cannot double-advance it.
+	if grant.roundsPlayed > 0 then
+		profile.streakCount = advancedStreak(profile)
+		profile.streakLastDay = currentUtcDay()
+	end
 
 	local monsterId = grant.monsterId
 	if monsterId then
@@ -970,8 +1002,17 @@ function ProfileService:ApplyReward(
 			else nil,
 		identifiedMonster = input.identifiedMonster == true,
 		checkIns = finiteNumber(input.checkIns, 0),
+		-- These two were dropped by normalization for a while, silently
+		-- zeroing the night side-objective and ghost-objective payouts the
+		-- calculator supports — keep them when touching this list.
+		sideObjectives = finiteNumber(input.sideObjectives, 0),
+		ghostObjectives = finiteNumber(input.ghostObjectives, 0),
 		rewardMultiplier = finiteNumber(input.rewardMultiplier, 1),
 		coldCasesReviewed = finiteNumber(input.coldCasesReviewed, 0),
+		-- Server-authoritative: derived from the stored profile, never from
+		-- the caller. Slight staleness across a midnight server-hop only
+		-- shifts the bonus by one step; the transform below is what persists.
+		dailyStreakCount = advancedStreak(state.profile),
 	}
 	local grant = RewardCalculation.Calculate(normalizedInput)
 	local appliedByThisUpdate = false
