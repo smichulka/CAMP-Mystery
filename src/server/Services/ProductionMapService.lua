@@ -894,14 +894,37 @@ local function createCabin(
 		end)
 	end
 	-- Porch with posts
-	createPart(
-		model,
-		"Porch",
-		Vector3.new(width - 2, 1, 5),
-		CFrame.new(position + Vector3.new(0, 0.5, -10)),
-		Color3.fromRGB(77, 54, 37),
-		Enum.Material.WoodPlanks
-	)
+	if name == "CounselorLodge" then
+		-- The deck splits around the storm-cellar stair pit (world x
+		-- 5.6..10.4, beside the east post) so the cellar is actually
+		-- enterable from the porch — a single slab sealed the pit shut and
+		-- left the hatch doors opening onto solid wood.
+		createPart(
+			model,
+			"Porch",
+			Vector3.new(19.6, 1, 5),
+			CFrame.new(position + Vector3.new(-4.2, 0.5, -10)),
+			Color3.fromRGB(77, 54, 37),
+			Enum.Material.WoodPlanks
+		)
+		createPart(
+			model,
+			"PorchEast",
+			Vector3.new(3.6, 1, 5),
+			CFrame.new(position + Vector3.new(12.2, 0.5, -10)),
+			Color3.fromRGB(77, 54, 37),
+			Enum.Material.WoodPlanks
+		)
+	else
+		createPart(
+			model,
+			"Porch",
+			Vector3.new(width - 2, 1, 5),
+			CFrame.new(position + Vector3.new(0, 0.5, -10)),
+			Color3.fromRGB(77, 54, 37),
+			Enum.Material.WoodPlanks
+		)
+	end
 	-- Porch roof
 	createPart(model, "PorchRoof", Vector3.new(width - 2, 0.35, 5.5),
 		CFrame.new(position + Vector3.new(0, 9.35, -10.25)),
@@ -923,9 +946,16 @@ local function createCabin(
 	local entryGap = 7.0
 	local railSegment = (width - 4.0 - entryGap) / 2
 	for side = -1, 1, 2 do
+		local segmentWidth = railSegment
+		local segmentX = side * (entryGap / 2 + railSegment / 2)
+		if name == "CounselorLodge" and side > 0 then
+			-- East rail stops at the storm-cellar hatch opening instead of
+			-- crossing over the pit.
+			segmentWidth, segmentX = 2.6, 11.7
+		end
 		createPart(model, "PorchRailFront" .. (if side < 0 then "L" else "R"),
-			Vector3.new(railSegment, 0.28, 0.22),
-			CFrame.new(position + Vector3.new(side * (entryGap / 2 + railSegment / 2), railY, -12)),
+			Vector3.new(segmentWidth, 0.28, 0.22),
+			CFrame.new(position + Vector3.new(segmentX, railY, -12)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
 	for side = -1, 1, 2 do
@@ -937,6 +967,10 @@ local function createCabin(
 	for b = 1, 3 do
 		if b == 2 then
 			-- Center baluster stood dead-middle of the entry gap.
+			continue
+		end
+		if b == 3 and name == "CounselorLodge" then
+			-- Would hang over the storm-cellar hatch opening.
 			continue
 		end
 		local bX = -(width / 2 - 2.5) + (width - 5.0) / 4 * b
@@ -1166,15 +1200,16 @@ local function createCabin(
 			CFrame.new(position + Vector3.new(hSide * (signW / 2 - 0.8), 9.15, -12.3)),
 			trimColor, Enum.Material.WoodPlanks)
 	end
-	-- Boardwalk ramp through the railing gap. The old two-step approach was
-	-- authored for a ground plane at ~0.5, but the expanded slab's voxel
-	-- surface renders ~2.4-2.5 — both steps sat fully under the grass, and
-	-- with no walkable rise the porch was only enterable by vaulting the
-	-- rail. The wedge runs from the deck (top ~1.5) up to grade (~2.5).
-	createWedge(model, "PorchRamp", Vector3.new(4.6, 1.15, 3.6),
-		CFrame.new(position + Vector3.new(0, 1.58, -13.8))
-			* CFrame.Angles(0, math.pi, 0),
+	-- Two-step approach from the porch down to grade. With the cabin bases
+	-- seated against the rendered surface (deck ~0.6 proud of the grass),
+	-- the classic step pair works again: tops at deck -0.33 and -0.66 land
+	-- the second step at or just under the approach grass.
+	createPart(model, "PorchStep1", Vector3.new(4.6, 0.34, 1.5),
+		CFrame.new(position + Vector3.new(0, 0.5, -13.4)),
 		Color3.fromRGB(72, 50, 32), Enum.Material.WoodPlanks)
+	createPart(model, "PorchStep2", Vector3.new(4.6, 0.34, 1.5),
+		CFrame.new(position + Vector3.new(0, 0.17, -14.9)),
+		Color3.fromRGB(62, 44, 28), Enum.Material.WoodPlanks)
 	-- Wooden bench on left porch side (Cabin 4 reference: low bench/railing against left wall)
 	createPart(model, "BenchSeat", Vector3.new(3.4, 0.28, 1.8),
 		CFrame.new(position + Vector3.new(-(width / 2 - 3.2), 1.52, -10.4)),
@@ -2027,21 +2062,27 @@ function ProductionMapService:Build()
 				Enum.Material.Ground
 			)
 		end
+		-- Cabin base heights are seated per-site against the RENDERED voxel
+		-- surface (measured in-boot 2026-08-09: Pine approach 2.24, Creek and
+		-- the lodge 2.40, Supply 3.06). Y places the porch deck (base + 1.0)
+		-- about 0.6 proud of the approach grass, which also finally exposes
+		-- the stone foundation strip instead of burying it. The old uniform
+		-- 0.5 predates the world-x2 slab and sank every porch below grade.
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 0.5, 18), 24, 2)
+			createCabin(self.dayCamp, "PineCabin", Vector3.new(-54, 1.85, 18), 24, 2)
 		)
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 0.5, 18), 24, 2)
+			createCabin(self.dayCamp, "CreekCabin", Vector3.new(54, 2.0, 18), 24, 2)
 		)
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "CounselorLodge", Vector3.new(0, 0.5, 74), 30)
+			createCabin(self.dayCamp, "CounselorLodge", Vector3.new(0, 2.0, 74), 30)
 		)
 		table.insert(
 			self.interactiveDoors,
-			createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 0.5, -42), 18)
+			createCabin(self.dayCamp, "SupplyCabin", Vector3.new(-76, 2.65, -42), 18)
 		)
 		-- Cylinder axis is X; the roll stands it upright. Base stays planted at
 		-- terrain level (Y 0.5) while the pit rises well proud of the grass.

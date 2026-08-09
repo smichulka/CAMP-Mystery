@@ -877,15 +877,17 @@ local builders: { Builder } = {
 
 	-- ============================================== camp buildings polish ===
 	{ label = "51 chimney smoke", build = function(dayCamp, _)
-		smokeColumn(dayCamp, "PolishSmokePine", Vector3.new(-54, 21.6, 20), 1)
-		smokeColumn(dayCamp, "PolishSmokeCreek", Vector3.new(54, 21.6, 20), 1)
-		smokeColumn(dayCamp, "PolishSmokeLodge", Vector3.new(0, 21.6, 76), 1.2)
+		-- Chimney tops ride the lifted cabin bases.
+		smokeColumn(dayCamp, "PolishSmokePine", Vector3.new(-54, 22.95, 20), 1)
+		smokeColumn(dayCamp, "PolishSmokeCreek", Vector3.new(54, 23.1, 20), 1)
+		smokeColumn(dayCamp, "PolishSmokeLodge", Vector3.new(0, 23.1, 76), 1.2)
 	end },
 	{ label = "52 porch doormats", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishDoormats")
+		-- On the porch decks (cabin bases 1.85/2.0/2.0/2.65, deck = base+1.0).
 		local spots = {
-			Vector3.new(-54, 1.45, 8.6), Vector3.new(54, 1.45, 8.6),
-			Vector3.new(0, 1.45, 64.6), Vector3.new(-76, 1.45, -51.4),
+			Vector3.new(-54, 2.93, 8.6), Vector3.new(54, 3.08, 8.6),
+			Vector3.new(0, 3.08, 64.6), Vector3.new(-76, 3.73, -51.4),
 		}
 		for index, spot in spots do
 			local mat = WorldKit.part(m, "Doormat" .. index, Vector3.new(3, 0.14, 1.7),
@@ -944,13 +946,14 @@ local builders: { Builder } = {
 	end },
 	{ label = "56 lodge window boxes", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishWindowBoxes")
+		-- Under the lodge windows; heights ride the lifted lodge base (+1.5).
 		for index, x in { -4, 4 } do
 			WorldKit.part(m, "WindowBox" .. index, Vector3.new(2.4, 0.6, 0.7),
-				CFrame.new(x, 4.6, 65.4), WOOD_DARK, Enum.Material.Wood)
+				CFrame.new(x, 6.1, 65.4), WOOD_DARK, Enum.Material.Wood)
 			for bloom = 1, 3 do
 				local flower = WorldKit.part(m, "BoxBloom" .. index .. bloom,
 					Vector3.new(0.3, 0.3, 0.3),
-					CFrame.new(x - 0.8 + bloom * 0.5, 5.1, 65.4),
+					CFrame.new(x - 0.8 + bloom * 0.5, 6.6, 65.4),
 					if bloom == 2 then Color3.fromRGB(226, 160, 84) else RED,
 					Enum.Material.SmoothPlastic, Enum.PartType.Ball)
 				flower.CanCollide = false
@@ -959,9 +962,10 @@ local builders: { Builder } = {
 	end },
 	{ label = "57 door lanterns", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishDoorLanterns")
+		-- Beside each cabin door; heights ride the lifted cabin bases.
 		local spots = {
-			Vector3.new(-52, 7, 9.7), Vector3.new(56, 7, 9.7),
-			Vector3.new(2, 7, 65.7), Vector3.new(-74, 7, -49.7),
+			Vector3.new(-52, 8.35, 9.7), Vector3.new(56, 8.5, 9.7),
+			Vector3.new(2, 8.5, 65.7), Vector3.new(-74, 9.15, -49.7),
 		}
 		for index, spot in spots do
 			WorldKit.part(m, "DoorBracket" .. index, Vector3.new(0.2, 0.2, 0.9),
@@ -977,10 +981,11 @@ local builders: { Builder } = {
 		-- West of the lodge door: the east side is the storm-cellar hatch
 		-- approach and must stay clear.
 		local m = WorldKit.model(dayCamp, "PolishLodgeFirewood")
+		-- Stacked on the lodge porch deck (top 3.0 after the cabin lift).
 		for row = 0, 1 do
 			for index = 0, 3 do
 				WorldKit.part(m, "PorchLog" .. row .. index, Vector3.new(1.8, 0.7, 0.7),
-					CFrame.new(-8.5, 3.0 + row * 0.7, 66.5 + index * 0.75),
+					CFrame.new(-8.5, 3.35 + row * 0.7, 66.5 + index * 0.75),
 					WOOD, Enum.Material.Wood, Enum.PartType.Cylinder)
 			end
 		end

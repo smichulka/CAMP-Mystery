@@ -304,17 +304,17 @@ local KEY_PICKUP_LINES: { [string]: string } = {
 local KEY_HIDING_SPOTS: { { id: string, position: Vector3, objectText: string } } = {
 	{
 		id = "pine-mattress",
-		position = Vector3.new(-45.5, 2.9, 20.5),
+		position = Vector3.new(-45.5, 4.25, 20.5), -- rides Pine base +1.35
 		objectText = "Under the bunk mattress",
 	},
 	{
 		id = "lodge-radio-desk",
-		position = Vector3.new(9.5, 3.8, 68.5),
+		position = Vector3.new(9.5, 5.3, 68.5), -- rides lodge base +1.5
 		objectText = "Behind the camp radio",
 	},
 	{
 		id = "creek-footlocker",
-		position = Vector3.new(62.5, 2.4, 24.5),
+		position = Vector3.new(62.5, 3.9, 24.5), -- rides Creek base +1.5
 		objectText = "Inside the footlocker",
 	},
 	{

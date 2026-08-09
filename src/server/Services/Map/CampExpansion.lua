@@ -183,7 +183,9 @@ local function furnishCabins(dayCamp: Instance)
 
 	-- PineCabin — Counselor Holloway: trail maps wall + CB radio.
 	local pine = WorldKit.model(dayCamp, "PineCabinProps")
-	local pineP = Vector3.new(-54, 0, 18)
+	-- Anchors ride the lifted cabin bases (Pine +1.35, Creek/Lodge +1.5,
+	-- Supply +2.15) so interior props stay seated on the raised floors.
+	local pineP = Vector3.new(-54, 1.35, 18)
 	for _, map in {
 		{ offset = Vector3.new(5.2, 6.1, 7.1), text = "NORTH RIDGE TRAIL" },
 		{ offset = Vector3.new(8.4, 5.7, 7.1), text = "LAKE LOOP — 2.1 MI" },
@@ -209,7 +211,7 @@ local function furnishCabins(dayCamp: Instance)
 
 	-- CreekCabin — Ivy Chen: botany presses, hanging plants, seed trays.
 	local creek = WorldKit.model(dayCamp, "CreekCabinProps")
-	local creekP = Vector3.new(54, 0, 18)
+	local creekP = Vector3.new(54, 1.5, 18)
 	propDesk(creek, "PottingBench", creekP + Vector3.new(-9.3, 0.5, -6.3))
 	for trayIndex = 1, 3 do
 		WorldKit.part(creek, "SeedTray" .. tostring(trayIndex),
@@ -247,7 +249,7 @@ local function furnishCabins(dayCamp: Instance)
 
 	-- SupplyCabin — quartermaster: clipboards, rope coils, crate stacks.
 	local supply = WorldKit.model(dayCamp, "SupplyCabinProps")
-	local supplyP = Vector3.new(-76, 0, -42)
+	local supplyP = Vector3.new(-76, 2.15, -42)
 	WorldKit.part(supply, "QMCrateA", Vector3.new(1.9, 1.9, 1.9),
 		CFrame.new(supplyP + Vector3.new(-6.3, 1.45, -6.2)), WOOD_PLANK, Enum.Material.WoodPlanks)
 	WorldKit.part(supply, "QMCrateB", Vector3.new(1.6, 1.6, 1.6),
@@ -639,7 +641,7 @@ end
 
 local function buildLodgeHub(dayCamp: Instance)
 	local hub = WorldKit.model(dayCamp, "LodgeHub")
-	local lodgeP = Vector3.new(0, 0, 74)
+	local lodgeP = Vector3.new(0, 1.5, 74)
 
 	-- Job notice board on the back wall (right of the existing duty roster).
 	local jobBoard = WorldKit.part(hub, "JobBoard", Vector3.new(4.4, 3.1, 0.25),
@@ -801,7 +803,9 @@ local function buildSanitationRow(dayCamp: Instance)
 	end
 
 	-- Four-stall shower block, entrance facing east toward the lodge path.
-	local blockBase = Vector3.new(-19.5, 0, 61.5)
+	-- Lifted so the concrete pad sits at the rendered surface (~2.5)
+	-- instead of 1.8 studs under the grass.
+	local blockBase = Vector3.new(-19.5, 1.8, 61.5)
 	local showerFloor = WorldKit.part(sanitation, "ShowerFloor", Vector3.new(5, 0.4, 8),
 		CFrame.new(blockBase + Vector3.new(0, 0.9, 0)), Color3.fromRGB(126, 126, 118),
 		Enum.Material.Concrete)

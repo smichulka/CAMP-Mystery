@@ -235,11 +235,14 @@ local COUNSELOR_ANIMATION_BY_BEHAVIOR: { [string]: string } = {
 
 local COUNSELOR_LOCATIONS: { [string]: CFrame } = {
 	Campfire = CFrame.new(0, 3, 7),
-	CounselorLodge = CFrame.new(0, 3, 67),
-	Infirmary = CFrame.new(51, 3, 24),
+	-- Stand points inside the lifted cabins ride their new base heights
+	-- (lodge/creek +1.5, supply +2.15) so counselors keep the same footing
+	-- on the raised floors.
+	CounselorLodge = CFrame.new(0, 4.5, 67),
+	Infirmary = CFrame.new(51, 4.5, 24),
 	Trailhead = CFrame.new(-88, 3, 54),
 	ActivityField = CFrame.new(65, 3, 55),
-	Supplies = CFrame.new(-70, 3, -38),
+	Supplies = CFrame.new(-70, 5.15, -38),
 	Generator = CFrame.new(-35, 3, -17),
 	CraftCabin = CFrame.new(78, 3, -38),
 	NatureLab = CFrame.new(-52, 3, 24),

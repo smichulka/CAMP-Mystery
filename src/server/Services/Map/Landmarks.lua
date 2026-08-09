@@ -656,9 +656,11 @@ local function buildStormCellars(dayCamp: Instance, nightTown: Instance)
 		WorldKit.lamp(lampCore, { brightness = 1.1, range = 13 })
 	end
 
-	-- Cellar 1: beside the lodge (day camp), carved into the camp terrain
+	-- Cellar 1: beside the lodge (day camp), carved into the camp terrain.
+	-- The stair-pit carve reaches above the rendered surface (~2.5) so the
+	-- open trench under the lodge deck isn't roofed over by grass.
 	terrain:FillBlock(CFrame.new(8, -4.3, 51), Vector3.new(12, 6, 14), Enum.Material.Air)
-	terrain:FillBlock(CFrame.new(8, -3.4, 61.5), Vector3.new(7, 8.2, 9), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(8, -2.15, 61.5), Vector3.new(7, 10.7, 9), Enum.Material.Air)
 	local lodgeCellar = WorldKit.model(dayCamp, "StormCellarLodge")
 	WorldKit.part(lodgeCellar, "RoomFloor", Vector3.new(11, 0.8, 13),
 		CFrame.new(8, -6.8, 51), DIRT_BROWN, Enum.Material.Ground)
@@ -674,17 +676,23 @@ local function buildStormCellars(dayCamp: Instance, nightTown: Instance)
 		CFrame.new(11.8, -3.8, 56.7), STONE_DARK, Enum.Material.Slate)
 	WorldKit.part(lodgeCellar, "RoomCeiling", Vector3.new(11, 0.6, 13),
 		CFrame.new(8, -1.6, 51), WOOD_DARK, Enum.Material.WoodPlanks)
+	-- The lodge now sits at base Y 2.0 with its porch deck top at 3.0 and a
+	-- real opening cut in the deck over this pit (createCabin splits the
+	-- slab): ten steps climb from the cellar to deck level, the trench
+	-- walls rise to meet the deck, and the hatch lids sit on the new deck
+	-- plane. Before this, the stairs dead-ended under a solid porch and the
+	-- hatch doors opened onto wood.
 	WorldKit.stairs(lodgeCellar, "CellarSteps",
-		CFrame.new(8, -6.4, 58.2) * CFrame.Angles(0, math.rad(180), 0),
-		7, 4, STONE_DARK, Enum.Material.Slate)
+		CFrame.new(8, -6.4, 55.2) * CFrame.Angles(0, math.rad(180), 0),
+		10, 4, STONE_DARK, Enum.Material.Slate)
 	for trenchSide = -1, 1, 2 do
-		WorldKit.part(lodgeCellar, "TrenchWall", Vector3.new(0.5, 7.4, 9),
-			CFrame.new(8 + trenchSide * 2.4, -2.8, 61.5), STONE_DARK, Enum.Material.Slate)
+		WorldKit.part(lodgeCellar, "TrenchWall", Vector3.new(0.5, 9.4, 9),
+			CFrame.new(8 + trenchSide * 2.4, -1.7, 61.5), STONE_DARK, Enum.Material.Slate)
 	end
 	-- Sloped hatch doors facing away from the lodge, over the open stair pit
 	for doorIndex = 0, 1 do
 		WorldKit.hingedDoor(lodgeCellar, "HatchDoor", Vector3.new(2.25, 0.3, 4.3),
-			CFrame.new(6.85 + doorIndex * 2.3, 1.75, 64.8) * CFrame.Angles(math.rad(-56), 0, 0),
+			CFrame.new(6.85 + doorIndex * 2.3, 3.25, 64.8) * CFrame.Angles(math.rad(-56), 0, 0),
 			WOOD_DARK)
 	end
 	cellarDressing(lodgeCellar, Vector3.new(8, -4.6, 51))
