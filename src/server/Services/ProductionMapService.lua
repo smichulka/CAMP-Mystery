@@ -4600,11 +4600,17 @@ end
 function ProductionMapService:SpawnEvidence(activeAliasIds: { [string]: boolean }?)
 	self:ClearEvidence()
 	self.evidenceClaimed = {}
+	local spawned: { string } = {}
 	for _, socket in self.evidenceSockets do
 		if activeAliasIds == nil or activeAliasIds[socket.Name] == true then
 			self:_spawnSearchAt(socket)
+			table.insert(spawned, socket.Name)
 		end
 	end
+	-- Round telemetry: which search sites host evidence tonight. Cheap, once
+	-- per Investigation, and it makes clue-spread regressions visible in the
+	-- Output log without any tooling.
+	print("[CAMP-Mystery] Investigation search sites: " .. table.concat(spawned, ", "))
 end
 
 -- Mid-round evidence (attacks, device traces) can land on a location whose
