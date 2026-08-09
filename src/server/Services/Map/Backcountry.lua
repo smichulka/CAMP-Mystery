@@ -450,20 +450,28 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 	-- whole northeast band as NoPath. Deck top 4.4 clears the rendered water
 	-- (bay rule: surfaces render up to ~4.0); one 0.95 step at each end.
 	local bridge = WorldKit.model(pack, "NorthCreekBridge")
-	WorldKit.part(bridge, "BridgeDeck", Vector3.new(46, 0.4, 3.8),
+	-- Deck 5.6 wide with rails at ±2.6: the walk corridor between the
+	-- rails must exceed the 4-stud agent diameter or the whole bridge
+	-- drops out of the navigation mesh (measured: 3.4-wide corridor = NoPath).
+	WorldKit.part(bridge, "BridgeDeck", Vector3.new(46, 0.4, 5.6),
 		CFrame.new(119, 4.2, 216), PLANK, Enum.Material.WoodPlanks)
 	for railSide = -1, 1, 2 do
 		WorldKit.part(bridge, "BridgeRail", Vector3.new(46, 0.25, 0.2),
-			CFrame.new(119, 5.6, 216 + railSide * 1.7), PLANK_DARK, Enum.Material.Wood)
+			CFrame.new(119, 5.6, 216 + railSide * 2.6), PLANK_DARK, Enum.Material.Wood)
 		for _, postX in { 98, 119, 140 } do
 			WorldKit.part(bridge, "BridgePost", Vector3.new(0.4, 4.4, 0.4),
-				CFrame.new(postX, 3.4, 216 + railSide * 1.7), PLANK_DARK, Enum.Material.Wood)
+				CFrame.new(postX, 3.4, 216 + railSide * 2.6), PLANK_DARK, Enum.Material.Wood)
 		end
 	end
-	WorldKit.part(bridge, "BridgeStepW", Vector3.new(2.4, 0.35, 3.8),
-		CFrame.new(94.8, 3.28, 216), PLANK_DARK, Enum.Material.WoodPlanks)
-	WorldKit.part(bridge, "BridgeStepE", Vector3.new(2.4, 0.35, 3.8),
-		CFrame.new(143.2, 3.28, 216), PLANK_DARK, Enum.Material.WoodPlanks)
+	-- End ramps, not steps: ~1-stud step rises read as jump-only links on
+	-- the navigation mesh and cut the bridge out of no-jump paths. Wedge
+	-- yaw -90 ascends toward +X, +90 toward -X (the far-ridge peak pattern).
+	WorldKit.wedge(bridge, "BridgeRampW", Vector3.new(5.2, 1.9, 6),
+		CFrame.new(93, 3.45, 216) * CFrame.Angles(0, math.rad(-90), 0),
+		PLANK_DARK, Enum.Material.WoodPlanks)
+	WorldKit.wedge(bridge, "BridgeRampE", Vector3.new(5.2, 1.9, 6),
+		CFrame.new(145, 3.45, 216) * CFrame.Angles(0, math.rad(90), 0),
+		PLANK_DARK, Enum.Material.WoodPlanks)
 
 	buildCampsite(pack, "WestRidgeCamp", -120, 85, 140)
 	buildCampsite(pack, "NorthPassCamp", -58, 126, -35)
