@@ -5,13 +5,13 @@
 -- never as literals in service code, and every cue resolves as
 --   SoundService attribute ("Circus<Slot>AssetId") -> this default -> silent.
 --
--- Calliope is APM Music's "My Carrousel" (verified Creator Store library,
--- free — same licensing class as the Pro Sound Effects ids the monsters
--- use). The remaining slots ship silent until a proper PSE-vocabulary audio
--- pass finds fits; override any of them live via SoundService attributes.
+-- Calliope is APM Music's "My Carrousel"; the effects are Pro Sound Effects
+-- (both verified Creator Store libraries, free — the same licensing class as
+-- the monster hunt loops). Override any slot live via SoundService
+-- attributes when tuning.
 return table.freeze({
 	Calliope = "rbxassetid://1835966604", -- APM "My Carrousel": warped fairground organ
-	TicketChime = "",
-	CarnieScreech = "",
-	BarkerCall = "",
+	TicketChime = "rbxassetid://9114132512", -- PSE "Door Chime 10": music-box single tone
+	CarnieScreech = "rbxassetid://9114628620", -- PSE "Goliath Vocal 21": throaty wrong-voice rumble
+	BarkerCall = "rbxassetid://9114630281", -- PSE "Goliath Vocal 46": mumbled nonsense, distant barker
 })

@@ -71,24 +71,47 @@ local state = {
 	calliopeSound = nil :: Sound?,
 }
 
--- Rendered-surface seat (the standard pack pattern): raycast with a brief
--- retry for boot-time chunk lag, TerrainDomes analytic model as fallback.
+-- Rendered-surface seat. The circus site is FLAT slab (renders ~2.5
+-- everywhere), and Build makes ~100 ground queries — running the standard
+-- 8x0.25s chunk-lag retry PER CALL stalled Build for minutes on a cold boot
+-- (measured 2026-08-10: loops probed as dead because Start hadn't spawned
+-- yet). Instead: retry ONCE at the site center to learn the rendered
+-- height, then every other call is a single-attempt ray with that cached
+-- flat height as the fallback. TerrainDomes.heightAt stays as the
+-- last-resort fallback for points on the hillside berm.
 local seatRayParams = RaycastParams.new()
 seatRayParams.FilterType = Enum.RaycastFilterType.Include
 
-local function groundY(x: number, z: number): number
+local siteGroundY: number? = nil
+
+local function rawRay(x: number, z: number): RaycastResult?
 	seatRayParams.FilterDescendantsInstances = { Workspace.Terrain }
-	for _ = 1, 8 do
-		local hit = Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
-		if hit then
-			if hit.Material == Enum.Material.Water then
+	return Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
+end
+
+local function groundY(x: number, z: number): number
+	if siteGroundY == nil then
+		-- One patient probe at the site center seeds the cache
+		for _ = 1, 8 do
+			local hit = rawRay(186, 300)
+			if hit and hit.Material ~= Enum.Material.Water then
+				siteGroundY = hit.Position.Y
 				break
 			end
-			return hit.Position.Y
+			task.wait(0.25)
 		end
-		task.wait(0.25)
+		if siteGroundY == nil then
+			siteGroundY = TerrainDomes.heightAt(186, 300) + 2.0
+		end
 	end
-	return TerrainDomes.heightAt(x, z)
+	local hit = rawRay(x, z)
+	if hit and hit.Material ~= Enum.Material.Water then
+		return hit.Position.Y
+	end
+	local analytic = TerrainDomes.heightAt(x, z)
+	-- On the flat slab the cached site height is the truth; on the berm the
+	-- analytic dome model (+ the slab's render offset) wins.
+	return math.max(siteGroundY :: number, analytic + 2.0)
 end
 
 local function cloneCircusAsset(name: string): Model?
