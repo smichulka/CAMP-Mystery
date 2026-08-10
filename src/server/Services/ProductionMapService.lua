@@ -3158,46 +3158,118 @@ function ProductionMapService:Build()
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "PoliceStation", Vector3.new(92, 0, -360), Vector3.new(42, 22, 38), Color3.fromRGB(64, 72, 79), "POLICE", math.pi / 2))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "CompanyHouse", Vector3.new(-100, 0, -390), Vector3.new(34, 18, 30), Color3.fromRGB(72, 65, 59), "COMPANY HOUSE", -math.pi / 2))
 		buildWaterTower(self.nightTown, Vector3.new(110, 0, -292))
-		-- Abandoned church at the far end of the road (prominent in Old Town 4 aerial reference)
+		-- Abandoned church at the far end of the road (prominent in Old Town 4
+		-- aerial reference). Rebuilt 2026-08-09: the first pass had the facade
+		-- and steeple on the SOUTH side (a blank brick wall greeted the road,
+		-- and the door opened into the graveyard fence 5 studs away) with the
+		-- steeple base standing inside the nave, corking the entrance. Now the
+		-- entrance tower faces the road, the roof ridge runs along the nave,
+		-- and the interior is a ruin worth walking into.
 		do
 			local cPos = Vector3.new(0, 0, -455)
 			local cW, cH, cD = 28, 20, 36
 			local churchColor = Color3.fromRGB(68, 63, 56)
+			local roofC = Color3.fromRGB(42, 40, 38)
+			local pewWood = Color3.fromRGB(66, 50, 34)
 			local churchModel = Instance.new("Model")
 			churchModel.Name = "AbandonedChurch"
 			churchModel.Parent = self.nightTown
+			local function churchWedge(name: string, size: Vector3, cframe: CFrame, color: Color3)
+				local wedge = Instance.new("WedgePart")
+				wedge.Name = name
+				wedge.Size = size
+				wedge.CFrame = cframe
+				wedge.Color = color
+				wedge.Material = Enum.Material.Slate
+				wedge.Anchored = true
+				wedge.Parent = churchModel
+				return wedge
+			end
 			createPart(churchModel, "ChurchFloor", Vector3.new(cW, 0.8, cD), CFrame.new(cPos + Vector3.new(0, 0.4, 0)), churchColor, Enum.Material.Concrete)
-			createPart(churchModel, "ChurchBackWall", Vector3.new(cW, cH, 1), CFrame.new(cPos + Vector3.new(0, cH / 2, cD / 2 - 0.5)), churchColor, Enum.Material.Brick)
+			-- Front facade faces NORTH (+Z, toward the road's south terminus)
+			createPart(churchModel, "ChurchFrontL", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new(-(4 + (cW - 8) / 4), cH / 2, cD / 2 - 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchFrontR", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new((4 + (cW - 8) / 4), cH / 2, cD / 2 - 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchArchHeader", Vector3.new(8, cH - 9, 1), CFrame.new(cPos + Vector3.new(0, 9 + (cH - 9) / 2, cD / 2 - 0.5)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "ChurchBackWall", Vector3.new(cW, cH, 1), CFrame.new(cPos + Vector3.new(0, cH / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
 			createPart(churchModel, "ChurchSideL", Vector3.new(1, cH, cD), CFrame.new(cPos + Vector3.new(-cW / 2 + 0.5, cH / 2, 0)), churchColor, Enum.Material.Brick)
 			createPart(churchModel, "ChurchSideR", Vector3.new(1, cH, cD), CFrame.new(cPos + Vector3.new(cW / 2 - 0.5, cH / 2, 0)), churchColor, Enum.Material.Brick)
-			createPart(churchModel, "ChurchFrontL", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new(-(4 + (cW - 8) / 4), cH / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
-			createPart(churchModel, "ChurchFrontR", Vector3.new((cW - 8) / 2, cH, 1), CFrame.new(cPos + Vector3.new( (4 + (cW - 8) / 4), cH / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
-			createPart(churchModel, "ChurchArchHeader", Vector3.new(8, cH - 9, 1), CFrame.new(cPos + Vector3.new(0, 9 + (cH - 9) / 2, -cD / 2 + 0.5)), churchColor, Enum.Material.Brick)
-			-- Peaked roof slopes
-			local roofC = Color3.fromRGB(42, 40, 38)
-			local roofL = Instance.new("WedgePart")
-			roofL.Name = "ChurchRoofL"
-			roofL.Size = Vector3.new(cW + 2, 8, cD / 2 + 1)
-			roofL.CFrame = CFrame.new(cPos + Vector3.new(0, cH + 4, cD / 4)) * CFrame.Angles(0, math.rad(180), 0)
-			roofL.Color = roofC
-			roofL.Material = Enum.Material.Slate
-			roofL.Anchored = true
-			roofL.Parent = churchModel
-			local roofR = Instance.new("WedgePart")
-			roofR.Name = "ChurchRoofR"
-			roofR.Size = Vector3.new(cW + 2, 8, cD / 2 + 1)
-			roofR.CFrame = CFrame.new(cPos + Vector3.new(0, cH + 4, -cD / 4))
-			roofR.Color = roofC
-			roofR.Material = Enum.Material.Slate
-			roofR.Anchored = true
-			roofR.Parent = churchModel
-			-- Steeple base tower on front-center
-			local spX, spZ = 0, -cD / 2 + 4
-			createPart(churchModel, "SteepleBase", Vector3.new(7, cH + 4, 7), CFrame.new(cPos + Vector3.new(spX, (cH + 4) / 2, spZ)), churchColor, Enum.Material.Brick)
-			createPart(churchModel, "SteepleSpire", Vector3.new(6, 18, 6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 9, spZ)), roofC, Enum.Material.Slate)
-			-- Cross at the top of the steeple
-			createPart(churchModel, "CrossV", Vector3.new(0.6, 5, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 18 + 2.5, spZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
-			createPart(churchModel, "CrossH", Vector3.new(3.5, 0.6, 0.6), CFrame.new(cPos + Vector3.new(spX, cH + 4 + 20, spZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
+			-- Roof ridge runs along the nave (north-south); the two slopes
+			-- stop just shy of the front wall so the tower stands clear.
+			churchWedge("ChurchRoofW", Vector3.new(36.5, 8, 15),
+				CFrame.new(cPos + Vector3.new(-7, cH + 4, -1)) * CFrame.Angles(0, math.rad(90), 0), roofC)
+			churchWedge("ChurchRoofE", Vector3.new(36.5, 8, 15),
+				CFrame.new(cPos + Vector3.new(7, cH + 4, -1)) * CFrame.Angles(0, math.rad(-90), 0), roofC)
+			-- Triangular gable fills above the flat-topped front and back walls
+			for _, gable in { { z = cD / 2 - 0.5 }, { z = -cD / 2 + 0.5 } } do
+				churchWedge("ChurchGableW", Vector3.new(1, 8, 14),
+					CFrame.new(cPos + Vector3.new(-7, cH + 4, gable.z)) * CFrame.Angles(0, math.rad(90), 0), churchColor)
+				churchWedge("ChurchGableE", Vector3.new(1, 8, 14),
+					CFrame.new(cPos + Vector3.new(7, cH + 4, gable.z)) * CFrame.Angles(0, math.rad(-90), 0), churchColor)
+			end
+			-- Entrance tower projects from the facade: open passage at ground
+			-- level (5 studs wide — clears the navmesh agent), solid shaft
+			-- above, belfry, tapered spire, cross.
+			local towerZ = cD / 2 + 3.5
+			for towerSide = -1, 1, 2 do
+				createPart(churchModel, "TowerPillar", Vector3.new(1.2, 8.5, 7), CFrame.new(cPos + Vector3.new(towerSide * 3.1, 4.25, towerZ)), churchColor, Enum.Material.Brick)
+			end
+			createPart(churchModel, "TowerShaft", Vector3.new(7.4, 15.5, 7), CFrame.new(cPos + Vector3.new(0, 16.25, towerZ)), churchColor, Enum.Material.Brick)
+			createPart(churchModel, "Belfry", Vector3.new(5.4, 6, 5.4), CFrame.new(cPos + Vector3.new(0, 27, towerZ)), churchColor, Enum.Material.Brick)
+			for _, louver in {
+				Vector3.new(0, 27.4, towerZ + 2.75), Vector3.new(0, 27.4, towerZ - 2.75),
+				Vector3.new(2.75, 27.4, towerZ), Vector3.new(-2.75, 27.4, towerZ),
+			} do
+				local louverPart = createPart(churchModel, "BelfryLouver",
+					if math.abs(louver.X) > 2 then Vector3.new(0.2, 3.2, 2.2) else Vector3.new(2.2, 3.2, 0.2),
+					CFrame.new(cPos + louver), Color3.fromRGB(24, 22, 20), Enum.Material.SmoothPlastic)
+				louverPart.CanCollide = false
+			end
+			-- Tapered spire: two crossed wedge tents read as a pyramid
+			churchWedge("SpireN", Vector3.new(5.8, 8, 2.9),
+				CFrame.new(cPos + Vector3.new(0, 34, towerZ + 1.45)) * CFrame.Angles(0, math.rad(180), 0), roofC)
+			churchWedge("SpireS", Vector3.new(5.8, 8, 2.9),
+				CFrame.new(cPos + Vector3.new(0, 34, towerZ - 1.45)), roofC)
+			churchWedge("SpireE", Vector3.new(5.8, 8, 2.9),
+				CFrame.new(cPos + Vector3.new(1.45, 34, towerZ)) * CFrame.Angles(0, math.rad(90), 0), roofC)
+			churchWedge("SpireW", Vector3.new(5.8, 8, 2.9),
+				CFrame.new(cPos + Vector3.new(-1.45, 34, towerZ)) * CFrame.Angles(0, math.rad(-90), 0), roofC)
+			createPart(churchModel, "CrossV", Vector3.new(0.6, 4, 0.6), CFrame.new(cPos + Vector3.new(0, 40, towerZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
+			createPart(churchModel, "CrossH", Vector3.new(2.6, 0.6, 0.6), CFrame.new(cPos + Vector3.new(0, 40.8, towerZ)), Color3.fromRGB(72, 65, 55), Enum.Material.Wood)
+			-- One door hangs ajar on the arch; its twin lies flat just inside
+			createPart(churchModel, "ChurchDoorAjar", Vector3.new(3.8, 8.5, 0.4),
+				CFrame.new(cPos + Vector3.new(-3.1, 4.25, cD / 2 - 2.2)) * CFrame.Angles(0, math.rad(-55), 0),
+				Color3.fromRGB(52, 40, 28), Enum.Material.WoodPlanks)
+			createPart(churchModel, "ChurchDoorFallen", Vector3.new(3.8, 0.35, 8.2),
+				CFrame.new(cPos + Vector3.new(2.6, 1.0, cD / 2 - 6.5)) * CFrame.Angles(0, math.rad(12), 0),
+				Color3.fromRGB(52, 40, 28), Enum.Material.WoodPlanks)
+			-- Ruined nave: pew rows flank a 5-stud aisle, one row knocked over
+			for pewRow = 1, 4 do
+				local pewZ = -16 + pewRow * 6
+				for pewSide = -1, 1, 2 do
+					if pewRow == 4 and pewSide == -1 then
+						createPart(churchModel, "PewToppled", Vector3.new(9, 0.45, 1.1),
+							CFrame.new(cPos + Vector3.new(-7, 1.35, pewZ)) * CFrame.Angles(math.rad(105), math.rad(8), 0),
+							pewWood, Enum.Material.WoodPlanks)
+						continue
+					end
+					createPart(churchModel, "PewSeat", Vector3.new(9, 0.45, 1.1),
+						CFrame.new(cPos + Vector3.new(pewSide * 7, 1.85, pewZ)), pewWood, Enum.Material.WoodPlanks)
+					createPart(churchModel, "PewBack", Vector3.new(9, 1.3, 0.25),
+						CFrame.new(cPos + Vector3.new(pewSide * 7, 2.45, pewZ - 0.6)), pewWood, Enum.Material.WoodPlanks)
+				end
+			end
+			createPart(churchModel, "ChurchAltar", Vector3.new(6, 2.2, 1.8), CFrame.new(cPos + Vector3.new(0, 1.9, -cD / 2 + 3.5)), Color3.fromRGB(58, 46, 34), Enum.Material.Wood)
+			local altarCloth = createPart(churchModel, "AltarCloth", Vector3.new(6.4, 0.15, 2.0), CFrame.new(cPos + Vector3.new(0, 3.05, -cD / 2 + 3.5)), Color3.fromRGB(118, 112, 96), Enum.Material.Fabric)
+			altarCloth.CanCollide = false
+			for rubbleIndex, rubble in {
+				{ size = Vector3.new(1.5, 1.0, 1.2), offset = Vector3.new(10.5, 1.3, -8), yaw = 20 },
+				{ size = Vector3.new(1.1, 0.7, 0.9), offset = Vector3.new(11.5, 1.15, -10), yaw = -35 },
+				{ size = Vector3.new(0.9, 0.5, 1.3), offset = Vector3.new(-11, 1.05, 5), yaw = 50 },
+			} do
+				createPart(churchModel, "ChurchRubble" .. tostring(rubbleIndex), rubble.size,
+					CFrame.new(cPos + rubble.offset) * CFrame.Angles(0, math.rad(rubble.yaw), 0),
+					Color3.fromRGB(74, 70, 64), Enum.Material.Concrete)
+			end
 			-- Arched windows on side walls
 			for wSide = -1, 1, 2 do
 				for wn = 1, 2 do
@@ -3207,6 +3279,9 @@ function ProductionMapService:Build()
 						Color3.fromRGB(48, 55, 62), Enum.Material.SmoothPlastic)
 				end
 			end
+			-- Gravel walk from the main road's south terminus to the tower door
+			createPart(self.nightTown, "ChurchPath", Vector3.new(6, 0.6, 34),
+				CFrame.new(0, 0.3, -420.5), Color3.fromRGB(58, 58, 52), Enum.Material.Ground)
 		end
 		for index = 1, 9 do
 			createStreetlight(self.nightTown, Vector3.new(if index % 2 == 0 then 18 else -18, 0, -62 - index * 38))
