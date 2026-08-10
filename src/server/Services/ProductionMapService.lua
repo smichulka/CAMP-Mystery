@@ -12,6 +12,7 @@ local WeatherConfig = require(
 		:WaitForChild("Config")
 		:WaitForChild("WeatherConfig")
 )
+local TerrainDomes = require(script.Parent:WaitForChild("Map"):WaitForChild("TerrainDomes"))
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
@@ -269,7 +270,8 @@ local SEARCH_TARGETS = {
 		name = "Counselor Footlocker",
 		-- Terrain surface renders at 2.5 here; at y 2.1 the search glow
 		-- spawned buried to its lid (glows copy the socket CFrame verbatim).
-		position = Vector3.new(-52.7, 3.4, 74.5),
+		-- Follows REED's footlocker (quarters respaced 2026-08-09).
+		position = Vector3.new(-59.7, 4.1, 75.5),
 		color = Color3.fromRGB(108, 86, 60),
 	},
 	{
@@ -1703,96 +1705,18 @@ local WORLD_SLAB_SIZE = Vector3.new(800, 8, 620)
 -- The creek's north mouth (now at x ~140, z ~470 after the 0.08-yaw drift)
 -- keeps an open gate at x ~112..168. The arc still ends where the lake (east)
 -- and the town band (south) take over as natural boundaries.
-local OUTER_HILL_DOMES: { { number } } = {
-	-- northeast span: far-shore ridge continued north of the lake
-	{ 250, -3, 196, 30 },
-	{ 252, -2, 258, 32 },
-	{ 249, -3, 320, 30 },
-	{ 251, -2, 382, 32 },
-	{ 246, -3, 436, 32 }, -- northeast corner
-	-- north span (east and west banks of the creek's gate)
-	{ 198, -3, 464, 30 }, -- east bank of the creek's north gate
-	{ 92, -2, 466, 30 }, -- west bank of the creek's north gate
-	{ 24, -2, 466, 32 },
-	{ -48, -3, 470, 32 },
-	{ -120, -2, 464, 34 },
-	{ -192, -3, 468, 32 },
-	{ -264, -2, 460, 34 },
-	{ -336, -3, 466, 32 },
-	{ -408, -2, 458, 34 },
-	{ -472, -3, 448, 32 }, -- turning the northwest corner
-	-- west span
-	{ -516, -2, 396, 34 },
-	{ -534, -3, 330, 32 },
-	{ -524, -2, 264, 34 },
-	{ -536, -3, 198, 32 },
-	{ -526, -2, 132, 34 },
-	{ -534, -3, 66, 32 },
-	{ -524, -2, 0, 34 },
-	{ -532, -3, -66, 32 },
-	{ -488, -2, -118, 32 }, -- southwest corner above the town's west strip
-}
-
--- Far-shore ridge enclosing the tripled lake from the east, plus corner
--- fillers that close the gaps back to the boundary ring. The old southeast
--- corner fillers are gone: they sat on the Moonlight Diner (28 studs of hill
--- over its floor) and the east cross street.
-local FAR_SHORE_DOMES: { { number } } = {
-	{ 250, -3, -118, 28 },
-	{ 252, -2, -84, 30 },
-	{ 249, -3, -50, 26 },
-	{ 251, -2, -16, 32 },
-	{ 250, -3, 18, 28 },
-	{ 252, -2, 52, 30 },
-	{ 249, -3, 86, 26 },
-	{ 251, -2, 120, 32 },
-	{ 250, -3, 150, 28 },
-	-- The two northeast corner fillers (158,178 / 200,160) are gone: the
-	-- water-sports basin owns that meadow now, and the fourth-expansion
-	-- boundary span along x ~250 closes the gap they used to plug. Keep the
-	-- Backcountry/HighFrontier dome mirrors in lockstep with this removal.
-}
+-- Dome layout lives in Map/TerrainDomes — the single source of truth for
+-- terrain fills AND every prop-seating height model. The hand-copied
+-- mirrors that used to live here (and in Backcountry / LakeAndWilds /
+-- HighFrontier) drifted repeatedly; now they all read the same tables.
+local OUTER_HILL_DOMES = TerrainDomes.OUTER
+local FAR_SHORE_DOMES = TerrainDomes.FAR_SHORE
 
 -- Ground height across the expanded band: flat slab, the original dome ring
 -- (including the index-9 ranger override), and both new dome tables. Used to
 -- seat the outer tree wall on whatever hill happens to be underneath.
 local function expandedGroundHeight(x: number, z: number): number
-	local height = 0.5
-	local function raiseFor(cx: number, cy: number, cz: number, ballRadius: number)
-		local dx = x - cx
-		local dz = z - cz
-		local flat = math.sqrt(dx * dx + dz * dz)
-		if flat < ballRadius - 0.5 then
-			height = math.max(height, cy + math.sqrt(ballRadius * ballRadius - flat * flat))
-		end
-	end
-	for index = 2, 13 do
-		if index == 10 or index == 11 or index == 12 then
-			-- Skipped in buildCampTerrain (they sat on the town's north
-			-- band); keep this height model in lockstep so no tree seats on
-			-- a ghost hill.
-			continue
-		end
-		if index == 9 then
-			raiseFor(-72, -2, -80, 22)
-		else
-			local angle = (index / 14) * math.pi * 2
-			local radius = 105 + (index % 3) * 9
-			raiseFor(
-				math.cos(angle) * radius,
-				-3 + (index % 2),
-				12 + math.sin(angle) * radius,
-				20 + index % 4 * 2
-			)
-		end
-	end
-	for _, dome in OUTER_HILL_DOMES do
-		raiseFor(dome[1], dome[2], dome[3], dome[4])
-	end
-	for _, dome in FAR_SHORE_DOMES do
-		raiseFor(dome[1], dome[2], dome[3], dome[4])
-	end
-	return height
+	return TerrainDomes.heightAt(x, z)
 end
 
 local function buildCampTerrain(parent: Instance)
@@ -1815,55 +1739,30 @@ local function buildCampTerrain(parent: Instance)
 		WORLD_SLAB_SIZE,
 		Enum.Material.Grass
 	)
-	for index = 1, 14 do
-		if index == 1 or index == 14 then
-			-- These two hill domes fall exactly on the lake bay and would
-			-- bury the dock; the lakefront sector stays open
-			continue
-		end
-		if index == 10 or index == 11 or index == 12 then
-			-- The formula drops these three on the town's north band: 10/11
-			-- straddled the main-road corridor (burying the road shoulders,
-			-- the main-road-clue-a evidence socket, and the sawmill blade),
-			-- and 12 sat on the cornfield's north edge (149 of 169 stalks
-			-- read buried in-boot). The south foothill span stays open so
-			-- the night road can descend into Hollow Creek.
-			continue
-		end
-		local angle = (index / 14) * math.pi * 2
-		local radius = 105 + (index % 3) * 9
-		local center = Vector3.new(
-			math.cos(angle) * radius,
-			-3 + (index % 2),
-			12 + math.sin(angle) * radius
-		)
-		if index == 9 then
-			-- The formula drops this dome at (-65, -70), which swallowed the
-			-- supply cabin's south end and the archery lanes. Pulled
-			-- south-west: the ranger station keeps a lower rise under its
-			-- stilts and the camp-side toe clears every structure.
-			center = Vector3.new(-72, -2, -80)
-		end
+	-- Interior foothill ring: explicit per-dome entries (see TerrainDomes
+	-- for the history — POI hills keep their spots, the four domes that
+	-- crowded the cabins and counselor quarters moved outward 2026-08-09).
+	for _, dome in TerrainDomes.INTERIOR do
 		terrain:FillBall(
-			center,
-			20 + index % 4 * 2,
-			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+			Vector3.new(dome[1] :: number, dome[2] :: number, dome[3] :: number),
+			dome[4] :: number,
+			if dome[5] == true then Enum.Material.Ground else Enum.Material.Grass
 		)
 	end
 	-- Doubled camp: outer boundary ring and far-shore ridge. The old ring
 	-- above becomes interior foothills; these domes are the new world edge.
-	for index, dome in OUTER_HILL_DOMES do
+	for _, dome in OUTER_HILL_DOMES do
 		terrain:FillBall(
-			Vector3.new(dome[1], dome[2], dome[3]),
-			dome[4],
-			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+			Vector3.new(dome[1] :: number, dome[2] :: number, dome[3] :: number),
+			dome[4] :: number,
+			if dome[5] == true then Enum.Material.Ground else Enum.Material.Grass
 		)
 	end
-	for index, dome in FAR_SHORE_DOMES do
+	for _, dome in FAR_SHORE_DOMES do
 		terrain:FillBall(
-			Vector3.new(dome[1], dome[2], dome[3]),
-			dome[4],
-			if index % 3 == 0 then Enum.Material.Ground else Enum.Material.Grass
+			Vector3.new(dome[1] :: number, dome[2] :: number, dome[3] :: number),
+			dome[4] :: number,
+			if dome[5] == true then Enum.Material.Ground else Enum.Material.Grass
 		)
 	end
 	-- Creek runs the full expanded slab now (300 long instead of 170); the
@@ -3350,30 +3249,123 @@ function ProductionMapService:Build()
 				-math.pi / 2
 			))
 		end
-		-- Tall Pines Motel: room strip with four numbered doors facing the street
+		-- Tall Pines Motel: a real room strip — four furnished rooms behind the
+		-- street facade. Rooms 1/2/4 open on interactive doors; room 3 stays a
+		-- plain part that _buildLockedRooms decorates (key-gated bonus room),
+		-- so opening the door with the key now reveals an actual interior
+		-- instead of the solid block that used to stand behind it.
 		local motelWall = Color3.fromRGB(82, 72, 66)
-		createPart(self.nightTown, "MotelBlock", Vector3.new(16, 12, 44),
-			CFrame.new(196, 6, -220), motelWall, Enum.Material.Concrete)
+		local motelTrim = Color3.fromRGB(70, 62, 56)
+		-- Shell: floor, back wall, end walls, room dividers (block was solid)
+		createPart(self.nightTown, "MotelFloor", Vector3.new(15.7, 0.5, 43.6),
+			CFrame.new(195.85, 0.65, -220), Color3.fromRGB(96, 84, 68), Enum.Material.WoodPlanks)
+		createPart(self.nightTown, "MotelBackWall", Vector3.new(0.6, 12, 44),
+			CFrame.new(203.7, 6, -220), motelWall, Enum.Material.Concrete)
+		createPart(self.nightTown, "MotelEndWallN", Vector3.new(16, 12, 0.6),
+			CFrame.new(196, 6, -198.2), motelWall, Enum.Material.Concrete)
+		createPart(self.nightTown, "MotelEndWallS", Vector3.new(16, 12, 0.6),
+			CFrame.new(196, 6, -241.8), motelWall, Enum.Material.Concrete)
+		for _, dividerZ in { -211, -220, -229 } do
+			createPart(self.nightTown, "MotelDivider", Vector3.new(15.5, 12, 0.5),
+				CFrame.new(195.85, 6, dividerZ), motelTrim, Enum.Material.Concrete)
+		end
 		createPart(self.nightTown, "MotelRoof", Vector3.new(18, 0.5, 46),
 			CFrame.new(196, 12.3, -220), Color3.fromRGB(52, 48, 44), Enum.Material.CorrodedMetal)
 		createPart(self.nightTown, "MotelWalk", Vector3.new(3, 0.4, 44),
 			CFrame.new(186.5, 0.7, -220), Color3.fromRGB(70, 70, 66), Enum.Material.Concrete)
+		-- Facade caps north of window 1 and south of doorway 4
+		createPart(self.nightTown, "MotelFacadeN", Vector3.new(0.6, 12, 1.6),
+			CFrame.new(188, 6, -199.3), motelWall, Enum.Material.Concrete)
+		createPart(self.nightTown, "MotelFacadeS", Vector3.new(0.6, 12, 6.3),
+			CFrame.new(188, 6, -238.35), motelWall, Enum.Material.Concrete)
+		local blanketColors = {
+			Color3.fromRGB(122, 62, 54),
+			Color3.fromRGB(74, 96, 78),
+			Color3.fromRGB(70, 78, 108),
+			Color3.fromRGB(120, 104, 62),
+		}
 		for roomIndex = 1, 4 do
 			local roomZ = -197.5 - roomIndex * 9
-			createPart(self.nightTown, "MotelDoor" .. tostring(roomIndex),
-				Vector3.new(0.4, 7, 3.2),
-				CFrame.new(187.9, 3.6, roomZ),
-				Color3.fromRGB(58, 84, 88), Enum.Material.Wood)
-			local roomLamp = createPart(self.nightTown, "MotelRoomLamp" .. tostring(roomIndex),
+			local suffix = tostring(roomIndex)
+			if roomIndex == 3 then
+				-- Locked bonus room: plain part; _buildLockedRooms adds the
+				-- Try Door prompt, hinge tween, and key handling by name.
+				createPart(self.nightTown, "MotelDoor3",
+					Vector3.new(0.4, 7, 3.2),
+					CFrame.new(187.9, 3.6, roomZ),
+					Color3.fromRGB(58, 84, 88), Enum.Material.Wood)
+			else
+				table.insert(self.interactiveDoors, createInteractiveDoor(
+					self.nightTown,
+					"MotelDoor" .. suffix,
+					Vector3.new(3.2, 7, 0.4),
+					CFrame.new(187.9, 3.6, roomZ) * CFrame.Angles(0, math.rad(90), 0),
+					Color3.fromRGB(58, 84, 88),
+					"Room " .. suffix
+				))
+			end
+			-- Facade: strips between the doorway and window openings, plus the
+			-- door header, window sill and window header
+			createPart(self.nightTown, "MotelFacadeMidA" .. suffix, Vector3.new(0.6, 12, 1.1),
+				CFrame.new(188, 6, roomZ + 2.25), motelWall, Enum.Material.Concrete)
+			createPart(self.nightTown, "MotelFacadeMidB" .. suffix, Vector3.new(0.6, 12, 0.9),
+				CFrame.new(188, 6, roomZ - 2.15), motelWall, Enum.Material.Concrete)
+			createPart(self.nightTown, "MotelDoorHeader" .. suffix, Vector3.new(0.6, 4.9, 3.4),
+				CFrame.new(188, 9.55, roomZ), motelWall, Enum.Material.Concrete)
+			createPart(self.nightTown, "MotelWindowSill" .. suffix, Vector3.new(0.6, 3.9, 3.6),
+				CFrame.new(188, 1.95, roomZ + 4.6), motelWall, Enum.Material.Concrete)
+			createPart(self.nightTown, "MotelWindowHeader" .. suffix, Vector3.new(0.6, 5.1, 3.6),
+				CFrame.new(188, 9.45, roomZ + 4.6), motelWall, Enum.Material.Concrete)
+			local roomLamp = createPart(self.nightTown, "MotelRoomLamp" .. suffix,
 				Vector3.new(0.3, 0.5, 0.5),
 				CFrame.new(187.8, 7.8, roomZ),
 				Color3.fromRGB(255, 211, 132), Enum.Material.Neon)
 			roomLamp.CanCollide = false
-			createPart(self.nightTown, "MotelWindow" .. tostring(roomIndex),
+			createPart(self.nightTown, "MotelWindow" .. suffix,
 				Vector3.new(0.3, 3, 3.4),
 				CFrame.new(187.9, 5.4, roomZ + 4.6),
 				Color3.fromRGB(38, 44, 52), Enum.Material.Glass, 0.15)
+			-- Room interior: bed against the back wall, nightstand with a
+			-- bedside lamp, dresser under the window
+			createPart(self.nightTown, "MotelBedFrame" .. suffix, Vector3.new(6.5, 1.2, 4.2),
+				CFrame.new(199.8, 1.5, roomZ - 1.6), motelTrim, Enum.Material.Wood)
+			createPart(self.nightTown, "MotelMattress" .. suffix, Vector3.new(6.1, 0.7, 3.8),
+				CFrame.new(199.8, 2.45, roomZ - 1.6), Color3.fromRGB(198, 192, 180), Enum.Material.Fabric)
+			local blanket = createPart(self.nightTown, "MotelBlanket" .. suffix, Vector3.new(3.4, 0.25, 3.9),
+				CFrame.new(201.2, 2.85, roomZ - 1.6), blanketColors[roomIndex], Enum.Material.Fabric)
+			blanket.CanCollide = false
+			local pillow = createPart(self.nightTown, "MotelPillow" .. suffix, Vector3.new(1.2, 0.45, 2.4),
+				CFrame.new(197.2, 2.95, roomZ - 1.6), Color3.fromRGB(226, 222, 212), Enum.Material.Fabric)
+			pillow.CanCollide = false
+			createPart(self.nightTown, "MotelNightstand" .. suffix, Vector3.new(1.6, 2.1, 1.6),
+				CFrame.new(202.6, 1.95, roomZ + 1.6), motelTrim, Enum.Material.Wood)
+			local bedsideLamp = createPart(self.nightTown, "MotelBedsideLamp" .. suffix,
+				Vector3.new(0.6, 0.8, 0.6),
+				CFrame.new(202.6, 3.4, roomZ + 1.6),
+				Color3.fromRGB(255, 214, 150), Enum.Material.Neon)
+			bedsideLamp.CanCollide = false
+			local bedsideGlow = Instance.new("PointLight")
+			bedsideGlow.Brightness = 0.7
+			bedsideGlow.Range = 11
+			bedsideGlow.Color = Color3.fromRGB(255, 214, 150)
+			bedsideGlow.Parent = bedsideLamp
+			createPart(self.nightTown, "MotelDresser" .. suffix, Vector3.new(1.4, 3, 3.6),
+				CFrame.new(189.2, 2.4, roomZ + 4.6), motelTrim, Enum.Material.Wood)
 		end
+		-- Room 3 payoff: the key-gated room reads searched-through — someone
+		-- was staying here and left in a hurry
+		local room3Z = -224.5
+		local suitcase = createPart(self.nightTown, "MotelSuitcase", Vector3.new(2.2, 0.7, 1.5),
+			CFrame.new(193, 1.25, room3Z - 2.6) * CFrame.Angles(0, math.rad(24), 0),
+			Color3.fromRGB(94, 74, 52), Enum.Material.Leather)
+		createInspectPrompt(suitcase, "Rifled suitcase",
+			"Clothes flung everywhere. Whoever packed this never came back for it.")
+		local wallMap = createPart(self.nightTown, "MotelWallMap", Vector3.new(0.2, 2.6, 3.4),
+			CFrame.new(203.3, 6.2, room3Z + 1),
+			Color3.fromRGB(206, 194, 160), Enum.Material.SmoothPlastic)
+		wallMap.CanCollide = false
+		createInspectPrompt(wallMap, "Marked-up county map",
+			"Pins circle the camp, the mines, and Cabin Zero. Red string ties them together.")
 		for postIndex = 0, 4 do
 			createPart(self.nightTown, "MotelPost" .. tostring(postIndex),
 				Vector3.new(0.4, 11.6, 0.4),

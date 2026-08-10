@@ -864,15 +864,19 @@ type QuartersSpec = {
 
 local function buildCounselorQuarters(dayCamp: Instance): Vector3
 	local quarters = WorldKit.model(dayCamp, "CounselorQuarters")
-	-- Base Y lifts each floor above the camp-bowl grade (~2.5; FINCH sits on
-	-- a 4-stud rise) so doorways keep full headroom from the outside.
+	-- Base Y lifts each floor above the camp-bowl grade (~2.5) so doorways
+	-- keep full headroom from the outside. Respaced 2026-08-09: the six
+	-- cabins sat ~6.5 studs apart (walls nearly touching); the arc now
+	-- breathes at ~12 studs, using the ground freed when the west-ridge dome
+	-- moved out of the bowl. FINCH's rocky rise moved with that dome, so all
+	-- six sit at meadow grade now.
 	local specs: { QuartersSpec } = {
-		{ label = "HOLLOWAY", position = Vector3.new(-37, 2, 67) },
-		{ label = "ORTIZ", position = Vector3.new(-44, 2, 70.5) },
-		{ label = "REED", position = Vector3.new(-51, 2, 72) },
-		{ label = "BROOKS", position = Vector3.new(-58, 2, 73) },
-		{ label = "CHEN", position = Vector3.new(-64.5, 2, 70) },
-		{ label = "FINCH", position = Vector3.new(-69.5, 3.5, 63.5) },
+		{ label = "HOLLOWAY", position = Vector3.new(-34, 2, 66) },
+		{ label = "ORTIZ", position = Vector3.new(-46, 2, 70) },
+		{ label = "REED", position = Vector3.new(-58, 2, 73) },
+		{ label = "BROOKS", position = Vector3.new(-70, 2, 74) },
+		{ label = "CHEN", position = Vector3.new(-82, 2, 71) },
+		{ label = "FINCH", position = Vector3.new(-93, 2, 64) },
 	}
 	local reedFootlocker = Vector3.zero
 	for cabinIndex, spec in specs do

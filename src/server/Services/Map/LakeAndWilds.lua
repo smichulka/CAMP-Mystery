@@ -63,37 +63,12 @@ local state = {
 	foxWaypoints = {} :: { Vector3 },
 }
 
--- Mirrors the buildCampTerrain hill-ring FillBall layout (indices 1 and 14 are
--- skipped there for the lakefront gap) so slope props can sit on the terrain.
+-- Analytic dome heights come from TerrainDomes — the single source of
+-- truth shared with buildCampTerrain and every other pack.
+local TerrainDomes = require(script.Parent:WaitForChild("TerrainDomes"))
+
 local function analyticHillGroundHeight(x: number, z: number): number
-	local height = 0.5
-	for index = 2, 13 do
-		if index == 10 or index == 11 or index == 12 then
-			-- Skipped in the terrain build (they sat on the town's north
-			-- band); without this the S thicket seats 17 studs in the air.
-			continue
-		end
-		local angle = (index / 14) * math.pi * 2
-		local radius = 105 + (index % 3) * 9
-		local centerX = math.cos(angle) * radius
-		local centerZ = 12 + math.sin(angle) * radius
-		local ballRadius = 20 + index % 4 * 2
-		if index == 9 then
-			-- buildCampTerrain moves this dome to (-72, -80) r22 (the ranger
-			-- override); mirroring the formula spot floated the SW thicket's
-			-- mushroom rings 3 studs off the real slope.
-			centerX, centerZ, ballRadius = -72, -80, 22
-		end
-		local dx = x - centerX
-		local dz = z - centerZ
-		local flat = math.sqrt(dx * dx + dz * dz)
-		if flat < ballRadius - 0.5 then
-			local bulge = math.sqrt(ballRadius * ballRadius - flat * flat)
-			local domeY = if index == 9 then -2 else -3 + (index % 2)
-			height = math.max(height, domeY + bulge)
-		end
-	end
-	return height
+	return TerrainDomes.heightAt(x, z)
 end
 
 -- Seats content on the RENDERED terrain surface — the analytic model above

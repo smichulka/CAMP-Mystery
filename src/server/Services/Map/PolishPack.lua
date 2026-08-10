@@ -897,9 +897,10 @@ local builders: { Builder } = {
 	end },
 	{ label = "53 quarters mailboxes", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishMailboxes")
+		-- One mailbox per quarters cabin (respaced arc, 2026-08-09).
 		local spots = {
-			Vector3.new(-34.4, 2, 62.4), Vector3.new(-41.4, 2, 65.9), Vector3.new(-48.4, 2, 67.4),
-			Vector3.new(-55.4, 2, 68.4), Vector3.new(-61.9, 2, 65.4), Vector3.new(-67.4, 3.5, 58.6),
+			Vector3.new(-34.4, 2, 60), Vector3.new(-46.4, 2, 64), Vector3.new(-58.4, 2, 67),
+			Vector3.new(-70.4, 2, 68), Vector3.new(-82.4, 2, 65), Vector3.new(-93.4, 2, 58),
 		}
 		for index, spot in spots do
 			WorldKit.part(m, "MailPost" .. index, Vector3.new(0.3, 2.4, 0.3),
@@ -910,8 +911,8 @@ local builders: { Builder } = {
 	end },
 	{ label = "54 quarters clothesline", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishQuartersLaundry")
-		local a = Vector3.new(-64, 0, 75)
-		local b = Vector3.new(-57, 0, 77.5)
+		local a = Vector3.new(-66, 0, 80)
+		local b = Vector3.new(-59, 0, 82.5)
 		for _, spot in { a, b } do
 			WorldKit.part(m, "LaundryPole", Vector3.new(0.35, 5.4, 0.35),
 				CFrame.new(spot.X, 5.2, spot.Z), WOOD_DARK, Enum.Material.Wood)
@@ -933,7 +934,7 @@ local builders: { Builder } = {
 	{ label = "55 rain barrels", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishRainBarrels")
 		local spots = {
-			Vector3.new(-51.5, 4.2, 74.8), Vector3.new(30.4, 4.2, 66.6), Vector3.new(-71, 3.7, -36),
+			Vector3.new(-54, 4.2, 79), Vector3.new(30.4, 4.2, 66.6), Vector3.new(-71, 3.7, -36),
 		}
 		for index, spot in spots do
 			WorldKit.part(m, "RainBarrel" .. index, Vector3.new(2.4, 2, 2),

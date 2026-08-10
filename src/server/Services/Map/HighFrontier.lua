@@ -39,82 +39,12 @@ local DIRT = Color3.fromRGB(117, 91, 64)
 local RUST = Color3.fromRGB(126, 84, 54)
 local IRON_DARK = Color3.fromRGB(74, 74, 78)
 
--- Mirrors the ProductionMapService terrain dome layout — the interior ring
--- (with its index-9 ranger override) plus the fourth-expansion
--- OUTER_HILL_DOMES and FAR_SHORE_DOMES — so props seat on whatever slope is
--- underneath. Same mirroring pattern Backcountry uses; keep in lockstep.
-local EXPANDED_DOMES: { { number } } = {
-	-- outer boundary ring, fourth-expansion positions
-	{ 250, -3, 196, 30 },
-	{ 252, -2, 258, 32 },
-	{ 249, -3, 320, 30 },
-	{ 251, -2, 382, 32 },
-	{ 246, -3, 436, 32 },
-	{ 198, -3, 464, 30 },
-	{ 92, -2, 466, 30 },
-	{ 24, -2, 466, 32 },
-	{ -48, -3, 470, 32 },
-	{ -120, -2, 464, 34 },
-	{ -192, -3, 468, 32 },
-	{ -264, -2, 460, 34 },
-	{ -336, -3, 466, 32 },
-	{ -408, -2, 458, 34 },
-	{ -472, -3, 448, 32 },
-	{ -516, -2, 396, 34 },
-	{ -534, -3, 330, 32 },
-	{ -524, -2, 264, 34 },
-	{ -536, -3, 198, 32 },
-	{ -526, -2, 132, 34 },
-	{ -534, -3, 66, 32 },
-	{ -524, -2, 0, 34 },
-	{ -532, -3, -66, 32 },
-	{ -488, -2, -118, 32 },
-	-- far-shore ridge + corner fillers
-	{ 250, -3, -118, 28 },
-	{ 252, -2, -84, 30 },
-	{ 249, -3, -50, 26 },
-	{ 251, -2, -16, 32 },
-	{ 250, -3, 18, 28 },
-	{ 252, -2, 52, 30 },
-	{ 249, -3, 86, 26 },
-	{ 251, -2, 120, 32 },
-	{ 250, -3, 150, 28 },
-	-- (northeast corner fillers removed: the water-sports basin owns that
-	-- meadow now — keep in lockstep with ProductionMapService)
-}
+-- Dome layout + analytic height come from TerrainDomes — the single
+-- source of truth shared with buildCampTerrain and every other pack.
+local TerrainDomes = require(script.Parent:WaitForChild("TerrainDomes"))
 
 local function analyticGroundHeight(x: number, z: number): number
-	local height = 0.5
-	local function raiseFor(cx: number, cy: number, cz: number, ballRadius: number)
-		local dx = x - cx
-		local dz = z - cz
-		local flat = math.sqrt(dx * dx + dz * dz)
-		if flat < ballRadius - 0.5 then
-			height = math.max(height, cy + math.sqrt(ballRadius * ballRadius - flat * flat))
-		end
-	end
-	for index = 2, 13 do
-		if index == 10 or index == 11 or index == 12 then
-			-- Skipped in the terrain build: they sat on the town's north band.
-			continue
-		end
-		if index == 9 then
-			raiseFor(-72, -2, -80, 22)
-		else
-			local angle = (index / 14) * math.pi * 2
-			local radius = 105 + (index % 3) * 9
-			raiseFor(
-				math.cos(angle) * radius,
-				-3 + (index % 2),
-				12 + math.sin(angle) * radius,
-				20 + index % 4 * 2
-			)
-		end
-	end
-	for _, dome in EXPANDED_DOMES do
-		raiseFor(dome[1], dome[2], dome[3], dome[4])
-	end
-	return height
+	return TerrainDomes.heightAt(x, z)
 end
 
 -- Seats content on the RENDERED terrain surface — the analytic model above
