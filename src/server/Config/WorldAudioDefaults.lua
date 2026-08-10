@@ -17,6 +17,10 @@ local WorldAudioDefaults: { [string]: string } = {
 	-- Cabinet Doors 9 (SFX): "Open & Close, Wood", 2.3s. Window shutter
 	-- panel toggles (same pass — shutters were silent).
 	ShutterClack = "rbxassetid://9113657040",
+	-- Church Bell Tolling 1 (SFX): 18s rhythmic toll with a creaking tail.
+	-- The chapel bell announced "Everyone hears it" in complete silence
+	-- (2026-08-10 audio sweep).
+	BellToll = "rbxassetid://9113804436",
 }
 
 return table.freeze(WorldAudioDefaults)

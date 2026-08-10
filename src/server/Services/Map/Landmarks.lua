@@ -505,6 +505,11 @@ local function buildChapel(dayCamp: Instance)
 		end
 		lastRung = now
 		announce("Warning", "The camp bell tolls", "Everyone hears it. Everything hears it.", 6)
+		-- Camp-wide toll: 600-stud rolloff so the announcement's "everyone
+		-- hears it" is literally true (until the 2026-08-10 audio sweep,
+		-- nobody did). The helper's small speed jitter makes each toll
+		-- subtly different.
+		WorldKit.playWorldSound(bell, "BellToll", 0.8, 600)
 		task.spawn(function()
 			for _, swing in { 30, -25, 18, -10, 0 } do
 				if bell.Parent == nil then

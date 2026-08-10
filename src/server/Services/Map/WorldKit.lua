@@ -22,7 +22,7 @@ local WorldKit = {}
 -- Plays a world-interaction cue on a part, creating the Sound lazily.
 -- Asset resolution: SoundService attribute "World<Slot>AssetId" override,
 -- else the WorldAudioDefaults slot; both empty leaves the cue silent.
-function WorldKit.playWorldSound(part: BasePart, slot: string, volume: number?)
+function WorldKit.playWorldSound(part: BasePart, slot: string, volume: number?, rollOff: number?)
 	local override = SoundService:GetAttribute("World" .. slot .. "AssetId")
 	local assetId = if typeof(override) == "number" and override > 0
 		then "rbxassetid://" .. tostring(override)
@@ -37,7 +37,7 @@ function WorldKit.playWorldSound(part: BasePart, slot: string, volume: number?)
 		sound.Name = slot
 		sound.SoundId = assetId
 		sound.Volume = volume or 0.55
-		sound.RollOffMaxDistance = 60
+		sound.RollOffMaxDistance = rollOff or 60
 		sound.Parent = part
 	end
 	local cue = sound :: Sound
