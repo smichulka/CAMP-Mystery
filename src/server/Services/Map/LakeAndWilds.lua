@@ -449,6 +449,109 @@ local function buildRowboats(dayCamp: Instance)
 	)
 end
 
+-- FEATURE 2b: water sports on the expanded basin — swim platform with a
+-- diving board, a rowboat crossing between the north beach and the overlook
+-- cove (same teleport-row mechanic as the island ferry), a slalom line of
+-- race buoys, and floating inner tubes. Everything floats pinned against the
+-- rendered water surface (WATER_SURFACE_Y), matching every other lake float.
+local function buildWaterSports(dayCamp: Instance)
+	local sports = WorldKit.model(dayCamp, "WaterSportsBasin")
+
+	-- Swim platform mid-basin: planked float on barrel pontoons, ladder on
+	-- the camp-facing side, diving board off the deep side.
+	local platformCFrame = CFrame.new(170, WATER_SURFACE_Y + 0.35, 120)
+	local deck = WorldKit.part(sports, "SwimPlatformDeck", Vector3.new(10, 0.4, 10),
+		platformCFrame, PLANK, Enum.Material.WoodPlanks)
+	for cornerX = -1, 1, 2 do
+		for cornerZ = -1, 1, 2 do
+			local barrel = WorldKit.part(sports, "PlatformBarrel", Vector3.new(1.6, 1.4, 1.6),
+				platformCFrame * CFrame.new(cornerX * 3.8, -0.85, cornerZ * 3.8),
+				RUST_BROWN, Enum.Material.Metal, Enum.PartType.Cylinder)
+			barrel.CanCollide = false
+		end
+	end
+	-- Ladder (west side, toward camp)
+	for railZ = -1, 1, 2 do
+		WorldKit.part(sports, "PlatformLadderRail", Vector3.new(0.22, 2.6, 0.22),
+			platformCFrame * CFrame.new(-5.1, -0.9, railZ * 0.7), PLANK_DARK, Enum.Material.Wood)
+	end
+	for rung = 0, 2 do
+		local rungPart = WorldKit.part(sports, "PlatformLadderRung", Vector3.new(0.18, 0.18, 1.5),
+			platformCFrame * CFrame.new(-5.1, -1.8 + rung * 0.8, 0), PLANK, Enum.Material.Wood)
+		rungPart.CanCollide = false
+	end
+	-- Diving board (east side, toward the deep middle)
+	WorldKit.part(sports, "DiveBoardBlock", Vector3.new(1.4, 0.9, 1.4),
+		platformCFrame * CFrame.new(4.2, 0.65, 0), PLANK_DARK, Enum.Material.Wood)
+	local board = WorldKit.part(sports, "DiveBoard", Vector3.new(4.6, 0.22, 1.2),
+		platformCFrame * CFrame.new(6.6, 1.15, 0), Color3.fromRGB(214, 204, 178),
+		Enum.Material.SmoothPlastic)
+	board.TopSurface = Enum.SurfaceType.Smooth
+	-- Flag so the platform reads from every shore
+	WorldKit.part(sports, "PlatformFlagPost", Vector3.new(0.2, 3.4, 0.2),
+		platformCFrame * CFrame.new(-4.4, 1.9, -4.4), PLANK_DARK, Enum.Material.Wood)
+	local flag = WorldKit.part(sports, "PlatformFlag", Vector3.new(1.5, 0.9, 0.08),
+		platformCFrame * CFrame.new(-3.55, 3.1, -4.4), Color3.fromRGB(226, 88, 64),
+		Enum.Material.Fabric)
+	flag.CanCollide = false
+
+	-- Rowboat crossing: north beach <-> overlook cove
+	local coveLanding = Vector3.new(206, 6.2, 120)
+	local beachLanding = Vector3.new(172, 7.2, 193)
+	local beachHull = createRowboat(
+		sports,
+		"BeachRowboat",
+		CFrame.new(168, WATER_SURFACE_Y + 0.35, 184) * CFrame.Angles(0, math.rad(-24), 0)
+	)
+	wireRowPrompt(beachHull, "Row to the Cove", coveLanding, Vector3.new(196, 0, 120))
+	WorldKit.part(sports, "BeachBoatStake", Vector3.new(0.3, 1.5, 0.3),
+		CFrame.new(170.4, 6.6, 189.2) * CFrame.Angles(0, 0, math.rad(-8)),
+		PLANK_DARK, Enum.Material.Wood)
+	local coveHull = createRowboat(
+		sports,
+		"CoveRowboat",
+		CFrame.new(201, WATER_SURFACE_Y + 0.3, 126) * CFrame.Angles(0, math.rad(70), 0)
+	)
+	wireRowPrompt(coveHull, "Row to the Beach", beachLanding, Vector3.new(172, 0, 180))
+	WorldKit.part(sports, "CoveBoatStake", Vector3.new(0.3, 1.5, 0.3),
+		CFrame.new(204.6, 5.6, 122.6) * CFrame.Angles(0, 0, math.rad(8)),
+		PLANK_DARK, Enum.Material.Wood)
+
+	-- Slalom race buoys across the open water (swim or row the line)
+	local buoySpots = {
+		Vector3.new(150, 0, 100), Vector3.new(160, 0, 114), Vector3.new(171, 0, 128),
+		Vector3.new(182, 0, 142), Vector3.new(192, 0, 156),
+	}
+	for buoyIndex, spot in buoySpots do
+		local buoyColor = if buoyIndex % 2 == 1
+			then Color3.fromRGB(226, 88, 64)
+			else Color3.fromRGB(232, 228, 214)
+		local ball = WorldKit.part(sports, "RaceBuoy" .. buoyIndex, Vector3.new(1.5, 1.5, 1.5),
+			CFrame.new(spot.X, WATER_SURFACE_Y + 0.25, spot.Z), buoyColor,
+			Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		ball.CanCollide = false
+		local post = WorldKit.part(sports, "RaceBuoyPost" .. buoyIndex, Vector3.new(0.18, 1.4, 0.18),
+			CFrame.new(spot.X, WATER_SURFACE_Y + 1.2, spot.Z), PLANK_DARK, Enum.Material.Wood)
+		post.CanCollide = false
+	end
+
+	-- Inner tubes near the beach shallows: solid enough to clamber onto
+	for tubeIndex, tubeSpot in { Vector3.new(162, 0, 176), Vector3.new(178, 0, 172) } do
+		local tube = WorldKit.part(sports, "InnerTube" .. tubeIndex, Vector3.new(0.5, 2.8, 2.8),
+			CFrame.new(tubeSpot.X, WATER_SURFACE_Y + 0.1, tubeSpot.Z) * CFrame.Angles(0, 0, math.rad(90)),
+			if tubeIndex == 1 then Color3.fromRGB(64, 140, 200) else Color3.fromRGB(228, 196, 92),
+			Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		local hole = WorldKit.part(sports, "InnerTubeHole" .. tubeIndex, Vector3.new(0.2, 1.2, 1.2),
+			CFrame.new(tubeSpot.X, WATER_SURFACE_Y + 0.28, tubeSpot.Z) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromRGB(46, 66, 82), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		hole.CanCollide = false
+	end
+
+	-- Beach signpost pointing swimmers at all of it
+	WorldKit.signpost(sports, Vector3.new(166, hillGroundHeight(166, 195), 195),
+		{ "WATER SPORTS", "SWIM - ROW - DIVE" })
+end
+
 -- FEATURE 3: fire-watch island in the bay with a collapsed lookout cabin
 local function buildIsland(dayCamp: Instance)
 	local island = WorldKit.model(dayCamp, "FirewatchIsland")
@@ -1386,6 +1489,7 @@ function LakeAndWilds.Build(dayCamp: Instance, nightTown: Instance)
 	state.built = true
 	buildLakeShore(dayCamp)
 	buildRowboats(dayCamp)
+	buildWaterSports(dayCamp)
 	buildIsland(dayCamp)
 	buildSwimmingHole(dayCamp)
 	buildWaterfallCave(dayCamp)
