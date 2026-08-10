@@ -1192,24 +1192,54 @@ local function buildCampAurora(dayCamp: Instance)
 		moss.CanCollide = false
 	end
 
-	-- One intact-ish storm shelter, locked tight (future content tease)
+	-- One intact-ish storm shelter. Shipped sealed as a "future content
+	-- tease"; the 2026-08-09 access pass made it real — walls raised to
+	-- standing height (the old 4.4 walls left 2.3 studs of clearance over the
+	-- rendered grass at 2.5), the county door swings open, and the interior
+	-- got the county's leftover stores.
 	local shx, shz = 180, 10
-	WorldKit.part(aurora, "ShelterWallN", Vector3.new(6, 4.4, 0.7),
-		CFrame.new(shx, 2.6, shz + 3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
-	WorldKit.part(aurora, "ShelterWallS", Vector3.new(6, 4.4, 0.7),
-		CFrame.new(shx, 2.6, shz - 3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
-	WorldKit.part(aurora, "ShelterWallE", Vector3.new(0.7, 4.4, 6.7),
-		CFrame.new(shx + 3, 2.6, shz), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
-	WorldKit.part(aurora, "ShelterWallWN", Vector3.new(0.7, 4.4, 2),
-		CFrame.new(shx - 3, 2.6, shz + 2.3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
-	WorldKit.part(aurora, "ShelterWallWS", Vector3.new(0.7, 4.4, 2),
-		CFrame.new(shx - 3, 2.6, shz - 2.3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
+	WorldKit.part(aurora, "ShelterWallN", Vector3.new(6, 5.6, 0.7),
+		CFrame.new(shx, 4.8, shz + 3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
+	WorldKit.part(aurora, "ShelterWallS", Vector3.new(6, 5.6, 0.7),
+		CFrame.new(shx, 4.8, shz - 3), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
+	WorldKit.part(aurora, "ShelterWallE", Vector3.new(0.7, 5.6, 6.7),
+		CFrame.new(shx + 3, 4.8, shz), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
+	WorldKit.part(aurora, "ShelterWallWN", Vector3.new(0.7, 5.6, 1.85),
+		CFrame.new(shx - 3, 4.8, shz + 2.425), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
+	WorldKit.part(aurora, "ShelterWallWS", Vector3.new(0.7, 5.6, 1.85),
+		CFrame.new(shx - 3, 4.8, shz - 2.425), Color3.fromRGB(84, 86, 82), Enum.Material.Concrete)
 	WorldKit.part(aurora, "ShelterRoof", Vector3.new(7.4, 0.6, 7.4),
-		CFrame.new(shx, 5.1, shz), STONE_DARK, Enum.Material.Concrete)
-	local shelterDoor = WorldKit.part(aurora, "ShelterLockedDoor", Vector3.new(0.4, 4.2, 2.6),
-		CFrame.new(shx - 3.1, 2.5, shz), Color3.fromRGB(66, 60, 52), Enum.Material.CorrodedMetal)
-	surfaceText(shelterDoor, Enum.NormalId.Left,
+		CFrame.new(shx, 7.9, shz), STONE_DARK, Enum.Material.Concrete)
+	-- Hinged county door (west face, hinge on the north edge, swings out over
+	-- the open bank). The name doubles as the prompt's object text.
+	local shelterDoor = WorldKit.hingedDoor(aurora, "Storm Shelter",
+		Vector3.new(3.0, 5.6, 0.4),
+		CFrame.new(shx - 3.1, 4.8, shz) * CFrame.Angles(0, math.rad(90), 0),
+		Color3.fromRGB(66, 60, 52))
+	shelterDoor.Material = Enum.Material.CorrodedMetal
+	surfaceText(shelterDoor, Enum.NormalId.Front,
 		"PROPERTY OF\nAURORA COUNTY\nKEEP OUT", Color3.fromRGB(206, 188, 148))
+	-- Interior: folding cot, the county radio (dead air), stacked stores and
+	-- a night-lit oil lamp. Floor is the bank's grass at ~2.5.
+	WorldKit.part(aurora, "ShelterCotFrame", Vector3.new(4.2, 0.9, 1.9),
+		CFrame.new(shx + 1, 2.95, shz + 2), ROCK_BROWN, Enum.Material.Wood)
+	WorldKit.part(aurora, "ShelterCotCanvas", Vector3.new(4.0, 0.25, 1.7),
+		CFrame.new(shx + 1, 3.5, shz + 2), Color3.fromRGB(120, 116, 96), Enum.Material.Fabric)
+	WorldKit.part(aurora, "ShelterCrateA", Vector3.new(1.5, 1.5, 1.5),
+		CFrame.new(shx - 1.5, 3.25, shz - 2.4), ROCK_BROWN, Enum.Material.WoodPlanks)
+	WorldKit.part(aurora, "ShelterCrateB", Vector3.new(1.3, 1.3, 1.3),
+		CFrame.new(shx - 1.4, 4.65, shz - 2.35) * CFrame.Angles(0, math.rad(18), 0),
+		ROCK_BROWN, Enum.Material.WoodPlanks)
+	WorldKit.part(aurora, "ShelterRadioCrate", Vector3.new(1.7, 1.7, 1.7),
+		CFrame.new(shx + 1.8, 3.35, shz - 2.4), ROCK_BROWN, Enum.Material.WoodPlanks)
+	local countyRadio = WorldKit.part(aurora, "ShelterCountyRadio", Vector3.new(1.3, 0.9, 0.7),
+		CFrame.new(shx + 1.8, 4.65, shz - 2.4), Color3.fromRGB(52, 56, 60), Enum.Material.Metal)
+	WorldKit.prompt(countyRadio, "Listen", "County radio", 0.4)
+	local shelterLamp = WorldKit.part(aurora, "ShelterOilLamp", Vector3.new(0.6, 0.7, 0.6),
+		CFrame.new(shx - 1.5, 4.4, shz - 2.4), Color3.fromRGB(255, 211, 132),
+		Enum.Material.Neon, Enum.PartType.Ball)
+	shelterLamp.CanCollide = false
+	WorldKit.lamp(shelterLamp, { brightness = 1.0, range = 12 })
 
 	WorldKit.evidenceSocketMarker(aurora, "aurora-fire-ring", Vector3.new(163, 1.4, 15))
 end
