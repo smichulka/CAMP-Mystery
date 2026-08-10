@@ -243,7 +243,10 @@ local function buildAuroraLanding(parent: Instance)
 	Workspace.Terrain:FillCylinder(CFrame.new(193, -3.2, 38), 8.5, 6, Enum.Material.Sand)
 	Workspace.Terrain:FillCylinder(CFrame.new(192, -3.2, -2), 8.5, 6, Enum.Material.Sand)
 
-	local skiffFrame = CFrame.new(190.5, 1.0, 30) * CFrame.Angles(0, math.rad(112), math.rad(4))
+	-- Beached at the waterline: the rendered water surface is 4.0 and the
+	-- spit sand feathers just under it, so the hull rides at ~4.2 instead of
+	-- the nominal ~1 (it shipped mostly submerged — audited 2026-08-10).
+	local skiffFrame = CFrame.new(190.5, 4.2, 30) * CFrame.Angles(0, math.rad(112), math.rad(4))
 	WorldKit.part(landing, "SkiffHull", Vector3.new(1.9, 0.5, 6.4),
 		skiffFrame, Color3.fromRGB(104, 82, 58), Enum.Material.WoodPlanks)
 	for side = -1, 1, 2 do
@@ -273,8 +276,13 @@ local function buildOverlook(parent: Instance)
 		CFrame.new(cx, deckTop, cz), PLANK, Enum.Material.WoodPlanks)
 	for postX = -1, 1, 2 do
 		for postZ = -1, 1, 2 do
+			-- Each footing seats on its OWN ground: the far-shore dome toe
+			-- climbs ~6 studs across the deck's footprint (east footings bed
+			-- into the slope; audited 2026-08-10).
+			local fx = cx + postX * 4.2
+			local fz = cz + postZ * 3.2
 			WorldKit.part(overlook, "DeckFooting", Vector3.new(0.8, 1.6, 0.8),
-				CFrame.new(cx + postX * 4.2, ground + 0.4, cz + postZ * 3.2),
+				CFrame.new(fx, groundHeight(fx, fz) + 0.4, fz),
 				STONE, Enum.Material.Slate)
 		end
 	end
@@ -285,9 +293,13 @@ local function buildOverlook(parent: Instance)
 	end
 	WorldKit.part(overlook, "RailTop", Vector3.new(0.28, 0.28, 7.8),
 		CFrame.new(cx - 4.7, deckTop + 1.75, cz), PLANK_DARK, Enum.Material.Wood)
-	-- Step up on the east side
+	-- Step up on the NORTH side, where the trail arrives. The old east-side
+	-- step sat against the far-shore dome toe (terrain 9+ there vs the deck's
+	-- 2.8 — it shipped 6.8 studs inside the slope, audited 2026-08-10).
+	local stepX = cx - 1.5
+	local stepZ = cz - 5.6
 	WorldKit.wedge(overlook, "OverlookStep", Vector3.new(3.4, 1.4, 2.6),
-		CFrame.new(cx + 6.2, ground + 0.7, cz) * CFrame.Angles(0, math.rad(-90), 0),
+		CFrame.new(stepX, groundHeight(stepX, stepZ) + 0.7, stepZ),
 		PLANK, Enum.Material.WoodPlanks)
 	-- Bench facing the water
 	WorldKit.part(overlook, "BenchSeat", Vector3.new(1.2, 0.3, 5),
@@ -412,8 +424,12 @@ function Backcountry.Build(dayCamp: Instance, _nightTown: Instance)
 	-- line (its start at (150,150) is open water now). The long way runs
 	-- north of the basin's lobe, then south down the dry strip under the
 	-- far-shore ridge (water ends at x 208, carve at 211).
+	-- Bowed further north 2026-08-10: the straighter line dipped three strips
+	-- into the basin's north-lobe water margin (carve reaches z 193 at
+	-- x <= 211); the trail now stays z >= 196 until it clears x 211.
 	laidTrail(pack, "OverlookTrail", {
-		Vector2.new(148, 212), Vector2.new(178, 198), Vector2.new(212, 182),
+		Vector2.new(148, 212), Vector2.new(178, 202), Vector2.new(198, 198),
+		Vector2.new(212, 196), Vector2.new(214, 184),
 		Vector2.new(215, 150), Vector2.new(216, 122), Vector2.new(216, 106),
 	})
 

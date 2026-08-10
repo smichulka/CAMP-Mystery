@@ -291,9 +291,12 @@ local function buildLakeShore(dayCamp: Instance)
 	)
 	lantern.CanCollide = false
 	WorldKit.lamp(lantern, { brightness = 1.2, range = 18 })
-	-- Storm-damage prop: overturned canoe washed up on the beach
+	-- Storm-damage prop: overturned canoe washed up on the beach. Seated on
+	-- the rendered dune surface (~5.2 sand here, not the nominal ~1.5 — it
+	-- shipped inside the dune, audited 2026-08-10); a slight set-in on the
+	-- upslope side reads as wash-up bedding.
 	local stormCanoe = WorldKit.model(shore, "StormCanoe")
-	local canoeCFrame = CFrame.new(86, 1.5, 66)
+	local canoeCFrame = CFrame.new(86, 5.6, 66)
 		* CFrame.Angles(0, math.rad(24), math.rad(180))
 	WorldKit.part(
 		stormCanoe,

@@ -286,7 +286,10 @@ end
 
 local function buildFrontGate(dayCamp: Instance)
 	local gate = WorldKit.model(dayCamp, "FrontGate")
-	local gateOrigin = Vector3.new(70, 0, 58)
+	-- Origin rides the beach dune: the sand renders ~4-6 across the gate's
+	-- footprint (audited 2026-08-10 with the posts' lower half inside the
+	-- dune). 4.8 splits the slope — posts bed slightly on the high side.
+	local gateOrigin = Vector3.new(70, 4.8, 58)
 	local gateDir = Vector3.new(0.86, 0, 0.51).Unit
 	local gateCF = CFrame.lookAt(gateOrigin, gateOrigin + gateDir)
 

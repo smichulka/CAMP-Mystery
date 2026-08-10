@@ -1265,11 +1265,15 @@ local builders: { Builder } = {
 	end },
 	{ label = "80 gate torches", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishGateTorches")
-		for index, x in { 56, 72 } do
+		-- Per-torch base heights: x 56 stands on grass (~2.5) but x 72 is on
+		-- the beach dune (sand renders ~6.0 — audited 2026-08-10 with the
+		-- post's lower 3.5 studs inside the dune).
+		for index, spot in { { 56, 5 }, { 72, 8.4 } } do
+			local x, postY = spot[1], spot[2]
 			WorldKit.part(m, "TorchPost" .. index, Vector3.new(0.5, 5, 0.5),
-				CFrame.new(x, 5, 52), WOOD_DARK, Enum.Material.Wood)
+				CFrame.new(x, postY, 52), WOOD_DARK, Enum.Material.Wood)
 			local head = WorldKit.part(m, "TorchHead" .. index, Vector3.new(0.8, 0.7, 0.8),
-				CFrame.new(x, 7.8, 52), Color3.fromRGB(255, 176, 96), Enum.Material.Neon)
+				CFrame.new(x, postY + 2.8, 52), Color3.fromRGB(255, 176, 96), Enum.Material.Neon)
 			WorldKit.lamp(head, { brightness = 1.2, range = 15 })
 		end
 	end },

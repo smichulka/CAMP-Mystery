@@ -2342,11 +2342,16 @@ function ProductionMapService:Build()
 		dockLight.Range = 18
 		dockLight.Color = Color3.fromRGB(255, 220, 161)
 		dockLight.Parent = dockLamp
-		-- Boathouse: open east wall faces the water
+		-- Boathouse: open east wall faces the water. The carve reaches south
+		-- past the walls so the canoe-carry station apron (station at z 64,
+		-- its 8x8 pad spans z 60..68) stays open floor instead of being
+		-- swallowed by the beach dune's rim (sand renders ~3.7-6 here; the
+		-- pad top is 1.2, flush with the boathouse floor — audited 2026-08-10
+		-- with the station's InteractionRoot buried under the rim).
 		local bhX, bhZ = 74, 68
 		Workspace.Terrain:FillBlock(
-			CFrame.new(bhX, 1.4, bhZ),
-			Vector3.new(9, 7, 7),
+			CFrame.new(bhX, 1.4, bhZ - 2.5),
+			Vector3.new(10, 7, 12),
 			Enum.Material.Air
 		)
 		createPart(self.dayCamp, "BoathouseFloor", Vector3.new(10, 0.6, 8),
@@ -2376,7 +2381,10 @@ function ProductionMapService:Build()
 		-- Canoes: one racked, one beached, one tied at the dock
 		local canoeSpots = {
 			{ cframe = CFrame.new(74.2, 3.35, 68), color = Color3.fromRGB(74, 110, 60) },
-			{ cframe = CFrame.new(80, 1.0, 26) * CFrame.Angles(0, math.rad(35), 0), color = Color3.fromRGB(52, 118, 124) },
+			-- Beached canoe rides the dune crest: the south-beach sand
+			-- renders at ~6.0 (full-voxel mounds), not the nominal ~1
+			-- (it shipped 5 studs inside the dune — audited 2026-08-10)
+			{ cframe = CFrame.new(80, 6.35, 26) * CFrame.Angles(0, math.rad(35), 0), color = Color3.fromRGB(52, 118, 124) },
 			{ cframe = CFrame.new(101, 4.25, 33) * CFrame.Angles(0, math.rad(75), 0), color = Color3.fromRGB(150, 54, 44) },
 		}
 		for canoeIndex, canoe in canoeSpots do

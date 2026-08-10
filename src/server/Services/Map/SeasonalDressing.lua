@@ -282,10 +282,12 @@ local function buildSummerSeasonal(seasonal: Folder)
 		Color3.fromRGB(220, 90, 90),
 		Color3.fromRGB(120, 190, 120),
 	}
+	-- Towel heights follow the rendered dune surface (~5.0-5.3 sand, not the
+	-- nominal ~1.7 — they shipped inside the dune, audited 2026-08-10).
 	local towelSpots: { CFrame } = {
-		CFrame.new(80, 1.7, 68) * CFrame.Angles(0, math.rad(24), 0),
-		CFrame.new(76.5, 1.7, 62) * CFrame.Angles(0, math.rad(-40), 0),
-		CFrame.new(83, 1.7, 74) * CFrame.Angles(0, math.rad(70), 0),
+		CFrame.new(80, 5.3, 68) * CFrame.Angles(0, math.rad(24), 0),
+		CFrame.new(76.5, 5.3, 62) * CFrame.Angles(0, math.rad(-40), 0),
+		CFrame.new(83, 5.05, 74) * CFrame.Angles(0, math.rad(70), 0),
 	}
 	for index, cframe in towelSpots do
 		local towel = WorldKit.part(
