@@ -802,6 +802,12 @@ local function startRideLoops()
 			if proximityTimer >= 1 then
 				proximityTimer = 0
 				nearby = anyPlayerNear(FAIRGROUND_CENTER, 140)
+				local circusFolder = state.circusFolder
+				if circusFolder then
+					circusFolder:SetAttribute("RideLoopBeat", os.clock())
+					circusFolder:SetAttribute("RideLoopGate",
+						tostring(state.nightActive) .. "/" .. tostring(nearby))
+				end
 			end
 			if not state.nightActive or not nearby then
 				continue
@@ -1059,6 +1065,12 @@ function SpookyCircus.Start()
 		return
 	end
 	state.started = true
+	-- Boot telemetry (attribute-based; invisible to players, readable by the
+	-- verification loop — the console-print pattern's quieter sibling)
+	local circusFolder = state.circusFolder
+	if circusFolder then
+		circusFolder:SetAttribute("CircusStarted", true)
+	end
 	startRideLoops()
 	startShowLoop()
 	startCarnieLoops()
@@ -1066,6 +1078,10 @@ end
 
 function SpookyCircus.SetNight(isNight: boolean)
 	state.nightActive = isNight
+	local circusFolder = state.circusFolder
+	if circusFolder then
+		circusFolder:SetAttribute("CircusNight", isNight)
+	end
 	local calliope = state.calliopeSound
 	if calliope then
 		if isNight and not calliope.IsPlaying then
