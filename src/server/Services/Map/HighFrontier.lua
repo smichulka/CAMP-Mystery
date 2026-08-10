@@ -452,6 +452,18 @@ function HighFrontier.Build(dayCamp: Instance, _nightTown: Instance)
 	buildWatchtower(pack)
 	buildLoggingCamp(pack)
 
+	-- Wayfinding for the doubled world: fingerposts at the trail junctions
+	-- (2026-08-09 UX pass — the frontier read as trackless once the
+	-- boundary moved out). Seated via groundHeight on the real surface.
+	WorldKit.signpost(pack, Vector3.new(-52, groundHeight(-52, 128), 128),
+		{ "FIRE WATCH ↑", "CAMP ↓" })
+	WorldKit.signpost(pack, Vector3.new(-66, groundHeight(-66, 232), 232),
+		{ "HIGH FRONTIER", "← CAMP" })
+	WorldKit.signpost(pack, Vector3.new(-290, groundHeight(-290, 142), 142),
+		{ "WEST REACH", "LOGGING CAMP →" })
+	WorldKit.signpost(pack, Vector3.new(110, groundHeight(110, 444), 444),
+		{ "FRONTIER GATE", "← FIRE WATCH" })
+
 	-- Aspen groves in the north meadow
 	for _, grove in { { 30, 330 }, { -150, 316 }, { -262, 398 } } do
 		for tree = 1, 5 do

@@ -1440,8 +1440,18 @@ local builders: { Builder } = {
 		end
 	end },
 	{ label = "95 expansion signposts", build = function(dayCamp, _)
-		WorldKit.signpost(dayCamp, Vector3.new(-86, 2.7, -66), { "SAWMILL →", "MEADOW" })
-		WorldKit.signpost(dayCamp, Vector3.new(-87, 2.7, -58), { "RANGER STATION", "CLIMB THE LADDER" })
+		-- Seated on the real terrain: the fixed-y spots ended up 8 studs
+		-- under a dome after the widened-bowl hill move (audited 2026-08-09).
+		local seatParams = RaycastParams.new()
+		seatParams.FilterType = Enum.RaycastFilterType.Include
+		seatParams.FilterDescendantsInstances = { game:GetService("Workspace").Terrain }
+		local function seatY(x: number, z: number): number
+			local hit = game:GetService("Workspace"):Raycast(
+				Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatParams)
+			return if hit then hit.Position.Y else 2.5
+		end
+		WorldKit.signpost(dayCamp, Vector3.new(-86, seatY(-86, -66), -66), { "SAWMILL →", "MEADOW" })
+		WorldKit.signpost(dayCamp, Vector3.new(-87, seatY(-87, -58), -58), { "RANGER STATION", "CLIMB THE LADDER" })
 	end },
 	{ label = "96 mine danger sign", build = function(dayCamp, _)
 		local m = WorldKit.model(dayCamp, "PolishMineSign")

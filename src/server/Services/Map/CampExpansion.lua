@@ -417,16 +417,29 @@ end
 
 local function buildSignage(dayCamp: Instance)
 	local signs = WorldKit.model(dayCamp, "CampSignage")
+	-- Positions carry x/z only; the y is measured off the real terrain at
+	-- build time (the old hardcoded 0.5 left every fingerpost 2 studs sunk —
+	-- boards at ankle height; audited 2026-08-09).
+	local seatParams = RaycastParams.new()
+	seatParams.FilterType = Enum.RaycastFilterType.Include
+	seatParams.FilterDescendantsInstances = { game:GetService("Workspace").Terrain }
+	local function seatY(x: number, z: number): number
+		local hit = game:GetService("Workspace"):Raycast(
+			Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatParams)
+		return if hit then hit.Position.Y else 2.5
+	end
 	local fingerposts: { { position: Vector3, lines: { string } } } = {
-		{ position = Vector3.new(18, 0.5, 20), lines = { "Campfire", "Lake", "Lodge" } },
-		{ position = Vector3.new(-18, 0.5, 12), lines = { "Cabins", "Firewood" } },
-		{ position = Vector3.new(12, 0.5, -28), lines = { "Generator", "Supplies", "Ropes" } },
-		{ position = Vector3.new(40, 0.5, 8), lines = { "Gate", "Marina" } },
-		{ position = Vector3.new(-40, 0.5, 30), lines = { "Chapel", "Quarters" } },
-		{ position = Vector3.new(-9, 0.5, 50), lines = { "Lodge", "Lookout" } },
+		{ position = Vector3.new(18, 0, 20), lines = { "Campfire", "Lake", "Lodge" } },
+		{ position = Vector3.new(-18, 0, 12), lines = { "Cabins", "Firewood" } },
+		{ position = Vector3.new(12, 0, -28), lines = { "Generator", "Supplies", "Ropes" } },
+		{ position = Vector3.new(40, 0, 8), lines = { "Gate", "Marina" } },
+		{ position = Vector3.new(-40, 0, 30), lines = { "Chapel", "Quarters" } },
+		{ position = Vector3.new(-9, 0, 50), lines = { "Lodge", "Lookout" } },
 	}
 	for _, post in fingerposts do
-		WorldKit.signpost(signs, post.position, post.lines)
+		WorldKit.signpost(signs,
+			Vector3.new(post.position.X, seatY(post.position.X, post.position.Z), post.position.Z),
+			post.lines)
 	end
 
 	-- Lantern posts along the central path edges (generator-gated light).
