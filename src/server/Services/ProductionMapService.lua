@@ -1747,10 +1747,28 @@ local WORLD_SLAB_SIZE = Vector3.new(800, 8, 620)
 local OUTER_HILL_DOMES = TerrainDomes.OUTER
 local FAR_SHORE_DOMES = TerrainDomes.FAR_SHORE
 
--- Ground height across the expanded band: flat slab, the original dome ring
--- (including the index-9 ranger override), and both new dome tables. Used to
--- seat the outer tree wall on whatever hill happens to be underneath.
+-- Ground height for seating trees on whatever hill happens to be underneath.
+-- Raycast-first against the rendered terrain (all callers run in buildDayCamp,
+-- after buildCampTerrain fills the voxels): the analytic dome model
+-- under-predicts by ~2 on slopes and by up to ~8 where two domes overlap
+-- (integration sweep 2026-08-09 — boundary pines sat 7.8 in the hill on the
+-- northeast seam). TerrainDomes.heightAt stays as the fallback for rays that
+-- miss (boot-time chunk lag) or hit water.
+local seatRayParams = RaycastParams.new()
+seatRayParams.FilterType = Enum.RaycastFilterType.Include
+seatRayParams.FilterDescendantsInstances = { Workspace.Terrain }
+
 local function expandedGroundHeight(x: number, z: number): number
+	for _ = 1, 8 do
+		local hit = Workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -240, 0), seatRayParams)
+		if hit then
+			if hit.Material == Enum.Material.Water then
+				break
+			end
+			return hit.Position.Y
+		end
+		task.wait(0.25)
+	end
 	return TerrainDomes.heightAt(x, z)
 end
 
@@ -2182,13 +2200,14 @@ function ProductionMapService:Build()
 			end
 			local angle = (index / 30) * math.pi * 2
 			local radius = 91 + (index % 4) * 9
+			local ringX = math.cos(angle) * radius
+			local ringZ = 12 + math.sin(angle) * radius
+			-- Seated on the dome model, not a fixed 0.5: the widened-bowl
+			-- hill move buried the ring's north trees 14 studs inside a
+			-- relocated dome (integration sweep 2026-08-09).
 			createPineTree(
 				self.dayCamp,
-				Vector3.new(
-					math.cos(angle) * radius,
-					0.5,
-					12 + math.sin(angle) * radius
-				),
+				Vector3.new(ringX, expandedGroundHeight(ringX, ringZ), ringZ),
 				18 + index % 5 * 2.5,
 				if index % 2 == 0
 					then Color3.fromRGB(43, 85, 57)

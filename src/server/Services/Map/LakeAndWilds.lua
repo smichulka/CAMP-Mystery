@@ -1103,13 +1103,17 @@ end
 
 -- FEATURE 10: wildlife props (loops start in LakeAndWilds.Start)
 local function buildOwl(parent: Instance, perch: Vector3, faceToward: Vector3): Owl
-	local snagHeight = perch.Y - 0.5
+	-- Snag base rides the measured terrain: the lookout owl's fixed-y snag
+	-- ended up 14 studs inside the relocated lookout dome after the
+	-- widened-bowl hill move (integration sweep 2026-08-09).
+	local groundY = hillGroundHeight(perch.X, perch.Z)
+	local snagHeight = math.max(perch.Y - groundY - 0.1, 3)
 	verticalCylinder(
 		parent,
 		"OwlSnag",
 		snagHeight,
 		0.6,
-		Vector3.new(perch.X - 1.6, 0.4 + snagHeight / 2, perch.Z),
+		Vector3.new(perch.X - 1.6, groundY + snagHeight / 2, perch.Z),
 		Color3.fromRGB(52, 44, 36),
 		Enum.Material.Wood
 	)
@@ -1183,8 +1187,12 @@ local function buildWildlife(dayCamp: Instance)
 	end
 	-- Owls: one in the SW thicket, one near the lookout base. Silent by
 	-- design — no marketplace asset ids; the periodic head-turn is the tell.
-	table.insert(state.owls, buildOwl(wildlife, Vector3.new(-79, 6.6, -54), Vector3.new(0, 0, 12)))
-	table.insert(state.owls, buildOwl(wildlife, Vector3.new(8, 7.4, 105), Vector3.new(0, 0, 12)))
+	-- Perch heights are ground + clearance so the snags ride whatever slope
+	-- the dome layout puts underneath.
+	table.insert(state.owls, buildOwl(wildlife,
+		Vector3.new(-79, hillGroundHeight(-79, -54) + 6.2, -54), Vector3.new(0, 0, 12)))
+	table.insert(state.owls, buildOwl(wildlife,
+		Vector3.new(8, hillGroundHeight(8, 105) + 7, 105), Vector3.new(0, 0, 12)))
 	-- Fox: patrols the west treeline; doubles as an early-warning tell when it
 	-- darts away from approaching players
 	state.foxWaypoints = {
