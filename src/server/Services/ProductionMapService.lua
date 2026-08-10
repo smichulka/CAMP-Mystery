@@ -13,6 +13,9 @@ local WeatherConfig = require(
 		:WaitForChild("WeatherConfig")
 )
 local TerrainDomes = require(script.Parent:WaitForChild("Map"):WaitForChild("TerrainDomes"))
+local WorldAudioDefaults = require(
+	script.Parent.Parent:WaitForChild("Config"):WaitForChild("WorldAudioDefaults")
+)
 
 type ObjectiveHandler = (player: Player, objectiveId: string) -> ()
 type EvidenceHandler = (player: Player, evidenceId: string) -> boolean
@@ -540,6 +543,33 @@ local function createFeedbackBillboard(
 	end
 end
 
+-- Door-swing creak, shared by interactive and locked doors. Same audio-slot
+-- contract as the monster cues: the SoundService attribute
+-- "WorldDoorSwingAssetId" overrides the WorldAudioDefaults slot; both empty
+-- keeps the door silent (2026-08-09 UX pass — every door swung silently).
+local function playDoorSwing(door: BasePart)
+	local override = SoundService:GetAttribute("WorldDoorSwingAssetId")
+	local assetId = if typeof(override) == "number" and override > 0
+		then "rbxassetid://" .. tostring(override)
+		elseif typeof(override) == "string" and override ~= "" then override
+		else WorldAudioDefaults.DoorSwing or ""
+	if assetId == "" then
+		return
+	end
+	local sound = door:FindFirstChild("DoorSwing")
+	if not (sound and sound:IsA("Sound")) then
+		sound = Instance.new("Sound")
+		sound.Name = "DoorSwing"
+		sound.SoundId = assetId
+		sound.Volume = 0.55
+		sound.RollOffMaxDistance = 60
+		sound.Parent = door
+	end
+	local doorSound = sound :: Sound
+	doorSound.PlaybackSpeed = 0.92 + math.random() * 0.16
+	doorSound:Play()
+end
+
 local function createInteractiveDoor(
 	parent: Instance,
 	name: string,
@@ -574,6 +604,7 @@ local function createInteractiveDoor(
 	prompt.Triggered:Connect(function()
 		state.isOpen = not state.isOpen
 		prompt.ActionText = if state.isOpen then "Close" else "Open"
+		playDoorSwing(door)
 		if state.isOpen then
 			door.CanCollide = false
 		end
@@ -4160,6 +4191,7 @@ function ProductionMapService:_buildLockedRooms()
 				room.isOpen = true
 				prompt.Enabled = false
 				room.door.CanCollide = false
+				playDoorSwing(room.door)
 				TweenService:Create(
 					room.door,
 					DOOR_TWEEN,

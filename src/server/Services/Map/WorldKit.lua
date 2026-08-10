@@ -10,9 +10,41 @@
 --   StormDamage — visible only during non-Clear weather
 --   EvidenceSocketExtra — new search-location markers awaiting registration
 
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
+local WorldAudioDefaults = require(
+	script.Parent.Parent.Parent:WaitForChild("Config"):WaitForChild("WorldAudioDefaults")
+)
+
 local WorldKit = {}
+
+-- Plays the door-swing creak on a door part, creating the Sound lazily.
+-- Asset resolution: SoundService attribute "WorldDoorSwingAssetId" override,
+-- else the WorldAudioDefaults slot; both empty leaves the door silent.
+function WorldKit.playDoorSwing(door: BasePart)
+	local override = SoundService:GetAttribute("WorldDoorSwingAssetId")
+	local assetId = if typeof(override) == "number" and override > 0
+		then "rbxassetid://" .. tostring(override)
+		elseif typeof(override) == "string" and override ~= "" then override
+		else WorldAudioDefaults.DoorSwing or ""
+	if assetId == "" then
+		return
+	end
+	local sound = door:FindFirstChild("DoorSwing")
+	if not (sound and sound:IsA("Sound")) then
+		sound = Instance.new("Sound")
+		sound.Name = "DoorSwing"
+		sound.SoundId = assetId
+		sound.Volume = 0.55
+		sound.RollOffMaxDistance = 60
+		sound.Parent = door
+	end
+	local doorSound = sound :: Sound
+	-- Slight speed variance so repeated swings don't read as a loop
+	doorSound.PlaybackSpeed = 0.92 + math.random() * 0.16
+	doorSound:Play()
+end
 
 function WorldKit.model(parent: Instance, name: string): Model
 	local model = Instance.new("Model")
@@ -317,6 +349,7 @@ function WorldKit.hingedDoor(
 		-- UX: the prompt tracks the door state (matches the town's
 		-- createInteractiveDoor behavior; audited 2026-08-09).
 		prompt.ActionText = if open then "Close" else "Open"
+		WorldKit.playDoorSwing(door)
 		local swing = if open then math.rad(105) else 0
 		local target = hinge * CFrame.Angles(0, swing, 0) * hingeOffset:Inverse()
 		door.CanCollide = not open
