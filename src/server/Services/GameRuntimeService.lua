@@ -2559,18 +2559,21 @@ function GameRuntimeService:_availableActions(
 			enabled = self.phase == "Lobby"
 		elseif name == "Enroll" then
 			-- Open to anyone not already in the round, from Lobby until
-			-- nightfall locks enrollment at NightTransform.
+			-- nightfall locks enrollment at NightTransform. During Lobby the
+			-- role check is skipped: previous-round roles linger on every
+			-- participant until BeginRound resets them.
 			local inRound = participant ~= nil and participant.role ~= "Spectator"
-			enabled = not inRound
-				and (
-					self.phase == "Lobby"
-					or self.phase == "RoleReveal"
-					or self.phase == "Day"
-					or self.phase == "MurderPlanning"
+			enabled = self.phase == "Lobby"
+				or (
+					not inRound
+					and (
+						self.phase == "RoleReveal"
+						or self.phase == "Day"
+						or self.phase == "MurderPlanning"
+					)
 				)
 		elseif name == "Withdraw" then
-			local inRound = participant ~= nil and participant.role ~= "Spectator"
-			enabled = not inRound and self.phase == "Lobby"
+			enabled = self.phase == "Lobby"
 		elseif name == "SetMurderPlan" then
 			enabled = active
 				and self.phase == "MurderPlanning"
@@ -4380,12 +4383,11 @@ function GameRuntimeService:HandleAction(
 		-- joins the running round as a Camper by swapping out a bot — until
 		-- nightfall, when the mystery generates and enrollment locks.
 		local phase = self.phase
-		local alreadyInRound = rawParticipant ~= nil
-			and rawParticipant.role ~= "Spectator"
-		if alreadyInRound then
-			return actionRejected("You're already signed up for tonight")
-		end
 		if phase == "Lobby" then
+			-- No stale-role check here: participants keep their previous
+			-- round's role until BeginRound resets them, so during Lobby a
+			-- player who just played still reads as role=Camper (measured
+			-- in-boot 2026-08-10 — the check rejected every re-enrollment).
 			self.lobby:SetWithdrawn(player, false)
 			local set, reason = self.matchmaking:SetReady(player, true)
 			return {
@@ -4394,7 +4396,13 @@ function GameRuntimeService:HandleAction(
 				state = self:GetGameState(player),
 				data = nil,
 			}
-		elseif phase == "RoleReveal" or phase == "Day" or phase == "MurderPlanning" then
+		end
+		local alreadyInRound = rawParticipant ~= nil
+			and rawParticipant.role ~= "Spectator"
+		if alreadyInRound then
+			return actionRejected("You're already signed up for tonight")
+		end
+		if phase == "RoleReveal" or phase == "Day" or phase == "MurderPlanning" then
 			local botParticipantId, findReason = self:_findSwappableBotCamper()
 			if not botParticipantId then
 				return actionRejected(findReason or "No open spots tonight")
