@@ -14,6 +14,7 @@ local DEFAULT_SETTINGS = table.freeze({
 	controllerSensitivity = 1,
 	sprintToggle = false,
 	tutorialCompleted = false,
+	autoEnroll = false,
 })
 
 local REWARDS = table.freeze({

@@ -367,6 +367,8 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 			safeBoolean(raw.settings.sprintToggle, defaults.sprintToggle)
 		profile.settings.tutorialCompleted =
 			safeBoolean(raw.settings.tutorialCompleted, defaults.tutorialCompleted)
+		profile.settings.autoEnroll =
+			safeBoolean(raw.settings.autoEnroll, defaults.autoEnroll)
 	end
 
 	local receiptSet: { [string]: boolean } = {}
@@ -806,6 +808,10 @@ function ProfileService:UpdateSettings(
 				recognized = true
 				changed = changed or value ~= profile.settings.tutorialCompleted
 				profile.settings.tutorialCompleted = value
+			elseif key == "autoEnroll" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.autoEnroll
+				profile.settings.autoEnroll = value
 			end
 		end
 		if not recognized then

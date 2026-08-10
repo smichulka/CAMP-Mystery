@@ -25,6 +25,8 @@ type LobbyService = {
 	MarkRoundStarted: (self: any, roundId: string) -> boolean,
 	ReleaseRound: (self: any, roundId: string) -> boolean,
 	GetSnapshot: (self: any) -> Types.LobbySnapshot,
+	GetParticipantId: (self: any, player: Player) -> string?,
+	LockLateJoin: (self: any, player: Player, roundId: string) -> boolean,
 }
 type BotRosterSystem = {
 	FillEmptySlots: (
@@ -60,6 +62,12 @@ type HumanRejoinHook = (
 	human: Types.RosterParticipant,
 	roster: Types.LockedRoster
 ) -> ()
+type LateEnrollHook = (
+	player: Player,
+	replacedBotParticipantId: string,
+	human: Types.RosterParticipant,
+	roster: Types.LockedRoster
+) -> ()
 type ReplacementRecord = {
 	context: Types.DisconnectContext,
 	replacement: Types.RosterParticipant,
@@ -74,6 +82,7 @@ export type MatchmakingOptions = {
 	onRosterChanged: RosterHook?,
 	onBotReplacement: ReplacementHook?,
 	onHumanRejoin: HumanRejoinHook?,
+	onLateEnroll: LateEnrollHook?,
 }
 
 type MatchmakingServiceState = {
@@ -87,6 +96,7 @@ type MatchmakingServiceState = {
 	onRosterChanged: RosterHook?,
 	onBotReplacement: ReplacementHook?,
 	onHumanRejoin: HumanRejoinHook?,
+	onLateEnroll: LateEnrollHook?,
 	disconnectedReplacementsByUserId: { [number]: ReplacementRecord },
 	roundRevision: number,
 	fillStartedAt: number?,
@@ -175,6 +185,7 @@ function MatchmakingService.new(
 		onRosterChanged = configured.onRosterChanged,
 		onBotReplacement = configured.onBotReplacement,
 		onHumanRejoin = configured.onHumanRejoin,
+		onLateEnroll = configured.onLateEnroll,
 		disconnectedReplacementsByUserId = {},
 		roundRevision = 0,
 		fillStartedAt = nil,
@@ -270,6 +281,71 @@ function MatchmakingService:_RestoreLockedParticipant(player: Player): boolean
 		changedHook(snapshot)
 	end
 	return true
+end
+
+-- Late enrollment (opt-in desk during Day/MurderPlanning): swap a rostered
+-- bot out for a human who signed up after the roster locked. The runtime
+-- picks WHICH bot (it knows round roles; matchmaking doesn't) and transfers
+-- participant state in the onLateEnroll hook — the same shape as the
+-- disconnect/rejoin swaps above.
+function MatchmakingService:EnrollLate(
+	player: Player,
+	botParticipantId: string
+): (boolean, string?)
+	local roster = self.activeRoster
+	if not roster then
+		return false, "NoActiveRound"
+	end
+	local humanParticipantId = self.lobbyService:GetParticipantId(player)
+	if not humanParticipantId then
+		return false, "PlayerNotInLobby"
+	end
+	for _, participant in roster.participants do
+		if participant.participantId == humanParticipantId then
+			return false, "AlreadyInRound"
+		end
+	end
+	local botIndex: number? = nil
+	for index, participant in roster.participants do
+		if participant.participantId == botParticipantId then
+			if participant.controllerKind ~= "Bot" then
+				return false, "TargetNotABot"
+			end
+			botIndex = index
+			break
+		end
+	end
+	if not botIndex then
+		return false, "BotNotInRoster"
+	end
+	if not self.botRosterSystem:RestoreHuman(
+		roster.roundId,
+		botParticipantId,
+		humanParticipantId
+	) then
+		return false, "SwapRejected"
+	end
+	local human: Types.RosterParticipant = {
+		participantId = humanParticipantId,
+		displayName = player.DisplayName,
+		controllerKind = "Human",
+		userId = player.UserId,
+		botId = nil,
+	}
+	roster.participants[botIndex] = human
+	roster.revision += 1
+	self.lobbyService:LockLateJoin(player, roster.roundId)
+	local snapshot = self:GetActiveRoster()
+	assert(snapshot, "Active roster disappeared during late enroll")
+	local lateHook = self.onLateEnroll
+	if lateHook then
+		lateHook(player, botParticipantId, human, snapshot)
+	end
+	local changedHook = self.onRosterChanged
+	if changedHook then
+		changedHook(snapshot)
+	end
+	return true, nil
 end
 
 function MatchmakingService:RemovePlayer(player: Player)

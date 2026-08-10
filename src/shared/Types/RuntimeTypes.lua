@@ -16,6 +16,8 @@ local WorldTypes = require(typesFolder:WaitForChild("WorldTypes"))
 
 export type ActionName =
 	"Ready"
+	| "Enroll"
+	| "Withdraw"
 	| "SetMurderPlan"
 	| "CompleteObjective"
 	| "DiscoverEvidence"

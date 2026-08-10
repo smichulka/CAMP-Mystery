@@ -771,6 +771,25 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 				end)
 			end
 		end,
+		onLateEnroll = function(player, replacedBotParticipantId, _human, _roster)
+			-- Opt-in desk enrollment after the roster locked: the signing
+			-- human inherits the swapped-out bot camper's full round state,
+			-- exactly like a disconnect/rejoin control transfer.
+			local enrolled = participants:GetByUserId(player.UserId)
+			local botState = participants:GetById(replacedBotParticipantId)
+			if not enrolled or not botState then
+				return
+			end
+			transferParticipantState(botState, enrolled)
+			local runtime = runtimeRef
+			if runtime then
+				-- Unlike rejoin (where the departed human's body was never a
+				-- bot model), the swapped-out bot has a physical character
+				-- that would otherwise stand frozen where it was left.
+				runtime.characters:ClearBotCharacter(replacedBotParticipantId)
+				runtime:Broadcast()
+			end
+		end,
 	})
 
 	local mapService = ProductionMapService.new(
@@ -817,9 +836,17 @@ function GameRuntimeService.new(options: RuntimeOptions?): GameRuntimeService
 
 	local world = WorldService.new(mapService, {
 		relocateAtTransformMidpoint = function(_context)
+			-- Only round participants get pulled to camp center for the
+			-- transform beat. Non-enrolled free-roamers (Spectator/Observers)
+			-- keep whatever they were doing — this fires at BOTH dusk and
+			-- dawn, and yanking someone off the lake mid-water-ski twice a
+			-- round is exactly what opt-in is supposed to prevent.
 			for _, player in Players:GetPlayers() do
+				local participant = participants:GetByUserId(player.UserId)
+				local inRound = participant ~= nil
+					and participant.role ~= "Spectator"
 				local character = player.Character
-				if character then
+				if inRound and character then
 					character:PivotTo(CFrame.new(0, 5, 25))
 				end
 			end
@@ -1280,8 +1307,23 @@ function GameRuntimeService:_readyStudioPlayers()
 		return
 	end
 	for _, player in Players:GetPlayers() do
-		if not self.lobby:IsReady(player) then
+		-- Respect an explicit desk withdrawal so the opt-out path is
+		-- testable in Studio; everyone else still auto-readies.
+		if not self.lobby:IsReady(player) and not self.lobby:HasWithdrawn(player) then
 			self.matchmaking:SetReady(player, true)
+		end
+	end
+end
+
+-- Opt-in mystery: players who turned on the auto-enroll setting sign up for
+-- each night automatically (unless they withdrew at the desk this round).
+function GameRuntimeService:_applyAutoEnroll()
+	for _, player in Players:GetPlayers() do
+		if not self.lobby:IsReady(player) and not self.lobby:HasWithdrawn(player) then
+			local snapshot = self.profile:GetSnapshot(player)
+			if snapshot.profile.settings.autoEnroll then
+				self.matchmaking:SetReady(player, true)
+			end
 		end
 	end
 end
@@ -1317,6 +1359,30 @@ function GameRuntimeService:_participantIdsForRound(): { string }
 		end
 	end
 	return ids
+end
+
+-- Late enrollment target: a living bot Camper in the locked roster whose
+-- seat the signing human can take over. Bots with mystery-critical roles
+-- (Murderer, Detective, …) are never swapped — their round state is load-
+-- bearing in ways a mid-round human shouldn't inherit.
+function GameRuntimeService:_findSwappableBotCamper(): (string?, string?)
+	local roster = self.matchmaking:GetActiveRoster()
+	if not roster then
+		return nil, "No round is running right now"
+	end
+	for _, rosterParticipant in roster.participants do
+		if rosterParticipant.controllerKind == "Bot" then
+			local state = self.participants:GetById(rosterParticipant.participantId)
+			if state
+				and state.alive
+				and not state.isGhost
+				and state.role == "Camper"
+			then
+				return rosterParticipant.participantId, nil
+			end
+		end
+	end
+	return nil, "No open camper spots left tonight"
 end
 
 function GameRuntimeService:_findCulprit(): ParticipantState
@@ -2346,6 +2412,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.weatherId = "Clear"
 		self.weatherSeed = 0
 		self.lifecycle:Emit("RoundReset", {})
+		self:_applyAutoEnroll()
 	end
 
 	self.lifecycle:Emit("PhaseChanged", {
@@ -2462,6 +2529,8 @@ function GameRuntimeService:_availableActions(
 	local actions: { RuntimeTypes.AvailableAction } = {}
 	local names: { ActionName } = {
 		"Ready",
+		"Enroll",
+		"Withdraw",
 		"SetMurderPlan",
 		"CompleteObjective",
 		"DiscoverEvidence",
@@ -2488,6 +2557,20 @@ function GameRuntimeService:_availableActions(
 		local enabled = active
 		if name == "Ready" then
 			enabled = self.phase == "Lobby"
+		elseif name == "Enroll" then
+			-- Open to anyone not already in the round, from Lobby until
+			-- nightfall locks enrollment at NightTransform.
+			local inRound = participant ~= nil and participant.role ~= "Spectator"
+			enabled = not inRound
+				and (
+					self.phase == "Lobby"
+					or self.phase == "RoleReveal"
+					or self.phase == "Day"
+					or self.phase == "MurderPlanning"
+				)
+		elseif name == "Withdraw" then
+			local inRound = participant ~= nil and participant.role ~= "Spectator"
+			enabled = not inRound and self.phase == "Lobby"
 		elseif name == "SetMurderPlan" then
 			enabled = active
 				and self.phase == "MurderPlanning"
@@ -4285,6 +4368,67 @@ function GameRuntimeService:HandleAction(
 		local readyValue = request.ready
 		local ready = if typeof(readyValue) == "boolean" then readyValue else true
 		local set, reason = self.matchmaking:SetReady(player, ready)
+		return {
+			accepted = set,
+			reason = reason,
+			state = self:GetGameState(player),
+			data = nil,
+		}
+	elseif actionName == "Enroll" then
+		-- Opt-in mystery sign-up (desk or dusk reminder). During Lobby it is
+		-- the normal ready path (murderer-eligible); once the roster locks it
+		-- joins the running round as a Camper by swapping out a bot — until
+		-- nightfall, when the mystery generates and enrollment locks.
+		local phase = self.phase
+		local alreadyInRound = rawParticipant ~= nil
+			and rawParticipant.role ~= "Spectator"
+		if alreadyInRound then
+			return actionRejected("You're already signed up for tonight")
+		end
+		if phase == "Lobby" then
+			self.lobby:SetWithdrawn(player, false)
+			local set, reason = self.matchmaking:SetReady(player, true)
+			return {
+				accepted = set,
+				reason = reason,
+				state = self:GetGameState(player),
+				data = nil,
+			}
+		elseif phase == "RoleReveal" or phase == "Day" or phase == "MurderPlanning" then
+			local botParticipantId, findReason = self:_findSwappableBotCamper()
+			if not botParticipantId then
+				return actionRejected(findReason or "No open spots tonight")
+			end
+			self.lobby:SetWithdrawn(player, false)
+			local enrolled, reason = self.matchmaking:EnrollLate(player, botParticipantId)
+			if enrolled then
+				self:_noticePlayer(
+					player,
+					"Success",
+					"You're in",
+					"You joined tonight's mystery as a Camper.",
+					4
+				)
+			end
+			return {
+				accepted = enrolled,
+				reason = reason,
+				state = self:GetGameState(player),
+				data = nil,
+			}
+		end
+		return actionRejected(
+			"The mystery is underway — sign up at the desk tomorrow"
+		)
+	elseif actionName == "Withdraw" then
+		-- Explicit "not tonight" from the desk. Only meaningful before the
+		-- roster locks; it also blocks Studio force-ready and auto-enroll
+		-- for the rest of this round.
+		if self.phase ~= "Lobby" then
+			return actionRejected("The roster is set — sit this one out tomorrow")
+		end
+		self.lobby:SetWithdrawn(player, true)
+		local set, reason = self.matchmaking:SetReady(player, false)
 		return {
 			accepted = set,
 			reason = reason,

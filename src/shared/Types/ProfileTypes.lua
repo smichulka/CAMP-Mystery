@@ -35,6 +35,9 @@ export type PlayerSettings = {
 	controllerSensitivity: number,
 	sprintToggle: boolean,
 	tutorialCompleted: boolean,
+	-- Opt-in mystery: sign this player up for each night's round automatically.
+	-- Additive field — absent sanitizes to false (must choose to opt in).
+	autoEnroll: boolean,
 }
 
 export type PlayerProfile = {

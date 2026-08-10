@@ -20,6 +20,9 @@ type LobbyPlayerState = {
 	participantId: string,
 	displayName: string,
 	ready: boolean,
+	-- Explicit "not tonight" from the enrollment desk. Auto-enroll and the
+	-- Studio force-ready both respect it; cleared when the round releases.
+	withdrawn: boolean,
 	queuedForNextRound: boolean,
 	lockedRoundId: string?,
 	joinedAt: number,
@@ -88,6 +91,7 @@ function LobbyService:AddPlayer(player: Player): boolean
 			participantId = disconnected.participantId,
 			displayName = player.DisplayName,
 			ready = false,
+			withdrawn = false,
 			queuedForNextRound = false,
 			lockedRoundId = disconnected.lockedRoundId,
 			joinedAt = disconnected.joinedAt,
@@ -104,6 +108,7 @@ function LobbyService:AddPlayer(player: Player): boolean
 		participantId = participantIdForUserId(player.UserId),
 		displayName = player.DisplayName,
 		ready = false,
+		withdrawn = false,
 		queuedForNextRound = queueForNextRound,
 		lockedRoundId = nil,
 		joinedAt = self.clock(),
@@ -156,6 +161,24 @@ function LobbyService:SetReady(player: Player, ready: boolean): (boolean, string
 	state.ready = ready
 	self:_Changed()
 	return true, nil
+end
+
+function LobbyService:SetWithdrawn(player: Player, withdrawn: boolean): boolean
+	local state = self.players[player.UserId]
+	if not state then
+		return false
+	end
+	if state.withdrawn == withdrawn then
+		return true
+	end
+	state.withdrawn = withdrawn
+	self:_Changed()
+	return true
+end
+
+function LobbyService:HasWithdrawn(player: Player): boolean
+	local state = self.players[player.UserId]
+	return state ~= nil and state.withdrawn
 end
 
 function LobbyService:GetCurrentQueueCount(): number
@@ -256,6 +279,25 @@ function LobbyService:LockRoster(roundId: string, humans: { RosterParticipant })
 	self:_Changed()
 end
 
+-- Late enrollment: bind an un-rostered player to the running round after a
+-- bot swap (see MatchmakingService:EnrollLate). Mirrors what LockRoster does
+-- to selected players, for one player, mid-round.
+function LobbyService:LockLateJoin(player: Player, roundId: string): boolean
+	local state = self.players[player.UserId]
+	if not state or self.activeRoundId ~= roundId then
+		return false
+	end
+	if state.lockedRoundId ~= nil then
+		return false
+	end
+	state.ready = false
+	state.withdrawn = false
+	state.queuedForNextRound = false
+	state.lockedRoundId = roundId
+	self:_Changed()
+	return true
+end
+
 function LobbyService:MarkRoundStarted(roundId: string): boolean
 	if self.activeRoundId ~= roundId then
 		return false
@@ -294,11 +336,13 @@ function LobbyService:ReleaseRound(roundId: string): boolean
 	)
 	for _, state in returning do
 		state.ready = false
+		state.withdrawn = false
 		state.queuedForNextRound = false
 		state.lockedRoundId = nil
 	end
 	for index, state in waiting do
 		state.ready = false
+		state.withdrawn = false
 		state.lockedRoundId = nil
 		state.queuedForNextRound = index > availableSlots
 	end
