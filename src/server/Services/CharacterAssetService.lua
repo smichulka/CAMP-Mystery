@@ -122,6 +122,20 @@ local MONSTER_DISPLAY_NAMES: { [MonsterId]: string } = {
 	Banshee = "Banshee",
 }
 
+-- Uniform R6-avatar scale per monster (2026-08-09: every character is a
+-- real Roblox body plus its signature add-ons). Tuned to match each
+-- creature's old overall bulk; silhouette variety comes from the add-ons.
+local MONSTER_BODY_SCALE: { [MonsterId]: number } = {
+	BabyAlien = 1.0,
+	Screamer = 2.2,
+	Wendigo = 2.7,
+	ShadowMonster = 2.3,
+	Chupacabra = 1.5,
+	Dullahan = 2.4,
+	Entity = 1.7,
+	Banshee = 2.1,
+}
+
 local COUNSELOR_COLORS: { Color3 } = {
 	Color3.fromRGB(55, 62, 72),      -- dark authority slate   (Holloway  – Director)
 	Color3.fromRGB(192, 190, 192),   -- clinical white-grey    (Ortiz     – Health & Safety)
@@ -1111,19 +1125,67 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 	model:SetAttribute("ProceduralFallback", true)
 	model:SetAttribute("MonsterId", monsterId)
 
-	local sc = presentation.scale       -- Vector3: per-axis body shape multiplier
+	local sc = presentation.scale       -- Vector3: legacy shape hints for offsets
 	local sx, sy, sz = sc.X, sc.Y, sc.Z -- scalar components for offset math
-	local torsoSize = Vector3.new(4, 5, 3) * sc
-	local headSize = Vector3.new(3.2, 3.2, 3.2) * sc
-	local headY = torsoSize.Y / 2 + 1.6
+	-- 2026-08-09 direction: every character is a real Roblox body plus the
+	-- parts that make it unique. The core is a scaled R6 avatar clone; the
+	-- torsoSize/headSize/headY locals describe the NEW body so every
+	-- signature section below keeps positioning correctly.
+	local ms = MONSTER_BODY_SCALE[monsterId]
+	local torsoSize = Vector3.new(2, 2, 1) * ms
+	local headSize = Vector3.new(1.5, 1.25, 1.25) * ms -- visual mesh-head bounds
+	local headY = 1.5 * ms
 	local root = makePart(model, "Root", torsoSize, at, presentation.color)
+	root.Transparency = 1
 	model.PrimaryPart = root
-	makePart(model, "Head", headSize, at * CFrame.new(0, headY, 0), presentation.accent, presentation.headShape)
+	local bodyTorso: BasePart? = nil
+	local template = getR6Template()
+	if template then
+		local monsterSpec: { { any } } = {
+			{ "Torso", "Torso", CFrame.new(0, 0, 0), presentation.color },
+			{ "Head", "Head", CFrame.new(0, headY, 0), presentation.accent },
+			{ "Left Arm", "LeftArm", CFrame.new(-1.5 * ms, 0, 0), presentation.color },
+			{ "Right Arm", "RightArm", CFrame.new(1.5 * ms, 0, 0), presentation.color },
+			{ "Left Leg", "LeftLeg", CFrame.new(-0.5 * ms, -2 * ms, 0), presentation.color },
+			{ "Right Leg", "RightLeg", CFrame.new(0.5 * ms, -2 * ms, 0), presentation.color },
+		}
+		for _, entry in monsterSpec do
+			local source = template:FindFirstChild(entry[1] :: string)
+			if source and source:IsA("BasePart") then
+				local part = source:Clone()
+				part.Name = entry[2] :: string
+				part.Size = source.Size * ms
+				part.CFrame = at * (entry[3] :: CFrame)
+				part.Color = entry[4] :: Color3
+				part.Material = Enum.Material.SmoothPlastic
+				part.Anchored = true
+				part.CanCollide = false
+				part.CanTouch = false
+				local mesh = part:FindFirstChildWhichIsA("SpecialMesh")
+				if mesh then
+					mesh.Scale = mesh.Scale * ms
+				end
+				-- No friendly classic face on a monster
+				local face = part:FindFirstChildWhichIsA("Decal")
+				if face then
+					face:Destroy()
+				end
+				part.Parent = model
+				if part.Name == "Torso" then
+					bodyTorso = part
+				end
+			end
+		end
+	else
+		-- Avatar creation unavailable: legacy creature core
+		bodyTorso = makePart(model, "Torso", torsoSize, at, presentation.color)
+		makePart(model, "Head", headSize, at * CFrame.new(0, headY, 0), presentation.accent, presentation.headShape)
+	end
 
 	-- Glowing eyes on all monsters that have heads (BabyAlien handles its own below)
 	if monsterId ~= "Dullahan" and monsterId ~= "BabyAlien" then
 		local eS = Vector3.new(0.55 * sx, 0.65 * sy, 0.38 * sz)
-		local eX = 0.62 * sx
+		local eX = headSize.X * 0.28
 		local eY = headY + 0.1 * sy
 		local eZ = -(headSize.Z / 2 + 0.06)
 		local lg = makePart(model, "LeftGlow", eS, at * CFrame.new(-eX, eY, eZ), presentation.accent, Enum.PartType.Ball)
@@ -1173,13 +1235,7 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 		local baRL = model:FindFirstChild("RightLimb") :: BasePart?
 		if baLL then baLL.Color = presentation.color end
 		if baRL then baRL.Color = presentation.color end
-		-- 2 humanoid legs, angled forward in crawling pose (reference: baby alien lying/crawling)
-		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.50 * sx, 2.4 * sy, 0.50 * sz),
-				at * CFrame.new(side * 0.85 * sx, -(torsoSize.Y / 2 + 0.9 * sy), 0.7 * sz)
-					* CFrame.Angles(-0.30, 0, side * 0.08), presentation.color)
-		end
+		-- (R6 body legs replace the old bespoke crawl legs)
 		-- Small depressed mouth on lower face (reference: visible pursed opening below the eyes)
 		local mouthPart = makePart(model, "Mouth",
 			Vector3.new(0.55 * sx, 0.20 * sy, 0.28),
@@ -1240,16 +1296,11 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				Vector3.new(0.35, 4.5, 0.35),
 				at * CFrame.new(side * 2.4, 1.2, 0) * CFrame.Angles(0, 0, side * 0.35), presentation.accent)
 		end
+		-- 4 talon-toes per foot fanning forward from the R6 feet (reference
+		-- shows bird-like claw feet)
+		local footY = -(3 * ms) + 0.1
 		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.52, 3.4 * sy, 0.52),
-				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.4 * sy), 0) * CFrame.Angles(0, 0, side * 0.12),
-				presentation.accent)
-		end
-		-- 4 talon-toes per foot fanning forward (reference shows bird-like claw feet)
-		local footY = -(torsoSize.Y / 2 + 3.1 * sy)
-		for side = -1, 1, 2 do
-			local fx = side * sx
+			local fx = side * 0.5 * ms
 			for t = 1, 4 do
 				local tLen = (1.70 - math.abs(t - 2.5) * 0.25) * sy
 				local spread = (t - 2.5) * 0.42 * sx
@@ -1401,16 +1452,12 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				finger.Material = Enum.Material.WoodPlanks
 			end
 		end
-		for side = -1, 1, 2 do
-			makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.68, 4.2 * sy, 0.68),
-				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.7 * sy), 0), presentation.accent)
-		end
-		-- Root-tendril toes at each leg tip: mirrors the arm root fingers (reference shows taloned feet)
+		-- Root-tendril toes at the R6 feet: mirrors the arm root fingers
+		-- (reference shows taloned feet)
 		local toeAngles = {-0.48, -0.14, 0.14, 0.48}
 		for side = -1, 1, 2 do
-			local fx = side * sx
-			local footY = -(torsoSize.Y / 2 + 3.8 * sy)
+			local fx = side * 0.5 * ms
+			local footY = -(3 * ms) + 0.1
 			for f, fAng in ipairs(toeAngles) do
 				local tLen = (1.10 - math.abs(fAng) * 0.28) * sy
 				local toe = makePart(model,
@@ -1423,13 +1470,14 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			end
 		end
 	elseif monsterId == "ShadowMonster" then
-		-- Body and head are semi-transparent smoke — ForceField gives the right smoky shimmer
-		root.Material = Enum.Material.ForceField
-		root.Transparency = 0.38
-		local smHead = model:FindFirstChild("Head") :: BasePart?
-		if smHead then
-			smHead.Material = Enum.Material.ForceField
-			smHead.Transparency = 0.42
+		-- The whole R6 body is semi-transparent smoke — ForceField gives the
+		-- right smoky shimmer
+		for _, partName in { "Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg" } do
+			local smPart = model:FindFirstChild(partName) :: BasePart?
+			if smPart then
+				smPart.Material = Enum.Material.ForceField
+				smPart.Transparency = if partName == "Head" then 0.42 else 0.38
+			end
 		end
 		-- Override glowing eyes to white — classic "Hat Man" variant (glowing white eyes in darkness)
 		local smEyeL = model:FindFirstChild("LeftGlow") :: BasePart?
@@ -1462,7 +1510,10 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			leg.Transparency = 0.5
 		end
 	elseif monsterId == "Chupacabra" then
-		-- Hide the generic upright arm-limbs so only the 4 legs show
+		if bodyTorso then
+			bodyTorso.Color = presentation.color:Lerp(Color3.fromRGB(0, 0, 0), 0.12)
+		end
+		-- Hide the generic upright arm-limbs so the spined back reads clean
 		local ll = model:FindFirstChild("LeftLimb")
 		local rl = model:FindFirstChild("RightLimb")
 		if ll then ll.Transparency = 1; (ll :: BasePart).CanCollide = false end
@@ -1486,29 +1537,18 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(0, 1.5, -1.5 + index * 0.7) * CFrame.Angles(-0.12, 0, 0), presentation.accent)
 			spine.Material = Enum.Material.SmoothPlastic
 		end
-		for side = -1, 1, 2 do
-			for fore = -1, 1, 2 do
-				local tag = (if side < 0 then "Left" else "Right") .. (if fore < 0 then "Front" else "Back")
-				makePart(model, tag .. "Leg", Vector3.new(0.58, 2.6 * sy, 0.58),
-					at * CFrame.new(side * 1.4 * sx, -(torsoSize.Y / 2 + 0.7 * sy), fore * 0.9 * sz)
-						* CFrame.Angles(fore * 0.28, 0, side * 0.1), presentation.accent)
-			end
-		end
-		-- Three-toed claws at each foot — hooked bone-ivory talons from the parchment reference
+		-- Three-toed claws at the R6 feet — hooked bone-ivory talons from the
+		-- parchment reference (the old quadruped legs gave way to the R6 body)
 		local clawC = Color3.fromRGB(188, 172, 140)
 		for side = -1, 1, 2 do
-			for fore = -1, 1, 2 do
-				local tag = (if side < 0 then "L" else "R") .. (if fore < 0 then "F" else "B")
-				local footX = side * 1.4 * sx
-				local footY = -(torsoSize.Y / 2 + 2.0 * sy) - 0.08 * sy
-				local footZ = fore * 1.05 * sz
-				for t = -1, 1 do
-					local claw = makePart(model, "Claw" .. tag .. tostring(t + 2),
-						Vector3.new(0.18 * sx, 0.15 * sy, 0.60 * sz),
-						at * CFrame.new(footX + t * 0.22 * sx, footY, footZ + fore * 0.20 * sz),
-						clawC)
-					claw.Material = Enum.Material.SmoothPlastic
-				end
+			local footX = side * 0.5 * ms
+			local footY = -(3 * ms) + 0.08
+			for t = -1, 1 do
+				local claw = makePart(model, "Claw" .. (if side < 0 then "L" else "R") .. tostring(t + 2),
+					Vector3.new(0.18 * sx, 0.15 * sy, 0.60 * sz),
+					at * CFrame.new(footX + t * 0.22 * sx, footY, -(0.5 * ms + 0.1 * sz)),
+					clawC)
+				claw.Material = Enum.Material.SmoothPlastic
 			end
 		end
 		-- Curved whip tail arcing behind and upward: defining feature in reference image
@@ -1643,22 +1683,27 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 				at * CFrame.new(fx * hemW * 0.44, hemY - hemH * 0.5 - streamH * 0.45, -(torsoSize.Z / 2 + 0.16))
 					* CFrame.Angles(0, 0, fx * 0.12), cloakColor)
 		end
-		-- Legs hidden under cloak
-		for side = -1, 1, 2 do
-			local leg = makePart(model, if side < 0 then "LeftLeg" else "RightLeg",
-				Vector3.new(0.88, 3.6 * sy, 0.88),
-				at * CFrame.new(side * sx, -(torsoSize.Y / 2 + 1.45 * sy), 0), presentation.color)
-			leg.Transparency = 0.8
+		-- R6 legs fade to near-nothing under the cloak
+		for _, legName in { "LeftLeg", "RightLeg" } do
+			local dlLeg = model:FindFirstChild(legName) :: BasePart?
+			if dlLeg then
+				dlLeg.Color = presentation.color
+				dlLeg.Transparency = 0.8
+			end
 		end
 	elseif monsterId == "Entity" then
 		-- Cthulhu/octopus: bulbous translucent mantle sitting on a skirt of curling
 		-- tentacles (reference: octopus ink art with one large clock-face eye).
 		-- The monster pivot spawns ~4 studs above the ground, so nothing may extend
 		-- more than ~3.6 studs below the root or it ends up underground.
-		root.Transparency = 1
-		local entHead = model:FindFirstChild("Head") :: BasePart?
-		if entHead then
-			entHead:Destroy()
+		-- The R6 body becomes a ghostly figure suspended inside the mantle
+		for _, partName in { "Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg" } do
+			local etherPart = model:FindFirstChild(partName) :: BasePart?
+			if etherPart then
+				etherPart.Color = presentation.color
+				etherPart.Material = Enum.Material.ForceField
+				etherPart.Transparency = 0.4
+			end
 		end
 		local entGlowL = model:FindFirstChild("LeftGlow")
 		local entGlowR = model:FindFirstChild("RightGlow")
@@ -1745,7 +1790,12 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			end
 		end
 	elseif monsterId == "Banshee" then
-		root.Transparency = 0.25
+		for _, partName in { "Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg" } do
+			local spectralPart = model:FindFirstChild(partName) :: BasePart?
+			if spectralPart then
+				spectralPart.Transparency = 0.25
+			end
+		end
 		-- Hollow dark eyes (the generic glow eyes render as white dots — too friendly)
 		for _, eyeName in { "LeftGlow", "RightGlow" } do
 			local bansheeEye = model:FindFirstChild(eyeName) :: BasePart?
