@@ -120,6 +120,19 @@ Verified working 2026-08-09 with full-tier access to "Roblox Studio":
 
 ## Studio MCP mechanics
 
+- **NEVER call ContentProvider:PreloadAsync from execute_luau** (measured
+  2026-08-10): it blocked Studio's message pump indefinitely, the tool call
+  timed out, and the MCP bridge went permanently unavailable for the rest of
+  the session (Studio itself kept running, hung in Play). Verify audio ids
+  by creating a Sound and polling IsLoaded/TimeLength with short waits, or
+  just play it and listen via a positional probe.
+- Synthetic prompt input (InputHoldBegin / user_keyboard_input E) does NOT
+  fire server-side ProximityPrompt.Triggered — only the client-side
+  PromptTriggered event. And prompts don't show AT ALL for dead/ghost
+  characters (SetPromptsEnabled(false)) — check `state.player.alive` before
+  concluding a prompt is broken; a mid-round test character may have been
+  murdered while you measured (it happened, 2026-08-10).
+
 - Play sessions snapshot scripts at start; verify Rojo sync in the **Edit**
   datamodel before booting (search `.Source` for a token from your edit —
   concatenated instance names never literal-match).
