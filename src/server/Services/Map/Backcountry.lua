@@ -256,8 +256,10 @@ local function buildAuroraLanding(parent: Instance)
 	WorldKit.wedge(landing, "SkiffBow", Vector3.new(1.9, 0.7, 1.1),
 		skiffFrame * CFrame.new(0, 0.35, -3.7) * CFrame.Angles(0, math.pi, 0),
 		Color3.fromRGB(104, 82, 58), Enum.Material.WoodPlanks)
+	-- Stake rides the spit surface next to the beached skiff (~4.2 at the
+	-- waterline — audited 2026-08-10)
 	WorldKit.part(landing, "MooringStake", Vector3.new(0.3, 1.6, 0.3),
-		CFrame.new(193.2, 1.3, 26.4) * CFrame.Angles(0, 0, math.rad(-10)),
+		CFrame.new(193.2, 4.5, 26.4) * CFrame.Angles(0, 0, math.rad(-10)),
 		PLANK_DARK, Enum.Material.Wood)
 	WorldKit.part(landing, "Driftwood", Vector3.new(0.6, 0.5, 4.4),
 		CFrame.new(191.5, 0.9, 44) * CFrame.Angles(0, math.rad(64), math.rad(3)),
