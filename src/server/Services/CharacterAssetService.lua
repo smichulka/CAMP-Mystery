@@ -1531,10 +1531,13 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			chEyeR.Material = Enum.Material.SmoothPlastic
 			chEyeR.Size = chEyeR.Size * 1.40
 		end
+		-- Dorsal spine ridge sized to the R6 back (the old row was cut for a
+		-- 4-wide creature torso and read as a red wall from behind)
 		for index = 1, 5 do
 			local spine = makePart(model, "BackSpine" .. tostring(index),
-				Vector3.new(0.28, 2.2 + index * 0.18, 0.55),
-				at * CFrame.new(0, 1.5, -1.5 + index * 0.7) * CFrame.Angles(-0.12, 0, 0), presentation.accent)
+				Vector3.new(0.22, 1.0 + index * 0.14, 0.34),
+				at * CFrame.new(0, torsoSize.Y / 2 + 0.25, -0.55 + index * 0.28)
+					* CFrame.Angles(-0.12, 0, 0), presentation.accent)
 			spine.Material = Enum.Material.SmoothPlastic
 		end
 		-- Three-toed claws at the R6 feet — hooked bone-ivory talons from the
@@ -1558,8 +1561,8 @@ local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
 			local chuTail = makePart(model, "Tail" .. tostring(s),
 				Vector3.new(tThick, tThick, 0.88 * sz),
 				at * CFrame.new(0,
-					-(torsoSize.Y * 0.35) + s * 0.52 * sy,
-					(torsoSize.Z * 0.54) + s * 0.75 * sz)
+					-(torsoSize.Y * 0.35) + s * 0.42 * sy,
+					(torsoSize.Z * 0.54) + s * 0.62 * sz)
 				* CFrame.Angles(-0.18 * s, 0, 0),
 				presentation.accent)
 			chuTail.Material = Enum.Material.SmoothPlastic
