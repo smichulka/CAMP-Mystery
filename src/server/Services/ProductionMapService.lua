@@ -444,7 +444,11 @@ local function createPrompt(
 ): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = actionText
-	prompt.ObjectText = objectText
+	-- Instance names leak into prompts via callers that pass a model name
+	-- ("PineCabin guest book" — audited 2026-08-09); split CamelCase into
+	-- words for the player-facing label. Caveat: would also split mid-word
+	-- capitals like "McAllister" — no such names exist in the catalogs.
+	prompt.ObjectText = objectText:gsub("(%l)(%u)", "%1 %2")
 	prompt.HoldDuration = holdDuration or 0.65
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = true
@@ -3315,6 +3319,28 @@ function ProductionMapService:Build()
 		createStreetlight(self.nightTown, Vector3.new(162, 0, -340))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "Diner", Vector3.new(190, 0, -140), Vector3.new(30, 14, 24), Color3.fromRGB(94, 76, 60), "MOONLIGHT DINER", math.pi / 2))
 		table.insert(self.interactiveDoors, createBuilding(self.nightTown, "School", Vector3.new(194, 0, -320), Vector3.new(40, 18, 30), Color3.fromRGB(88, 82, 74), "HOLLOW CREEK SCHOOL", math.pi / 2))
+		-- Dim ceiling fixtures for the three interiors that had none (lighting
+		-- audit 2026-08-09: Police 27, School 37, Diner 51 studs to the
+		-- nearest light — pitch black the only time they're enterable). Kept
+		-- faint so the flashlight still matters.
+		for _, fixture in {
+			{ name = "DinerCeilingLamp", x = 190, y = 11, z = -140 },
+			{ name = "SchoolCeilingLamp", x = 194, y = 14.5, z = -320 },
+			{ name = "PoliceCeilingLamp", x = 92, y = 17.5, z = -360 },
+		} do
+			createPart(self.nightTown, fixture.name .. "Cord", Vector3.new(0.15, 2.2, 0.15),
+				CFrame.new(fixture.x, fixture.y + 1.4, fixture.z),
+				Color3.fromRGB(40, 40, 42), Enum.Material.Metal).CanCollide = false
+			local bulb = createPart(self.nightTown, fixture.name, Vector3.new(0.7, 0.9, 0.7),
+				CFrame.new(fixture.x, fixture.y, fixture.z),
+				Color3.fromRGB(214, 196, 150), Enum.Material.Neon)
+			bulb.CanCollide = false
+			local glow = Instance.new("PointLight")
+			glow.Brightness = 0.55
+			glow.Range = 16
+			glow.Color = Color3.fromRGB(228, 208, 160)
+			glow.Parent = bulb
+		end
 		local rowhouseColors = {
 			Color3.fromRGB(74, 68, 60),
 			Color3.fromRGB(68, 64, 62),
@@ -3870,7 +3896,7 @@ function ProductionMapService:_buildSideObjectives()
 	self:_registerSideObjective(
 		"radio-beacon",
 		console,
-		"Boost the signal",
+		"Boost the Signal",
 		"Camp radio relay",
 		5
 	)
@@ -3906,7 +3932,7 @@ function ProductionMapService:_buildSideObjectives()
 	self:_registerSideObjective(
 		"fuse-box",
 		fuseBox,
-		"Restore power",
+		"Restore Power",
 		"Mill No. 7 fuse box",
 		4
 	)

@@ -3133,8 +3133,10 @@ function CharacterAssetService:SpawnCounselors()
 		local primaryPart = model.PrimaryPart
 		if primaryPart and primaryPart:IsA("BasePart") then
 			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = definition.displayName
-			prompt.ObjectText = "Talk"
+			-- Verb in ActionText, name in ObjectText — matches every other
+			-- prompt in the game (these two were swapped; audited 2026-08-09).
+			prompt.ActionText = "Talk"
+			prompt.ObjectText = definition.displayName
 			prompt.HoldDuration = 0
 			prompt.MaxActivationDistance = 10
 			prompt.RequiresLineOfSight = false

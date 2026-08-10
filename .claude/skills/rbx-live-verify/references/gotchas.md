@@ -87,6 +87,11 @@ spots; the four non-POI domes sit outward of the camp bowl.
 - Full-GUI or full-Workspace `GetDescendants()` walks in per-snapshot paths
   are the classic hitch source here. Scope lookups to their real containers
   (monster → `Runtime.Characters.GeneratedCharacters`).
+- Prompt convention (enforced 2026-08-09): ActionText = Title Case verb
+  phrase, ObjectText = the thing. Both prompt factories
+  (`ProductionMapService.createPrompt`, `WorldKit.prompt`) auto-split
+  CamelCase and trailing digits in ObjectText, so passing an instance name
+  is safe — but don't rely on it for new player-facing text.
 
 ## MCP call budget
 

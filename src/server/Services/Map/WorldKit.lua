@@ -92,7 +92,10 @@ function WorldKit.prompt(
 ): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = actionText
-	prompt.ObjectText = objectText
+	-- Callers often pass an instance name ("QuartersDoor2", "MapCabinetDrawer"
+	-- — audited 2026-08-09); split CamelCase and trailing digits into words
+	-- for the player-facing label.
+	prompt.ObjectText = objectText:gsub("(%l)(%u)", "%1 %2"):gsub("(%a)(%d)", "%1 %2")
 	prompt.HoldDuration = holdDuration or 0.35
 	prompt.MaxActivationDistance = 9
 	prompt.RequiresLineOfSight = false
@@ -311,6 +314,9 @@ function WorldKit.hingedDoor(
 	local prompt = WorldKit.prompt(door, "Open", name, 0.3)
 	prompt.Triggered:Connect(function()
 		open = not open
+		-- UX: the prompt tracks the door state (matches the town's
+		-- createInteractiveDoor behavior; audited 2026-08-09).
+		prompt.ActionText = if open then "Close" else "Open"
 		local swing = if open then math.rad(105) else 0
 		local target = hinge * CFrame.Angles(0, swing, 0) * hingeOffset:Inverse()
 		door.CanCollide = not open

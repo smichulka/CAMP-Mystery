@@ -779,7 +779,7 @@ local function buildStormCellars(dayCamp: Instance, nightTown: Instance)
 
 	-- Crawl-tunnel ring: lodge -> church -> residential -> lodge
 	local function wireCrawl(door: BasePart, targetPos: Vector3)
-		local crawlPrompt = WorldKit.prompt(door, "Crawl through the dark", "Crawl Tunnel", 0.7)
+		local crawlPrompt = WorldKit.prompt(door, "Crawl Through the Dark", "Crawl Tunnel", 0.7)
 		crawlPrompt.Triggered:Connect(function(player: Player)
 			task.spawn(function()
 				task.wait(2)
@@ -883,7 +883,7 @@ local function buildFireLookout(dayCamp: Instance)
 	local telescopeTube = WorldKit.part(tower, "TelescopeTube", Vector3.new(2.1, 0.6, 0.6),
 		CFrame.new(5.4, deckTop + 2, 113) * CFrame.Angles(0, math.rad(35), math.rad(18)),
 		Color3.fromRGB(120, 96, 58), Enum.Material.Metal, Enum.PartType.Cylinder)
-	local telescopePrompt = WorldKit.prompt(telescopeTube, "Peer through the telescope", "Lookout Telescope", 0.6)
+	local telescopePrompt = WorldKit.prompt(telescopeTube, "Peer Through the Telescope", "Lookout Telescope", 0.6)
 	local telescopeBusy = false
 	telescopePrompt.Triggered:Connect(function()
 		if telescopeBusy then
