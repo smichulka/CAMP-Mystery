@@ -3851,7 +3851,7 @@ end
 -- optionally so the map service works before/without any given pack.
 -- PolishPack runs last: it decorates structures the other packs build.
 local EXPANSION_MODULE_NAMES =
-	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "HighFrontier", "PolishPack" }
+	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "HighFrontier", "SpookyCircus", "PolishPack" }
 
 local function optionalMapModule(name: string): any
 	local servicesFolder = script.Parent
@@ -3891,6 +3891,15 @@ function ProductionMapService:_buildExpansions()
 			local ok, failure = pcall(wilds.Start)
 			if not ok then
 				warn("[CAMP-Mystery] LakeAndWilds.Start failed: " .. tostring(failure))
+			end
+		end)
+	end
+	local circus = optionalMapModule("SpookyCircus")
+	if circus and typeof(circus.Start) == "function" then
+		task.spawn(function()
+			local ok, failure = pcall(circus.Start)
+			if not ok then
+				warn("[CAMP-Mystery] SpookyCircus.Start failed: " .. tostring(failure))
 			end
 		end)
 	end
@@ -4553,6 +4562,10 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		if typeof(ambience.SetWeather) == "function" then
 			pcall(ambience.SetWeather, if isNight then self.weatherId else "Clear")
 		end
+	end
+	local circusPack = optionalMapModule("SpookyCircus")
+	if circusPack and typeof(circusPack.SetNight) == "function" then
+		pcall(circusPack.SetNight, isNight)
 	end
 
 	local flame: BasePart? = nil
