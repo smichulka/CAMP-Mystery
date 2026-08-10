@@ -95,7 +95,11 @@ class GhostDreadTests(unittest.TestCase):
             "currentAudio:SetHeartbeatIntensity(dreadFraction)",
             "currentCamera:SetMonsterDread(dreadFraction)",
             "currentCamera:SetGhostMode(isGhost and not roundEnded)",
-            "InteractionController.SetPromptsEnabled(not isGhost and roleName ~= \"Spectator\")",
+            # Opt-in mystery (2026-08-10): Spectators are free-roaming campers
+            # now, so only ghosts lose world prompts; Spectators instead get
+            # mystery-only prompts suppressed (objectives/evidence folders).
+            "InteractionController.SetPromptsEnabled(not isGhost)",
+            "InteractionController.SetMysteryPromptsSuppressed(roleName == \"Spectator\")",
         ):
             self.assertIn(token, controller)
 
