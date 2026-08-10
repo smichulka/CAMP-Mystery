@@ -137,6 +137,15 @@ Verified working 2026-08-09 with full-tier access to "Roblox Studio":
   the view wiring too.
 - `require` caches across command-bar runs; to run fresh module code in Edit
   mode, `Clone()` the ModuleScript into the same parent and require the clone.
+- **In Play mode, `execute_luau` requires get a SEPARATE module instance
+  from the game's** (different Luau context identity). Module-state APIs
+  (WorldAmbience.SetWeather etc.) called from the tool operate on an empty
+  twin — stateless world edits appear to work while registry-driven paths
+  silently no-op (measured 2026-08-10: the server's sweep hid a probe part
+  in 1s, but tool-side SetWeather couldn't restore it; the server's own
+  registry works fine). Verify module-state systems by observing the
+  server's OWN behavior (plant attribute-tagged probes, wait for sweeps)
+  instead of calling the module's API from the tool.
 - The Studio MCP bridge only binds at session start. If tools are missing,
   the fix is a new session with the proxy already running — not retries.
 - Parallel Claude sessions commit to this repo concurrently: commit small,
