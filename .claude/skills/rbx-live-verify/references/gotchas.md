@@ -127,7 +127,14 @@ Verified working 2026-08-09 with full-tier access to "Roblox Studio":
   minimized.
 - GUI buttons can be clicked headlessly with `user_mouse_input` +
   `instance_path` — use it to dismiss the briefing modal and to
-  regression-test buttons.
+  regression-test buttons. RELIABILITY CAVEAT (2026-08-09): clicks on
+  buttons inside the Settings ScrollingFrame never registered (instance
+  and coordinate targeting both), while Menu/briefing buttons click fine.
+  To test a settings path, invoke the remote directly from the Client
+  datamodel instead: `Remotes.RequestAction:InvokeServer("SetSettings",
+  { settings = {...} })` — this exercises everything except the literal
+  Activated event and the profile echo updates the UI row, which confirms
+  the view wiring too.
 - `require` caches across command-bar runs; to run fresh module code in Edit
   mode, `Clone()` the ModuleScript into the same parent and require the clone.
 - The Studio MCP bridge only binds at session start. If tools are missing,

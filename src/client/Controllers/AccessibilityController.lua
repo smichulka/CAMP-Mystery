@@ -1,6 +1,7 @@
 --!strict
 
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 export type AccessibilitySettings = {
@@ -16,9 +17,18 @@ type EvidenceRecord = {
 	originalTextStrokeColor: Color3?,
 }
 
+type WorldEvidenceRecord = {
+	part: BasePart,
+	marker: BillboardGui,
+	pulse: Tween?,
+	ancestryConnection: RBXScriptConnection,
+}
+
 type AccessibilityControllerState = {
 	roots: { GuiObject },
 	evidence: { [GuiObject]: EvidenceRecord },
+	worldEvidence: { [BasePart]: WorldEvidenceRecord },
+	worldEvidenceConnection: RBXScriptConnection?,
 	settings: {
 		subtitles: boolean,
 		reducedMotion: boolean,
@@ -57,6 +67,8 @@ function AccessibilityController.new(root: GuiObject?): AccessibilityController
 	local self: AccessibilityController = setmetatable({
 		roots = roots,
 		evidence = {},
+		worldEvidence = {},
+		worldEvidenceConnection = nil,
 		settings = {
 			subtitles = true,
 			reducedMotion = false,
@@ -167,6 +179,93 @@ function AccessibilityController:ScanEvidence(root: Instance)
 	end
 end
 
+-- World evidence cues. The search glow's amber-on-green read is hue-dependent
+-- (weak for deuteranopia), so every glow gets a client-side luminance pulse —
+-- LocalTransparencyModifier only, zero replication — and highContrastEvidence
+-- additionally shows a gold diamond billboard. The marker is deliberately NOT
+-- AlwaysOnTop: it must never reveal evidence through walls.
+local PULSE_INFO = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+
+function AccessibilityController:_applyWorldEvidence(record: WorldEvidenceRecord)
+	local part = record.part
+	if not part.Parent then
+		return
+	end
+	record.marker.Enabled = self.settings.highContrastEvidence
+	if record.pulse then
+		record.pulse:Cancel()
+		record.pulse = nil
+		part.LocalTransparencyModifier = 0
+	end
+	if not self.settings.reducedMotion then
+		local pulse = TweenService:Create(part, PULSE_INFO, { LocalTransparencyModifier = 0.45 })
+		record.pulse = pulse
+		pulse:Play()
+	end
+end
+
+function AccessibilityController:_attachWorldEvidence(part: BasePart)
+	if self.destroyed or self.worldEvidence[part] then
+		return
+	end
+	local marker = Instance.new("BillboardGui")
+	marker.Name = "AccessibilityEvidenceMarker"
+	marker.Size = UDim2.fromOffset(30, 30)
+	marker.StudsOffsetWorldSpace = Vector3.new(0, 2.8, 0)
+	marker.MaxDistance = 90
+	marker.AlwaysOnTop = false
+	marker.Enabled = false
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.Text = utf8.char(0x25C6) -- ◆
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(255, 221, 87)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0
+	label.Parent = marker
+	marker.Parent = part
+
+	local record: WorldEvidenceRecord = {
+		part = part,
+		marker = marker,
+		pulse = nil,
+		ancestryConnection = part.AncestryChanged:Connect(function()
+			if not part:IsDescendantOf(game) then
+				local existing = self.worldEvidence[part]
+				if existing then
+					if existing.pulse then
+						existing.pulse:Cancel()
+					end
+					existing.ancestryConnection:Disconnect()
+					self.worldEvidence[part] = nil
+				end
+			end
+		end),
+	}
+	self.worldEvidence[part] = record
+	self:_applyWorldEvidence(record)
+end
+
+-- Watches the server's evidence folder (Runtime.Evidence) — search glows are
+-- its direct children, spawned per Investigation and destroyed on claim.
+function AccessibilityController:WatchWorldEvidence(folder: Instance)
+	if self.destroyed or self.worldEvidenceConnection then
+		return
+	end
+	self.worldEvidenceConnection = folder.ChildAdded:Connect(function(child)
+		if child:IsA("BasePart") then
+			self:_attachWorldEvidence(child)
+		end
+	end)
+	for _, child in folder:GetChildren() do
+		if child:IsA("BasePart") then
+			self:_attachWorldEvidence(child)
+		end
+	end
+end
+
 function AccessibilityController:ApplySettings(settings: AccessibilitySettings?)
 	if not settings or self.destroyed then
 		return
@@ -189,6 +288,9 @@ function AccessibilityController:ApplySettings(settings: AccessibilitySettings?)
 	self:_applyRootAttributes()
 	for _, record in self.evidence do
 		self:_applyEvidence(record)
+	end
+	for _, record in self.worldEvidence do
+		self:_applyWorldEvidence(record)
 	end
 end
 
@@ -269,6 +371,19 @@ function AccessibilityController:Destroy()
 	for _, record in self.evidence do
 		self:_applyEvidence(record)
 	end
+	if self.worldEvidenceConnection then
+		self.worldEvidenceConnection:Disconnect()
+		self.worldEvidenceConnection = nil
+	end
+	for part, record in self.worldEvidence do
+		if record.pulse then
+			record.pulse:Cancel()
+		end
+		record.ancestryConnection:Disconnect()
+		record.marker:Destroy()
+		part.LocalTransparencyModifier = 0
+	end
+	table.clear(self.worldEvidence)
 	table.clear(self.evidence)
 	table.clear(self.roots)
 end

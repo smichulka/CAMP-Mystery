@@ -1543,6 +1543,15 @@ function RoundController.Start()
 	camera = releaseCamera
 	local accessibilityController = AccessibilityController.new(gameView.root)
 	accessibility = accessibilityController
+	-- World evidence cues (pulse + high-contrast markers) watch the server's
+	-- glow folder; deferred so a slow Runtime replication can't stall boot.
+	task.spawn(function()
+		local runtime = Workspace:WaitForChild("Runtime", 30)
+		local evidenceFolder = if runtime then runtime:WaitForChild("Evidence", 30) else nil
+		if evidenceFolder then
+			accessibilityController:WatchWorldEvidence(evidenceFolder)
+		end
+	end)
 	local tutorialController = TutorialController.new(gameView.root, {
 		onCompleted = function(_skipped: boolean)
 			requestAction("SetSettings", {
