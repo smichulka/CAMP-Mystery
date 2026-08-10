@@ -19,31 +19,35 @@ local WorldAudioDefaults = require(
 
 local WorldKit = {}
 
--- Plays the door-swing creak on a door part, creating the Sound lazily.
--- Asset resolution: SoundService attribute "WorldDoorSwingAssetId" override,
--- else the WorldAudioDefaults slot; both empty leaves the door silent.
-function WorldKit.playDoorSwing(door: BasePart)
-	local override = SoundService:GetAttribute("WorldDoorSwingAssetId")
+-- Plays a world-interaction cue on a part, creating the Sound lazily.
+-- Asset resolution: SoundService attribute "World<Slot>AssetId" override,
+-- else the WorldAudioDefaults slot; both empty leaves the cue silent.
+function WorldKit.playWorldSound(part: BasePart, slot: string, volume: number?)
+	local override = SoundService:GetAttribute("World" .. slot .. "AssetId")
 	local assetId = if typeof(override) == "number" and override > 0
 		then "rbxassetid://" .. tostring(override)
 		elseif typeof(override) == "string" and override ~= "" then override
-		else WorldAudioDefaults.DoorSwing or ""
+		else WorldAudioDefaults[slot] or ""
 	if assetId == "" then
 		return
 	end
-	local sound = door:FindFirstChild("DoorSwing")
+	local sound = part:FindFirstChild(slot)
 	if not (sound and sound:IsA("Sound")) then
 		sound = Instance.new("Sound")
-		sound.Name = "DoorSwing"
+		sound.Name = slot
 		sound.SoundId = assetId
-		sound.Volume = 0.55
+		sound.Volume = volume or 0.55
 		sound.RollOffMaxDistance = 60
-		sound.Parent = door
+		sound.Parent = part
 	end
-	local doorSound = sound :: Sound
-	-- Slight speed variance so repeated swings don't read as a loop
-	doorSound.PlaybackSpeed = 0.92 + math.random() * 0.16
-	doorSound:Play()
+	local cue = sound :: Sound
+	-- Slight speed variance so repeated plays don't read as a loop
+	cue.PlaybackSpeed = 0.92 + math.random() * 0.16
+	cue:Play()
+end
+
+function WorldKit.playDoorSwing(door: BasePart)
+	WorldKit.playWorldSound(door, "DoorSwing", 0.55)
 end
 
 function WorldKit.model(parent: Instance, name: string): Model
@@ -300,6 +304,7 @@ function WorldKit.shutterWindow(
 		closed = not closed
 		shutter.Transparency = if closed then 0 else 1
 		glass.Transparency = if closed then 1 else 0.35
+		WorldKit.playWorldSound(glass, "ShutterClack", 0.5)
 	end)
 	return glass
 end
@@ -318,6 +323,10 @@ function WorldKit.drawer(
 	local prompt = WorldKit.prompt(face, "Open", name, 0.3)
 	prompt.Triggered:Connect(function()
 		open = not open
+		-- UX: prompt tracks state and the slide is audible (2026-08-10 pass;
+		-- matches the door convention).
+		prompt.ActionText = if open then "Close" else "Open"
+		WorldKit.playWorldSound(face, "DrawerSlide", 0.5)
 		local target = if open
 			then cframe * CFrame.new(0, 0, size.Z + 0.6)
 			else cframe

@@ -11,6 +11,12 @@ local WorldAudioDefaults: { [string]: string } = {
 	-- every hinged/interactive door in the world (2026-08-09 UX pass — all
 	-- 50+ doors swung silently).
 	DoorSwing = "rbxassetid://9114135682",
+	-- Cabinet Drawer 7 (SFX): "Open and Close, With Rollers", 1.7s. Every
+	-- WorldKit drawer slide (2026-08-10 pass — drawers were silent).
+	DrawerSlide = "rbxassetid://9113658569",
+	-- Cabinet Doors 9 (SFX): "Open & Close, Wood", 2.3s. Window shutter
+	-- panel toggles (same pass — shutters were silent).
+	ShutterClack = "rbxassetid://9113657040",
 }
 
 return table.freeze(WorldAudioDefaults)
