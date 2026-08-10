@@ -151,6 +151,25 @@ Verified working 2026-08-09 with full-tier access to "Roblox Studio":
 - Parallel Claude sessions commit to this repo concurrently: commit small,
   fast, and check `git log` before assuming your view of a file is current.
 
+## Round-state measurement traps
+
+- The public `participants` snapshot hides roles mid-round (`role=nil` for
+  everyone — by design, so clients can't see the murderer). A count like
+  `p.role ~= "Spectator"` therefore matches EVERYONE, including stale
+  participants from earlier rounds. Read your own role from `state.player`
+  (private snapshot); counting "in-round" players client-side is unreliable.
+- Participant roles persist through the Lobby phase — `ResetRound` only runs
+  at the next `BeginRound`. Anything gating on "role ~= Spectator" during
+  Lobby sees last round's roles (this rejected every re-enrollment until
+  2026-08-10, commit 54cc4bd).
+- Solo Studio cannot produce the "undecided at dusk" state: `_readyStudioPlayers`
+  force-readies every non-withdrawn player at round start, and Withdraw
+  (Lobby-only) sets hasWithdrawn which suppresses the dusk reminder. The
+  enrollment dusk-reminder positive path needs a multi-client test.
+- Studio's Lobby is 40s and the boot settle can consume it entirely; catch
+  the NEXT Lobby with a poll-and-act bundle inside one `execute_luau` call
+  (poll for the phase, then do all phase-dependent actions in the same call).
+
 ## Test suite
 
 - `python scripts/run_all_checks.py` runs everything;
