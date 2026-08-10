@@ -26,23 +26,24 @@ usually right and the mental model is what needs fixing.
   `groundHeight` retries a nil hit up to 8×0.25s before falling back to the
   analytic model; a water hit is definitive and falls back immediately.
 
-## Height-mirror lockstep
+## Terrain dome layout — single source
 
-Terrain hills are FillBall domes whose layout is **mirrored analytically** in
-several places. Change one, change all, or props seat on ghost hills:
-1. `ProductionMapService` — the FillBall loops AND `expandedGroundHeight`
-2. `Map/Backcountry.lua` — `EXPANDED_DOMES` table AND `analyticGroundHeight`
-3. `Map/HighFrontier.lua` — `EXPANDED_DOMES` table AND `analyticGroundHeight`
-4. `Map/LakeAndWilds.lua` — `analyticHillGroundHeight` (has the index-9
-   override)
+Since 2026-08-09 (second pass) every dome table AND every analytic height
+model lives in **`Map/TerrainDomes.lua`** (INTERIOR / OUTER / FAR_SHORE
+tables + `heightAt`). ProductionMapService's FillBall loops and
+`expandedGroundHeight`, Backcountry's and HighFrontier's
+`analyticGroundHeight`, and LakeAndWilds' `analyticHillGroundHeight` are all
+requires/passthroughs — **edit domes ONLY in TerrainDomes.lua**. The old
+hand-copied mirrors drifted repeatedly; if you see a local dome table in a
+pack again, someone regressed the refactor.
 
-Since 2026-08-09 the pack functions raycast the real terrain first and use
-the analytic model only as a fallback (off-terrain points, water hits, and
-the boot-time chunk lag above), so the mirrors matter less for seating — but
-they still gate WHERE things build, so keep them in lockstep anyway.
+The pack seat helpers still raycast the real terrain first and use
+`TerrainDomes.heightAt` as the fallback (off-terrain points, water hits,
+boot-time chunk lag).
 
-Interior-ring skips currently: indices 1, 14 (lakefront), 9 (moved to
--72,-80 r22), 10/11/12 (sat on the town's north band).
+The interior ring is now explicit entries (no more formula/skip-list): POI
+hills (waterfall, lookout, Cabin Zero, ranger, mines) keep their formula
+spots; the four non-POI domes sit outward of the camp bowl.
 
 ## Day/night world model
 
