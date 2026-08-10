@@ -3243,8 +3243,11 @@ function ProductionMapService:Build()
 				CFrame.new(cPos + Vector3.new(2.6, 1.0, cD / 2 - 6.5)) * CFrame.Angles(0, math.rad(12), 0),
 				Color3.fromRGB(52, 40, 28), Enum.Material.WoodPlanks)
 			-- Ruined nave: pew rows flank a 5-stud aisle, one row knocked over
+			-- Rows start one stud closer to the door and the altar tucks toward
+			-- the back wall so the chancel band stays > 4 studs — the navmesh
+			-- refused the altar approach at the first spacing.
 			for pewRow = 1, 4 do
-				local pewZ = -16 + pewRow * 6
+				local pewZ = -15 + pewRow * 6
 				for pewSide = -1, 1, 2 do
 					if pewRow == 4 and pewSide == -1 then
 						createPart(churchModel, "PewToppled", Vector3.new(9, 0.45, 1.1),
@@ -3256,10 +3259,14 @@ function ProductionMapService:Build()
 						CFrame.new(cPos + Vector3.new(pewSide * 7, 1.85, pewZ)), pewWood, Enum.Material.WoodPlanks)
 					createPart(churchModel, "PewBack", Vector3.new(9, 1.3, 0.25),
 						CFrame.new(cPos + Vector3.new(pewSide * 7, 2.45, pewZ - 0.6)), pewWood, Enum.Material.WoodPlanks)
+					for legSide = -1, 1, 2 do
+						createPart(churchModel, "PewLeg", Vector3.new(0.4, 0.85, 1.1),
+							CFrame.new(cPos + Vector3.new(pewSide * 7 + legSide * 4, 1.2, pewZ)), pewWood, Enum.Material.WoodPlanks)
+					end
 				end
 			end
-			createPart(churchModel, "ChurchAltar", Vector3.new(6, 2.2, 1.8), CFrame.new(cPos + Vector3.new(0, 1.9, -cD / 2 + 3.5)), Color3.fromRGB(58, 46, 34), Enum.Material.Wood)
-			local altarCloth = createPart(churchModel, "AltarCloth", Vector3.new(6.4, 0.15, 2.0), CFrame.new(cPos + Vector3.new(0, 3.05, -cD / 2 + 3.5)), Color3.fromRGB(118, 112, 96), Enum.Material.Fabric)
+			createPart(churchModel, "ChurchAltar", Vector3.new(6, 2.2, 1.8), CFrame.new(cPos + Vector3.new(0, 1.9, -cD / 2 + 2.6)), Color3.fromRGB(58, 46, 34), Enum.Material.Wood)
+			local altarCloth = createPart(churchModel, "AltarCloth", Vector3.new(6.4, 0.15, 2.0), CFrame.new(cPos + Vector3.new(0, 3.05, -cD / 2 + 2.6)), Color3.fromRGB(118, 112, 96), Enum.Material.Fabric)
 			altarCloth.CanCollide = false
 			for rubbleIndex, rubble in {
 				{ size = Vector3.new(1.5, 1.0, 1.2), offset = Vector3.new(10.5, 1.3, -8), yaw = 20 },
