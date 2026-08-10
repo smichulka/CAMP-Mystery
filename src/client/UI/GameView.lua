@@ -1272,6 +1272,9 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		lastActionControl = nil,
 		interviewPickerToken = 0,
 		interviewPickerSheet = nil,
+		enrollmentSheetToken = 0,
+		enrollmentSheet = nil,
+		duskReminderKey = nil,
 		counselorDialogueToken = 0,
 		counselorDialoguePanel = nil,
 		keybindHintToken = 0,
@@ -2636,19 +2639,24 @@ function GameView:_buildLobby()
 
 	local ready = Components.Button(lobby, {
 		name = "Ready",
-		text = "READY UP",
+		text = "SIGN UP TONIGHT",
 		size = UDim2.new(1, -24, 0, 52),
 		position = UDim2.fromOffset(12, 38),
 		color = Theme.Colors.Success,
 	})
 	ready.Activated:Connect(function()
-		local nextReady = ready.Text ~= "CANCEL READY"
+		-- Opt-in mystery: the card routes through Enroll/Withdraw so a
+		-- cancel is an explicit "not tonight" (blocks auto/Studio re-ready).
+		local enrolling = ready.Text ~= "WITHDRAW"
 		self.lastActionControl = ready
-		local sent, reason = self.actionHandler("Ready", { ready = nextReady })
+		local sent, reason = self.actionHandler(
+			if enrolling then "Enroll" else "Withdraw",
+			{}
+		)
 		if not sent then
 			Motion.Shake(ready)
 			self.lastActionControl = nil
-			self:Notify("Not available", reason or "Ready-up is not active.", "Warning")
+			self:Notify("Not available", reason or "Sign-up is not active.", "Warning")
 		end
 	end)
 	local progression = Components.Button(lobby, {
@@ -3258,7 +3266,7 @@ function GameView:_updateLobby(state: any, phase: string)
 			break
 		end
 	end
-	self.readyButton.Text = if isReady then "CANCEL READY" else "READY UP"
+	self.readyButton.Text = if isReady then "WITHDRAW" else "SIGN UP TONIGHT"
 	Components.SetButtonEnabled(self.readyButton, true)
 	local fillStartedAt = readNumber(lobby, "fillStartedAt", 0)
 	local fillSignature = if fillStartedAt > 0 then tostring(fillStartedAt) else ""
@@ -3542,6 +3550,252 @@ function GameView:ShowInterviewTopicPicker(
 			distance = 80,
 		})
 	end
+end
+
+function GameView:_dismissEnrollmentSheet(immediate: boolean?)
+	self.enrollmentSheetToken += 1
+	local sheet = self.enrollmentSheet
+	self.enrollmentSheet = nil
+	if not sheet then
+		return
+	end
+	local backdrop = sheet.Parent
+	Motion.Cancel(sheet)
+	if immediate == true or Motion.IsReducedMotion(sheet) then
+		if backdrop and backdrop.Parent then
+			backdrop:Destroy()
+		end
+		return
+	end
+	Motion.SlideDown(sheet, {
+		duration = 0.2,
+		distance = 80,
+		onComplete = function(_completed: boolean)
+			if backdrop and backdrop.Parent then
+				backdrop:Destroy()
+			end
+		end,
+	})
+end
+
+-- Opt-in mystery enrollment sheet: opened from the sign-up desk prompt and
+-- (once, at dusk) as a reminder for undecided free-roamers. Same bottom-sheet
+-- pattern as the interview topic picker.
+function GameView:ShowEnrollmentSheet(fromDuskReminder: boolean?)
+	if self.destroyed then
+		return
+	end
+	self:_dismissEnrollmentSheet(true)
+	local token = self.enrollmentSheetToken
+
+	local state = self.currentState
+	local round = if type(state) == "table" and type(state.round) == "table"
+		then state.round
+		else self.legacyRound
+	local player = if type(state) == "table" and type(state.player) == "table"
+		then state.player
+		else self.legacyPlayer
+	local phase = readString(round, "phase", "Lobby")
+	local role = readString(player, "role", "")
+	local inRound = role ~= "" and role ~= "Spectator"
+	local isReady = false
+	local autoEnroll = false
+	do
+		local lobbySnapshot = if type(state) == "table" then state.lobby else nil
+		local entries = if type(lobbySnapshot) == "table"
+			then (lobbySnapshot :: any).players
+			else nil
+		if type(entries) == "table" then
+			for _, entry in entries do
+				if type(entry) == "table" and entry.userId == Players.LocalPlayer.UserId then
+					isReady = readBoolean(entry, "isReady", false)
+					break
+				end
+			end
+		end
+		local profileSnapshot = if type(state) == "table" then state.profile else nil
+		local profile = if type(profileSnapshot) == "table"
+			then (profileSnapshot :: any).profile
+			else nil
+		local settings = if type(profile) == "table" then profile.settings else nil
+		if type(settings) == "table" then
+			autoEnroll = settings.autoEnroll == true
+		end
+	end
+
+	local statusText: string
+	local primaryText: string? = nil
+	local primaryAction: string? = nil
+	if inRound then
+		statusText = "You're in tonight's round. Good luck out there."
+	elseif phase == "Lobby" then
+		if isReady then
+			statusText = "You're signed up for tonight's mystery."
+			primaryText = "WITHDRAW"
+			primaryAction = "Withdraw"
+		else
+			statusText = "Sign-ups for tonight's mystery are open."
+			primaryText = "SIGN UP FOR TONIGHT"
+			primaryAction = "Enroll"
+		end
+	elseif phase == "RoleReveal" or phase == "Day" or phase == "MurderPlanning" then
+		statusText = if fromDuskReminder
+			then "Night is coming. Last chance to join tonight's mystery as a Camper."
+			else "The mystery is underway — you can still join as a Camper."
+		primaryText = "JOIN TONIGHT"
+		primaryAction = "Enroll"
+	else
+		statusText = "Enrollment is closed for tonight. Sign up again in the morning."
+	end
+
+	local backdrop = Instance.new("TextButton")
+	backdrop.Name = "EnrollmentBackdrop"
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.BackgroundColor3 = Theme.Colors.Black
+	backdrop.BackgroundTransparency = 0.55
+	backdrop.BorderSizePixel = 0
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.Active = true
+	backdrop.Selectable = false
+	backdrop.ZIndex = 60
+	backdrop.Parent = self.root
+
+	local sheet = Components.Panel(backdrop, "EnrollmentSheet")
+	sheet.AnchorPoint = Vector2.new(0.5, 1)
+	sheet.Position = UDim2.new(0.5, 0, 1, -80)
+	sheet.Size = UDim2.fromOffset(320, 208)
+	sheet.BackgroundTransparency = 0
+	sheet.ZIndex = 61
+	self.enrollmentSheet = sheet
+
+	local title = Components.Label(
+		sheet,
+		"Title",
+		"TONIGHT'S MYSTERY",
+		Theme.Typography.HeadingSize,
+		Theme.Typography.HeadingFont
+	)
+	title.Position = UDim2.fromOffset(8, 6)
+	title.Size = UDim2.new(1, -16, 0, 22)
+	title.TextColor3 = Theme.Colors.Gold
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.ZIndex = 62
+
+	local status = Components.Label(
+		sheet,
+		"Status",
+		statusText,
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	status.Position = UDim2.fromOffset(12, 30)
+	status.Size = UDim2.new(1, -24, 0, 34)
+	status.TextColor3 = Theme.Colors.TextMuted
+	status.TextWrapped = true
+	status.TextXAlignment = Enum.TextXAlignment.Center
+	status.ZIndex = 62
+
+	local buttonY = 70
+	if primaryText and primaryAction then
+		local actionName = primaryAction
+		local primary = Components.Button(sheet, {
+			name = "EnrollPrimary",
+			text = primaryText,
+			size = UDim2.new(1, -24, 0, 40),
+			position = UDim2.fromOffset(12, buttonY),
+			color = if actionName == "Withdraw"
+				then Theme.Colors.Amber
+				else Theme.Colors.Success,
+		})
+		primary.ZIndex = 62
+		primary.Activated:Connect(function()
+			if token ~= self.enrollmentSheetToken then
+				return
+			end
+			self:_dismissEnrollmentSheet()
+			self:_send(actionName, {}, primary)
+		end)
+		buttonY += 46
+	end
+
+	local toggle = Components.Button(sheet, {
+		name = "AutoEnrollToggle",
+		text = if autoEnroll then "AUTO-ENROLL: ON" else "AUTO-ENROLL: OFF",
+		size = UDim2.new(1, -24, 0, 34),
+		position = UDim2.fromOffset(12, buttonY),
+		color = Theme.Colors.Panel,
+	})
+	toggle.ZIndex = 62
+	local toggleValue = autoEnroll
+	toggle.Activated:Connect(function()
+		if token ~= self.enrollmentSheetToken then
+			return
+		end
+		toggleValue = not toggleValue
+		toggle.Text = if toggleValue then "AUTO-ENROLL: ON" else "AUTO-ENROLL: OFF"
+		self:_send("SetSettings", { settings = { autoEnroll = toggleValue } }, toggle)
+	end)
+	buttonY += 40
+
+	local hint = Components.Label(
+		sheet,
+		"Hint",
+		"Auto-enroll signs you up each night automatically.",
+		Theme.Typography.CaptionSize,
+		Theme.Typography.CaptionFont
+	)
+	hint.Position = UDim2.fromOffset(12, buttonY)
+	hint.Size = UDim2.new(1, -24, 0, 18)
+	hint.TextColor3 = Theme.Colors.TextMuted
+	hint.TextXAlignment = Enum.TextXAlignment.Center
+	hint.ZIndex = 62
+
+	backdrop.Activated:Connect(function()
+		if token == self.enrollmentSheetToken then
+			self:_dismissEnrollmentSheet()
+		end
+	end)
+
+	if not Motion.IsReducedMotion(sheet) then
+		Motion.SlideUp(sheet, {
+			duration = 0.25,
+			distance = 80,
+		})
+	end
+end
+
+-- Dusk reminder: when murder-planning (dusk) begins, free-roamers who
+-- haven't signed up and haven't explicitly withdrawn get the enrollment
+-- sheet once, so nobody misses nightfall by accident.
+function GameView:_maybeShowDuskReminder(state: any, round: any, player: any, phase: string)
+	if phase ~= "MurderPlanning" then
+		return
+	end
+	local role = readString(player, "role", "")
+	if role ~= "" and role ~= "Spectator" then
+		return
+	end
+	local key = "dusk:" .. tostring(math.floor(readNumber(round, "phaseEndsAt", 0)))
+	if self.duskReminderKey == key then
+		return
+	end
+	self.duskReminderKey = key
+	local lobbySnapshot = if type(state) == "table" then state.lobby else nil
+	local entries = if type(lobbySnapshot) == "table"
+		then (lobbySnapshot :: any).players
+		else nil
+	if type(entries) == "table" then
+		for _, entry in entries do
+			if type(entry) == "table" and entry.userId == Players.LocalPlayer.UserId then
+				if readBoolean(entry, "hasWithdrawn", false) then
+					return
+				end
+				break
+			end
+		end
+	end
+	self:ShowEnrollmentSheet(true)
 end
 
 function GameView:_dismissCounselorDialogue(immediate: boolean?)
@@ -4923,6 +5177,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 
 	local phase = readString(round, "phase", "Lobby")
 	self:_updateMonsterPanel(state, phase)
+	self:_maybeShowDuskReminder(state, round, player, phase)
 	if self.voteCountLabel then
 		if phase == "Campfire" then
 			local votesCast = math.max(0, math.floor(readNumber(round, "votesCast", 0)))

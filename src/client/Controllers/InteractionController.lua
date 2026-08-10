@@ -24,7 +24,30 @@ type ActiveHold = {
 
 local InteractionController = {}
 local promptsEnabled = true
+local mysteryPromptsSuppressed = false
 local ghostDisabledPrompts: { [ProximityPrompt]: boolean } = {}
+
+-- Mystery-only stations (day objectives, evidence sockets) are server-gated
+-- already — non-participants triggering them just get a rejection — but the
+-- prompts themselves are UI noise for free-roamers, so the HUD skips them.
+-- Ancestry check instead of per-prompt attributes: every objective prompt
+-- lives under Runtime.Map.DayCamp.Objectives and every evidence prompt under
+-- Runtime.Evidence. Nil-guarded because StreamingEnabled can leave these
+-- folders unresolved early.
+local function isMysteryPrompt(prompt: ProximityPrompt): boolean
+	local runtime = Workspace:FindFirstChild("Runtime")
+	if not runtime then
+		return false
+	end
+	local evidenceFolder = runtime:FindFirstChild("Evidence")
+	if evidenceFolder and prompt:IsDescendantOf(evidenceFolder) then
+		return true
+	end
+	local map = runtime:FindFirstChild("Map")
+	local dayCamp = if map then map:FindFirstChild("DayCamp") else nil
+	local objectives = if dayCamp then dayCamp:FindFirstChild("Objectives") else nil
+	return objectives ~= nil and prompt:IsDescendantOf(objectives)
+end
 
 local function inputLabel(
 	prompt: ProximityPrompt,
@@ -82,6 +105,12 @@ function InteractionController.SetPromptsEnabled(enabled: boolean)
 	end
 end
 
+-- Hide mystery-only prompts (objectives/evidence) from non-participants
+-- without touching general camp-activity prompts.
+function InteractionController.SetMysteryPromptsSuppressed(suppressed: boolean)
+	mysteryPromptsSuppressed = suppressed
+end
+
 function InteractionController.Start(
 	callbacks: InteractionCallbacks,
 	proximityController: ProximityController
@@ -104,6 +133,9 @@ function InteractionController.Start(
 	)
 		hideDefaultPrompt(prompt)
 		if not promptsEnabled then
+			return
+		end
+		if mysteryPromptsSuppressed and isMysteryPrompt(prompt) then
 			return
 		end
 		local part = promptPart(prompt)
@@ -167,11 +199,18 @@ function InteractionController.Start(
 		if not promptsEnabled then
 			return
 		end
+		if mysteryPromptsSuppressed and isMysteryPrompt(prompt) then
+			return
+		end
 		local hold = activeHolds[prompt]
 		activeHolds[prompt] = nil
 		local part = if hold then hold.part else promptPart(prompt)
 		if part then
 			proximityController:SetProgress(part, 1)
+		end
+		if prompt:GetAttribute("EnrollmentDesk") == true then
+			callbacks.triggered("enrollment-desk")
+			return
 		end
 		local counselorId = prompt:GetAttribute("CounselorId")
 		if type(counselorId) == "string" and counselorId ~= "" then

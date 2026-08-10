@@ -1249,7 +1249,63 @@ local function buildCampAurora(dayCamp: Instance)
 	WorldKit.evidenceSocketMarker(aurora, "aurora-fire-ring", Vector3.new(163, 1.4, 15))
 end
 
+-- 11. MYSTERY SIGN-UP DESK ---------------------------------------------------
+-- The opt-in enrollment station: a counselor desk with a notice board beside
+-- the spawn clearing. Its prompt carries the EnrollmentDesk attribute the
+-- client routes to the enrollment sheet (InteractionController), mirroring
+-- the CounselorId attribute pattern.
+local function buildEnrollmentDesk(dayCamp: Instance)
+	local desk = WorldKit.model(dayCamp, "MysterySignupDesk")
+
+	-- Counter facing the spawn clearing
+	local counterFrame = CFrame.new(14, 2.0, 30) * CFrame.Angles(0, math.rad(-64), 0)
+	local counter = WorldKit.part(desk, "SignupCounter", Vector3.new(4.6, 0.35, 1.8),
+		counterFrame, WOOD_DARK, Enum.Material.WoodPlanks)
+	for side = -1, 1, 2 do
+		WorldKit.part(desk, "CounterLeg", Vector3.new(0.4, 1.9, 1.5),
+			counterFrame * CFrame.new(side * 2.0, -1.05, 0), WOOD_DARK, Enum.Material.Wood)
+	end
+	-- Sign-up ledger and pencil pot on the counter
+	local ledger = WorldKit.part(desk, "SignupLedger", Vector3.new(1.5, 0.14, 1.05),
+		counterFrame * CFrame.new(-0.7, 0.26, 0.05) * CFrame.Angles(0, math.rad(9), 0),
+		Color3.fromRGB(214, 204, 178), Enum.Material.SmoothPlastic)
+	ledger.CanCollide = false
+	local pencilPot = WorldKit.part(desk, "PencilPot", Vector3.new(0.4, 0.5, 0.4),
+		counterFrame * CFrame.new(1.4, 0.42, -0.3), Color3.fromRGB(120, 96, 60),
+		Enum.Material.Wood, Enum.PartType.Cylinder)
+	pencilPot.CanCollide = false
+
+	-- Notice board on posts behind the counter
+	local boardFrame = counterFrame * CFrame.new(0, 0, -1.6)
+	for side = -1, 1, 2 do
+		WorldKit.part(desk, "BoardPost", Vector3.new(0.35, 5.2, 0.35),
+			boardFrame * CFrame.new(side * 1.9, 0.6, 0), WOOD_DARK, Enum.Material.Wood)
+	end
+	local board = WorldKit.part(desk, "NoticeBoard", Vector3.new(4.2, 2.4, 0.25),
+		boardFrame * CFrame.new(0, 2.4, 0), Color3.fromRGB(126, 96, 62),
+		Enum.Material.WoodPlanks)
+	surfaceText(
+		board,
+		Enum.NormalId.Front,
+		"TONIGHT'S MYSTERY\nSIGN UP HERE",
+		Color3.fromRGB(232, 220, 186)
+	)
+
+	-- Lantern so the desk reads at dusk when the reminder goes out
+	WorldKit.part(desk, "DeskLanternPost", Vector3.new(0.3, 3.4, 0.3),
+		counterFrame * CFrame.new(2.6, 0.6, -0.4), WOOD_DARK, Enum.Material.Wood)
+	local lantern = WorldKit.part(desk, "DeskLantern", Vector3.new(0.7, 0.7, 0.7),
+		counterFrame * CFrame.new(2.6, 2.5, -0.4), Color3.fromRGB(255, 211, 132),
+		Enum.Material.Neon, Enum.PartType.Ball)
+	lantern.CanCollide = false
+	WorldKit.lamp(lantern, { brightness = 1.1, range = 18 })
+
+	local prompt = WorldKit.prompt(counter, "Sign Up", "Tonight's Mystery", 0.4)
+	prompt:SetAttribute("EnrollmentDesk", true)
+end
+
 function Landmarks.Build(dayCamp: Instance, nightTown: Instance)
+	buildEnrollmentDesk(dayCamp)
 	buildMines(dayCamp)
 	buildRangerStation(dayCamp)
 	buildCrashedTruck(dayCamp)

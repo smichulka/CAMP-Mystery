@@ -388,6 +388,7 @@ function LobbyService:GetSnapshot(): LobbySnapshot
 			displayName = state.displayName,
 			status = playerStatus,
 			isReady = state.ready,
+			hasWithdrawn = state.withdrawn,
 			joinedAt = state.joinedAt,
 		})
 	end

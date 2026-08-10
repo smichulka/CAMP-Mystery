@@ -11,6 +11,9 @@ export type LobbyPlayerSnapshot = {
 	displayName: string,
 	status: LobbyPlayerStatus,
 	isReady: boolean,
+	-- Explicit "not tonight" from the enrollment desk (opt-in mystery);
+	-- the dusk reminder skips players who already said no.
+	hasWithdrawn: boolean,
 	joinedAt: number,
 }
 

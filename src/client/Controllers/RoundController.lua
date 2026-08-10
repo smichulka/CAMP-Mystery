@@ -1274,7 +1274,11 @@ local function updateReleaseExperience(
 	end
 	applyGhostSnapshot(if isGhost then (snapshot :: any).ghost else nil)
 	currentCamera:SetGhostMode(isGhost and not roundEnded)
-	InteractionController.SetPromptsEnabled(not isGhost and roleName ~= "Spectator")
+	-- Opt-in mystery: Spectators are free-roaming campers now, so they keep
+	-- world prompts (activities, doors, the sign-up desk). Only ghosts lose
+	-- interaction; non-participants just have mystery-only prompts hidden.
+	InteractionController.SetPromptsEnabled(not isGhost)
+	InteractionController.SetMysteryPromptsSuppressed(roleName == "Spectator")
 	local dreadFraction = monsterDreadFraction(snapshot)
 	currentCinematics:SetMonsterDread(dreadFraction)
 	currentAudio:SetActiveMonster(resolveActiveMonsterId(snapshot))
@@ -1738,6 +1742,10 @@ function RoundController.Start()
 			gameView:HideInteraction()
 		end,
 		triggered = function(actionText: string)
+			if actionText == "enrollment-desk" then
+				gameView:ShowEnrollmentSheet()
+				return
+			end
 			if actionText:sub(1, 10) == "counselor:" then
 				local counselorId = actionText:sub(11)
 				local roster = state and state.counselors
