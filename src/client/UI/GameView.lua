@@ -3004,7 +3004,14 @@ function GameView:_settingRow(
 				end)
 			end
 		end)
-		sliderTrack.InputChanged:Connect(function(input: InputObject)
+		-- Service-level move tracking: GuiObject.InputChanged stops firing the
+		-- moment the pointer slips off the 8-pixel track, which made mid-drag
+		-- updates cut out (integration pass 2026-08-09). The service event
+		-- keeps the fill/label live wherever the pointer wanders; `dragging`
+		-- gates it so idle mouse movement costs one boolean check. Rows are
+		-- rebuilt on every profile-settings echo, so the connection is tied
+		-- to the track's lifetime or it would leak per rebuild.
+		local moveConn = UserInputService.InputChanged:Connect(function(input: InputObject)
 			local inputType = input.UserInputType
 			if dragging
 				and (
@@ -3014,6 +3021,9 @@ function GameView:_settingRow(
 			then
 				applyFraction(fractionAt(input.Position.X))
 			end
+		end)
+		sliderTrack.Destroying:Connect(function()
+			moveConn:Disconnect()
 		end)
 	end
 end
