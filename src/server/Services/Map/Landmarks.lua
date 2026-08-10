@@ -1257,8 +1257,10 @@ end
 local function buildEnrollmentDesk(dayCamp: Instance)
 	local desk = WorldKit.model(dayCamp, "MysterySignupDesk")
 
-	-- Counter facing the spawn clearing
-	local counterFrame = CFrame.new(14, 2.0, 30) * CFrame.Angles(0, math.rad(-64), 0)
+	-- Counter facing the spawn clearing. Seated against the RENDERED slab
+	-- surface (~2.5, not the nominal 0.5 — see gotchas): legs span exactly
+	-- 2.5..4.4 so nothing sinks or floats.
+	local counterFrame = CFrame.new(14, 4.5, 30) * CFrame.Angles(0, math.rad(-64), 0)
 	local counter = WorldKit.part(desk, "SignupCounter", Vector3.new(4.6, 0.35, 1.8),
 		counterFrame, WOOD_DARK, Enum.Material.WoodPlanks)
 	for side = -1, 1, 2 do
@@ -1291,11 +1293,12 @@ local function buildEnrollmentDesk(dayCamp: Instance)
 		Color3.fromRGB(232, 220, 186)
 	)
 
-	-- Lantern so the desk reads at dusk when the reminder goes out
+	-- Lantern so the desk reads at dusk when the reminder goes out (post
+	-- spans ground 2.5 up to 5.9; ball sits on top)
 	WorldKit.part(desk, "DeskLanternPost", Vector3.new(0.3, 3.4, 0.3),
-		counterFrame * CFrame.new(2.6, 0.6, -0.4), WOOD_DARK, Enum.Material.Wood)
+		counterFrame * CFrame.new(2.6, -0.3, -0.4), WOOD_DARK, Enum.Material.Wood)
 	local lantern = WorldKit.part(desk, "DeskLantern", Vector3.new(0.7, 0.7, 0.7),
-		counterFrame * CFrame.new(2.6, 2.5, -0.4), Color3.fromRGB(255, 211, 132),
+		counterFrame * CFrame.new(2.6, 1.75, -0.4), Color3.fromRGB(255, 211, 132),
 		Enum.Material.Neon, Enum.PartType.Ball)
 	lantern.CanCollide = false
 	WorldKit.lamp(lantern, { brightness = 1.1, range = 18 })
