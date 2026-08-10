@@ -3536,6 +3536,27 @@ function CharacterAssetService:ApplyCounselorSnapshot(snapshot: any)
 							model:SetAttribute("LocationId", locationId)
 							local at = COUNSELOR_LOCATIONS[locationId]
 							if at then
+								-- Personal stand point: shared locations
+								-- (Campfire buddy check-in, evidence board)
+								-- stacked every counselor on the exact same
+								-- CFrame — up to four R6 bodies z-fighting
+								-- inside one another (integration sweep
+								-- 2026-08-09). A deterministic polar offset
+								-- spreads them into a loose ring. The unique
+								-- catalog index drives the angle (the name
+								-- hash collided for reed/holloway, parking
+								-- them 0.2 studs apart).
+								local indexAttr = model:GetAttribute("CounselorIndex")
+								local hash = if typeof(indexAttr) == "number"
+									then indexAttr * 61
+									else nameHash(counselorId)
+								local spreadAngle = math.rad(hash % 360)
+								local spreadRadius = 2.2 + (hash % 3) * 0.9
+								at = at * CFrame.new(
+									math.cos(spreadAngle) * spreadRadius,
+									0,
+									math.sin(spreadAngle) * spreadRadius
+								)
 								local isThreat = type(destinationId) == "string"
 									and destinationId ~= ""
 								if
