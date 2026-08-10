@@ -811,6 +811,172 @@ local function buildHumanoidBody(
 	return root
 end
 
+-- Cached authentic R6 rig. CreateHumanoidModelFromDescription yields, so we
+-- build ONE template (default avatar: real head mesh + classic face decal,
+-- no catalog fetches) and Clone body parts from it per character.
+local cachedR6Template: Model? = nil
+local cachedR6Failed = false
+
+local function getR6Template(): Model?
+	if cachedR6Template then
+		return cachedR6Template
+	end
+	if cachedR6Failed then
+		return nil
+	end
+	local ok, rig = pcall(function()
+		return Players:CreateHumanoidModelFromDescription(
+			Instance.new("HumanoidDescription"),
+			Enum.HumanoidRigType.R6
+		)
+	end)
+	if not ok or typeof(rig) ~= "Instance" or not rig:IsA("Model") then
+		cachedR6Failed = true
+		warn("[CharacterAssetService] R6 avatar template unavailable; using procedural bodies: " .. tostring(rig))
+		return nil
+	end
+	rig.Name = "R6BodyTemplate"
+	for _, child in rig:GetChildren() do
+		if not child:IsA("BasePart") then
+			child:Destroy()
+		end
+	end
+	for _, descendant in rig:GetDescendants() do
+		if descendant:IsA("Motor6D") or descendant:IsA("Attachment") or descendant:IsA("Weld") then
+			descendant:Destroy()
+		end
+	end
+	cachedR6Template = rig
+	return rig
+end
+
+-- Builds an authentic Roblox R6 avatar body (real head mesh, classic face)
+-- recolored to the character palette: skin head, shirt torso/arms with skin
+-- wrist cuffs, darker pants legs, plus the seed-varied hair styles. Parts
+-- keep the SAME internal names as the procedural body ("LeftArm" etc.) so
+-- every pose/animation/outfit helper works on both. All parts Anchored —
+-- move the model with PivotTo, exactly like buildHumanoidBody. Falls back to
+-- the full procedural body when avatar creation is unavailable.
+local function buildRobloxBody(
+	model: Model,
+	at: CFrame,
+	bodyColor: Color3,
+	skinColor: Color3,
+	scale: number,
+	hairColor: Color3?,
+	seed: number
+): Part
+	local template = getR6Template()
+	if not template then
+		return buildHumanoidBody(model, at, bodyColor, skinColor, scale, hairColor, seed)
+	end
+
+	local pantsColor = bodyColor:Lerp(Color3.fromRGB(10, 10, 15), 0.18)
+	local root = makePart(model, "HumanoidRootPart",
+		Vector3.new(2 * scale, 2 * scale, 1 * scale), at, Color3.fromRGB(0, 0, 0))
+	root.Transparency = 1
+
+	local bodySpec: { { any } } = {
+		{ "Torso", "Torso", CFrame.new(0, 0, 0), bodyColor },
+		{ "Head", "Head", CFrame.new(0, 1.5 * scale, 0), skinColor },
+		{ "Left Arm", "LeftArm", CFrame.new(-1.5 * scale, 0, 0), bodyColor },
+		{ "Right Arm", "RightArm", CFrame.new(1.5 * scale, 0, 0), bodyColor },
+		{ "Left Leg", "LeftLeg", CFrame.new(-0.5 * scale, -2 * scale, 0), pantsColor },
+		{ "Right Leg", "RightLeg", CFrame.new(0.5 * scale, -2 * scale, 0), pantsColor },
+	}
+	for _, entry in bodySpec do
+		local source = template:FindFirstChild(entry[1] :: string)
+		if source and source:IsA("BasePart") then
+			local part = source:Clone()
+			part.Name = entry[2] :: string
+			part.Size = source.Size * scale
+			part.CFrame = at * (entry[3] :: CFrame)
+			part.Color = entry[4] :: Color3
+			part.Material = Enum.Material.SmoothPlastic
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanTouch = false
+			local mesh = part:FindFirstChildWhichIsA("SpecialMesh")
+			if mesh then
+				mesh.Scale = mesh.Scale * scale
+			end
+			part.Parent = model
+		end
+	end
+
+	-- Skin wrist cuffs keep the long-sleeve camp-uniform read; slightly proud
+	-- of the arm so the faces never z-fight. Heights/offsets match the
+	-- tracking math in applyArmSwing (cuffH = 0.35 * scale).
+	local aw = 1 * scale
+	local ax = 1.5 * scale
+	local cuffH = 0.35 * scale
+	local cuffY = -(scale - cuffH / 2)
+	makePart(model, "LeftCuff", Vector3.new(aw + 0.04, cuffH, aw + 0.04),
+		at * CFrame.new(-ax, cuffY, 0), skinColor)
+	makePart(model, "RightCuff", Vector3.new(aw + 0.04, cuffH, aw + 0.04),
+		at * CFrame.new(ax, cuffY, 0), skinColor)
+	local watchBand = makePart(model, "WatchBand", Vector3.new(aw + 0.09, cuffH * 0.54, aw + 0.09),
+		at * CFrame.new(-ax, cuffY, 0), Color3.fromRGB(28, 24, 22))
+	watchBand.Material = Enum.Material.Metal
+	makePart(model, "WatchFace", Vector3.new(aw * 0.42, cuffH * 0.52, 0.05),
+		at * CFrame.new(-ax, cuffY, -(aw * 0.5 + 0.03)), Color3.fromRGB(14, 20, 34))
+
+	-- Hair add-ons wrap the R6 mesh head (visual crown ~2.13 * scale above
+	-- torso center, ~1.5 wide). Same six seed-driven styles as the
+	-- procedural body so each character keeps their look.
+	if hairColor then
+		local hairStyle = seed % 6
+		local headY = 1.5 * scale
+		local crownY = 2.05 * scale
+		local hw = 1.65 * scale
+		local hdD = 1.3 * scale
+		local bangDepth = 0.2 * scale
+		local bangZ = -(0.62 * scale + bangDepth / 2)
+		local backZ = 0.62 * scale + bangDepth / 2
+		if hairStyle == 0 then
+			local hairH = 0.4 * scale
+			makePart(model, "Hair", Vector3.new(hw, hairH, hdD), at * CFrame.new(0, crownY + hairH / 2 - 0.08 * scale, 0), hairColor)
+			makePart(model, "HairBang", Vector3.new(hw * 0.82, 0.34 * scale, bangDepth),
+				at * CFrame.new(0, crownY - 0.17 * scale, bangZ), hairColor)
+			makePart(model, "HairBack", Vector3.new(hw * 0.88, 1.0 * scale, bangDepth),
+				at * CFrame.new(0, crownY - 0.5 * scale, backZ), hairColor)
+		elseif hairStyle == 1 then
+			local shortH = 0.28 * scale
+			makePart(model, "Hair", Vector3.new(hw, shortH, hdD), at * CFrame.new(0, crownY + shortH / 2 - 0.06 * scale, 0), hairColor)
+			makePart(model, "HairBang", Vector3.new(hw * 0.55, 0.2 * scale, bangDepth * 0.7),
+				at * CFrame.new(-0.1 * scale, crownY - 0.1 * scale, bangZ + 0.03 * scale), hairColor)
+		elseif hairStyle == 2 then
+			local hairH = 0.4 * scale
+			makePart(model, "Hair", Vector3.new(hw, hairH, hdD), at * CFrame.new(0, crownY + hairH / 2 - 0.08 * scale, 0), hairColor)
+			makePart(model, "HairBang", Vector3.new(hw * 0.92, 0.5 * scale, bangDepth),
+				at * CFrame.new(0, crownY - 0.25 * scale, bangZ), hairColor)
+			makePart(model, "HairBack", Vector3.new(hw * 0.88, 1.5 * scale, bangDepth),
+				at * CFrame.new(0, crownY - 0.75 * scale, backZ), hairColor)
+		elseif hairStyle == 3 then
+			local capH = 0.26 * scale
+			makePart(model, "Hair", Vector3.new(hw, capH, hdD), at * CFrame.new(0, crownY + capH / 2 - 0.06 * scale, 0), hairColor)
+			local bunR = 0.5 * scale
+			makePart(model, "HairBun", Vector3.new(bunR, bunR, bunR),
+				at * CFrame.new(0, crownY + capH + bunR * 0.4, 0), hairColor, Enum.PartType.Ball)
+		elseif hairStyle == 4 then
+			local afroR = 1.0 * scale
+			makePart(model, "Hair", Vector3.new(afroR * 2.0, afroR * 1.65, afroR * 1.8),
+				at * CFrame.new(0, headY + 0.3 * scale, 0), hairColor, Enum.PartType.Ball)
+		else
+			local capH = 0.24 * scale
+			makePart(model, "Hair", Vector3.new(hw, capH, hdD), at * CFrame.new(0, crownY + capH / 2 - 0.06 * scale, 0), hairColor)
+			local tailW = 0.32 * scale
+			local tailH = 0.7 * scale
+			makePart(model, "HairTailL", Vector3.new(tailW, tailH, tailW * 0.85),
+				at * CFrame.new(-(0.75 * scale + tailW * 0.3), headY - 0.25 * scale, 0.1 * scale), hairColor)
+			makePart(model, "HairTailR", Vector3.new(tailW, tailH, tailW * 0.85),
+				at * CFrame.new(0.75 * scale + tailW * 0.3, headY - 0.25 * scale, 0.1 * scale), hairColor)
+		end
+	end
+
+	return root
+end
+
 -- Applies a full walk pose (arms + legs) to a procedural character after PivotTo.
 -- swingAngle in radians; cross-coordination is handled internally:
 --   rightArm backward  ↔  leftLeg backward  (natural gait)
@@ -1718,19 +1884,21 @@ local function buildProceduralCounselor(
 	local skinColor = BOT_SKIN_TONES[((index - 1) % #BOT_SKIN_TONES) + 1]
 	local hairColor = HAIR_COLORS[((index - 1) % #HAIR_COLORS) + 1]
 
-	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale, hairColor, index)
+	local root = buildRobloxBody(model, at, bodyColor, skinColor, scale, hairColor, index)
 	model.PrimaryPart = root
 	-- Counselor socks: tint to a pastel of the team colour for visual identity
+	-- (procedural-fallback bodies only; the R6 body has clean legs)
 	local lSock = model:FindFirstChild("LeftSock")  :: BasePart?
 	local rSock = model:FindFirstChild("RightSock") :: BasePart?
 	if lSock then lSock.Color  = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.68) end
 	if rSock then rSock.Color  = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.68) end
 
-	-- Match the R6 dims used inside buildHumanoidBody
+	-- R6 mesh-head metrics: visual head ~1.5 wide, center 1.5*scale above
+	-- torso center. Every head accessory below positions from these.
 	local th = 2 * scale
 	local td = 1 * scale
-	local hs = 2 * scale
-	local headY = th / 2 + 0.15 * scale + hs / 2
+	local hs = 1.5 * scale
+	local headY = 1.5 * scale
 	local aw = 1 * scale
 	local ax = scale + aw / 2   -- tw/2 + aw/2 = scale + 0.5*scale
 	-- Sleeve bands: colored stripe on upper arm unique to each counselor's team color
@@ -2117,7 +2285,7 @@ local function buildProceduralBotCharacter(
 	local scale = 0.94 + (h % 17) * 0.01   -- range ~0.94–1.10
 	local hairColor = HAIR_COLORS[(nameHash(displayName) % #HAIR_COLORS) + 1]
 
-	local root = buildHumanoidBody(model, at, bodyColor, skinColor, scale, hairColor, h)
+	local root = buildRobloxBody(model, at, bodyColor, skinColor, scale, hairColor, h)
 	model.PrimaryPart = root
 
 	-- Glowing role badge on chest so bots are visually distinct
@@ -2142,9 +2310,11 @@ local function buildProceduralBotCharacter(
 	lbl.Font = Enum.Font.GothamBold
 	lbl.Parent = sg
 
-	-- Role-specific accessories so each bot is identifiable at a glance
-	local hs = 2 * scale
-	local headY = th / 2 + 0.15 * scale + hs / 2
+	-- Role-specific accessories so each bot is identifiable at a glance.
+	-- R6 mesh-head metrics: visual head ~1.5 wide, center 1.5*scale above
+	-- torso center.
+	local hs = 1.5 * scale
+	local headY = 1.5 * scale
 	local ax = 1.5 * scale   -- arm center X (tw/2 + aw/2)
 	if roleName == "Murderer" then
 		-- Dark cowl draped over head
@@ -2186,8 +2356,9 @@ local function buildProceduralBotCharacter(
 			at * CFrame.new(kX, kY + 0.30 * scale, 0), Color3.fromRGB(20, 14, 6))
 		makePart(model, "KnifeHandle", Vector3.new(0.11 * scale, 0.22 * scale, 0.11 * scale),
 			at * CFrame.new(kX, kY + 0.40 * scale, 0), Color3.fromRGB(52, 30, 12))
-		-- Dark cloak draping from shoulders down the back
-		makePart(model, "Cloak", Vector3.new(hs + 0.28, 2.0 * scale, 0.10),
+		-- Dark cloak draping from shoulders down the back (torso-width, not
+		-- head-width — hs shrank when the bodies went R6)
+		makePart(model, "Cloak", Vector3.new(2 * scale + 0.28, 2.0 * scale, 0.10),
 			at * CFrame.new(0, -0.12 * scale, td / 2 + 0.08), Color3.fromRGB(10, 6, 16))
 	elseif roleName == "Detective" then
 		-- Classic flat-cap detective hat
