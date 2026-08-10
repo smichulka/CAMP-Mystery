@@ -72,6 +72,9 @@
         },
         "Evidence": {
           "$className": "Folder"
+        },
+        "Circus": {
+          "$className": "Folder"
         }
       }
     },

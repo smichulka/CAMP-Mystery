@@ -400,7 +400,9 @@ local function buildScatter(parent: Instance)
 		-- z bound covers the water-sports basin's north lobe (water to z 190)
 		local inLakeSector = x > 82 and z < 200
 		local inCreekCorridor = z > 160 and x > 60 and x < 175
-		if offSlab or inLakeSector or inCreekCorridor then
+		-- Spooky circus grounds + its approach trail to the creek bridge
+		local inCircusGrounds = x > 130 and x < 240 and z > 235 and z < 385
+		if offSlab or inLakeSector or inCreekCorridor or inCircusGrounds then
 			return
 		end
 		local kind = index % 6

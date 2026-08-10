@@ -2273,6 +2273,12 @@ function ProductionMapService:Build()
 					-- Creek's fourth-expansion gate: keep the mouth clear.
 					continue
 				end
+				if treeX > 200 and treeZ > 240 and treeZ < 380 then
+					-- Spooky circus grounds (x 150..218, z 240..380): run 3
+					-- dropped 7 pines through the midway. The dome hillside
+					-- east of the site stays the natural boundary here.
+					continue
+				end
 				createPineTree(
 					self.dayCamp,
 					Vector3.new(treeX, expandedGroundHeight(treeX, treeZ), treeZ),
