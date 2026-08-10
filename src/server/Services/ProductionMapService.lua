@@ -151,10 +151,10 @@ local OBJECTIVES = {
 	{
 		id = "waterpump",
 		name = "Prime the Water Pump",
-		-- y rides the rendered beach dune (~4.8 sand here; the station pad
-		-- sits at position.y - 0.8 and shipped 3.6 under the surface —
-		-- audited 2026-08-10)
-		position = Vector3.new(70, 5.8, 30),
+		-- y rides the rendered beach dune (sand measures 3.6 here; the pad
+		-- top sits at position.y - 0.8 and lands 0.2 proud — first correction
+		-- overshot to 5.8 and floated the pad, re-measured in-boot 2026-08-10)
+		position = Vector3.new(70, 4.6, 30),
 		color = Color3.fromRGB(74, 96, 108),
 	},
 	{
