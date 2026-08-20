@@ -844,6 +844,105 @@ local function buildCabinPorchCluster(parent: Instance, origin: Vector3)
 	bump()
 end
 
+local ENRICH_CAP = 80
+
+local function hasProximityPrompt(part: BasePart): boolean
+	return part:FindFirstChildOfClass("ProximityPrompt") ~= nil
+end
+
+local function shouldSkipEnrichPart(part: BasePart): boolean
+	local name = part.Name
+	if name == "EvidenceSocket" or name == "HumanoidRootPart" or name == "Terrain" then
+		return true
+	end
+	if part:IsA("Terrain") then
+		return true
+	end
+	return false
+end
+
+local function signFlavor(name: string): (string, string)
+	if string.find(name, "Poster") then
+		return "Poster", "Edges curled. Someone circled a face in pencil."
+	elseif string.find(name, "Notice") then
+		return "Notice", "Official stamp half-faded. Read twice."
+	elseif string.find(name, "Map") then
+		return "Map", "Trails marked in red. One path scratched out."
+	end
+	return "Sign", "Weathered lettering. Still points the way."
+end
+
+-- Pass over existing day/night geometry and wire sit/inspect on unnamed props.
+local function enrichExistingProps(dayCamp: Folder, nightTown: Folder)
+	local enriched = 0
+	local seatIndex = 0
+
+	local function enrichRoot(root: Instance)
+		for _, desc in root:GetDescendants() do
+			if enriched >= ENRICH_CAP then
+				return
+			end
+			if not desc:IsA("BasePart") then
+				continue
+			end
+			local part = desc :: BasePart
+			if shouldSkipEnrichPart(part) or hasProximityPrompt(part) then
+				continue
+			end
+
+			local name = part.Name
+			local isSitNamed = string.find(name, "Bench")
+				or string.find(name, "Seat")
+				or string.find(name, "Chair")
+			local isSignNamed = string.find(name, "Sign")
+				or string.find(name, "Poster")
+				or string.find(name, "Notice")
+				or string.find(name, "Map")
+
+			if isSitNamed then
+				if part:IsA("Seat") then
+					continue
+				end
+				local hasSeatChild = part:FindFirstChildWhichIsA("Seat") ~= nil
+				local isLargeBench = string.find(name, "Bench") ~= nil
+					and (part.Size.X >= 3 or part.Size.Z >= 3 or part.Size.Magnitude >= 4)
+				seatIndex += 1
+				local lookAt = part.Position + part.CFrame.LookVector * 4
+				WorldKit.seat(
+					part.Parent or root,
+					string.format("EnrichSeat_%d", seatIndex),
+					part.Position + Vector3.new(0, 0.35, 0),
+					lookAt,
+					WOOD
+				)
+				enriched += 1
+				if enriched >= ENRICH_CAP then
+					return
+				end
+				if isLargeBench and not hasSeatChild then
+					WorldKit.inspect(
+						part,
+						"Bench",
+						"Worn wood. Good place to rest and listen.",
+						0.4
+					)
+					enriched += 1
+				end
+			elseif isSignNamed then
+				local title, body = signFlavor(name)
+				WorldKit.inspect(part, title, body, 0.35)
+				enriched += 1
+			end
+		end
+	end
+
+	enrichRoot(dayCamp)
+	if enriched < ENRICH_CAP then
+		enrichRoot(nightTown)
+	end
+	print(string.format("[CAMP-Mystery] InteractableWorld: enriched %d existing props", enriched))
+end
+
 function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 	builtCount = 0
 	local day = WorldKit.model(dayCamp, "InteractableWorldDay")
@@ -1041,6 +1140,7 @@ function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 		bump()
 	end
 
+	enrichExistingProps(dayCamp, nightTown)
 	print(string.format("[CAMP-Mystery] InteractableWorld: %d interaction sites built", builtCount))
 end
 
