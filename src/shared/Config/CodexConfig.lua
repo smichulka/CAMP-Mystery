@@ -86,6 +86,22 @@ local challenges: { CodexChallenge } = {
 		title = "Leap Denial",
 		description = "Survive 3 nights against the Baby Alien.",
 	},
+	{
+		id = "shadow-survive-3",
+		monsterId = "ShadowMonster",
+		stat = "survivals",
+		target = 3,
+		title = "Hold the Light",
+		description = "Survive 3 nights against the Shadow Monster.",
+	},
+	{
+		id = "banshee-identify-2",
+		monsterId = "Banshee",
+		stat = "identifications",
+		target = 2,
+		title = "Name the Wail",
+		description = "Correctly identify the Banshee culprit twice.",
+	},
 }
 
 local byMonsterId: { [MonsterId]: { CodexChallenge } } = {}

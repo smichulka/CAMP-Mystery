@@ -113,11 +113,12 @@ function LobbyView.Build(self: any, deps: BuildDeps)
 
 	local ready = Components.Button(lobby, {
 		name = "Ready",
-		text = "SIGN UP TONIGHT",
+		text = "SIGN UP · KEEP PARTY",
 		size = UDim2.new(1, -24, 0, 52),
 		position = UDim2.fromOffset(12, 38),
-		color = Theme.Colors.Success,
+		color = Theme.Colors.Gold,
 	})
+	ready.TextColor3 = Theme.Colors.Background
 	ready.Activated:Connect(function()
 		local enrolling = ready.Text ~= "WITHDRAW"
 		self.lastActionControl = ready
@@ -214,10 +215,21 @@ function LobbyView.Build(self: any, deps: BuildDeps)
 	local featured = CosmeticCatalog.byId[featuredId]
 	if featured then
 		tipCategory.Text = "FEATURED"
-		tipBody.Text = string.format(
-			"This week: %s — discounted camp tokens in Progress. Never Robux.",
-			featured.displayName
-		)
+		local storeTip: TipCatalog.Tip? = nil
+		for _, tip in TipCatalog.definitions do
+			if tip.category == "CAMP STORE" then
+				storeTip = tip
+				break
+			end
+		end
+		if storeTip then
+			tipBody.Text = TipCatalog.formatBody(storeTip, featured.displayName)
+		else
+			tipBody.Text = string.format(
+				"This week: %s — discounted camp tokens in Progress (never Robux).",
+				featured.displayName
+			)
+		end
 	else
 		-- Default discovery sell: Fairgrounds + rotating night routes
 		tipCategory.Text = "FAIRGROUNDS"
@@ -400,7 +412,7 @@ function LobbyView.Update(self: any, state: any, phase: string, deps: BuildDeps)
 		math.ceil(deps.readNumber(lobby, "fillEndsAt", 0) - Workspace:GetServerTimeNow())
 	)
 	if fillRemaining > 0 then
-		self.lobbyText.Text ..= string.format("     FILL  %ds", fillRemaining)
+		self.lobbyText.Text ..= string.format("     SOON  %ds", fillRemaining)
 	end
 	local routeLabel = ""
 	local routeDisplay = deps.readString(lobby, "nightRouteDisplayName", "")
@@ -444,8 +456,11 @@ function LobbyView.Update(self: any, state: any, phase: string, deps: BuildDeps)
 	if #TipCatalog.definitions > 0 then
 		local tip = TipCatalog.definitions[((tipIndex - 1) % #TipCatalog.definitions) + 1]
 		if tip then
+			local featuredId = CosmeticCatalog.GetFeaturedCosmeticId()
+			local featured = CosmeticCatalog.byId[featuredId]
+			local featuredName = if featured then featured.displayName else nil
 			self.lobbyTipCategory.Text = tip.category
-			self.lobbyTipBody.Text = tip.body
+			self.lobbyTipBody.Text = TipCatalog.formatBody(tip, featuredName)
 		end
 		if os.clock() - self.lobbyTipChangedAt > 18 then
 			self.lobbyTipIndex = (tipIndex % #TipCatalog.definitions) + 1
@@ -462,7 +477,7 @@ function LobbyView.Update(self: any, state: any, phase: string, deps: BuildDeps)
 			break
 		end
 	end
-	self.readyButton.Text = if isReady then "WITHDRAW" else "SIGN UP TONIGHT"
+	self.readyButton.Text = if isReady then "WITHDRAW" else "SIGN UP · KEEP PARTY"
 	Components.SetButtonEnabled(self.readyButton, true)
 	local fillStartedAt = deps.readNumber(lobby, "fillStartedAt", 0)
 	local fillSignature = if fillStartedAt > 0 then tostring(fillStartedAt) else ""

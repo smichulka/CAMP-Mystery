@@ -72,10 +72,44 @@ Studio mesh install still optional (`CIRCUS_ASSETS.md`); procedural path is the 
 - `compile_luau.py` / related contract tests for AudioController + soft-launch preflight
 - `python scripts/soft_launch_preflight.py`
 
-## Backlog after Cycle 6
+## Cycle 7 — Retention meta + rematch friction
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| Mastery challenges | Done | CodexConfig +2: `shadow-survive-3` (Hold the Light), `banshee-identify-2` (Name the Wail) |
+| Tips + featured | Done | TipCatalog CAMP STORE `{featured}` + STREAK + REMATCH tips; `formatBody`; LobbyView/GameView resolve via `GetFeaturedCosmeticId` |
+| Streak copy | Done | ProgressionConfig.streakCopy; Rewards suffix + welcome toast say XP & tokens |
+| Rematch CTA | Done | Results `PLAY AGAIN · KEEP PARTY` (gold, LayoutPass primary); lobby `SIGN UP · KEEP PARTY`; shorter rematch notice; SOON fill copy |
+
+### Gates
+- `compile_luau.py` / `run_all_checks.py` after Cycle 7 source edits
+
+## Backlog after Cycle 7
 
 1. Authored Camp/NightTown + final audio bank (asset pipeline; wire FairgroundsAmbienceAssetId / CircusStingAssetId)
 2. Discovery triad: Creator Dashboard icon / thumbnail / 15s trailer
 3. Mobile device soak confirmation before public Quick Camp promo
 4. Global/reserved-server matchmaking (post soft-launch)
 5. Cosmetics-only Robux shop allowlist only after D1/retention healthy
+
+## Cycle 8 — Final audit polish (code-side competitive loop complete)
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| TODO/FIXME/HACK scan (`src/` UI, bots, fairgrounds, tutorial) | Done | No actionable TODO/FIXME/HACK markers; no broken-string / nil-check quick wins beyond CharacterService |
+| CharacterService camper look | Done | `CamperLookApplied` only after successful CampArmband / `AccentWeld` path; R6-safe `resolveTorso` (no 10s UpperTorso stall); `LoadCharacterAppearance: true` confirmed in `default.project.json` |
+| InterviewTopics | Done | Greeting + Safety still present (order Greeting → Observation → Schedule → Monster → Safety → Suspicion) |
+| Contract drift | Done | Locked `test_camper_look_applied_only_after_torso_weld`; full `run_all_checks.py` / soft-launch preflight green |
+
+### Gates
+- `compile_luau.py` + `run_all_checks.py` (includes soft-launch preflight)
+
+### Remaining EXTERNAL backlog only
+
+Code-side competitive loop Cycle 8 completes the autonomous pass. Remaining items need authored assets and/or human Studio / Creator Dashboard work:
+
+1. Authored Camp/NightTown meshes + final audio bank (wire `FairgroundsAmbienceAssetId` / `CircusStingAssetId`)
+2. Creator Dashboard discovery art (icon / thumbnail / 15s trailer)
+3. Live mobile device soak before public Quick Camp promo
+4. Reserved-server / global matchmaking (post soft-launch)
+5. Post-retention cosmetics-only Robux shop allowlist (only after D1/retention healthy)

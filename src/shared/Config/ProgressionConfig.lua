@@ -44,6 +44,15 @@ local REWARDS = table.freeze({
 	featuredTokenDiscount = 0.15,
 })
 
+-- Client-facing streak reward copy (Rewards modal + welcome toast).
+local STREAK_COPY = table.freeze({
+	rewardSuffixFormat = "     DAY %d STREAK · +%d%% XP & TOKENS",
+	toastTitleFormat = "Day %d streak!",
+	toastBodyFormat = "Camp rewards pay +%d%% XP & tokens today. Play tomorrow to keep it going.",
+	toastMilestoneFormat = "Camp rewards pay +%d%% XP & tokens today. %d more day%s to the \"%s\" title.",
+	lobbyHint = "Daily streak: +10% XP & tokens per consecutive day (max +50%).",
+})
+
 local function levelFromXP(xp: number): number
 	local safeXP = math.max(0, math.floor(xp))
 	local level = 1
@@ -99,4 +108,5 @@ return table.freeze({
 	levelFromXP = levelFromXP,
 	roleLevelFromXP = roleLevelFromXP,
 	featuredTokenDiscount = REWARDS.featuredTokenDiscount,
+	streakCopy = STREAK_COPY,
 })

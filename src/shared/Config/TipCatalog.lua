@@ -7,6 +7,21 @@ export type Tip = {
 	includeRoles: { string }?,
 }
 
+-- Lobby / loading tips may include "{featured}" — resolve with the weekly
+-- CosmeticCatalog display name when the UI can look it up.
+local function formatBody(tip: Tip, featuredDisplayName: string?): string
+	local body = tip.body
+	local needle = "{featured}"
+	if not string.find(body, needle, 1, true) then
+		return body
+	end
+	local name = featuredDisplayName
+	if type(name) ~= "string" or name == "" then
+		name = "this week's featured cosmetic"
+	end
+	return (string.gsub(body, needle, name, 1))
+end
+
 local definitions: { Tip } = {
 	{ category = "CAMP BASICS", body = "Stay close to the group until you know the safest paths." },
 	{ category = "CAMP BASICS", body = "Every phase changes what actions and locations are available." },
@@ -48,8 +63,20 @@ local definitions: { Tip } = {
 	{ category = "COUNTERPLAY", body = "Open the Monster Codex after each night — surviving Wendigo hunts unlocks mastery challenges.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "Correct culprit IDs raise monster mastery. Shadow Monster and Entity challenges reward patient deduction.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "Mastery tiers climb with encounters, survivals, and identifications. Check Codex challenges between rounds.", excludeRoles = { "Murderer" } },
-	-- Live-ops: weekly featured cosmetic (camp tokens only)
-	{ category = "CAMP STORE", body = "This week's featured cosmetic is discounted in Progress — unlock with camp tokens, never Robux." },
+	-- Live-ops: weekly featured cosmetic + daily streak (camp tokens only)
+	{
+		category = "CAMP STORE",
+		body = "This week: {featured} — discounted camp tokens in Progress (never Robux). Daily streaks boost XP & tokens — play tomorrow to keep the bonus.",
+	},
+	{
+		category = "STREAK",
+		body = "Come back tomorrow: each consecutive UTC day adds +10% XP & camp tokens (caps at +50%). Streak titles unlock in Progress.",
+	},
+	-- Rematch keeps the same lobby party together
+	{
+		category = "REMATCH",
+		body = "Hit PLAY AGAIN after the verdict — rematch keeps your party and auto-signs you up when the lobby returns.",
+	},
 
 	-- Murderer-only tips
 	{ category = "STRATEGY", body = "Your notebook tracks evidence collected against you. Check it often to gauge how close they are.", includeRoles = { "Murderer" } },
@@ -75,4 +102,5 @@ local definitions: { Tip } = {
 
 return table.freeze({
 	definitions = table.freeze(definitions),
+	formatBody = formatBody,
 })

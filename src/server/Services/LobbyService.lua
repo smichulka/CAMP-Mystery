@@ -147,6 +147,8 @@ function LobbyService:RemovePlayer(player: Player): DisconnectContext?
 end
 
 function LobbyService:SetWantsRematch(player: Player, wantsRematch: boolean): boolean
+	-- Rematch queues the same lobby party: when the round releases, rematch
+	-- players auto-ready so the crew stays together without re-signing.
 	local state = self.players[player.UserId]
 	if not state then
 		return false

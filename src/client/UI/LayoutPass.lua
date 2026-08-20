@@ -282,14 +282,19 @@ function LayoutPass.UpdateLayout(self: any, deps: Deps)
 			modal.Size = UDim2.new(1, -16, 1, -24)
 		end
 		local resultContinue = self.resultModal:FindFirstChild("Continue")
+		local resultPlayAgain = self.resultModal:FindFirstChild("PlayAgain")
 		local resultProgression = self.resultModal:FindFirstChild("Progression")
 		if resultContinue and resultContinue:IsA("GuiObject") then
 			resultContinue.Size = UDim2.new(0.5, -18, 0, 44)
 			resultContinue.Position = UDim2.new(0.5, 6, 1, -64)
 		end
+		if resultPlayAgain and resultPlayAgain:IsA("GuiObject") then
+			resultPlayAgain.Size = UDim2.new(0.5, -18, 0, 48)
+			resultPlayAgain.Position = UDim2.new(0, 12, 1, -66)
+		end
 		if resultProgression and resultProgression:IsA("GuiObject") then
-			resultProgression.Size = UDim2.new(0.5, -18, 0, 44)
-			resultProgression.Position = UDim2.new(0, 12, 1, -64)
+			resultProgression.Size = UDim2.new(0.34, 0, 0, 32)
+			resultProgression.Position = UDim2.new(0.33, 0, 1, -112)
 		end
 	else
 		self.notebook.Size = UDim2.new(0.72, 0, 0.72, 0)
@@ -299,14 +304,19 @@ function LayoutPass.UpdateLayout(self: any, deps: Deps)
 		self.targetModal.Size = UDim2.new(0.4, 0, 0.62, 0)
 		self.progression.Size = UDim2.new(0.72, 0, 0.78, 0)
 		local resultContinue = self.resultModal:FindFirstChild("Continue")
+		local resultPlayAgain = self.resultModal:FindFirstChild("PlayAgain")
 		local resultProgression = self.resultModal:FindFirstChild("Progression")
 		if resultContinue and resultContinue:IsA("GuiObject") then
 			resultContinue.Size = UDim2.fromOffset(170, 44)
 			resultContinue.Position = UDim2.new(0.5, 8, 1, -64)
 		end
+		if resultPlayAgain and resultPlayAgain:IsA("GuiObject") then
+			resultPlayAgain.Size = UDim2.fromOffset(210, 48)
+			resultPlayAgain.Position = UDim2.new(0.5, -198, 1, -66)
+		end
 		if resultProgression and resultProgression:IsA("GuiObject") then
-			resultProgression.Size = UDim2.fromOffset(170, 44)
-			resultProgression.Position = UDim2.new(0.5, -178, 1, -64)
+			resultProgression.Size = UDim2.fromOffset(110, 36)
+			resultProgression.Position = UDim2.new(0.5, -148, 1, -118)
 		end
 	end
 end

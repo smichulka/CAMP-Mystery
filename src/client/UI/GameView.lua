@@ -1521,13 +1521,16 @@ function GameView:_buildResults()
 	continue.Activated:Connect(function()
 		setModalVisible(self.resultModal, false)
 	end)
+	-- Primary rematch CTA: gold + party-keeping copy. LayoutPass positions this
+	-- as the left results button (Progression stays available from the lobby).
 	local playAgain = Components.Button(self.resultModal, {
 		name = "PlayAgain",
-		text = "PLAY AGAIN",
-		size = UDim2.fromOffset(170, 44),
-		position = UDim2.new(0.5, -178, 1, -64),
-		color = Theme.Colors.Success,
+		text = "PLAY AGAIN · KEEP PARTY",
+		size = UDim2.fromOffset(210, 48),
+		position = UDim2.new(0.5, -198, 1, -66),
+		color = Theme.Colors.Gold,
 	})
+	playAgain.TextColor3 = Theme.Colors.Background
 	playAgain.Activated:Connect(function()
 		self.lastActionControl = playAgain
 		local sent, reason = self.actionHandler("RematchReady", {})
@@ -1541,12 +1544,12 @@ function GameView:_buildResults()
 	end)
 	local progression = Components.Button(self.resultModal, {
 		name = "Progression",
-		text = "PROGRESSION",
-		size = UDim2.fromOffset(170, 44),
-		position = UDim2.new(0.5, -178, 1, -64),
-		color = Theme.Colors.Gold,
+		text = "PROGRESS",
+		size = UDim2.fromOffset(110, 36),
+		position = UDim2.new(0.5, -178, 1, -118),
+		color = Theme.Colors.PanelSoft,
 	})
-	progression.TextColor3 = Theme.Colors.Background
+	progression.TextColor3 = Theme.Colors.TextMuted
 	progression.Activated:Connect(function()
 		setModalVisible(self.resultModal, false)
 		self:ToggleProgression()
@@ -5453,7 +5456,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					) * ProgressionConfig.rewards.streakPerDayBonus * 100 + 0.5
 				)
 				streakSuffix = string.format(
-					"     DAY %d STREAK  +%d%%",
+					ProgressionConfig.streakCopy.rewardSuffixFormat,
 					streakDays,
 					bonusPercent
 				)
@@ -5509,19 +5512,24 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				end
 			end
 			local body = string.format(
-				"Camp rewards pay +%d%% today. Play tomorrow to keep it going.",
+				ProgressionConfig.streakCopy.toastBodyFormat,
 				bonusPercent
 			)
 			if nextMilestone then
 				body = string.format(
-					"Camp rewards pay +%d%% today. %d more day%s to the \"%s\" title.",
+					ProgressionConfig.streakCopy.toastMilestoneFormat,
 					bonusPercent,
 					nextDays - streakDays,
 					if nextDays - streakDays == 1 then "" else "s",
 					nextMilestone
 				)
 			end
-			self:Notify(string.format("Day %d streak!", streakDays), body, "Success", 8)
+			self:Notify(
+				string.format(ProgressionConfig.streakCopy.toastTitleFormat, streakDays),
+				body,
+				"Success",
+				8
+			)
 		end
 	end
 	local settings = if type(profileData) == "table" then profileData.settings else nil
@@ -5570,8 +5578,11 @@ function GameView:Tick()
 		local tip = TipCatalog.definitions[self.lobbyTipIndex]
 		local function applyTip()
 			if tip and self.lobbyTip.Parent then
+				local featuredId = CosmeticCatalog.GetFeaturedCosmeticId()
+				local featured = CosmeticCatalog.byId[featuredId]
+				local featuredName = if featured then featured.displayName else nil
 				self.lobbyTipCategory.Text = tip.category
-				self.lobbyTipBody.Text = tip.body
+				self.lobbyTipBody.Text = TipCatalog.formatBody(tip, featuredName)
 			end
 		end
 		if self.settingsValues.reducedMotion == true then

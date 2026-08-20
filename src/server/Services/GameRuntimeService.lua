@@ -4667,8 +4667,8 @@ function GameRuntimeService:HandleAction(
 			self:_noticePlayer(
 				player,
 				"Success",
-				"See you at the fire",
-				"You will auto sign up when the lobby returns.",
+				"Party stays together",
+				"Auto-ready when lobby opens — moments away.",
 				4
 			)
 		end
