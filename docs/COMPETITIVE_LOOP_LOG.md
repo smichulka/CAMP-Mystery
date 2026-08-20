@@ -106,6 +106,17 @@ Studio mesh install still optional (`CIRCUS_ASSETS.md`); procedural path is the 
 
 ### Remaining EXTERNAL backlog only
 
+## Interactable density pass (post Cycle 8)
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| InteractableWorld pack | Done | Camp + night town + Midway: inspect/sit/tune/play/ring/fortune/strongman/etc. |
+| WorldKit.inspect / seat | Done | Shared helpers for feedback billboards + seats |
+| Creator Store meshes | Studio | PicnicTable, BulletinBoard, RustyRadio, ParkBench quarantined in ServerAssets.Interactables |
+| Tips | Done | ENVIRONMENT tips sell inspectables |
+
+## Remaining EXTERNAL backlog
+
 Code-side competitive loop Cycle 8 completes the autonomous pass. Remaining items need authored assets and/or human Studio / Creator Dashboard work:
 
 1. Authored Camp/NightTown meshes + final audio bank (wire `FairgroundsAmbienceAssetId` / `CircusStingAssetId`)

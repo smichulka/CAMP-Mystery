@@ -91,6 +91,8 @@ local definitions: { Tip } = {
 	{ category = "MONSTERS", body = "The Dullahan has no head. If a cloaked figure is rushing you and the speed feels wrong, break line of sight immediately.", excludeRoles = { "Murderer" } },
 	{ category = "MONSTERS", body = "The Banshee appears as a silver-white spectral woman. When she opens her mouth, move away before the wail builds to full intensity.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "The old town beyond camp is foggy and abandoned — rusted water towers, crumbling buildings, muddy roads. Cover is plentiful but exits are limited.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Almost everything can be inspected — bulletin boards, radios, Midway games, gravestones, and motel guestbooks hide flavor and soft clues." },
+	{ category = "ENVIRONMENT", body = "Sit on benches and picnic seats to rest. Ring the dinner bell, tune camp radios, and try Midway ring-toss or the fortune booth." },
 	{ category = "ENVIRONMENT", body = "Cabin interiors are dark and cluttered. Flashlights are essential once natural light drops at nightfall.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Northeast Fairgrounds: Midway Festival by day (soft rides, prize booths, ticket booth) flips to Midnight Circus after dusk. Tickets are optional — the murder mystery stays separate from the opt-in scare.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Walk the Midway Festival while the sun is up — check fair supplies, restock popcorn, browse the prize counter, and take a Festival Pass if you want the night carnival chase.", excludeRoles = { "Murderer" } },

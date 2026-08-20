@@ -421,4 +421,68 @@ function WorldKit.stairs(
 	return stairsModel
 end
 
+-- Inspectable world prop: ProximityPrompt + floating feedback billboard.
+-- Use for lore, flavor, and soft mystery texture without combat stakes.
+function WorldKit.inspect(
+	part: BasePart,
+	objectText: string,
+	response: string,
+	holdDuration: number?
+): ProximityPrompt
+	local prompt = WorldKit.prompt(part, "Inspect", objectText, holdDuration or 0.4)
+	local feedback = Instance.new("BillboardGui")
+	feedback.Name = "InteractionFeedback"
+	feedback.Size = UDim2.new(8.5, 0, 2.2, 0)
+	feedback.StudsOffset = Vector3.new(0, 3.4, 0)
+	feedback.AlwaysOnTop = true
+	feedback.MaxDistance = 48
+	feedback.Enabled = false
+	feedback.Parent = part
+	local label = Instance.new("TextLabel")
+	label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+	label.BackgroundTransparency = 0.08
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamMedium
+	label.Text = response
+	label.TextColor3 = Color3.fromRGB(244, 224, 176)
+	label.TextSize = 15
+	label.TextWrapped = true
+	label.Parent = feedback
+	local version = 0
+	prompt.Triggered:Connect(function()
+		version += 1
+		local current = version
+		prompt.ActionText = "Inspected"
+		feedback.Enabled = true
+		task.delay(3.2, function()
+			if prompt.Parent and version == current then
+				prompt.ActionText = "Inspect"
+				feedback.Enabled = false
+			end
+		end)
+	end)
+	return prompt
+end
+
+-- Anchored sit spot that faces lookAt. Prefer for plaza / dock flavor seating.
+function WorldKit.seat(
+	parent: Instance,
+	name: string,
+	position: Vector3,
+	lookAt: Vector3,
+	color: Color3?
+): Seat
+	local seat = Instance.new("Seat")
+	seat.Name = name
+	seat.Anchored = true
+	seat.Size = Vector3.new(2, 0.45, 2)
+	seat.CFrame = CFrame.lookAt(position, Vector3.new(lookAt.X, position.Y, lookAt.Z))
+	seat.Color = color or Color3.fromRGB(110, 82, 52)
+	seat.Material = Enum.Material.WoodPlanks
+	seat.TopSurface = Enum.SurfaceType.Smooth
+	seat.Parent = parent
+	return seat
+end
+
 return WorldKit

@@ -3951,7 +3951,7 @@ end
 -- optionally so the map service works before/without any given pack.
 -- PolishPack runs last: it decorates structures the other packs build.
 local EXPANSION_MODULE_NAMES =
-	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "HighFrontier", "SpookyCircus", "PolishPack" }
+	{ "TownExpansion", "CampExpansion", "LakeAndWilds", "Landmarks", "Backcountry", "HighFrontier", "SpookyCircus", "PolishPack", "InteractableWorld" }
 
 local function optionalMapModule(name: string): any
 	local servicesFolder = script.Parent
