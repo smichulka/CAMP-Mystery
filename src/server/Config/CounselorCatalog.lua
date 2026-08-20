@@ -139,6 +139,7 @@ local counselors: { CounselorDefinition } = {
 			Observation = {
 				"The print is partial. It narrows the footwear, but it does not name the wearer.",
 				"Someone used the shortcut, though several people know where the latch sticks.",
+				"The Fairgrounds northeast of camp hosts a Midway Festival by day — open booth, soft rides, fair supplies. After dark it escalates to the Midnight Circus. Tickets are optional — a carnie catch is a scare escort, not an injury.",
 			},
 			Monster = {
 				"Track spacing tells us how it moved. Residue and recordings tell us what it was.",

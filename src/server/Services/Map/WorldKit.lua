@@ -72,7 +72,19 @@ function WorldKit.part(
 	part.Size = size
 	part.CFrame = cframe
 	part.Color = color
-	part.Material = material or Enum.Material.SmoothPlastic
+	local resolvedMaterial = material or Enum.Material.SmoothPlastic
+	part.Material = resolvedMaterial
+	-- Subtle reflectance keeps wood/metal from reading as flat plastic under
+	-- the richer CampAtmosphere without blowing Specular budgets.
+	if resolvedMaterial == Enum.Material.Metal or resolvedMaterial == Enum.Material.CorrodedMetal then
+		part.Reflectance = 0.08
+	elseif resolvedMaterial == Enum.Material.Glass then
+		part.Reflectance = 0.12
+	elseif resolvedMaterial == Enum.Material.Wood or resolvedMaterial == Enum.Material.WoodPlanks then
+		part.Reflectance = 0.025
+	elseif resolvedMaterial == Enum.Material.Neon then
+		part.Reflectance = 0
+	end
 	if shape then
 		part.Shape = shape
 	end
@@ -152,9 +164,9 @@ function WorldKit.lamp(part: BasePart, options: LampOptions?): PointLight
 	local resolved = options or {}
 	local light = Instance.new("PointLight")
 	light.Name = "CampLamp"
-	light.Color = resolved.color or Color3.fromRGB(255, 205, 130)
-	light.Brightness = resolved.brightness or 1.4
-	light.Range = resolved.range or 16
+	light.Color = resolved.color or Color3.fromRGB(255, 204, 138)
+	light.Brightness = resolved.brightness or 2.05
+	light.Range = resolved.range or 22
 	light.Shadows = true
 	light.Enabled = false
 	light:SetAttribute("CampLamp", true)
@@ -163,26 +175,40 @@ function WorldKit.lamp(part: BasePart, options: LampOptions?): PointLight
 	return light
 end
 
+-- Far decorative dressing: no collision, no shadow. ProductionMapService
+-- shadow soak also honors FarDress=true so packs can tag legacy props.
+function WorldKit.farDress(part: BasePart)
+	part:SetAttribute("FarDress", true)
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CastShadow = false
+end
+
 function WorldKit.billboardLabel(part: BasePart, text: string, color: Color3?): BillboardGui
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "WorldLabel"
 	-- Stud-based sizing so labels shrink with distance on phone screens.
-	billboard.Size = UDim2.new(6.6, 0, 1.6, 0)
-	billboard.StudsOffset = Vector3.new(0, 3.4, 0)
+	billboard.Size = UDim2.new(6.8, 0, 1.7, 0)
+	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 45
+	billboard.MaxDistance = 48
 	billboard.Parent = part
 	local label = Instance.new("TextLabel")
-	label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
-	label.BackgroundTransparency = 0.2
+	label.BackgroundColor3 = Color3.fromRGB(10, 14, 14)
+	label.BackgroundTransparency = 0.15
 	label.BorderSizePixel = 0
 	label.Size = UDim2.fromScale(1, 1)
 	label.Font = Enum.Font.GothamBold
 	label.Text = text
-	label.TextColor3 = color or Color3.fromRGB(244, 224, 176)
+	label.TextColor3 = color or Color3.fromRGB(248, 232, 188)
 	label.TextScaled = true
 	label.TextWrapped = true
 	label.Parent = billboard
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.Transparency = 0.45
+	stroke.Thickness = 1.2
+	stroke.Parent = label
 	return billboard
 end
 

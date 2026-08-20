@@ -1,10 +1,13 @@
 --!strict
 
--- SPOOKY CIRCUS: opt-in night attraction in the northeast frontier meadow
--- (grounds x 150..218, z 240..380; the boundary-dome hillside east of x 220
--- is the natural back fence). By day it stands dormant and creepy; at night
--- the lights come up, the rides turn, the big-top show runs, and carnie
--- monsters patrol the midway.
+-- SPOOKY CIRCUS / MIDWAY FESTIVAL: opt-in attraction in the northeast
+-- frontier meadow (grounds x 150..218, z 240..380; the boundary-dome
+-- hillside east of x 220 is the natural back fence).
+--
+-- Wave 5 World B — Daytime Fairgrounds: by day the Midway Festival is open
+-- (bunting, soft ride spin, festival-pass booth, fair-supplies search). At
+-- night SetNight escalates to the Midnight Circus — full lights, rides,
+-- big-top show, and carnie monsters that chase ticket holders only.
 --
 -- Sign-up is diegetic: the ticket booth prompt stamps a CircusTicket
 -- attribute on your character and welds on a glowing wristband. Carnies
@@ -15,8 +18,13 @@
 -- are cloned from ServerStorage.ServerAssets.Circus by name; every piece has
 -- a procedural fallback so the game boots identically without them.
 --
+-- Streaming soak: Workspace StreamingMinRadius=128 (default.project.json).
+-- Pure scenery (trail strips, fence pickets, bunting, fog hosts, rim bulbs)
+-- is tagged FarDress via WorldKit.farDress so shadow soak skips them and
+-- CanCollide stays false. Mesh-clone paths are unchanged when assets exist.
+--
 --   SpookyCircus.Build(dayCamp)  -- after terrain; parents under dayCamp
---   SpookyCircus.Start()         -- once at server start; night loops
+--   SpookyCircus.Start()         -- once at server start; day + night loops
 --   SpookyCircus.SetNight(bool)  -- from ProductionMapService:SetNight
 
 local Players = game:GetService("Players")
@@ -31,16 +39,21 @@ local CircusAudioDefaults = require(
 	script.Parent.Parent.Parent:WaitForChild("Config"):WaitForChild("CircusAudioDefaults")
 )
 
-local TENT_RED = Color3.fromRGB(122, 40, 46)
-local TENT_CREAM = Color3.fromRGB(206, 192, 160)
+local TENT_RED = Color3.fromRGB(148, 36, 48)
+local TENT_CREAM = Color3.fromRGB(228, 214, 178)
+local TENT_STRIPE = Color3.fromRGB(188, 52, 62)
 local WOOD_DARK = Color3.fromRGB(58, 42, 30)
 local WOOD_MID = Color3.fromRGB(88, 64, 42)
-local IRON_DARK = Color3.fromRGB(52, 52, 58)
+local IRON_DARK = Color3.fromRGB(48, 48, 56)
+local IRON_BRASS = Color3.fromRGB(138, 112, 72)
 local GLOW_GREEN = Color3.fromRGB(126, 226, 148)
-local GLOW_PURPLE = Color3.fromRGB(168, 108, 226)
+local GLOW_PURPLE = Color3.fromRGB(178, 118, 240)
 local GLOW_AMBER = Color3.fromRGB(255, 196, 110)
+local GLOW_MAGENTA = Color3.fromRGB(236, 86, 168)
+local GLOW_CYAN = Color3.fromRGB(110, 220, 236)
 local DIRT = Color3.fromRGB(96, 78, 56)
 local BONE_WHITE = Color3.fromRGB(222, 216, 200)
+local PRIZE_TEAL = Color3.fromRGB(72, 118, 112)
 
 local GATE_POSITION = Vector3.new(162, 0, 258)
 local TICKET_ATTRIBUTE = "CircusTicket"
@@ -69,6 +82,10 @@ local state = {
 	performer = nil :: Model?,
 	carnies = {} :: { Carnie },
 	calliopeSound = nil :: Sound?,
+	ticketPrompt = nil :: ProximityPrompt?,
+	approachSign = nil :: Model?,
+	dayBannerLabel = nil :: TextLabel?,
+	festivalProps = nil :: Model?,
 }
 
 -- Rendered-surface seat. The circus site is FLAT slab (renders ~2.5
@@ -163,36 +180,55 @@ local function buildGateAndFence(circus: Model)
 	local gateCF = CFrame.new(gx, ground, gz) * CFrame.Angles(0, math.rad(-142), 0)
 
 	for side = -1, 1, 2 do
-		WorldKit.part(circus, "CircusGatePost", Vector3.new(1.2, 12, 1.2),
-			gateCF * CFrame.new(side * 6.5, 6, 0), IRON_DARK, Enum.Material.Metal)
-		local skull = WorldKit.part(circus, "GateSkull", Vector3.new(1.1, 1.1, 1.1),
-			gateCF * CFrame.new(side * 6.5, 12.5, 0), BONE_WHITE, Enum.Material.SmoothPlastic,
+		WorldKit.part(circus, "CircusGatePost", Vector3.new(1.35, 12.4, 1.35),
+			gateCF * CFrame.new(side * 6.5, 6.2, 0), IRON_DARK, Enum.Material.DiamondPlate)
+		local brassCap = WorldKit.part(circus, "GatePostCap", Vector3.new(1.55, 0.35, 1.55),
+			gateCF * CFrame.new(side * 6.5, 12.5, 0), IRON_BRASS, Enum.Material.Metal)
+		brassCap.CanCollide = false
+		local skull = WorldKit.part(circus, "GateSkull", Vector3.new(1.15, 1.15, 1.15),
+			gateCF * CFrame.new(side * 6.5, 13.2, 0), BONE_WHITE, Enum.Material.SmoothPlastic,
 			Enum.PartType.Ball)
 		skull.CanCollide = false
+		local neonRing = WorldKit.part(circus, "GatePostNeon", Vector3.new(0.45, 0.45, 0.45),
+			gateCF * CFrame.new(side * 6.5, 11.2, 0.7),
+			if side < 0 then GLOW_PURPLE else GLOW_GREEN, Enum.Material.Neon, Enum.PartType.Ball)
+		neonRing.CanCollide = false
 	end
-	local arch = WorldKit.part(circus, "CircusGateArch", Vector3.new(14.6, 1.6, 0.9),
-		gateCF * CFrame.new(0, 12.6, 0), IRON_DARK, Enum.Material.Metal)
-	local sign = WorldKit.part(circus, "CircusGateSign", Vector3.new(11, 2.4, 0.4),
-		gateCF * CFrame.new(0, 10.6, 0), WOOD_DARK, Enum.Material.WoodPlanks)
+	WorldKit.part(circus, "CircusGateArch", Vector3.new(14.6, 1.7, 0.95),
+		gateCF * CFrame.new(0, 12.8, 0), IRON_DARK, Enum.Material.DiamondPlate)
+	local neonArch = WorldKit.part(circus, "CircusGateArchNeon", Vector3.new(14.2, 0.28, 0.35),
+		gateCF * CFrame.new(0, 13.75, 0.35), GLOW_MAGENTA, Enum.Material.Neon)
+	neonArch.CanCollide = false
+	local sign = WorldKit.part(circus, "CircusGateSign", Vector3.new(11.4, 2.6, 0.45),
+		gateCF * CFrame.new(0, 10.7, 0), WOOD_DARK, Enum.Material.WoodPlanks)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
-	gui.CanvasSize = Vector2.new(560, 130)
+	gui.CanvasSize = Vector2.new(560, 140)
 	gui.Parent = sign
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
+	label.Size = UDim2.new(1, 0, 0.62, 0)
 	label.Font = Enum.Font.Creepster
 	label.Text = "MIDNIGHT CIRCUS"
 	label.TextColor3 = GLOW_GREEN
 	label.TextScaled = true
 	label.Parent = gui
-	local signLamp = WorldKit.part(circus, "GateSignLamp", Vector3.new(0.6, 0.6, 0.6),
-		gateCF * CFrame.new(0, 13.8, 0), GLOW_GREEN, Enum.Material.Neon, Enum.PartType.Ball)
+	local sub = Instance.new("TextLabel")
+	sub.BackgroundTransparency = 1
+	sub.Position = UDim2.new(0, 0, 0.62, 0)
+	sub.Size = UDim2.new(1, 0, 0.38, 0)
+	sub.Font = Enum.Font.GothamBold
+	sub.Text = "MIDWAY FESTIVAL BY DAY"
+	sub.TextColor3 = GLOW_AMBER
+	sub.TextScaled = true
+	sub.Parent = gui
+	local signLamp = WorldKit.part(circus, "GateSignLamp", Vector3.new(0.65, 0.65, 0.65),
+		gateCF * CFrame.new(0, 14.1, 0), GLOW_GREEN, Enum.Material.Neon, Enum.PartType.Ball)
 	signLamp.CanCollide = false
-	WorldKit.lamp(signLamp, { color = GLOW_GREEN, brightness = 1.4, range = 26 })
+	WorldKit.lamp(signLamp, { color = GLOW_GREEN, brightness = 1.5, range = 28 })
 
 	-- Fence: pickets along the south and west edges (the hillside walls the
-	-- east and the big top anchors the north)
+	-- east and the big top anchors the north). FarDress: pure scenery.
 	local fenceRuns: { { number } } = {
 		-- { fromX, fromZ, toX, toZ }
 		{ 150, 262, 156, 256 },
@@ -207,9 +243,10 @@ local function buildGateAndFence(circus: Model)
 			local alpha = post / posts
 			local x = fromX + (toX - fromX) * alpha
 			local z = fromZ + (toZ - fromZ) * alpha
-			WorldKit.part(circus, "CircusFencePost", Vector3.new(0.5, 5, 0.5),
+			local picket = WorldKit.part(circus, "CircusFencePost", Vector3.new(0.5, 5, 0.5),
 				CFrame.new(x, groundY(x, z) + 2.3, z) * CFrame.Angles(0, math.random() * 0.3, math.rad(math.random(-6, 6))),
 				IRON_DARK, Enum.Material.Metal)
+			WorldKit.farDress(picket)
 		end
 	end
 
@@ -224,35 +261,52 @@ local function buildGateAndFence(circus: Model)
 			local alpha = segment / segments
 			local x = fromPoint.X + span.X * alpha
 			local z = fromPoint.Y + span.Y * alpha
-			local strip = WorldKit.part(circus, "CircusTrailStrip", Vector3.new(2.4, 0.12, 7),
+			local strip = WorldKit.part(circus, "CircusTrailStrip", Vector3.new(2.6, 0.12, 7),
 				CFrame.new(x, groundY(x, z) + 0.08, z)
 					* CFrame.Angles(0, math.atan2(span.X, span.Y) + (segment % 3 - 1) * 0.06, 0),
 				DIRT, Enum.Material.Ground)
-			strip.CanCollide = false
+			WorldKit.farDress(strip)
 		end
 	end
 
-	-- Midway dirt path: gate -> carousel -> big top
+	-- Midway dirt path: gate -> carousel -> big top (sawdust borders + center stripe)
+	local SAWDUST = Color3.fromRGB(168, 142, 96)
 	local midwayPoints = { Vector2.new(gx + 3, gz + 5), Vector2.new(180, 288), Vector2.new(190, 318), Vector2.new(195, 336) }
 	for index = 1, #midwayPoints - 1 do
 		local fromPoint = midwayPoints[index]
 		local toPoint = midwayPoints[index + 1]
 		local span = toPoint - fromPoint
-		local segments = math.max(1, math.floor(span.Magnitude / 6))
+		local segments = math.max(1, math.floor(span.Magnitude / 5.5))
+		local yaw = math.atan2(span.X, span.Y)
 		for segment = 0, segments do
 			local alpha = segment / segments
 			local x = fromPoint.X + span.X * alpha
 			local z = fromPoint.Y + span.Y * alpha
-			local strip = WorldKit.part(circus, "MidwayStrip", Vector3.new(3.4, 0.12, 6.4),
-				CFrame.new(x, groundY(x, z) + 0.08, z)
-					* CFrame.Angles(0, math.atan2(span.X, span.Y), 0),
+			local y = groundY(x, z) + 0.08
+			local strip = WorldKit.part(circus, "MidwayStrip", Vector3.new(4.2, 0.12, 6.2),
+				CFrame.new(x, y, z) * CFrame.Angles(0, yaw, 0),
 				DIRT, Enum.Material.Ground)
-			strip.CanCollide = false
+			WorldKit.farDress(strip)
+			local center = WorldKit.part(circus, "MidwayCenterStripe", Vector3.new(0.55, 0.06, 5.6),
+				CFrame.new(x, y + 0.05, z) * CFrame.Angles(0, yaw, 0),
+				GLOW_AMBER, Enum.Material.Neon)
+			WorldKit.farDress(center)
+			for side = -1, 1, 2 do
+				local border = WorldKit.part(circus, "MidwaySawdust", Vector3.new(0.9, 0.1, 5.8),
+					CFrame.new(x, y + 0.02, z) * CFrame.Angles(0, yaw, 0)
+						* CFrame.new(side * 2.35, 0, 0),
+					SAWDUST, Enum.Material.Sand)
+				WorldKit.farDress(border)
+			end
 		end
 	end
 
-	WorldKit.signpost(circus, Vector3.new(140, groundY(140, 222), 222),
-		{ "MIDNIGHT CIRCUS", "IF YOU DARE" })
+	local approachSign = WorldKit.signpost(circus, Vector3.new(140, groundY(140, 222), 222),
+		{ "MIDWAY FESTIVAL", "OPEN TODAY" })
+	state.approachSign = approachSign
+	-- Second approach board sells the night flip so day visitors see both names.
+	WorldKit.signpost(circus, Vector3.new(152, groundY(152, 248), 248),
+		{ "MIDNIGHT CIRCUS", "AFTER DUSK" })
 end
 
 -- TICKET BOOTH ---------------------------------------------------------------
@@ -292,19 +346,57 @@ local function buildTicketBooth(circus: Model)
 	local ground = groundY(bx, bz)
 	local boothCF = CFrame.new(bx, ground, bz) * CFrame.Angles(0, math.rad(-135), 0)
 
-	WorldKit.part(circus, "BoothBase", Vector3.new(5, 4.2, 4),
-		boothCF * CFrame.new(0, 2.1, 0), TENT_RED, Enum.Material.WoodPlanks)
-	WorldKit.part(circus, "BoothRoof", Vector3.new(6, 0.5, 5),
-		boothCF * CFrame.new(0, 4.6, 0) * CFrame.Angles(0, 0, math.rad(4)),
+	WorldKit.part(circus, "BoothBase", Vector3.new(5.2, 4.3, 4.2),
+		boothCF * CFrame.new(0, 2.15, 0), TENT_RED, Enum.Material.WoodPlanks)
+	WorldKit.part(circus, "BoothStripe", Vector3.new(5.35, 0.6, 4.35),
+		boothCF * CFrame.new(0, 3.45, 0), TENT_CREAM, Enum.Material.Fabric)
+	WorldKit.part(circus, "BoothStripeLower", Vector3.new(5.35, 0.35, 4.35),
+		boothCF * CFrame.new(0, 1.1, 0), TENT_STRIPE, Enum.Material.Fabric)
+	WorldKit.part(circus, "BoothRoof", Vector3.new(6.4, 0.45, 5.4),
+		boothCF * CFrame.new(0, 4.75, 0) * CFrame.Angles(0, 0, math.rad(4)),
 		TENT_CREAM, Enum.Material.Fabric)
-	local counter = WorldKit.part(circus, "BoothCounter", Vector3.new(5.2, 0.4, 1.2),
-		boothCF * CFrame.new(0, 2.9, 2.4), WOOD_DARK, Enum.Material.WoodPlanks)
-	local lamp = WorldKit.part(circus, "BoothLamp", Vector3.new(0.6, 0.6, 0.6),
-		boothCF * CFrame.new(0, 5.3, 0), GLOW_AMBER, Enum.Material.Neon, Enum.PartType.Ball)
+	-- Brass ticket window frame + neon sill
+	WorldKit.part(circus, "BoothWindowFrame", Vector3.new(3.6, 2.0, 0.28),
+		boothCF * CFrame.new(0, 3.0, 2.05), IRON_BRASS, Enum.Material.Metal)
+	local windowNeon = WorldKit.part(circus, "BoothWindowNeon", Vector3.new(3.3, 0.18, 0.22),
+		boothCF * CFrame.new(0, 2.05, 2.15), GLOW_CYAN, Enum.Material.Neon)
+	windowNeon.CanCollide = false
+	local counter = WorldKit.part(circus, "BoothCounter", Vector3.new(5.4, 0.42, 1.35),
+		boothCF * CFrame.new(0, 2.95, 2.5), WOOD_DARK, Enum.Material.WoodPlanks)
+	local counterTrim = WorldKit.part(circus, "BoothCounterTrim", Vector3.new(5.45, 0.12, 1.4),
+		boothCF * CFrame.new(0, 3.2, 2.5), IRON_BRASS, Enum.Material.Metal)
+	counterTrim.CanCollide = false
+	local ticketSign = WorldKit.part(circus, "BoothTicketSign", Vector3.new(4.4, 1.0, 0.28),
+		boothCF * CFrame.new(0, 5.55, 0.2), WOOD_DARK, Enum.Material.WoodPlanks)
+	local ticketGui = Instance.new("SurfaceGui")
+	ticketGui.Face = Enum.NormalId.Front
+	ticketGui.CanvasSize = Vector2.new(360, 80)
+	ticketGui.Parent = ticketSign
+	local ticketLabel = Instance.new("TextLabel")
+	ticketLabel.BackgroundTransparency = 1
+	ticketLabel.Size = UDim2.fromScale(1, 1)
+	ticketLabel.Font = Enum.Font.GothamBold
+	ticketLabel.Text = "TICKETS · MIDWAY FESTIVAL"
+	ticketLabel.TextColor3 = GLOW_AMBER
+	ticketLabel.TextScaled = true
+	ticketLabel.Parent = ticketGui
+	local lamp = WorldKit.part(circus, "BoothLamp", Vector3.new(0.65, 0.65, 0.65),
+		boothCF * CFrame.new(0, 6.2, 0), GLOW_AMBER, Enum.Material.Neon, Enum.PartType.Ball)
 	lamp.CanCollide = false
-	WorldKit.lamp(lamp, { color = GLOW_AMBER, brightness = 1.1, range = 18 })
+	WorldKit.lamp(lamp, { color = GLOW_AMBER, brightness = 1.2, range = 18 })
+	for side = -1, 1, 2 do
+		local sideGlow = if side < 0 then GLOW_PURPLE else GLOW_GREEN
+		local sideLamp = WorldKit.part(circus, "BoothSideLamp", Vector3.new(0.42, 0.42, 0.42),
+			boothCF * CFrame.new(side * 2.55, 5.0, 0), sideGlow, Enum.Material.Neon, Enum.PartType.Ball)
+		sideLamp.CanCollide = false
+		WorldKit.lamp(sideLamp, { color = sideGlow, brightness = 0.7, range = 11 })
+	end
+	-- Soft search socket on the ticket shelf (registered as circus-ticket-booth)
+	WorldKit.evidenceSocketMarker(circus, "circus-ticket-booth",
+		Vector3.new(bx, ground + 3.4, bz + 1.0))
 
-	local prompt = WorldKit.prompt(counter, "Take a Ticket", "Midnight Circus", 0.45)
+	local prompt = WorldKit.prompt(counter, "Take a Festival Pass", "Midway Festival", 0.45)
+	state.ticketPrompt = prompt
 	prompt.Triggered:Connect(function(player: Player)
 		local character = player.Character
 		if not character then
@@ -314,13 +406,115 @@ local function buildTicketBooth(circus: Model)
 		if hasTicket then
 			character:SetAttribute(TICKET_ATTRIBUTE, nil)
 			removeWristband(character)
-			prompt.ActionText = "Take a Ticket"
+			prompt.ActionText = if state.nightActive then "Take a Ticket" else "Take a Festival Pass"
 		else
 			character:SetAttribute(TICKET_ATTRIBUTE, true)
 			attachWristband(character)
-			prompt.ActionText = "Return Ticket"
+			prompt.ActionText = "Return Pass"
 			playCircusSound(counter, "TicketChime", 0.7)
 		end
+	end)
+end
+
+-- Daytime Midway Festival dressing + optional day search (fair-supplies).
+local function buildDaytimeFestival(circus: Model)
+	local festival = WorldKit.model(circus, "DaytimeFestival")
+	state.festivalProps = festival
+	local gx, gz = GATE_POSITION.X, GATE_POSITION.Z
+
+	-- Entrance festival banner (day copy; night retints via SetNight attribute).
+	local bannerHost = WorldKit.part(festival, "FestivalBannerHost", Vector3.new(10, 1.8, 0.35),
+		CFrame.new(gx + 8, groundY(gx + 8, gz + 4) + 7.2, gz + 4), WOOD_DARK, Enum.Material.WoodPlanks)
+	local bannerGui = Instance.new("SurfaceGui")
+	bannerGui.Face = Enum.NormalId.Front
+	bannerGui.CanvasSize = Vector2.new(520, 90)
+	bannerGui.Parent = bannerHost
+	local bannerLabel = Instance.new("TextLabel")
+	bannerLabel.BackgroundTransparency = 1
+	bannerLabel.Size = UDim2.fromScale(1, 1)
+	bannerLabel.Font = Enum.Font.GothamBold
+	bannerLabel.Text = "MIDWAY FESTIVAL — OPEN"
+	bannerLabel.TextColor3 = GLOW_AMBER
+	bannerLabel.TextScaled = true
+	bannerLabel.Parent = bannerGui
+	state.dayBannerLabel = bannerLabel
+
+	-- Bunting string across the gate mouth (FarDress: pure scenery)
+	for flag = 0, 8 do
+		local alpha = flag / 8
+		local x = gx - 4 + alpha * 16
+		local z = gz + 2 + math.sin(alpha * math.pi) * 1.5
+		local ground = groundY(x, z)
+		local color = if flag % 3 == 0 then TENT_RED elseif flag % 3 == 1 then GLOW_CYAN else GLOW_AMBER
+		local pennant = WorldKit.part(festival, "FestivalBunting", Vector3.new(1.4, 1.1, 0.12),
+			CFrame.new(x, ground + 5.4, z) * CFrame.Angles(0, 0, math.rad((flag % 2) * 12 - 6)),
+			color, Enum.Material.Fabric)
+		WorldKit.farDress(pennant)
+	end
+
+	-- Soft daytime balloon clusters (decorative; night keeps them)
+	for index, spot in {
+		Vector3.new(168, 0, 270), Vector3.new(184, 0, 286), Vector3.new(176, 0, 298),
+	} do
+		local ground = groundY(spot.X, spot.Z)
+		local stem = WorldKit.part(festival, "BalloonStem" .. index, Vector3.new(0.12, 4.2, 0.12),
+			CFrame.new(spot.X, ground + 2.2, spot.Z), IRON_BRASS, Enum.Material.Metal)
+		WorldKit.farDress(stem)
+		local balloonColor = if index % 2 == 0 then GLOW_MAGENTA else GLOW_CYAN
+		local balloon = WorldKit.part(festival, "FestivalBalloon" .. index, Vector3.new(1.6, 2.0, 1.6),
+			CFrame.new(spot.X, ground + 5.4, spot.Z), balloonColor, Enum.Material.SmoothPlastic,
+			Enum.PartType.Ball)
+		WorldKit.farDress(balloon)
+	end
+
+	-- Fair supplies crate: day-phase interaction + soft search socket.
+	local sx, sz = 178, 274
+	local sGround = groundY(sx, sz)
+	local crate = WorldKit.part(festival, "FairSuppliesCrate", Vector3.new(3.2, 2.0, 2.4),
+		CFrame.new(sx, sGround + 1.0, sz) * CFrame.Angles(0, math.rad(28), 0),
+		WOOD_MID, Enum.Material.WoodPlanks)
+	WorldKit.part(festival, "FairSuppliesLid", Vector3.new(3.3, 0.25, 2.5),
+		CFrame.new(sx, sGround + 2.15, sz) * CFrame.Angles(0, math.rad(28), math.rad(-4)),
+		WOOD_DARK, Enum.Material.WoodPlanks)
+	WorldKit.evidenceSocketMarker(festival, "fair-supplies",
+		Vector3.new(sx, sGround + 2.4, sz))
+	local suppliesPrompt = WorldKit.prompt(crate, "Check Festival Supplies", "Midway Festival", 0.55)
+	suppliesPrompt.Triggered:Connect(function(player: Player)
+		if state.nightActive then
+			suppliesPrompt.ObjectText = "Midnight Circus"
+			return
+		end
+		local character = player.Character
+		if character then
+			character:SetAttribute("FairSuppliesChecked", true)
+		end
+		playCircusSound(crate, "TicketChime", 0.45)
+		local billboard = crate:FindFirstChild("FairSuppliesTip")
+		if not (billboard and billboard:IsA("BillboardGui")) then
+			billboard = Instance.new("BillboardGui")
+			billboard.Name = "FairSuppliesTip"
+			billboard.Size = UDim2.new(8, 0, 2, 0)
+			billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+			billboard.AlwaysOnTop = true
+			billboard.MaxDistance = 40
+			billboard.Parent = crate
+			local label = Instance.new("TextLabel")
+			label.BackgroundTransparency = 0.2
+			label.BackgroundColor3 = Color3.fromRGB(28, 36, 30)
+			label.Size = UDim2.fromScale(1, 1)
+			label.Font = Enum.Font.Gotham
+			label.Text = "Festival stocked — booth stays open after dusk."
+			label.TextColor3 = GLOW_AMBER
+			label.TextScaled = true
+			label.TextWrapped = true
+			label.Parent = billboard
+		end
+		task.delay(4, function()
+			local tip = crate:FindFirstChild("FairSuppliesTip")
+			if tip then
+				tip:Destroy()
+			end
+		end)
 	end)
 end
 
@@ -328,17 +522,84 @@ end
 
 local function buildProceduralTent(circus: Model, at: CFrame): Model
 	local tent = WorldKit.model(circus, "CircusTentFallback")
-	local base = WorldKit.part(tent, "TentWall", Vector3.new(3, 14, 40),
+	-- Cylinder wall + cream roof, then stripe panels / rope lights so the
+	-- graybox reads as a painted big top when Creator Store meshes are absent.
+	local base = WorldKit.part(tent, "TentWall", Vector3.new(3.4, 14.2, 40.4),
 		at * CFrame.new(0, 7, 0), TENT_RED, Enum.Material.Fabric, Enum.PartType.Cylinder)
 	base.CFrame = at * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, math.rad(90))
 	local cone = Instance.new("WedgePart")
 	cone.Name = "TentRoof"
 	cone.Anchored = true
-	cone.Size = Vector3.new(40, 12, 40)
-	cone.CFrame = at * CFrame.new(0, 20, 0)
+	cone.Size = Vector3.new(40, 12.5, 40)
+	cone.CFrame = at * CFrame.new(0, 20.2, 0)
 	cone.Color = TENT_CREAM
 	cone.Material = Enum.Material.Fabric
 	cone.Parent = tent
+	local roofBand = WorldKit.part(tent, "TentRoofBand", Vector3.new(1.1, 38, 38),
+		at * CFrame.new(0, 14.6, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		TENT_STRIPE, Enum.Material.Fabric, Enum.PartType.Cylinder)
+	roofBand.CanCollide = false
+	for stripe = 0, 7 do
+		local angle = stripe / 8 * math.pi * 2
+		local panel = WorldKit.part(tent, "TentStripe", Vector3.new(0.38, 13.4, 5.4),
+			at * CFrame.new(math.cos(angle) * 19.4, 7.2, math.sin(angle) * 19.4)
+				* CFrame.Angles(0, -angle, 0),
+			if stripe % 2 == 0 then TENT_STRIPE else TENT_CREAM, Enum.Material.Fabric)
+		WorldKit.farDress(panel)
+	end
+	for pole = 0, 5 do
+		local angle = pole / 6 * math.pi * 2
+		WorldKit.part(tent, "TentGuyRope", Vector3.new(0.3, 11.2, 0.3),
+			at * CFrame.new(math.cos(angle) * 21.2, 5.2, math.sin(angle) * 21.2)
+				* CFrame.Angles(math.rad(18), -angle, 0),
+			IRON_BRASS, Enum.Material.Metal)
+	end
+	local peak = WorldKit.part(tent, "TentPeakFinial", Vector3.new(1.2, 2.6, 1.2),
+		at * CFrame.new(0, 26.8, 0), GLOW_AMBER, Enum.Material.Neon, Enum.PartType.Ball)
+	peak.CanCollide = false
+	WorldKit.lamp(peak, { color = GLOW_AMBER, brightness = 1.7, range = 30 })
+	-- Rope bulbs: every other bulb gets a PointLight (streaming soak at distance)
+	for bulb = 0, 11 do
+		local angle = bulb / 12 * math.pi * 2
+		local glow = if bulb % 3 == 0 then GLOW_PURPLE elseif bulb % 3 == 1 then GLOW_GREEN else GLOW_AMBER
+		local lamp = WorldKit.part(tent, "TentRopeBulb", Vector3.new(0.48, 0.48, 0.48),
+			at * CFrame.new(math.cos(angle) * 18.5, 14.3, math.sin(angle) * 18.5),
+			glow, Enum.Material.Neon, Enum.PartType.Ball)
+		WorldKit.farDress(lamp)
+		if bulb % 2 == 0 then
+			WorldKit.lamp(lamp, { color = glow, brightness = 0.85, range = 12 })
+		end
+	end
+	-- Mouth awning + banner so the south face sells the entrance without meshes
+	WorldKit.part(tent, "TentMouthAwning", Vector3.new(12.5, 0.42, 6.4),
+		at * CFrame.new(0, 9.3, -18.2) * CFrame.Angles(math.rad(-18), 0, 0),
+		TENT_CREAM, Enum.Material.Fabric)
+	local awningNeon = WorldKit.part(tent, "TentAwningNeon", Vector3.new(11.8, 0.2, 0.28),
+		at * CFrame.new(0, 8.6, -20.8), GLOW_MAGENTA, Enum.Material.Neon)
+	awningNeon.CanCollide = false
+	local banner = WorldKit.part(tent, "TentBanner", Vector3.new(10.4, 1.8, 0.38),
+		at * CFrame.new(0, 11.5, -20.4), WOOD_DARK, Enum.Material.WoodPlanks)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(480, 100)
+	gui.Parent = banner
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 0.6, 0)
+	label.Font = Enum.Font.Creepster
+	label.Text = "MIDNIGHT CIRCUS"
+	label.TextColor3 = GLOW_GREEN
+	label.TextScaled = true
+	label.Parent = gui
+	local dayLine = Instance.new("TextLabel")
+	dayLine.BackgroundTransparency = 1
+	dayLine.Position = UDim2.new(0, 0, 0.6, 0)
+	dayLine.Size = UDim2.new(1, 0, 0.4, 0)
+	dayLine.Font = Enum.Font.GothamBold
+	dayLine.Text = "MIDWAY FESTIVAL"
+	dayLine.TextColor3 = GLOW_AMBER
+	dayLine.TextScaled = true
+	dayLine.Parent = gui
 	return tent
 end
 
@@ -442,17 +703,53 @@ end
 local function buildProceduralFerris(circus: Model, at: CFrame)
 	local wheel = WorldKit.model(circus, "FerrisWheelFallback")
 	for side = -1, 1, 2 do
-		WorldKit.part(wheel, "FerrisLeg", Vector3.new(1.2, 26, 1.2),
-			at * CFrame.new(side * 6, 13, 0) * CFrame.Angles(0, 0, side * math.rad(-14)),
-			IRON_DARK, Enum.Material.Metal)
+		WorldKit.part(wheel, "FerrisLeg", Vector3.new(1.45, 26.5, 1.45),
+			at * CFrame.new(side * 6, 13.2, 0) * CFrame.Angles(0, 0, side * math.rad(-14)),
+			IRON_DARK, Enum.Material.DiamondPlate)
+		WorldKit.part(wheel, "FerrisLegBrace", Vector3.new(0.6, 10.4, 0.6),
+			at * CFrame.new(side * 3.2, 8, 0) * CFrame.Angles(0, 0, side * math.rad(28)),
+			IRON_BRASS, Enum.Material.Metal)
 	end
+	local hubCore = WorldKit.part(wheel, "FerrisHubCore", Vector3.new(3.4, 3.4, 3.4),
+		at * CFrame.new(0, 24, 0), IRON_BRASS, Enum.Material.DiamondPlate, Enum.PartType.Ball)
+	hubCore.CanCollide = false
+	local hubGlow = WorldKit.part(wheel, "FerrisHubGlow", Vector3.new(1.5, 1.5, 1.5),
+		at * CFrame.new(0, 24, 0), GLOW_MAGENTA, Enum.Material.Neon, Enum.PartType.Ball)
+	hubGlow.CanCollide = false
+	WorldKit.lamp(hubGlow, { color = GLOW_MAGENTA, brightness = 1.5, range = 24 })
 	local hub = WorldKit.model(wheel, "FerrisHub")
 	for spoke = 1, 8 do
 		local angle = spoke / 8 * math.pi * 2
-		WorldKit.part(hub, "FerrisSpoke", Vector3.new(0.5, 22, 0.5),
+		WorldKit.part(hub, "FerrisSpoke", Vector3.new(0.5, 22.2, 0.5),
 			at * CFrame.new(0, 24, 0) * CFrame.Angles(angle, 0, 0)
-				* CFrame.new(0, 0, 0) * CFrame.Angles(math.rad(90), 0, 0),
+				* CFrame.Angles(math.rad(90), 0, 0),
 			IRON_DARK, Enum.Material.Metal)
+		local rimColor = if spoke % 2 == 0 then GLOW_PURPLE else GLOW_CYAN
+		local rim = WorldKit.part(hub, "FerrisRimLight", Vector3.new(0.75, 0.75, 0.75),
+			at * CFrame.new(0, 24, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, 11, 0),
+			rimColor, Enum.Material.Neon, Enum.PartType.Ball)
+		WorldKit.farDress(rim)
+		-- Half the rim bulbs cast light — keeps far-chunk cost down
+		if spoke % 2 == 0 then
+			WorldKit.lamp(rim, { color = rimColor, brightness = 0.8, range = 11 })
+		end
+		local gondola = WorldKit.part(hub, "FerrisGondola", Vector3.new(2.3, 1.5, 1.7),
+			at * CFrame.new(0, 24, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, 11, 0),
+			if spoke % 2 == 0 then TENT_RED else TENT_CREAM, Enum.Material.SmoothPlastic)
+		gondola.CanCollide = false
+		local gondolaTrim = WorldKit.part(hub, "FerrisGondolaTrim", Vector3.new(2.4, 0.18, 1.8),
+			at * CFrame.new(0, 24, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, 11.75, 0),
+			IRON_BRASS, Enum.Material.Metal)
+		WorldKit.farDress(gondolaTrim)
+	end
+	-- Outer rim ring (thin torus stand-in: four arcs as cylinders)
+	for arc = 0, 3 do
+		local angle = arc / 4 * math.pi * 2
+		local rimArc = WorldKit.part(hub, "FerrisRimArc", Vector3.new(1.2, 0.6, 0.6),
+			at * CFrame.new(0, 24, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, 11.3, 0)
+				* CFrame.Angles(0, 0, math.rad(90)),
+			IRON_BRASS, Enum.Material.Metal, Enum.PartType.Cylinder)
+		WorldKit.farDress(rimArc)
 	end
 	state.ferrisWheel = hub
 	state.ferrisAxle = at * CFrame.new(0, 24, 0)
@@ -529,22 +826,55 @@ local function buildCarousel(circus: Model)
 		end
 		return
 	end
-	-- Fallback: pole + canopy disc + 4 seat posts
+	-- Fallback: painted pole + striped canopy + neon posts + lit seats
 	local carousel = WorldKit.model(circus, "CarouselFallback")
-	WorldKit.part(carousel, "CarouselPole", Vector3.new(1, 12, 1),
-		baseCF * CFrame.new(0, 6, 0), IRON_DARK, Enum.Material.Metal)
-	local disc = WorldKit.part(carousel, "CarouselCanopy", Vector3.new(1, 16, 16),
+	WorldKit.part(carousel, "CarouselDeck", Vector3.new(1.35, 14.4, 14.4),
+		baseCF * CFrame.new(0, 0.7, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		WOOD_DARK, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)
+	local deckRing = WorldKit.part(carousel, "CarouselDeckNeon", Vector3.new(0.35, 14.6, 14.6),
+		baseCF * CFrame.new(0, 1.15, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		GLOW_CYAN, Enum.Material.Neon, Enum.PartType.Cylinder)
+	WorldKit.farDress(deckRing)
+	WorldKit.part(carousel, "CarouselPole", Vector3.new(1.25, 12.2, 1.25),
+		baseCF * CFrame.new(0, 6, 0), IRON_BRASS, Enum.Material.DiamondPlate)
+	local disc = WorldKit.part(carousel, "CarouselCanopy", Vector3.new(1.3, 16.2, 16.2),
 		baseCF * CFrame.new(0, 11.5, 0), TENT_RED, Enum.Material.Fabric, Enum.PartType.Cylinder)
 	disc.CFrame = baseCF * CFrame.new(0, 11.5, 0) * CFrame.Angles(0, 0, math.rad(90))
+	for wedge = 0, 7 do
+		local angle = wedge / 8 * math.pi * 2
+		local stripe = WorldKit.part(carousel, "CarouselCanopyStripe", Vector3.new(0.28, 7.4, 1.2),
+			baseCF * CFrame.new(math.cos(angle) * 5.6, 11.75, math.sin(angle) * 5.6)
+				* CFrame.Angles(0, -angle, math.rad(12)),
+			if wedge % 2 == 0 then TENT_CREAM else GLOW_PURPLE, Enum.Material.Fabric)
+		WorldKit.farDress(stripe)
+	end
+	local finial = WorldKit.part(carousel, "CarouselFinial", Vector3.new(1.3, 1.3, 1.3),
+		baseCF * CFrame.new(0, 12.7, 0), GLOW_AMBER, Enum.Material.Neon, Enum.PartType.Ball)
+	finial.CanCollide = false
+	WorldKit.lamp(finial, { color = GLOW_AMBER, brightness = 1.25, range = 18 })
 	local spinner = WorldKit.model(carousel, "CarouselSpinner")
 	for seat = 1, 4 do
 		local angle = seat / 4 * math.pi * 2
-		WorldKit.part(spinner, "CarouselSeatPost", Vector3.new(0.4, 9, 0.4),
+		local postGlow = if seat % 2 == 0 then GLOW_GREEN else GLOW_MAGENTA
+		WorldKit.part(spinner, "CarouselSeatPost", Vector3.new(0.45, 9.2, 0.45),
 			baseCF * CFrame.new(math.cos(angle) * 6, 6.5, math.sin(angle) * 6),
-			GLOW_AMBER, Enum.Material.Metal)
-		WorldKit.part(spinner, "CarouselSeat", Vector3.new(1.6, 0.4, 1.6),
+			postGlow, Enum.Material.Neon)
+		WorldKit.part(spinner, "CarouselSeat", Vector3.new(1.8, 0.48, 1.8),
 			baseCF * CFrame.new(math.cos(angle) * 6, 3, math.sin(angle) * 6),
-			WOOD_MID, Enum.Material.WoodPlanks)
+			if seat % 2 == 0 then TENT_CREAM else WOOD_MID, Enum.Material.WoodPlanks)
+		local horse = WorldKit.part(spinner, "CarouselHorse", Vector3.new(1.15, 1.55, 2.3),
+			baseCF * CFrame.new(math.cos(angle) * 6, 4.15, math.sin(angle) * 6)
+				* CFrame.Angles(0, -angle + math.rad(90), 0),
+			if seat % 2 == 0 then TENT_RED else GLOW_PURPLE, Enum.Material.SmoothPlastic)
+		horse.CanCollide = false
+		local seatLamp = WorldKit.part(spinner, "CarouselSeatLamp", Vector3.new(0.42, 0.42, 0.42),
+			baseCF * CFrame.new(math.cos(angle) * 6, 10.5, math.sin(angle) * 6),
+			postGlow, Enum.Material.Neon, Enum.PartType.Ball)
+		WorldKit.farDress(seatLamp)
+		-- Lit seats only on even indices — halves far light count
+		if seat % 2 == 0 then
+			WorldKit.lamp(seatLamp, { color = postGlow, brightness = 0.75, range = 11 })
+		end
 	end
 	state.carousel = spinner
 	state.carouselPivot = spinner:GetPivot()
@@ -563,16 +893,35 @@ local function buildGameBooth(
 	local ground = groundY(position.X, position.Z)
 	local boothCF = CFrame.new(position.X, ground, position.Z) * CFrame.Angles(0, math.rad(135), 0)
 	for side = -1, 1, 2 do
-		WorldKit.part(booth, "BoothPost", Vector3.new(0.5, 6.4, 0.5),
-			boothCF * CFrame.new(side * 3.6, 3.1, -1.8), WOOD_DARK, Enum.Material.Wood)
+		WorldKit.part(booth, "BoothPost", Vector3.new(0.55, 6.6, 0.55),
+			boothCF * CFrame.new(side * 3.6, 3.2, -1.8), WOOD_DARK, Enum.Material.Wood)
+		local postCap = WorldKit.part(booth, "BoothPostNeon", Vector3.new(0.4, 0.4, 0.4),
+			boothCF * CFrame.new(side * 3.6, 6.6, -1.8), glow, Enum.Material.Neon, Enum.PartType.Ball)
+		WorldKit.farDress(postCap)
 	end
-	WorldKit.part(booth, "BoothCanopy", Vector3.new(8.4, 0.4, 4.6),
-		boothCF * CFrame.new(0, 6.5, -1.4) * CFrame.Angles(math.rad(-8), 0, 0),
+	WorldKit.part(booth, "BoothCanopy", Vector3.new(8.6, 0.42, 4.8),
+		boothCF * CFrame.new(0, 6.55, -1.4) * CFrame.Angles(math.rad(-8), 0, 0),
 		TENT_RED, Enum.Material.Fabric)
-	local counter = WorldKit.part(booth, "BoothCounter", Vector3.new(7.6, 1, 1.1),
+	WorldKit.part(booth, "BoothCanopyStripe", Vector3.new(8.7, 0.22, 4.9),
+		boothCF * CFrame.new(0, 6.35, -1.3) * CFrame.Angles(math.rad(-8), 0, 0),
+		TENT_CREAM, Enum.Material.Fabric)
+	for fringe = -1, 1 do
+		local fringeGlow = if fringe == 0 then GLOW_AMBER elseif fringe < 0 then GLOW_PURPLE else GLOW_GREEN
+		local bulb = WorldKit.part(booth, "BoothCanopyBulb", Vector3.new(0.42, 0.42, 0.42),
+			boothCF * CFrame.new(fringe * 2.8, 6.25, 0.4), fringeGlow, Enum.Material.Neon, Enum.PartType.Ball)
+		WorldKit.farDress(bulb)
+		-- Center fringe bulb only — cuts PointLight density on the midway
+		if fringe == 0 then
+			WorldKit.lamp(bulb, { color = fringeGlow, brightness = 0.75, range = 10 })
+		end
+	end
+	local counter = WorldKit.part(booth, "BoothCounter", Vector3.new(7.8, 1, 1.15),
 		boothCF * CFrame.new(0, 2.2, 0.4), WOOD_MID, Enum.Material.WoodPlanks)
-	local sign = WorldKit.part(booth, "BoothSign", Vector3.new(6.4, 1.2, 0.3),
-		boothCF * CFrame.new(0, 7.4, -1.4), WOOD_DARK, Enum.Material.WoodPlanks)
+	local counterBrass = WorldKit.part(booth, "BoothCounterBrass", Vector3.new(7.85, 0.12, 1.2),
+		boothCF * CFrame.new(0, 2.75, 0.4), IRON_BRASS, Enum.Material.Metal)
+	counterBrass.CanCollide = false
+	local sign = WorldKit.part(booth, "BoothSign", Vector3.new(6.6, 1.25, 0.32),
+		boothCF * CFrame.new(0, 7.45, -1.4), WOOD_DARK, Enum.Material.WoodPlanks)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
 	gui.CanvasSize = Vector2.new(420, 80)
@@ -731,6 +1080,52 @@ local function buildGames(circus: Model)
 	end
 end
 
+-- Prize counter sits beside the midway games. Soft-couple only: evidence can
+-- spawn here without turning carnies / tickets into lethal mystery stakes.
+local function buildPrizeCounter(circus: Model)
+	local px, pz = 174, 278
+	local ground = groundY(px, pz)
+	local boothCF = CFrame.new(px, ground, pz) * CFrame.Angles(0, math.rad(150), 0)
+	local prize = WorldKit.model(circus, "MidwayPrizeCounter")
+	WorldKit.part(prize, "PrizeBase", Vector3.new(6.4, 3.7, 3.5),
+		boothCF * CFrame.new(0, 1.85, 0), PRIZE_TEAL, Enum.Material.WoodPlanks)
+	WorldKit.part(prize, "PrizeStripe", Vector3.new(6.55, 0.4, 3.65),
+		boothCF * CFrame.new(0, 3.2, 0), TENT_CREAM, Enum.Material.Fabric)
+	WorldKit.part(prize, "PrizeRoof", Vector3.new(7.4, 0.45, 4.4),
+		boothCF * CFrame.new(0, 4.1, 0) * CFrame.Angles(0, 0, math.rad(-4)),
+		TENT_CREAM, Enum.Material.Fabric)
+	WorldKit.part(prize, "PrizeShelf", Vector3.new(5.8, 0.35, 1.05),
+		boothCF * CFrame.new(0, 2.65, 1.65), WOOD_DARK, Enum.Material.WoodPlanks)
+	for prizeIndex = -1, 1 do
+		local glow = if prizeIndex == 0 then GLOW_AMBER elseif prizeIndex < 0 then GLOW_PURPLE else GLOW_GREEN
+		local toy = WorldKit.part(prize, "PrizeToy", Vector3.new(0.75, 0.95, 0.75),
+			boothCF * CFrame.new(prizeIndex * 1.6, 3.25, 1.6), glow, Enum.Material.Neon,
+			Enum.PartType.Ball)
+		WorldKit.farDress(toy)
+	end
+	local lamp = WorldKit.part(prize, "PrizeLamp", Vector3.new(0.58, 0.58, 0.58),
+		boothCF * CFrame.new(0, 4.85, 0), GLOW_MAGENTA, Enum.Material.Neon, Enum.PartType.Ball)
+	lamp.CanCollide = false
+	WorldKit.lamp(lamp, { color = GLOW_MAGENTA, brightness = 1.1, range = 15 })
+	local sign = WorldKit.part(prize, "PrizeSign", Vector3.new(5.4, 1.15, 0.32),
+		boothCF * CFrame.new(0, 5.0, -1.25), WOOD_DARK, Enum.Material.WoodPlanks)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(360, 70)
+	gui.Parent = sign
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.Creepster
+	label.Text = "PRIZE COUNTER"
+	label.TextColor3 = GLOW_AMBER
+	label.TextScaled = true
+	label.Parent = gui
+	-- Registered as "midway-prize-counter" in SEARCH_TARGETS / SEARCH_LOCATIONS
+	WorldKit.evidenceSocketMarker(prize, "midway-prize-counter",
+		Vector3.new(px, ground + 3.2, pz + 1.2))
+end
+
 -- CARNIES ----------------------------------------------------------------------
 
 local function buildCarnie(circus: Model, index: number, at: Vector3): Carnie
@@ -811,9 +1206,8 @@ end
 local FAIRGROUND_CENTER = Vector3.new(190, 4, 300)
 
 local function startRideLoops()
-	-- Ferris wheel: rotate the wheel assembly about its axle; baskets orbit
-	-- but stay upright. Carousel: spin about its vertical axis. 15 Hz, only
-	-- at night with a player within 140 studs (replication tops out ~20 Hz).
+	-- Ferris + carousel: full night spin when players are near; softer daytime
+	-- Midway Festival motion so the fairgrounds read as open by day.
 	task.spawn(function()
 		local theta = 0
 		local carouselTheta = 0
@@ -832,14 +1226,17 @@ local function startRideLoops()
 						tostring(state.nightActive) .. "/" .. tostring(nearby))
 				end
 			end
-			if not state.nightActive or not nearby then
+			if not nearby then
 				continue
 			end
+			-- Night = full carnival speed; day = gentle Midway Festival drift.
+			local wheelSpeed = if state.nightActive then 0.22 else 0.08
+			local carouselSpeed = if state.nightActive then 0.5 else 0.18
 			local wheel = state.ferrisWheel
 			local axle = state.ferrisAxle
 			local wheelOffset = state.ferrisWheelOffset
 			if wheel and axle and wheel.Parent then
-				theta += dt * 0.22
+				theta += dt * wheelSpeed
 				if wheelOffset then
 					wheel:PivotTo(axle * CFrame.Angles(theta, 0, 0) * wheelOffset)
 				else
@@ -863,7 +1260,7 @@ local function startRideLoops()
 			local carousel = state.carousel
 			local carouselPivot = state.carouselPivot
 			if carousel and carouselPivot and carousel.Parent then
-				carouselTheta += dt * 0.5
+				carouselTheta += dt * carouselSpeed
 				carousel:PivotTo(carouselPivot * CFrame.Angles(0, carouselTheta, 0))
 			end
 		end
@@ -1007,7 +1404,8 @@ end
 
 local function buildDressing(circus: Model)
 	-- String lights along the midway (CampLamp-tagged: they follow night
-	-- automatically via ProductionMapService:SetNight's generic lamp sweep)
+	-- automatically via ProductionMapService:SetNight's generic lamp sweep).
+	-- Every other post gets a PointLight so far-chunk streaming stays light.
 	local lightRun = { Vector2.new(166, 264), Vector2.new(180, 288), Vector2.new(190, 312), Vector2.new(194, 332) }
 	for index = 1, #lightRun - 1 do
 		local fromPoint = lightRun[index]
@@ -1025,22 +1423,22 @@ local function buildDressing(circus: Model)
 			local bulb = WorldKit.part(circus, "MidwayBulb", Vector3.new(0.55, 0.55, 0.55),
 				CFrame.new(x, ground + 6.9, z), bulbColor, Enum.Material.Neon, Enum.PartType.Ball)
 			bulb.CanCollide = false
-			WorldKit.lamp(bulb, { color = bulbColor, brightness = 1.0, range = 16 })
+			if segment % 2 == 0 then
+				WorldKit.lamp(bulb, { color = bulbColor, brightness = 1.0, range = 15 })
+			end
 		end
 	end
-	-- Ground fog drifting across the midway
+	-- Ground fog: two hosts (was four) at lower rate for StreamingMinRadius soak
 	for index, spot in {
-		Vector3.new(172, 0, 278), Vector3.new(186, 0, 300),
-		Vector3.new(196, 0, 326), Vector3.new(162, 0, 262),
+		Vector3.new(178, 0, 290), Vector3.new(194, 0, 320),
 	} do
 		local ground = groundY(spot.X, spot.Z)
-		local host = WorldKit.part(circus, "CircusFogHost" .. index, Vector3.new(24, 2, 24),
+		local host = WorldKit.part(circus, "CircusFogHost" .. index, Vector3.new(22, 2, 22),
 			CFrame.new(spot.X, ground + 1, spot.Z), Color3.fromRGB(255, 255, 255),
 			Enum.Material.SmoothPlastic)
 		host.Transparency = 1
-		host.CanCollide = false
 		host.CanQuery = false
-		host.CastShadow = false
+		WorldKit.farDress(host)
 		local emitter = Instance.new("ParticleEmitter")
 		emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
 		emitter.Color = ColorSequence.new(Color3.fromRGB(150, 168, 150), Color3.fromRGB(96, 110, 120))
@@ -1053,11 +1451,11 @@ local function buildDressing(circus: Model)
 			NumberSequenceKeypoint.new(0.5, 0.7),
 			NumberSequenceKeypoint.new(1, 1),
 		})
-		emitter.Rate = 3
-		emitter.Speed = NumberRange.new(0.4, 1.2)
-		emitter.Lifetime = NumberRange.new(5, 9)
+		emitter.Rate = 1.6
+		emitter.Speed = NumberRange.new(0.4, 1.0)
+		emitter.Lifetime = NumberRange.new(5, 8)
 		emitter.SpreadAngle = Vector2.new(8, 8)
-		emitter.LightEmission = 0.05
+		emitter.LightEmission = 0.04
 		emitter.Parent = host
 	end
 end
@@ -1075,12 +1473,16 @@ function SpookyCircus.Build(dayCamp: Instance, _nightTown: Instance)
 	state.circusFolder = circus
 	buildGateAndFence(circus)
 	buildTicketBooth(circus)
+	buildDaytimeFestival(circus)
 	buildBigTop(circus)
 	buildFerrisWheel(circus)
 	buildCarousel(circus)
 	buildGames(circus)
+	buildPrizeCounter(circus)
 	buildCarnies(circus)
 	buildDressing(circus)
+	circus:SetAttribute("MidwayFestivalDay", true)
+	circus:SetAttribute("CircusNight", false)
 end
 
 function SpookyCircus.Start()
@@ -1099,11 +1501,34 @@ function SpookyCircus.Start()
 	startCarnieLoops()
 end
 
+local function setSignBoardText(sign: Model?, line1: string, line2: string)
+	if not sign then
+		return
+	end
+	local board1 = sign:FindFirstChild("Board1")
+	local board2 = sign:FindFirstChild("Board2")
+	if board1 and board1:IsA("BasePart") then
+		local gui = board1:FindFirstChildOfClass("SurfaceGui")
+		local label = if gui then gui:FindFirstChildOfClass("TextLabel") else nil
+		if label then
+			label.Text = line1
+		end
+	end
+	if board2 and board2:IsA("BasePart") then
+		local gui = board2:FindFirstChildOfClass("SurfaceGui")
+		local label = if gui then gui:FindFirstChildOfClass("TextLabel") else nil
+		if label then
+			label.Text = line2
+		end
+	end
+end
+
 function SpookyCircus.SetNight(isNight: boolean)
 	state.nightActive = isNight
 	local circusFolder = state.circusFolder
 	if circusFolder then
 		circusFolder:SetAttribute("CircusNight", isNight)
+		circusFolder:SetAttribute("MidwayFestivalDay", not isNight)
 	end
 	local calliope = state.calliopeSound
 	if calliope then
@@ -1112,6 +1537,28 @@ function SpookyCircus.SetNight(isNight: boolean)
 		elseif not isNight and calliope.IsPlaying then
 			calliope:Stop()
 		end
+	end
+	local ticketPrompt = state.ticketPrompt
+	if ticketPrompt then
+		ticketPrompt.ObjectText = if isNight then "Midnight Circus" else "Midway Festival"
+		if ticketPrompt.ActionText ~= "Return Pass" and ticketPrompt.ActionText ~= "Return Ticket" then
+			ticketPrompt.ActionText = if isNight then "Take a Ticket" else "Take a Festival Pass"
+		end
+	end
+	local banner = state.dayBannerLabel
+	if banner then
+		banner.Text = if isNight then "MIDNIGHT CIRCUS — AFTER DARK" else "MIDWAY FESTIVAL — OPEN"
+		banner.TextColor3 = if isNight then GLOW_PURPLE else GLOW_AMBER
+	end
+	if isNight then
+		setSignBoardText(state.approachSign, "MIDNIGHT CIRCUS", "IF YOU DARE")
+	else
+		setSignBoardText(state.approachSign, "MIDWAY FESTIVAL", "OPEN TODAY")
+	end
+	local festival = state.festivalProps
+	if festival then
+		-- Soft day fog stays; night dressing already covers lamps via CampLamp.
+		festival:SetAttribute("FestivalNightEscalated", isNight)
 	end
 end
 

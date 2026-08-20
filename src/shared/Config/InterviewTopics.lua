@@ -9,6 +9,12 @@ export type InterviewTopic = {
 
 local definitions: { InterviewTopic } = {
 	{
+		topic = "Greeting",
+		label = "SAY HELLO",
+		hint = "Open with a friendly check-in",
+		witnessHighlight = false,
+	},
+	{
 		topic = "Observation",
 		label = "WHAT DID YOU SEE?",
 		hint = "Recent sightings and unusual activity",
@@ -24,6 +30,12 @@ local definitions: { InterviewTopic } = {
 		topic = "Monster",
 		label = "ABOUT THE MONSTER",
 		hint = "Describe what you know about the threat",
+		witnessHighlight = false,
+	},
+	{
+		topic = "Safety",
+		label = "STAY SAFE?",
+		hint = "Routes, shelters, and how to survive the night",
 		witnessHighlight = false,
 	},
 	{

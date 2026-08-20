@@ -169,6 +169,7 @@ def _sanitize_profile_model(raw_value: Any) -> dict[str, Any]:
         # Opt-in mystery (2026-08-10): auto-enroll preference; absent
         # sanitizes to False so opting in is always an explicit choice.
         "autoEnroll": False,
+        "preferQuickCamp": False,
     }
     raw = raw_value if isinstance(raw_value, dict) else {}
 

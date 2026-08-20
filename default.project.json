@@ -87,7 +87,7 @@
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "$properties": {
-        "LoadCharacterAppearance": false
+        "LoadCharacterAppearance": true
       },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",

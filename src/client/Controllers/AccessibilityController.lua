@@ -302,6 +302,18 @@ function AccessibilityController:ApplyGameState(state: any)
 		else nil
 	if type(settings) == "table" then
 		self:ApplySettings(settings)
+		-- First-session readability: keep world evidence legible until the
+		-- onboarding tutorial is marked complete in the player profile.
+		if settings.tutorialCompleted ~= true then
+			self.settings.highContrastEvidence = true
+			self:_applyRootAttributes()
+			for _, record in self.evidence do
+				self:_applyEvidence(record)
+			end
+			for _, record in self.worldEvidence do
+				self:_applyWorldEvidence(record)
+			end
+		end
 	end
 end
 

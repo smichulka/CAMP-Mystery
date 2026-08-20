@@ -11,6 +11,9 @@ export type CosmeticDefinition = {
 	category: CosmeticCategory,
 	unlockKind: UnlockKind,
 	unlockAmount: number,
+	-- Optional ISO-week rotation slot (1-based into FEATURED_ROTATION). Cosmetics
+	-- without a slot can still appear via the shared weekly rotation helper.
+	featuredWeek: number?,
 }
 
 local definitions: { CosmeticDefinition } = {
@@ -28,6 +31,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 250,
+		featuredWeek = 1,
 	},
 	-- Camper styles drawn from reference images
 	{
@@ -36,6 +40,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 120,
+		featuredWeek = 2,
 	},
 	{
 		id = "outfit-glitter-bow",
@@ -43,6 +48,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 180,
+		featuredWeek = 3,
 	},
 	{
 		id = "outfit-denim-overalls",
@@ -50,6 +56,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 150,
+		featuredWeek = 4,
 	},
 	{
 		id = "outfit-frog-hoodie",
@@ -64,6 +71,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 200,
+		featuredWeek = 5,
 	},
 	{
 		id = "outfit-axolotl-hat",
@@ -78,6 +86,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 175,
+		featuredWeek = 6,
 	},
 	{
 		id = "outfit-green-hoodie-cap",
@@ -85,6 +94,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Outfit",
 		unlockKind = "CampTokens",
 		unlockAmount = 130,
+		featuredWeek = 7,
 	},
 	{
 		id = "outfit-creeper",
@@ -128,6 +138,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Title",
 		unlockKind = "CampTokens",
 		unlockAmount = 300,
+		featuredWeek = 8,
 	},
 	{
 		id = "title-camp-legend",
@@ -164,6 +175,7 @@ local definitions: { CosmeticDefinition } = {
 		category = "Emote",
 		unlockKind = "CampTokens",
 		unlockAmount = 150,
+		featuredWeek = 9,
 	},
 	{
 		id = "emote-frog-jump",
@@ -178,7 +190,22 @@ local definitions: { CosmeticDefinition } = {
 		category = "Emote",
 		unlockKind = "CampTokens",
 		unlockAmount = 220,
+		featuredWeek = 10,
 	},
+}
+
+-- Weekly featured rotation (camp-token cosmetics only). Index by UTC week.
+local FEATURED_ROTATION: { string } = {
+	"outfit-night-watch",
+	"outfit-teal-classic",
+	"outfit-glitter-bow",
+	"outfit-denim-overalls",
+	"outfit-cat-onesie",
+	"outfit-flannel-headphones",
+	"outfit-green-hoodie-cap",
+	"title-night-owl",
+	"emote-campfire-story",
+	"emote-ghost-float",
 }
 
 local byId: { [string]: CosmeticDefinition } = {}
@@ -193,9 +220,48 @@ for _, definition in definitions do
 	end
 end
 
+-- UTC week index since Unix epoch (Mon-start approximation via day-of-year/7).
+local function getUtcWeekIndex(unixTime: number?): number
+	local stamp = if typeof(unixTime) == "number" then unixTime else os.time()
+	local date = os.date("!*t", stamp) :: { yday: number, year: number }
+	local yearDay = date.yday
+	local weekOfYear = math.floor((yearDay - 1) / 7) + 1
+	return date.year * 100 + weekOfYear
+end
+
+local function getFeaturedCosmeticId(weekIndex: number?): string
+	local index = weekIndex or getUtcWeekIndex()
+	local slot = ((index - 1) % #FEATURED_ROTATION) + 1
+	return FEATURED_ROTATION[slot]
+end
+
+local function isFeatured(cosmeticId: string, weekIndex: number?): boolean
+	return getFeaturedCosmeticId(weekIndex) == cosmeticId
+end
+
+local function getTokenPrice(
+	definition: CosmeticDefinition,
+	discountFraction: number,
+	weekIndex: number?
+): number
+	if definition.unlockKind ~= "CampTokens" then
+		return definition.unlockAmount
+	end
+	local price = definition.unlockAmount
+	if isFeatured(definition.id, weekIndex) and discountFraction > 0 then
+		price = math.max(1, math.floor(price * (1 - discountFraction) + 0.5))
+	end
+	return price
+end
+
 return table.freeze({
 	definitions = table.freeze(definitions),
 	byId = table.freeze(byId),
 	defaultIds = table.freeze(defaultIds),
 	defaultEquipped = table.freeze(defaultEquipped),
+	featuredRotation = table.freeze(FEATURED_ROTATION),
+	GetUtcWeekIndex = getUtcWeekIndex,
+	GetFeaturedCosmeticId = getFeaturedCosmeticId,
+	IsFeatured = isFeatured,
+	GetTokenPrice = getTokenPrice,
 })

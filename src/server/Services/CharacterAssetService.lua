@@ -322,11 +322,12 @@ local function labelModel(model: Model, text: string, dotColor: Color3?)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "CharacterLabel"
 	-- Stud-based sizing so labels shrink with distance instead of dominating
-	-- small phone screens.
-	billboard.Size = UDim2.new(5.2, 0, 1.1, 0)
-	billboard.StudsOffset = Vector3.new(0, anchor.Size.Y / 2 + 1.8, 0)
-	billboard.MaxDistance = 45
-	billboard.AlwaysOnTop = false
+	-- small phone screens. Slightly taller + AlwaysOnTop keeps night town
+	-- nametags readable against lamp bloom.
+	billboard.Size = UDim2.new(5.6, 0, 1.25, 0)
+	billboard.StudsOffset = Vector3.new(0, anchor.Size.Y / 2 + 1.9, 0)
+	billboard.MaxDistance = 52
+	billboard.AlwaysOnTop = true
 	billboard.ResetOnSpawn = false
 	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	billboard.Parent = anchor
@@ -334,8 +335,8 @@ local function labelModel(model: Model, text: string, dotColor: Color3?)
 	local bg = Instance.new("Frame")
 	bg.Name = "Bg"
 	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = Color3.fromRGB(12, 18, 20)
-	bg.BackgroundTransparency = 0.18
+	bg.BackgroundColor3 = Color3.fromRGB(8, 12, 14)
+	bg.BackgroundTransparency = 0.12
 	bg.BorderSizePixel = 0
 	bg.Parent = billboard
 	local corner = Instance.new("UICorner")
@@ -344,16 +345,16 @@ local function labelModel(model: Model, text: string, dotColor: Color3?)
 
 	-- Thin border ring for readability
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(255, 255, 255)
-	stroke.Transparency = 0.82
-	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(255, 248, 230)
+	stroke.Transparency = 0.72
+	stroke.Thickness = 1.25
 	stroke.Parent = bg
 
 	local dot = Instance.new("Frame")
 	dot.Name = "Dot"
-	dot.Size = UDim2.fromOffset(8, 8)
+	dot.Size = UDim2.fromOffset(9, 9)
 	dot.AnchorPoint = Vector2.new(0, 0.5)
-	dot.Position = UDim2.fromOffset(10, 15)
+	dot.Position = UDim2.new(0, 11, 0.5, 0)
 	dot.BorderSizePixel = 0
 	dot.BackgroundColor3 = dotColor or Color3.fromRGB(90, 200, 128)
 	dot.Parent = bg
@@ -363,22 +364,23 @@ local function labelModel(model: Model, text: string, dotColor: Color3?)
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Name"
-	label.Size = UDim2.new(1, -26, 1, 0)
-	label.Position = UDim2.fromOffset(24, 0)
+	label.Size = UDim2.new(1, -28, 1, 0)
+	label.Position = UDim2.fromOffset(26, 0)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 12
-	label.TextColor3 = Color3.fromRGB(255, 252, 242)
+	label.TextSize = 13
+	label.TextColor3 = Color3.fromRGB(255, 252, 244)
 	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.TextTruncate = Enum.TextTruncate.AtEnd
 	label.Text = text
 	label.Parent = bg
 
-	-- Subtle shadow for legibility over bright backgrounds
+	-- Dark outline for legibility over bright campfire / neon bloom
 	local shadow = Instance.new("UIStroke")
 	shadow.Color = Color3.fromRGB(0, 0, 0)
-	shadow.Transparency = 0.55
-	shadow.Thickness = 1
+	shadow.Transparency = 0.35
+	shadow.Thickness = 1.4
 	shadow.Parent = label
 end
 
@@ -906,7 +908,12 @@ local function buildRobloxBody(
 			part.Size = source.Size * scale
 			part.CFrame = at * (entry[3] :: CFrame)
 			part.Color = entry[4] :: Color3
-			part.Material = Enum.Material.SmoothPlastic
+			-- Fabric on uniform parts reads as camp clothing under richer
+			-- specular lighting; skin stays SmoothPlastic on Head.
+			local partName = entry[2] :: string
+			part.Material = if partName == "Head"
+				then Enum.Material.SmoothPlastic
+				else Enum.Material.Fabric
 			part.Anchored = true
 			part.CanCollide = false
 			part.CanTouch = false
@@ -1116,6 +1123,13 @@ local function applyArmSwing(model: Model, modelCF: CFrame, swingAngle: number)
 			leftSock.CFrame  = leftHipCF  * CFrame.Angles(-legSwing, 0, 0) * CFrame.new(0, -sockDist, 0)
 		end
 	end
+end
+
+-- Must be declared after applyArmSwing: Luau local functions are not forward-
+-- reference safe, so calling applyArmSwing from an earlier local function leaves
+-- a permanent nil upvalue and breaks counselor/bot spawn at boot.
+local function resetBodyPose(model: Model, modelCF: CFrame)
+	applyArmSwing(model, modelCF, 0)
 end
 
 local function buildProceduralMonster(monsterId: MonsterId, at: CFrame): Model
@@ -1931,7 +1945,7 @@ local function buildProceduralCounselor(
 	model:SetAttribute("CounselorIndex", index)
 	model:SetAttribute("CounselorId", counselorId)
 
-	local scale = 1.08 + ((index - 1) % 3) * 0.08
+	local scale = 1.12 + ((index - 1) % 3) * 0.08
 	local colorIdx = ((index - 1) % #COUNSELOR_COLORS) + 1
 	local bodyColor = COUNSELOR_COLORS[colorIdx]
 	local skinColor = BOT_SKIN_TONES[((index - 1) % #BOT_SKIN_TONES) + 1]
@@ -1957,10 +1971,12 @@ local function buildProceduralCounselor(
 	-- Sleeve bands: colored stripe on upper arm unique to each counselor's team color
 	local bandColor = bodyColor:Lerp(Color3.fromRGB(255, 255, 255), 0.28)
 	local bandY = th / 2 - 0.40 * scale
-	makePart(model, "SleeveBandL", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
+	local sleeveL = makePart(model, "SleeveBandL", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
 		at * CFrame.new(-ax, bandY, 0), bandColor)
-	makePart(model, "SleeveBandR", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
+	sleeveL.Material = Enum.Material.Fabric
+	local sleeveR = makePart(model, "SleeveBandR", Vector3.new(aw + 0.06, 0.22 * scale, aw + 0.06),
 		at * CFrame.new( ax, bandY, 0), bandColor)
+	sleeveR.Material = Enum.Material.Fabric
 
 	if index == 1 then
 		-- Radio clipped to hip: Director Holloway coordinates staff by radio
@@ -2311,6 +2327,8 @@ local function buildProceduralCounselor(
 		at * CFrame.new(0, th / 2 - 0.32 * scale, -(td / 2 + 0.07)), badgeCordColor)
 	makePart(model, "IDCard", Vector3.new(0.32 * scale, 0.42 * scale, 0.07),
 		at * CFrame.new(0, th / 2 - 0.60 * scale, -(td / 2 + 0.08)), badgeCardColor)
+	makePart(model, "IDStripe", Vector3.new(0.30 * scale, 0.10 * scale, 0.08),
+		at * CFrame.new(0, th / 2 - 0.48 * scale, -(td / 2 + 0.085)), bodyColor)
 
 	labelModel(model, displayName)
 	return model
@@ -3356,6 +3374,7 @@ function CharacterAssetService:SpawnCounselors()
 		table.insert(self.counselorModels, model)
 		local primaryPart = model.PrimaryPart
 		if primaryPart and primaryPart:IsA("BasePart") then
+			resetBodyPose(model, primaryPart.CFrame)
 			local prompt = Instance.new("ProximityPrompt")
 			-- Verb in ActionText, name in ObjectText — matches every other
 			-- prompt in the game (these two were swapped; audited 2026-08-09).
@@ -3402,16 +3421,9 @@ function CharacterAssetService:_idleBreath(id: string, model: Model, duration: n
 			end
 		end
 		if playerNear then
-			local breathRate = 1.6 + (nameHash(id) % 5) * 0.10   -- 1.6–2.0 Hz, unique per character
-			local breathY  = math.sin(t * breathRate) * 0.028
-			local swayX    = math.sin(t * 0.52) * 0.016   -- slow side-to-side weight shift
-			local gazeYaw  = math.sin(t * 0.38) * 0.08    -- very slow gaze drift left/right
-			model:PivotTo(baseCF * CFrame.new(swayX, breathY, 0) * CFrame.Angles(0, gazeYaw, 0))
-			local pp = model.PrimaryPart
-			if pp then
-				applyArmSwing(model, pp.CFrame, math.sin(t * breathRate) * 0.07)
-			end
-			task.wait(1 / 15)
+			local gazeYaw = math.sin(t * 0.38) * 0.06
+			model:PivotTo(baseCF * CFrame.Angles(0, gazeYaw, 0))
+			task.wait(1 / 8)
 		else
 			task.wait(0.4)
 		end
@@ -3421,7 +3433,7 @@ function CharacterAssetService:_idleBreath(id: string, model: Model, duration: n
 		model:PivotTo(baseCF)
 		local pp = model.PrimaryPart
 		if pp then
-			applyArmSwing(model, pp.CFrame, 0)
+			resetBodyPose(model, pp.CFrame)
 		end
 	end
 end
@@ -3498,18 +3510,12 @@ function CharacterAssetService:_smoothPivotCounselor(
 			end
 			local rawT = elapsed / duration
 			local t = 1 - (1 - rawT) ^ 3
-			local phase = rawT * math.pi * 4
-			local bobY = math.abs(math.sin(phase)) * 0.06
-			-- Forward lean only when actually walking (not turning in place)
-			local leanScale = math.min(travelDist / 2.5, 1)
-			local leanAngle = math.sin(rawT * math.pi) * leanScale * -0.08
-			model:PivotTo(start:Lerp(target, t) * CFrame.new(0, bobY, 0) * CFrame.Angles(leanAngle, 0, 0))
-			local pp = model.PrimaryPart
-			if pp then
-				applyArmSwing(model, pp.CFrame, math.sin(phase) * 0.28)
-			end
-			-- 30 Hz: still above the ~20 Hz replication ceiling clients see.
-			task.wait(1 / 30)
+			model:PivotTo(start:Lerp(target, t))
+			task.wait(1 / 20)
+		end
+		local pp = model.PrimaryPart
+		if pp and self.counselorMoveTokens[counselorId] == token then
+			resetBodyPose(model, pp.CFrame)
 		end
 	end)
 end
@@ -4011,7 +4017,7 @@ function CharacterAssetService:GatherBotsAt(position: Vector3, radius: number?)
 		local angle = (i - 1) * (math.pi * 2 / math.max(1, total)) + math.random() * 0.4
 		local dist = 0.6 + math.random() * r
 		local target = position + Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
-		self:MoveBotCharacterToward(participantId, target, 3 + math.random() * 2, position)
+		self:MoveBotCharacterToward(participantId, target, 3.8 + math.random() * 2.2, position)
 	end
 end
 
@@ -4036,6 +4042,10 @@ function CharacterAssetService:SpawnBotCharacter(
 	model:SetAttribute("RoleName", roleName or "")
 	model:PivotTo(at)
 	model.Parent = self.container
+	local pp = model.PrimaryPart
+	if pp and pp:IsA("BasePart") then
+		resetBodyPose(model, pp.CFrame)
+	end
 	self.botCharacterModels[participantId] = model
 	self.botHomePositions[participantId] = at.Position
 	return model
@@ -4324,7 +4334,7 @@ function CharacterAssetService:StartBotIdleWander(participantId: string)
 							local radius = 0.8 + math.random() * RADIUS
 							local target = center
 								+ Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
-							self:MoveBotCharacterToward(participantId, target, 1.4 + math.random() * 0.8)
+							self:MoveBotCharacterToward(participantId, target, 1.9 + math.random() * 1.1)
 						end
 				end
 				end
@@ -4343,10 +4353,11 @@ function CharacterAssetService:MoveBotCharacterToward(
 	if not model then
 		return
 	end
-	local resolved = duration or 2.2
+	local resolved = duration or 2.7
 	local current = model:GetPivot()
 	local dx = targetPosition.X - current.X
 	local dz = targetPosition.Z - current.Z
+	local travelYaw = math.atan2(-dx, -dz)
 	local targetCFrame: CFrame
 	if facingTarget then
 		local fdx = facingTarget.X - targetPosition.X
@@ -4355,35 +4366,47 @@ function CharacterAssetService:MoveBotCharacterToward(
 			* CFrame.Angles(0, math.atan2(-fdx, -fdz), 0)
 	else
 		targetCFrame = CFrame.new(targetPosition.X, current.Y, targetPosition.Z)
-			* CFrame.Angles(0, math.atan2(-dx, -dz), 0)
+			* CFrame.Angles(0, travelYaw, 0)
 	end
 	local token = (self.counselorMoveTokens[participantId] or 0) + 1
 	self.counselorMoveTokens[participantId] = token
 	task.spawn(function()
 		local start = model:GetPivot()
+		-- Face travel direction first so the turn is not delayed until arrival.
+		local faceFirst = CFrame.new(start.Position) * CFrame.Angles(0, travelYaw, 0)
+		local turnSeconds = math.clamp(resolved * 0.18, 0.22, 0.45)
 		local began = os.clock()
 		while self.counselorMoveTokens[participantId] == token do
 			local elapsed = os.clock() - began
-			if elapsed >= resolved then
+			if elapsed >= turnSeconds then
+				model:PivotTo(faceFirst)
+				break
+			end
+			local rawT = elapsed / turnSeconds
+			local t = 1 - (1 - rawT) ^ 2
+			model:PivotTo(start:Lerp(faceFirst, t))
+			task.wait(1 / 20)
+		end
+		if self.counselorMoveTokens[participantId] ~= token then
+			return
+		end
+		start = faceFirst
+		local moveSeconds = math.max(0.35, resolved - turnSeconds)
+		began = os.clock()
+		while self.counselorMoveTokens[participantId] == token do
+			local elapsed = os.clock() - began
+			if elapsed >= moveSeconds then
 				model:PivotTo(targetCFrame)
 				break
 			end
-			local rawT = elapsed / resolved
+			local rawT = elapsed / moveSeconds
 			local t = 1 - (1 - rawT) ^ 2
-			-- Faster moves (flee) get bigger bob, hop, lean, and wilder arm swing
-			local phase = rawT * math.pi * 4
-			local bobAmp = if resolved < 2.5 then 0.10 else 0.06
-			local hopY = if resolved < 2.5 then math.sin(math.min(elapsed / 0.28, 1) * math.pi) * 0.15 else 0
-			local bobY = math.abs(math.sin(phase)) * bobAmp + hopY
-			local leanAngle = math.sin(rawT * math.pi) * (if resolved < 2.5 then -0.13 else -0.09)
-			model:PivotTo(start:Lerp(targetCFrame, t) * CFrame.new(0, bobY, 0) * CFrame.Angles(leanAngle, 0, 0))
-			local pp = model.PrimaryPart
-			if pp then
-				local swingAmp = if resolved < 2.5 then 0.42 else 0.28
-				applyArmSwing(model, pp.CFrame, math.sin(phase) * swingAmp)
-			end
-			-- 30 Hz: still above the ~20 Hz replication ceiling clients see.
-			task.wait(1 / 30)
+			model:PivotTo(start:Lerp(targetCFrame, t))
+			task.wait(1 / 20)
+		end
+		local pp = model.PrimaryPart
+		if pp and self.counselorMoveTokens[participantId] == token then
+			resetBodyPose(model, pp.CFrame)
 		end
 	end)
 end

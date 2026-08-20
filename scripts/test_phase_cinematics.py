@@ -87,12 +87,13 @@ class PhaseCinematicsTests(unittest.TestCase):
     def test_notebook_theme_and_evidence_card_visual_contract(self) -> None:
         theme = read("src/client/UI/Theme.lua")
         self.assertIn("Notebook = {", theme)
+        # 2026-08-19: premium notebook palette refresh (warmer paper, richer ink).
         for token in (
-            "PageColor = Color3.fromRGB(245, 238, 210)",
-            "PageLines = Color3.fromRGB(180, 190, 200)",
-            "InkColor = Color3.fromRGB(28, 32, 40)",
-            "StampConfirmed = Color3.fromRGB(40, 120, 60)",
-            "StampDenied = Color3.fromRGB(160, 40, 40)",
+            "PageColor = Color3.fromRGB(248, 242, 218)",
+            "PageLines = Color3.fromRGB(172, 182, 194)",
+            "InkColor = Color3.fromRGB(24, 28, 36)",
+            "StampConfirmed = Color3.fromRGB(36, 128, 68)",
+            "StampDenied = Color3.fromRGB(168, 44, 44)",
         ):
             self.assertIn(token, theme)
 
@@ -111,6 +112,8 @@ class PhaseCinematicsTests(unittest.TestCase):
 
     def test_notebook_uses_cards_ruled_paper_and_verification_status(self) -> None:
         view = read("src/client/UI/GameView.lua")
+        notebook = read("src/client/UI/NotebookView.lua")
+        combined = view + notebook
         for token in (
             "notebook.BackgroundColor3 = Theme.Notebook.PageColor",
             "notebook.BackgroundTransparency = 0",
@@ -123,31 +126,35 @@ class PhaseCinematicsTests(unittest.TestCase):
             "self.evidenceStatuses = nextEvidenceStatuses",
             "Motion.StaggerChildren(evidenceList",
         ):
-            self.assertIn(token, view)
+            self.assertIn(token, combined)
 
     def test_typography_hierarchy_and_panel_depth_contract(self) -> None:
         theme = read("src/client/UI/Theme.lua")
+        # 2026-08-19: typography scale bumped for premium HUD legibility.
         for token in (
             "Typography = {",
             "DisplayFont = Enum.Font.GothamBlack",
             "HeadingFont = Enum.Font.GothamBold",
             "BodyFont = Enum.Font.GothamMedium",
             "CaptionFont = Enum.Font.Gotham",
-            "DisplaySize = 32",
-            "HeadingSize = 18",
+            "DisplaySize = 34",
+            "HeadingSize = 19",
             "SubheadingSize = 15",
             "BodySize = 13",
             "CaptionSize = 11",
-            "LetterSpacing = 3",
-            "CardHeight = 142",
+            "LetterSpacing = 4",
+            "CardHeight = 148",
+            "Breakpoints = {",
+            "Elevation = {",
         ):
             self.assertIn(token, theme)
 
         components = read("src/client/UI/Components.lua")
         for token in (
             'Instance.new("UIGradient")',
-            "NumberSequenceKeypoint.new(0, 0.92)",
-            "NumberSequenceKeypoint.new(1, 0.96)",
+            "NumberSequenceKeypoint.new(0, 0.88)",
+            "function Components.ElevatedPanel",
+            "function Components.DropShadow",
             'string.match(name, "Title$")',
             'string.match(name, "Header$")',
             "function Components.SetLetterspacedText",
@@ -471,14 +478,37 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertTrue(topics.startswith("--!strict"))
         self.assertIn("return table.freeze({", topics)
         self.assertIn("definitions = table.freeze(definitions)", topics)
-        # All 4 topics present with label and hint
+        # All 6 server-aligned topics present with label and hint
         for token in (
+            '"SAY HELLO"',
             '"WHAT DID YOU SEE?"',
             '"WHERE WERE YOU?"',
             '"ABOUT THE MONSTER"',
+            '"STAY SAFE?"',
             '"WHO DO YOU SUSPECT?"',
         ):
             self.assertIn(token, topics)
+        for topic_name in (
+            "Greeting",
+            "Observation",
+            "Schedule",
+            "Monster",
+            "Safety",
+            "Suspicion",
+        ):
+            self.assertIn(f'topic = "{topic_name}"', topics)
+        # Order: Greeting → Observation → Schedule → Monster → Safety → Suspicion
+        greeting_pos = topics.index('topic = "Greeting"')
+        observation_pos = topics.index('topic = "Observation"')
+        schedule_pos = topics.index('topic = "Schedule"')
+        monster_pos = topics.index('topic = "Monster"')
+        safety_pos = topics.index('topic = "Safety"')
+        suspicion_pos = topics.index('topic = "Suspicion"')
+        self.assertLess(greeting_pos, observation_pos)
+        self.assertLess(observation_pos, schedule_pos)
+        self.assertLess(schedule_pos, monster_pos)
+        self.assertLess(monster_pos, safety_pos)
+        self.assertLess(safety_pos, suspicion_pos)
         # Only the Observation topic has witnessHighlight = true
         obs_start = topics.index('"WHAT DID YOU SEE?"')
         obs_end = topics.index('"WHERE WERE YOU?"')
@@ -524,15 +554,20 @@ class PhaseCinematicsTests(unittest.TestCase):
 
     def test_request_0084_objective_panel_role_aware_copy(self) -> None:
         view = read("src/client/UI/GameView.lua")
-        # Day phase: four-role objective labels
+        mission = read("src/client/UI/MissionView.lua")
+        # Day phase: louder night-stakes copy lives in MissionView helpers
         for token in (
-            '"DAY COVER\\nCamp work: %d of %d. Witnesses: %d of %d. Act natural."',
-            '"DAY OBJECTIVE\\nCamp work: %d of %d\\nInterview witnesses: %d of %d"',
-            "blend in.",
-            '"All camp work done and witnesses interviewed. Investigation begins soon."',
-            "Campers are ready. Investigation begins soon",
+            "MissionView.DayProgressCopy(",
+            "night stakes: lights",
+            "Generator = lights. Firewood = haven. Supplies = flares.",
+            "Generator (lights), Firewood (haven), Supplies (flares).",
+            "Campers locked generator, firewood, and supplies stakes",
+            "Night payoff incoming",
         ):
-            self.assertIn(token, view)
+            self.assertTrue(
+                token in view or token in mission,
+                f"missing day payoff token: {token}",
+            )
         # Investigation phase: four-role objective labels
         for token in (
             '"HUNT OBJECTIVE\\nEliminate %s. Avoid discovery. Use your ability when the time is right."',
@@ -551,14 +586,20 @@ class PhaseCinematicsTests(unittest.TestCase):
             '"OBSERVING\\nThe night phase is beginning. Watch what unfolds."',
         ):
             self.assertIn(token, view)
-        # NightTransform phase: four-role objective labels
+        # NightTransform phase: louder day→night payoff via MissionView
         for token in (
-            "The town is yours. Hunt %s",
-            '"NIGHT BEGINS\\nThe abandoned town has merged with the camp. The monster is somewhere inside."',
-            '"OBSERVING\\nYou are a ghost. Watch the hunt from beyond."',
-            '"OBSERVING\\nThe night phase has begun. Watch what unfolds."',
+            "MissionView.NightPayoffCopy(",
+            "MissionView.ReadDayOutcomes(",
+            "GENERATOR ON",
+            "FIREWOOD STOCKED",
+            "SUPPLIES SECURED",
+            "NIGHT PAYOFF",
+            "Hunt %s — the campers will fight back.",
         ):
-            self.assertIn(token, view)
+            self.assertTrue(
+                token in view or token in mission,
+                f"missing night payoff token: {token}",
+            )
         # Campfire phase progress labels distinguish Spectator / Ghost / Murderer / Camper
         for token in (
             '"Votes locked %d/%d - observing."',
@@ -665,8 +706,12 @@ class PhaseCinematicsTests(unittest.TestCase):
         cue_block_start = audio.index('if phase == "Campfire" then')
         cue_block_end = audio.index("self.lastEvidenceFound = evidenceFound", cue_block_start)
         cue_block = audio[cue_block_start:cue_block_end]
-        # 4 = voteSubtitle(1) + phaseSubtitle nested ternary(2) + evidenceSubtitle(1)
-        self.assertEqual(cue_block.count("else nil"), 4)
+        # 5 = voteSubtitle(1) + Investigation subtitle(1) + nested phase ternary(2)
+        # + evidenceSubtitle(1). Investigation is its own branch (CircusSting hook).
+        self.assertEqual(cue_block.count("else nil"), 5)
+        self.assertIn('self:PlayCue("CircusSting")', cue_block)
+        self.assertIn("FairgroundsAmbience", audio)
+        self.assertIn("FairgroundsAmbienceAssetId", audio)
 
 
     def test_request_0095_death_cinematic_and_ghost_transition_notifications(self) -> None:
@@ -831,12 +876,15 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertIn('"DangerBright"', inv_block)
         self.assertIn('"Info"', inv_block)
         # NightTransform entry: ghost=Info, Murderer=DangerBright, camper=Warning
+        # Loud day→night payoff lines include generator/firewood/supplies stakes.
         night_start = controller.index('if phaseName == "NightTransform" and not reconnect then')
         night_end = controller.index("-- Keybind hint on first entry", night_start)
         night_block = controller[night_start:night_end]
-        self.assertIn('"Strike true. The camp is yours."', night_block)
-        self.assertIn('"Stay alert. Someone won\'t make it to morning."', night_block)
-        self.assertIn('"Watch from beyond. The hunt begins."', night_block)
+        self.assertIn("dayOutcomes", night_block)
+        self.assertIn("Night falls — day work pays off", night_block)
+        self.assertIn("Strike true. Day payoff:", night_block)
+        self.assertIn("Stay alert — someone won't make it to morning.", night_block)
+        self.assertIn("Watch from beyond. The hunt begins.", night_block)
         self.assertIn('"DangerBright"', night_block)
         self.assertIn('"Warning"', night_block)
         self.assertIn('"Info"', night_block)

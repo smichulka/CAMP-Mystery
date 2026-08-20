@@ -24,6 +24,7 @@ type LobbyPlayerState = {
 	-- Studio force-ready both respect it; cleared when the round releases.
 	withdrawn: boolean,
 	queuedForNextRound: boolean,
+	wantsRematch: boolean,
 	lockedRoundId: string?,
 	joinedAt: number,
 }
@@ -93,6 +94,7 @@ function LobbyService:AddPlayer(player: Player): boolean
 			ready = false,
 			withdrawn = false,
 			queuedForNextRound = false,
+			wantsRematch = false,
 			lockedRoundId = disconnected.lockedRoundId,
 			joinedAt = disconnected.joinedAt,
 		}
@@ -110,6 +112,7 @@ function LobbyService:AddPlayer(player: Player): boolean
 		ready = false,
 		withdrawn = false,
 		queuedForNextRound = queueForNextRound,
+		wantsRematch = false,
 		lockedRoundId = nil,
 		joinedAt = self.clock(),
 	}
@@ -141,6 +144,19 @@ function LobbyService:RemovePlayer(player: Player): DisconnectContext?
 	self.players[player.UserId] = nil
 	self:_Changed()
 	return context
+end
+
+function LobbyService:SetWantsRematch(player: Player, wantsRematch: boolean): boolean
+	local state = self.players[player.UserId]
+	if not state then
+		return false
+	end
+	if state.wantsRematch == wantsRematch then
+		return true
+	end
+	state.wantsRematch = wantsRematch
+	self:_Changed()
+	return true
 end
 
 function LobbyService:SetReady(player: Player, ready: boolean): (boolean, string?)
@@ -335,10 +351,11 @@ function LobbyService:ReleaseRound(roundId: string): boolean
 		MatchConfig.maximumParticipants - #returning
 	)
 	for _, state in returning do
-		state.ready = false
+		state.ready = state.wantsRematch
 		state.withdrawn = false
 		state.queuedForNextRound = false
 		state.lockedRoundId = nil
+		state.wantsRematch = false
 	end
 	for index, state in waiting do
 		state.ready = false

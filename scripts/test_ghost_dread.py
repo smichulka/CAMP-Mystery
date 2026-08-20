@@ -445,11 +445,20 @@ class GhostDreadTests(unittest.TestCase):
         # Modal title: Murderer sees "CAMPFIRE VOTE"; others see "CAMPFIRE ACCUSATION"
         self.assertIn('"CAMPFIRE VOTE"', vote_block)
         self.assertIn('"CAMPFIRE ACCUSATION"', vote_block)
-        # Modal hides when not Campfire phase, not alive, or isGhost
-        self.assertIn(
-            'phase ~= "Campfire" or not alive or isGhost',
-            vote_block,
-        )
+        # Wave 3 theater labels (Present → Rebut → Vote)
+        vote_view = read("src/client/UI/VoteView.lua")
+        self.assertIn('"PRESENT EVIDENCE"', vote_view)
+        self.assertIn('"REBUT"', vote_view)
+        self.assertIn('"VOTE NOW"', vote_view)
+        self.assertIn("function VoteView.ApplyCampfireStage(", vote_view)
+        self.assertIn('campfireStage == "PresentEvidence"', vote_block)
+        self.assertIn('campfireStage == "Rebuttal"', vote_block)
+        # Modal hides outside Campfire; ghosts/spectators get observe-only board
+        self.assertIn('local canVote = alive and not isGhost and role ~= "Spectator"', vote_block)
+        self.assertIn('if phase ~= "Campfire" then', vote_block)
+        self.assertIn("Observe only", vote_block)
+        self.assertIn("Components.SetButtonEnabled(button, canVote and not hasVoted and not isSelf)", vote_block)
+        # 2026-08-19: ghosts/spectators keep the accusation board readable during voting.
         # "(you)" suffix on the local player's own suspect row
         self.assertIn('if isSelf then name .. " (you)" else name', vote_block)
         # "YOUR VOTE" suffix and Gold color on the selected vote

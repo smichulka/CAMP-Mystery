@@ -23,8 +23,13 @@ local ProfileServiceReliabilityPatch = require(
 	services:WaitForChild("ProfileServiceReliabilityPatch")
 )
 ProfileServiceReliabilityPatch.Apply()
+-- Funnel telemetry (pcall-wrapped AnalyticsService). Monetization remains banned.
+local AnalyticsService = require(services:WaitForChild("AnalyticsService"))
 local GameRuntimeService = require(services:WaitForChild("GameRuntimeService"))
 local CharacterService = require(services:WaitForChild("CharacterService"))
+
+-- Touch the module so Rojo/Studio load the funnel event names before rounds start.
+assert(AnalyticsService.Events.JoinLobby ~= nil, "AnalyticsService funnel table missing")
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local gameStateChanged = remotes:WaitForChild("GameStateChanged") :: RemoteEvent

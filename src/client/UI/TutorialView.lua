@@ -7,6 +7,11 @@ local UserInputService = game:GetService("UserInputService")
 local Components = require(script.Parent:WaitForChild("Components"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 
+export type TutorialChoice = {
+	label: string,
+	feedback: string?,
+}
+
 export type TutorialStep = {
 	id: string,
 	title: string,
@@ -14,6 +19,7 @@ export type TutorialStep = {
 	objective: string,
 	position: number,
 	total: number,
+	choices: { TutorialChoice }?,
 }
 
 type TutorialViewState = {
@@ -24,11 +30,14 @@ type TutorialViewState = {
 	body: TextLabel,
 	objective: TextLabel,
 	progress: TextLabel,
+	choiceRow: Frame,
+	choiceButtons: { TextButton },
 	continueButton: TextButton,
 	skipButton: TextButton,
 	connections: { RBXScriptConnection },
 	reducedMotion: boolean,
 	animationToken: number,
+	usesDimOverlay: boolean,
 }
 
 local TutorialView = {}
@@ -121,6 +130,29 @@ function TutorialView.new(parent: Instance): TutorialView
 	Components.Corner(objective, Theme.SmallCornerRadius)
 	Components.Stroke(objective, Theme.Colors.Border)
 
+	local choiceRow = Instance.new("Frame")
+	choiceRow.Name = "ChoiceRow"
+	choiceRow.Position = UDim2.new(0, 24, 1, -118)
+	choiceRow.Size = UDim2.new(1, -48, 0, 40)
+	choiceRow.BackgroundTransparency = 1
+	choiceRow.Visible = false
+	choiceRow.Parent = panel
+
+	local plantedButton = Components.Button(choiceRow, {
+		name = "ChoicePlanted",
+		text = "This looks planted",
+		size = UDim2.new(0.5, -6, 1, 0),
+		position = UDim2.fromOffset(0, 0),
+		color = Theme.Colors.Amber,
+	})
+	local realButton = Components.Button(choiceRow, {
+		name = "ChoiceReal",
+		text = "This looks real",
+		size = UDim2.new(0.5, -6, 1, 0),
+		position = UDim2.new(0.5, 6, 0, 0),
+		color = Theme.Colors.Success,
+	})
+
 	local continueButton = Components.Button(panel, {
 		name = "Continue",
 		text = "CONTINUE",
@@ -147,13 +179,21 @@ function TutorialView.new(parent: Instance): TutorialView
 		body = body,
 		objective = objective,
 		progress = progress,
+		choiceRow = choiceRow,
+		choiceButtons = { plantedButton, realButton },
 		continueButton = continueButton,
 		skipButton = skipButton,
 		connections = {},
 		reducedMotion = false,
 		animationToken = 0,
+		usesDimOverlay = false,
 	}, TutorialView)
 	return self
+end
+
+local function isModalStep(stepId: string): boolean
+	-- Only role reveal and vote lock use a blocking backdrop.
+	return stepId == "role" or stepId == "vote" or stepId == "vote_murderer"
 end
 
 function TutorialView:_disconnectButtons()
@@ -177,33 +217,76 @@ function TutorialView:Show(step: TutorialStep, onContinue: () -> (), onSkip: () 
 	self.objective.Text = step.objective
 	local briefingHeader = if string.find(step.id, "_murderer") then "MURDERER BRIEFING" else "NEW CAMPER BRIEFING"
 	self.progress.Text = string.format("%s  •  %d OF %d", briefingHeader, step.position, step.total)
+	self.usesDimOverlay = isModalStep(step.id)
+	local choices = step.choices
+	local hasChoices = type(choices) == "table" and #choices >= 2
+	self.choiceRow.Visible = hasChoices
 	self.root.Visible = true
+	self.root.Active = self.usesDimOverlay
+	if self.usesDimOverlay then
+		self.panel.AnchorPoint = Vector2.new(0.5, 0.5)
+		self.panel.Position = UDim2.fromScale(0.5, 0.5)
+		self.panel.Size = UDim2.new(0.82, 0, 0.88, 0)
+	else
+		self.panel.AnchorPoint = Vector2.new(1, 0)
+		self.panel.Position = UDim2.new(1, -16, 0, 86)
+		self.panel.Size = UDim2.fromOffset(430, if hasChoices then 310 else 254)
+	end
 	-- Gamepad selection only: setting SelectedObject for mouse users draws stray
 	-- selection boxes and warns "invalid GuiObject" when the button isn't ready
 	if UserInputService.GamepadEnabled then
-		GuiService.SelectedObject = self.continueButton
+		GuiService.SelectedObject = if hasChoices then self.choiceButtons[1] else self.continueButton
+	end
+
+	if hasChoices and choices then
+		for index, button in self.choiceButtons do
+			local choice = choices[index]
+			if choice then
+				button.Text = choice.label
+				button.Visible = true
+				local feedback = choice.feedback
+				table.insert(self.connections, button.Activated:Connect(function()
+					if type(feedback) == "string" and feedback ~= "" then
+						self.body.Text = feedback
+					end
+					self.choiceRow.Visible = false
+					if UserInputService.GamepadEnabled then
+						GuiService.SelectedObject = self.continueButton
+					end
+				end))
+			else
+				button.Visible = false
+			end
+		end
+	else
+		for _, button in self.choiceButtons do
+			button.Visible = false
+		end
 	end
 
 	table.insert(self.connections, self.continueButton.Activated:Connect(onContinue))
 	table.insert(self.connections, self.skipButton.Activated:Connect(onSkip))
 
 	if self.reducedMotion then
-		self.root.BackgroundTransparency = 0.42
-		self.panel.Position = UDim2.fromScale(0.5, 0.5)
+		self.root.BackgroundTransparency = if self.usesDimOverlay then 0.42 else 1
 		return
 	end
 
 	self.root.BackgroundTransparency = 1
-	self.panel.Position = UDim2.fromScale(0.5, 0.54)
-	TweenService:Create(
-		self.root,
-		TweenInfo.new(0.18),
-		{ BackgroundTransparency = 0.42 }
-	):Play()
+	if self.usesDimOverlay then
+		self.panel.Position = UDim2.fromScale(0.5, 0.54)
+		TweenService:Create(
+			self.root,
+			TweenInfo.new(0.18),
+			{ BackgroundTransparency = 0.42 }
+		):Play()
+	else
+		self.panel.Position = UDim2.new(1, -16, 0, 98)
+	end
 	local tween = TweenService:Create(
 		self.panel,
 		TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-		{ Position = UDim2.fromScale(0.5, 0.5) }
+		{ Position = if self.usesDimOverlay then UDim2.fromScale(0.5, 0.5) else UDim2.new(1, -16, 0, 86) }
 	)
 	tween:Play()
 end
@@ -211,7 +294,11 @@ end
 function TutorialView:Hide()
 	self:_disconnectButtons()
 	self.animationToken += 1
-	if GuiService.SelectedObject == self.continueButton then
+	self.choiceRow.Visible = false
+	if GuiService.SelectedObject == self.continueButton
+		or GuiService.SelectedObject == self.choiceButtons[1]
+		or GuiService.SelectedObject == self.choiceButtons[2]
+	then
 		GuiService.SelectedObject = nil
 	end
 	if not self.root.Parent then
@@ -223,11 +310,7 @@ function TutorialView:Hide()
 	end
 
 	local token = self.animationToken
-	local tween = TweenService:Create(
-		self.root,
-		TweenInfo.new(0.14),
-		{ BackgroundTransparency = 1 }
-	)
+	local tween = TweenService:Create(self.root, TweenInfo.new(0.14), { BackgroundTransparency = 1 })
 	tween:Play()
 	tween.Completed:Connect(function()
 		if token == self.animationToken and self.root.Parent then

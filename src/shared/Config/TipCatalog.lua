@@ -44,6 +44,12 @@ local definitions: { Tip } = {
 	{ category = "COUNTERPLAY", body = "UV light and direct flashlights can remove the Chupacabra's latch faster than waiting it out.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "Leave the wail radius immediately when the Banshee starts its attack — hesitation means injury.", excludeRoles = { "Murderer" } },
 	{ category = "COUNTERPLAY", body = "The Entity teleports between anchors. Watch for the arrival silhouette and move away from anchor points.", excludeRoles = { "Murderer" } },
+	-- Mastery / codex challenge tips (progress lives in Monster Codex)
+	{ category = "COUNTERPLAY", body = "Open the Monster Codex after each night — surviving Wendigo hunts unlocks mastery challenges.", excludeRoles = { "Murderer" } },
+	{ category = "COUNTERPLAY", body = "Correct culprit IDs raise monster mastery. Shadow Monster and Entity challenges reward patient deduction.", excludeRoles = { "Murderer" } },
+	{ category = "COUNTERPLAY", body = "Mastery tiers climb with encounters, survivals, and identifications. Check Codex challenges between rounds.", excludeRoles = { "Murderer" } },
+	-- Live-ops: weekly featured cosmetic (camp tokens only)
+	{ category = "CAMP STORE", body = "This week's featured cosmetic is discounted in Progress — unlock with camp tokens, never Robux." },
 
 	-- Murderer-only tips
 	{ category = "STRATEGY", body = "Your notebook tracks evidence collected against you. Check it often to gauge how close they are.", includeRoles = { "Murderer" } },
@@ -59,6 +65,10 @@ local definitions: { Tip } = {
 	{ category = "MONSTERS", body = "The Banshee appears as a silver-white spectral woman. When she opens her mouth, move away before the wail builds to full intensity.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "The old town beyond camp is foggy and abandoned — rusted water towers, crumbling buildings, muddy roads. Cover is plentiful but exits are limited.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Cabin interiors are dark and cluttered. Flashlights are essential once natural light drops at nightfall.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Northeast Fairgrounds: Midway Festival by day (soft rides, prize booths, ticket booth) flips to Midnight Circus after dusk. Tickets are optional — the murder mystery stays separate from the opt-in scare.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Walk the Midway Festival while the sun is up — check fair supplies, browse the prize counter, and take a Festival Pass if you want the night carnival chase.", excludeRoles = { "Murderer" } },
+	{ category = "EVIDENCE", body = "The midway prize counter, ticket booth, and fair-supplies crate can hold soft clues. Searching Fairgrounds props never makes the circus lethal — the mystery stays separate from the opt-in scare." },
+	{ category = "ENVIRONMENT", body = "Night routes rotate each round in this Place (Main Street, Factory Detour, Outskirts First, Backcountry Night). Check the lobby Route chip before dusk so you know which path the investigation will take.", excludeRoles = { "Murderer" } },
 	{ category = "COUNSELORS", body = "Each counselor has a distinct role you can recognise by their look — a wide ranger hat, a medical pack, a tool belt. Their accessories hint at what they know.", excludeRoles = { "Murderer" } },
 }
 

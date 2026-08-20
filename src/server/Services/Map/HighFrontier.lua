@@ -396,9 +396,9 @@ local function buildScatter(parent: Instance)
 		local z = 12 + math.sin(angle) * radius
 		-- Sector skips: east edge and lake, town band, the creek's north
 		-- corridor, and anything past the slab edge.
-		local offSlab = x > 235 or x < -540 or z > 462 or z < -100
-		-- z bound covers the water-sports basin's north lobe (water to z 190)
-		local inLakeSector = x > 82 and z < 200
+		local offSlab = x > 235 or x < -570 or z > 512 or z < -100
+		-- z bound covers the water-sports basin's north lobe (water to z ~200)
+		local inLakeSector = x > 78 and z < 210
 		local inCreekCorridor = z > 160 and x > 60 and x < 175
 		-- Spooky circus grounds + its approach trail to the creek bridge
 		local inCircusGrounds = x > 130 and x < 240 and z > 235 and z < 385

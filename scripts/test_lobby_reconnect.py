@@ -22,9 +22,19 @@ class LobbyReconnectTests(unittest.TestCase):
         for category in ("ROLES", "MONSTERS", "EVIDENCE", "VOTING"):
             self.assertIn(f'category = "{category}"', catalog)
         self.assertIn("table.freeze(definitions)", catalog)
+        self.assertIn("Backcountry Night", catalog)
+        self.assertIn("Midway Festival", catalog)
+        self.assertIn("Festival Pass", catalog)
+        self.assertIn("Route chip", catalog)
+        lobby = read("src/client/UI/LobbyView.lua")
+        self.assertIn("RouteChip", lobby)
+        self.assertIn("NIGHT ROUTES  ROTATE EACH ROUND", lobby)
+        self.assertIn("FAIRGROUNDS", lobby)
 
     def test_lobby_roster_carousel_and_countdown_contract(self) -> None:
         view = read("src/client/UI/GameView.lua")
+        lobby = read("src/client/UI/LobbyView.lua")
+        combined = view + lobby
         for token in (
             'WaitForChild("TipCatalog")',
             "currentTime - self.lobbyTipChangedAt >= 8",
@@ -38,7 +48,7 @@ class LobbyReconnectTests(unittest.TestCase):
             "Theme.Typography.DisplaySize * 2",
             "{ Scale = 1.15 }",
         ):
-            self.assertIn(token, view)
+            self.assertIn(token, combined)
 
     def test_locked_human_rejoin_reclaims_bot_roster_slot(self) -> None:
         lobby = read("src/server/Services/LobbyService.lua")

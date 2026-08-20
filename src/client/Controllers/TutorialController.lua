@@ -5,6 +5,7 @@ local TutorialViewModule = require(uiFolder:WaitForChild("TutorialView"))
 
 type TutorialView = TutorialViewModule.TutorialView
 type TutorialStep = TutorialViewModule.TutorialStep
+type TutorialChoice = TutorialViewModule.TutorialChoice
 
 export type TutorialOptions = {
 	completed: boolean?,
@@ -22,6 +23,7 @@ type TutorialControllerState = {
 	activeStep: StepDefinition?,
 	lastState: any,
 	completed: boolean,
+	modalBlocked: boolean,
 	destroyed: boolean,
 	onCompleted: ((skipped: boolean) -> ())?,
 }
@@ -42,13 +44,35 @@ TutorialController.StepIds = table.freeze({
 	Investigation = "investigation",
 	InvestigationMurderer = "investigation_murderer",
 	Evidence = "evidence",
+	Deduction = "deduction",
+	Ghost = "ghost",
 	Vote = "vote",
 	VoteMurderer = "vote_murderer",
 	Rewards = "rewards",
 	Spectator = "spectator",
 })
 
-local STEP_COPY: { { id: string, context: string, title: string, body: string, objective: string } } = {
+local DEDUCTION_CHOICES: { TutorialChoice } = {
+	{
+		label = "This looks planted",
+		feedback = "Planted clues push one name hard. Cross-check before you trust them.",
+	},
+	{
+		label = "This looks real",
+		feedback = "Real culprit clues converge on one answer across multiple finds.",
+	},
+}
+
+local STEP_COPY: {
+	{
+		id: string,
+		context: string,
+		title: string,
+		body: string,
+		objective: string,
+		choices: { TutorialChoice }?,
+	}
+} = {
 	{
 		id = "lobby",
 		context = "Lobby",
@@ -115,9 +139,24 @@ local STEP_COPY: { { id: string, context: string, title: string, body: string, o
 	{
 		id = "evidence",
 		context = "Evidence",
-		title = "Build the Case",
-		body = "Your notebook has two channels: culprit clues and monster clues. Real evidence points to one answer. Compare with your group — false clues and mistaken witnesses can redirect suspicion.",
-		objective = "OPEN THE NOTEBOOK AND REVIEW POSTED EVIDENCE",
+		title = "Real Clues vs Planted",
+		body = "Your notebook has two channels: culprit clues and monster clues. Planted clues try to frame someone — they feel loud and one-sided. Real culprit clues converge on the same answer. Compare finds with your group before you accuse.",
+		objective = "OPEN THE NOTEBOOK AND COMPARE POSTED EVIDENCE",
+	},
+	{
+		id = "deduction",
+		context = "Deduction",
+		title = "Real Clues vs Planted",
+		body = "Before you accuse, drill the board: planted clues frame a person; authentic clues converge across finds. Pick how this sample clue feels — then compare three real clues in your notebook.",
+		objective = "COMPARE THREE CLUES BEFORE YOU ACCUSE",
+		choices = DEDUCTION_CHOICES,
+	},
+	{
+		id = "ghost",
+		context = "Ghost",
+		title = "You Are a Ghost",
+		body = "Death is not the end of your usefulness. Watch the hunt, call out danger, and — if you are a Protector — you can still intervene from beyond. Report what you see through spirit channels when the camp needs it.",
+		objective = "STAY USEFUL AFTER DEATH",
 	},
 	{
 		id = "vote",
@@ -159,6 +198,7 @@ local function buildSteps(): { StepDefinition }
 			title = definition.title,
 			body = definition.body,
 			objective = definition.objective,
+			choices = definition.choices,
 			position = index,
 			total = total,
 		})
@@ -180,7 +220,25 @@ local function readNumber(value: any, key: string, fallback: number): number
 	return fallback
 end
 
-local function currentContext(state: any): string?
+local function readBoolean(value: any, key: string, fallback: boolean): boolean
+	if type(value) == "table" and type(value[key]) == "boolean" then
+		return value[key]
+	end
+	return fallback
+end
+
+local function playerIsGhost(player: any): boolean
+	if type(player) ~= "table" then
+		return false
+	end
+	if readBoolean(player, "isGhost", false) then
+		return true
+	end
+	-- Dead-as-ghost: some snapshots surface healthState before isGhost flips.
+	return readString(player, "healthState", "") == "Ghost"
+end
+
+local function currentContext(state: any, seen: { [string]: boolean }): string?
 	if type(state) ~= "table" then
 		return nil
 	end
@@ -197,6 +255,9 @@ local function currentContext(state: any): string?
 	local role = readString(player, "role", "")
 	if role == "Spectator" then
 		return "Spectator"
+	end
+	if playerIsGhost(player) and not seen[TutorialController.StepIds.Ghost] then
+		return "Ghost"
 	end
 	if role == "Murderer" then
 		if phase == "MurderPlanning" then
@@ -224,14 +285,23 @@ local function currentContext(state: any): string?
 	if phase == "NightTransform" then
 		return "NightTransform"
 	end
+	local evidenceFound = readNumber(round, "evidenceFound", 0)
 	if phase == "Investigation" then
-		local evidenceFound = readNumber(round, "evidenceFound", 0)
 		if evidenceFound > 0 then
+			if not seen[TutorialController.StepIds.Evidence] then
+				return "Evidence"
+			end
+			if not seen[TutorialController.StepIds.Deduction] then
+				return "Deduction"
+			end
 			return "Evidence"
 		end
 		return "Investigation"
 	end
 	if phase == "Campfire" then
+		if evidenceFound > 0 and not seen[TutorialController.StepIds.Deduction] then
+			return "Deduction"
+		end
 		return "Vote"
 	end
 	if phase == "Resolution" or phase == "Rewards" then
@@ -250,6 +320,7 @@ function TutorialController.new(parent: Instance, options: TutorialOptions?): Tu
 		activeStep = nil,
 		lastState = nil,
 		completed = resolved.completed == true,
+		modalBlocked = false,
 		destroyed = false,
 		onCompleted = resolved.onCompleted,
 	}, TutorialController)
@@ -272,7 +343,7 @@ function TutorialController:_findForContext(context: string): StepDefinition?
 end
 
 -- Mirrors currentContext: which cards this role can ever be shown.
-local function stepApplies(stepId: string, role: string): boolean
+local function stepApplies(stepId: string, role: string, isGhost: boolean): boolean
 	if stepId == TutorialController.StepIds.Spectator then
 		return role == "Spectator"
 	end
@@ -280,6 +351,9 @@ local function stepApplies(stepId: string, role: string): boolean
 	-- all other step contexts are never returned for them by currentContext.
 	if role == "Spectator" then
 		return stepId == TutorialController.StepIds.Lobby
+	end
+	if stepId == TutorialController.StepIds.Ghost then
+		return isGhost
 	end
 	local murdererStep = stepId == TutorialController.StepIds.MurderPlanningMurderer
 		or stepId == TutorialController.StepIds.NightTransformMurderer
@@ -295,9 +369,11 @@ local function stepApplies(stepId: string, role: string): boolean
 	if camperEquivalent then
 		return role ~= "Murderer"
 	end
-	-- currentContext returns InvestigationMurderer (not Evidence) for murderers,
-	-- so murderers will never see the evidence step.
-	if stepId == TutorialController.StepIds.Evidence then
+	-- currentContext returns InvestigationMurderer (not Evidence/Deduction) for
+	-- murderers, so murderers will never see those camper deduction cards.
+	if stepId == TutorialController.StepIds.Evidence
+		or stepId == TutorialController.StepIds.Deduction
+	then
 		return role ~= "Murderer"
 	end
 	return true
@@ -307,8 +383,9 @@ function TutorialController:_allSeen(): boolean
 	local lastState = self.lastState
 	local player = if type(lastState) == "table" then lastState.player else nil
 	local role = readString(player, "role", "")
+	local isGhost = playerIsGhost(player)
 	for _, step in self.steps do
-		if stepApplies(step.id, role) and not self.seen[step.id] then
+		if stepApplies(step.id, role, isGhost) and not self.seen[step.id] then
 			return false
 		end
 	end
@@ -318,10 +395,11 @@ end
 function TutorialController:_displayNumbering(step: StepDefinition): (number, number)
 	local player = if type(self.lastState) == "table" then self.lastState.player else nil
 	local role = readString(player, "role", "")
+	local isGhost = playerIsGhost(player)
 	local position = 0
 	local total = 0
 	for _, candidate in self.steps do
-		if stepApplies(candidate.id, role) then
+		if stepApplies(candidate.id, role, isGhost) then
 			total += 1
 			if candidate.id == step.id then
 				position = total
@@ -355,6 +433,7 @@ function TutorialController:_show(step: StepDefinition)
 		title = step.title,
 		body = step.body,
 		objective = step.objective,
+		choices = step.choices,
 		position = position,
 		total = total,
 	}
@@ -365,13 +444,46 @@ function TutorialController:_show(step: StepDefinition)
 	end)
 end
 
+function TutorialController:SetModalBlocked(blocked: boolean)
+	if self.destroyed or self.modalBlocked == blocked then
+		return
+	end
+	self.modalBlocked = blocked
+	if blocked then
+		self.view:Hide()
+		return
+	end
+	if self.lastState ~= nil then
+		self:Update(self.lastState)
+	end
+end
+
+function TutorialController:Reset()
+	if self.destroyed then
+		return
+	end
+	self.completed = false
+	self.activeStep = nil
+	table.clear(self.seen)
+	self.view:Hide()
+	if self.lastState ~= nil then
+		self:Update(self.lastState)
+	end
+end
+
 function TutorialController:Update(state: any)
-	if self.completed or self.destroyed then
+	if self.destroyed or self.modalBlocked then
 		return
 	end
 	self.lastState = state
-	local context = currentContext(state)
+	local context = currentContext(state, self.seen)
 	if not context then
+		return
+	end
+
+	-- Ghost briefing can still fire after the rest of the tutorial finished.
+	local ghostOverride = context == "Ghost" and not self.seen[TutorialController.StepIds.Ghost]
+	if self.completed and not ghostOverride then
 		return
 	end
 
@@ -388,13 +500,13 @@ function TutorialController:Update(state: any)
 	local step = self:_findForContext(context)
 	if step then
 		self:_show(step)
-	elseif self:_allSeen() then
+	elseif not self.completed and self:_allSeen() then
 		self:_finish(false)
 	end
 end
 
 function TutorialController:Advance()
-	if self.completed or self.destroyed then
+	if self.destroyed then
 		return
 	end
 	local active = self.activeStep
@@ -404,6 +516,9 @@ function TutorialController:Advance()
 	self.activeStep = nil
 	self.view:Hide()
 
+	if self.completed then
+		return
+	end
 	if self:_allSeen() then
 		self:_finish(false)
 		return
@@ -426,13 +541,20 @@ function TutorialController:SetReducedMotion(reducedMotion: boolean)
 end
 
 function TutorialController:SetCompleted(completed: boolean)
-	if completed and not self.completed then
-		-- Loading an already-completed profile is synchronization, not a new
-		-- completion. Do not call onCompleted and write the setting back.
-		self.completed = true
-		self.activeStep = nil
-		self.view:Hide()
+	if completed then
+		if not self.completed then
+			-- Loading an already-completed profile is synchronization, not a new
+			-- completion. Do not call onCompleted and write the setting back.
+			self.completed = true
+			self.activeStep = nil
+			self.view:Hide()
+		end
+		return
 	end
+	self.completed = false
+	self.activeStep = nil
+	table.clear(self.seen)
+	self.view:Hide()
 end
 
 function TutorialController:IsCompleted(): boolean

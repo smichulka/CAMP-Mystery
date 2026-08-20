@@ -7,12 +7,12 @@ export type KeybindHints = {
 
 local HINTS: { [string]: KeybindHints } = {
 	Day = {
-		keyboard   = { "E  Interact", "N  Notebook", "Tab  Players", "F  Equip item" },
-		controller = { "A  Interact", "Y  Notebook", "View  Players", "X  Equip item" },
+		keyboard   = { "E  Interact", "1-0  Use slots", "N  Notebook", "Tab  Players" },
+		controller = { "A  Interact", "X  Use slot", "Y  Notebook", "View  Players" },
 	},
 	Investigation = {
-		keyboard   = { "E  Interact", "N  Notebook", "Q  Role ability", "Tab  Players" },
-		controller = { "A  Interact", "Y  Notebook", "LB  Role ability", "View  Players" },
+		keyboard   = { "E  Interact", "1-0  Use slots", "N  Notebook", "Tab  Players" },
+		controller = { "A  Interact", "X  Use slot", "Y  Notebook", "View  Players" },
 	},
 	Campfire = {
 		keyboard   = { "E  Vote", "N  Evidence notebook" },

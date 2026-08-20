@@ -133,6 +133,7 @@ local catalog: MysteryCatalogDefinition = {
 				"aurora-fire-ring",
 				"town-square-fountain",
 				"cabin-zero-chimney",
+				"midway-prize-counter",
 			},
 		},
 		{
@@ -212,6 +213,17 @@ local catalog: MysteryCatalogDefinition = {
 			locationIds = {
 				"infirmary-logbook",
 				"crypt-empty-niche",
+			},
+		},
+		{
+			id = "planted-midway-stub",
+			channel = "Culprit",
+			title = "Torn Midway Stub",
+			publicDescription = "A half-torn Fairgrounds ticket stub was left on a prize shelf with no matching wristband trail. It looks placed for someone to find — the Midnight Circus chase is opt-in theatre, not a lethal weapon.",
+			locationIds = {
+				"midway-prize-counter",
+				"circus-ticket-booth",
+				"aurora-fire-ring",
 			},
 		},
 	},
@@ -449,6 +461,12 @@ local catalog: MysteryCatalogDefinition = {
 			channel = "Culprit",
 			statement = "The shortcut gate moved once during the quiet period. Only people who knew the camp well would use it in the dark.",
 			locationId = "water-tower-witness",
+		},
+		{
+			id = "witness-midway-stub",
+			channel = "Culprit",
+			statement = "I saw someone linger at the Fairgrounds ticket booth after dusk. The green wristband is optional — carnies only chase ticket holders, and a catch is a scare escort, not an attack.",
+			locationId = "main-road-witness",
 		},
 	},
 	mistakenWitnessAccounts = {

@@ -5,6 +5,8 @@ export type RoleMastery = {
 	level: number,
 }
 
+-- Per-monster codex mastery counters. Incremented server-side on reward grant
+-- after Investigation / round resolution (see ProfileService + CodexConfig).
 export type MonsterStatRecord = {
 	encounters: number,
 	survivals: number,
@@ -38,6 +40,8 @@ export type PlayerSettings = {
 	-- Opt-in mystery: sign this player up for each night's round automatically.
 	-- Additive field — absent sanitizes to false (must choose to opt in).
 	autoEnroll: boolean,
+	-- Prefer ~7 minute Quick Camp rounds when a majority of ready players agree.
+	preferQuickCamp: boolean,
 }
 
 export type PlayerProfile = {

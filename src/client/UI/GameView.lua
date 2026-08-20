@@ -11,12 +11,18 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Components = require(script.Parent:WaitForChild("Components"))
+local LayoutPass = require(script.Parent:WaitForChild("LayoutPass"))
+local LobbyView = require(script.Parent:WaitForChild("LobbyView"))
+local MissionView = require(script.Parent:WaitForChild("MissionView"))
 local Motion = require(script.Parent:WaitForChild("Motion"))
+local NotebookView = require(script.Parent:WaitForChild("NotebookView"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local VoteView = require(script.Parent:WaitForChild("VoteView"))
 local SharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local CosmeticCatalog = require(SharedConfig:WaitForChild("CosmeticCatalog"))
 local ProgressionConfig = require(SharedConfig:WaitForChild("ProgressionConfig"))
 local PublicMonsterCatalog = require(SharedConfig:WaitForChild("PublicMonsterCatalog"))
+local CodexConfig = require(SharedConfig:WaitForChild("CodexConfig"))
 local InterviewTopics = require(SharedConfig:WaitForChild("InterviewTopics"))
 local KeybindHints = require(SharedConfig:WaitForChild("KeybindHints"))
 local MonsterOrder = require(SharedConfig:WaitForChild("MonsterOrder"))
@@ -84,6 +90,7 @@ type GameViewState = {
 	cooldownFill: Frame?,
 	abilityBarMaxCooldown: number,
 	objectiveText: TextLabel,
+	missionKeybindLabel: TextLabel?,
 	objectiveFill: Frame,
 	healthText: TextLabel,
 	healthFill: Frame,
@@ -117,6 +124,7 @@ type GameViewState = {
 	settingsList: ScrollingFrame,
 	voteModal: Frame,
 	voteModalTitleLabel: TextLabel?,
+	voteStageLabel: TextLabel?,
 	voteCountLabel: TextLabel?,
 	voteWarningLabel: TextLabel?,
 	voteList: ScrollingFrame,
@@ -191,6 +199,7 @@ type GameViewState = {
 	requestSequence: number,
 	settingsValues: { [string]: any },
 	audioSettingCallback: ((key: string, value: any) -> ())?,
+	tutorialReplayCallback: (() -> ())?,
 	layoutConnections: { RBXScriptConnection },
 	announcementToken: number,
 	lastActionControl: GuiObject?,
@@ -445,6 +454,7 @@ local function setModalVisible(modal: GuiObject, visible: boolean)
 			end,
 		})
 	end
+	notifyTutorialModalBlock()
 end
 
 local function modalTargetVisible(modal: GuiObject): boolean
@@ -523,6 +533,19 @@ end
 -- Small-viewport / touch-first HUD support. Phones report either a short
 -- viewport or touch without a keyboard; both get the compact layout pass.
 local COMPACT_UI_SCALE = 0.78
+
+local tutorialModalNotifier: ((blocked: boolean) -> ())? = nil
+local tutorialModalOwner: any = nil
+
+local function notifyTutorialModalBlock()
+	if not tutorialModalNotifier or not tutorialModalOwner then
+		return
+	end
+	local owner = tutorialModalOwner
+	local blocked = owner.voteModal:GetAttribute("MotionTargetVisible") == true
+		or owner.targetModal:GetAttribute("MotionTargetVisible") == true
+	tutorialModalNotifier(blocked)
+end
 
 local function isCompactViewport(viewport: Vector2): boolean
 	if viewport.X < viewport.Y then
@@ -784,6 +807,12 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	objectiveText.Position = UDim2.fromOffset(16, 138)
 	objectiveText.Size = UDim2.new(1, -32, 0, 70)
 	objectiveText.TextYAlignment = Enum.TextYAlignment.Top
+	local missionKeybindLabel = Components.Label(mission, "MissionKeybinds", "", 11, Enum.Font.GothamBold)
+	missionKeybindLabel.Position = UDim2.fromOffset(16, 232)
+	missionKeybindLabel.Size = UDim2.new(1, -32, 0, 14)
+	missionKeybindLabel.TextColor3 = Theme.Colors.TextMuted
+	missionKeybindLabel.TextXAlignment = Enum.TextXAlignment.Left
+	missionKeybindLabel.Visible = false
 	local objectiveTrack, objectiveFill = Components.ProgressBar(mission, "ObjectiveProgress")
 	objectiveTrack.Position = UDim2.fromOffset(16, 214)
 	objectiveTrack.Size = UDim2.new(1, -32, 0, 16)
@@ -1160,6 +1189,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		cooldownFill = cooldownFill,
 		abilityBarMaxCooldown = 0,
 		objectiveText = objectiveText,
+		missionKeybindLabel = missionKeybindLabel,
 		objectiveFill = objectiveFill,
 		healthText = healthText,
 		healthFill = healthFill,
@@ -1193,6 +1223,7 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		settingsList = nil :: any,
 		voteModal = voteModal,
 		voteModalTitleLabel = nil,
+		voteStageLabel = nil,
 		voteCountLabel = nil,
 		voteWarningLabel = nil,
 		voteList = nil :: any,
@@ -1357,173 +1388,12 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 end
 
 function GameView:_updateLayout()
-	if self.destroyed then
-		return
-	end
-	local camera = Workspace.CurrentCamera
-	if not camera then
-		return
-	end
-	local viewport = camera.ViewportSize
-	local narrow = viewport.X < 560
-	local compact = not narrow and (viewport.X < 850 or viewport.Y < 560)
-	self.uiScale.Scale = 1
-	local compactTouch = isCompactViewport(viewport)
-	if compactTouch then
-		-- Phones and small touch screens get the dedicated compact pass in
-		-- _applyCompactTouchLayout; shrink the whole HUD and route the branch
-		-- chain below through the desktop path so the pass overrides it.
-		narrow = false
-		compact = false
-		self.uiScale.Scale = COMPACT_UI_SCALE
-	end
-
-	if narrow then
-		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
-		self.topStatus.Position = UDim2.new(0.5, 0, 0, 8)
-		self.topStatus.Size = UDim2.new(1, -16, 0, 80)
-
-		self.menuPanel.AnchorPoint = Vector2.new(0.5, 0)
-		self.menuPanel.Position = UDim2.new(0.5, 0, 0, 94)
-		self.menuPanel.Size = UDim2.fromOffset(280, 42)
-		if self.notebookButton then
-			self.notebookButton.Position = UDim2.fromOffset(6, 0)
-		end
-		if self.settingsButton then
-			self.settingsButton.Position = UDim2.fromOffset(144, 0)
-		end
-		if self.codexButton then
-			self.codexButton.Position = UDim2.fromOffset(6, 46)
-		end
-
-		self.missionPanel.Position = UDim2.fromOffset(8, 142)
-		self.missionPanel.Size = UDim2.new(1, -16, 0, 310)
-		self.healthPanel.Position = UDim2.new(0, 8, 1, -92)
-		self.healthPanel.Size = UDim2.new(1, -16, 0, 66)
-		self.hotbar.AnchorPoint = Vector2.new(0.5, 1)
-		self.hotbar.Position = UDim2.new(0.5, 0, 1, -8)
-		self.hotbar.Size = UDim2.new(1, -16, 0, 76)
-		self.interaction.Position = UDim2.new(0.5, 0, 1, -166)
-		self.interaction.Size = UDim2.new(1, -20, 0, 60)
-		self.toastList.Position = UDim2.new(1, -8, 1, -170)
-		self.toastList.Size = UDim2.new(1, -16, 0, 210)
-		self.announcement.Size = UDim2.new(1, -16, 0, 82)
-		if self.lobbyPanel then
-			self.lobbyPanel.AnchorPoint = Vector2.new(0.5, 1)
-			self.lobbyPanel.Position = UDim2.new(0.5, 0, 1, -8)
-			self.lobbyPanel.Size = UDim2.new(1, -16, 0, 172)
-		end
-	elseif compact then
-		self.topStatus.AnchorPoint = Vector2.new(1, 0)
-		self.topStatus.Position = UDim2.new(1, -10, 0, 10)
-		self.topStatus.Size = UDim2.new(1, -310, 0, 96)
-
-		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
-		self.menuPanel.Position = UDim2.new(1, -10, 0, 114)
-		self.menuPanel.Size = UDim2.fromOffset(140, 94)
-		if self.notebookButton then
-			self.notebookButton.Position = UDim2.fromOffset(10, 0)
-		end
-		if self.settingsButton then
-			self.settingsButton.Position = UDim2.fromOffset(10, 48)
-		end
-		if self.codexButton then
-			self.codexButton.Position = UDim2.fromOffset(10, 96)
-		end
-
-		self.missionPanel.Position = UDim2.fromOffset(10, 10)
-		self.missionPanel.Size = UDim2.fromOffset(280, 310)
-		self.healthPanel.Position = UDim2.new(0, 10, 1, -10)
-		self.healthPanel.Size = UDim2.fromOffset(220, 66)
-		self.hotbar.Position = UDim2.new(1, -10, 1, -10)
-		self.hotbar.AnchorPoint = Vector2.new(1, 1)
-		self.hotbar.Size = UDim2.new(1, -250, 0, 80)
-		self.interaction.Position = UDim2.new(0.5, 0, 1, -100)
-		self.interaction.Size = UDim2.new(0.55, 0, 0, 60)
-		self.toastList.Position = UDim2.new(1, -10, 1, -100)
-		self.toastList.Size = UDim2.fromOffset(math.min(320, viewport.X - 20), 220)
-		self.announcement.Size = UDim2.new(1, -310, 0, 82)
-		if self.lobbyPanel then
-			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
-			self.lobbyPanel.Position = UDim2.new(1, -10, 1, -10)
-			self.lobbyPanel.Size = UDim2.fromOffset(300, 172)
-		end
-	else
-		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
-		self.topStatus.Position = UDim2.fromScale(0.5, 0.018)
-		self.topStatus.Size = UDim2.fromOffset(540, 96)
-		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
-		self.menuPanel.Position = UDim2.new(1, -18, 0, 18)
-		self.menuPanel.Size = UDim2.fromOffset(140, 94)
-		if self.notebookButton then
-			self.notebookButton.Position = UDim2.fromOffset(10, 0)
-		end
-		if self.settingsButton then
-			self.settingsButton.Position = UDim2.fromOffset(10, 48)
-		end
-		if self.codexButton then
-			self.codexButton.Position = UDim2.fromOffset(10, 96)
-		end
-		self.missionPanel.Position = UDim2.fromOffset(18, 18)
-		self.missionPanel.Size = UDim2.fromOffset(310, 310)
-		self.healthPanel.Position = UDim2.new(0, 18, 1, -18)
-		self.healthPanel.Size = UDim2.fromOffset(270, 66)
-		self.hotbar.AnchorPoint = Vector2.new(0.5, 1)
-		self.hotbar.Position = UDim2.new(0.5, 0, 1, -18)
-		self.hotbar.Size = UDim2.new(0.52, 0, 0, 80)
-		self.interaction.Position = UDim2.new(0.5, 0, 1, -112)
-		self.interaction.Size = UDim2.fromOffset(390, 60)
-		self.toastList.Position = UDim2.new(1, -18, 1, -122)
-		self.toastList.Size = UDim2.fromOffset(360, 250)
-		self.announcement.Size = UDim2.fromOffset(520, 82)
-		if self.lobbyPanel then
-			self.lobbyPanel.AnchorPoint = Vector2.new(1, 1)
-			self.lobbyPanel.Position = UDim2.new(1, -18, 1, -18)
-			self.lobbyPanel.Size = UDim2.fromOffset(300, 172)
-		end
-	end
-
-	self:_applyCompactTouchLayout(compactTouch, viewport)
-
-	if narrow then
-		for _, modal in {
-			self.notebook,
-			self.settings,
-			self.voteModal,
-			self.resultModal,
-			self.targetModal,
-			self.progression,
-		} do
-			modal.Size = UDim2.new(1, -16, 1, -24)
-		end
-		local resultContinue = self.resultModal:FindFirstChild("Continue")
-		local resultProgression = self.resultModal:FindFirstChild("Progression")
-		if resultContinue and resultContinue:IsA("GuiObject") then
-			resultContinue.Size = UDim2.new(0.5, -18, 0, 44)
-			resultContinue.Position = UDim2.new(0.5, 6, 1, -64)
-		end
-		if resultProgression and resultProgression:IsA("GuiObject") then
-			resultProgression.Size = UDim2.new(0.5, -18, 0, 44)
-			resultProgression.Position = UDim2.new(0, 12, 1, -64)
-		end
-	else
-		self.notebook.Size = UDim2.new(0.72, 0, 0.72, 0)
-		self.settings.Size = UDim2.new(0.58, 0, 0.76, 0)
-		self.voteModal.Size = UDim2.new(0.46, 0, 0.64, 0)
-		self.resultModal.Size = UDim2.new(0.52, 0, 0.5, 0)
-		self.targetModal.Size = UDim2.new(0.4, 0, 0.62, 0)
-		self.progression.Size = UDim2.new(0.72, 0, 0.78, 0)
-		local resultContinue = self.resultModal:FindFirstChild("Continue")
-		local resultProgression = self.resultModal:FindFirstChild("Progression")
-		if resultContinue and resultContinue:IsA("GuiObject") then
-			resultContinue.Size = UDim2.fromOffset(170, 44)
-			resultContinue.Position = UDim2.new(0.5, 8, 1, -64)
-		end
-		if resultProgression and resultProgression:IsA("GuiObject") then
-			resultProgression.Size = UDim2.fromOffset(170, 44)
-			resultProgression.Position = UDim2.new(0.5, -178, 1, -64)
-		end
-	end
+	LayoutPass.UpdateLayout(self, {
+		isCompactViewport = isCompactViewport,
+		ensureLayoutScale = ensureLayoutScale,
+		ensureMinSizeConstraint = ensureMinSizeConstraint,
+		compactUiScale = COMPACT_UI_SCALE,
+	})
 end
 
 -- Touch / small-viewport HUD pass. Runs after the desktop branch chain so
@@ -1534,253 +1404,20 @@ end
 -- thumbstick (bottom-left ~180x180 px) and jump button (bottom-right
 -- ~180x180 px); no interactive HUD is placed inside those reserves.
 function GameView:_applyCompactTouchLayout(active: boolean, viewport: Vector2)
-	local topScale = ensureLayoutScale(self.topStatus, "CompactTopScale")
-	local missionScale = ensureLayoutScale(self.missionPanel, "CompactMissionScale")
-	local rosterPanel = self.rosterPanel
-	local rosterScale = if rosterPanel then ensureLayoutScale(rosterPanel, "CompactRosterScale") else nil
-	local toastLayout = self.toastList:FindFirstChildOfClass("UIListLayout")
-	local monsterPanel = self.monsterPanel
-	local hauntPanel = self.hauntPanel
-	local notebookButton = self.notebookButton
-	local settingsButton = self.settingsButton
-	local codexButton = self.codexButton
-	local lobby = self.lobbyPanel
-	local voteMin = ensureMinSizeConstraint(self.voteModal)
-	local targetMin = ensureMinSizeConstraint(self.targetModal)
-	local resultMin = ensureMinSizeConstraint(self.resultModal)
-
-	if active then
-		-- Centre the scaled canvas horizontally and pin it to the top so the
-		-- bottom edge of the screen carries no HUD at all.
-		self.root.AnchorPoint = Vector2.new(0.5, 0)
-		self.root.Position = UDim2.fromScale(0.5, 0)
-
-		-- Phase banner: top-centre, slightly reduced so long phase titles do
-		-- not reach the mission panel or the menu column.
-		topScale.Scale = 0.85
-		self.topStatus.AnchorPoint = Vector2.new(0.5, 0)
-		self.topStatus.Position = UDim2.new(0.5, 0, 0, 6)
-		self.topStatus.Size = UDim2.fromOffset(460, 96)
-
-		-- Menu cluster: compact column pinned to the top-right corner, clear
-		-- of the top-centre phase banner.
-		self.menuPanel.AnchorPoint = Vector2.new(1, 0)
-		self.menuPanel.Position = UDim2.new(1, -6, 0, 6)
-		self.menuPanel.Size = UDim2.fromOffset(118, 112)
-		if notebookButton then
-			notebookButton.Size = UDim2.fromOffset(112, 34)
-			notebookButton.Position = UDim2.fromOffset(6, 0)
-		end
-		if settingsButton then
-			settingsButton.Size = UDim2.fromOffset(112, 34)
-			settingsButton.Position = UDim2.fromOffset(6, 38)
-		end
-		if codexButton then
-			codexButton.Size = UDim2.fromOffset(112, 34)
-			codexButton.Position = UDim2.fromOffset(6, 76)
-		end
-
-		-- Mission panel: keep the desktop-tuned inner layout but render it
-		-- smaller so it stays well left of the screen midline.
-		missionScale.Scale = 0.8
-		self.missionPanel.Position = UDim2.fromOffset(6, 6)
-		self.missionPanel.Size = UDim2.fromOffset(280, 310)
-
-		-- Bottom band: health and hotbar side by side, pulled toward the
-		-- centre so both bottom corners stay clear. The root is scaled and
-		-- centred, so convert the 180px screen reserves into layout-space
-		-- x coordinates for this viewport.
-		local halfX = viewport.X / 2
-		local reserveSpan = math.max(0, (halfX - 180) / COMPACT_UI_SCALE)
-		local leftClear = halfX - reserveSpan
-		local rightClear = halfX + reserveSpan
-		local healthX = leftClear + 8
-		local hotbarX = healthX + 202
-		self.healthPanel.AnchorPoint = Vector2.new(0, 1)
-		self.healthPanel.Position = UDim2.new(0, healthX, 1, -10)
-		self.healthPanel.Size = UDim2.fromOffset(190, 62)
-		self.hotbar.AnchorPoint = Vector2.new(0, 1)
-		self.hotbar.Position = UDim2.new(0, hotbarX, 1, -8)
-		self.hotbar.Size = UDim2.new(0, math.max(120, rightClear - 12 - hotbarX), 0, 74)
-		self.interaction.Position = UDim2.new(0.5, 0, 1, -92)
-		self.interaction.Size = UDim2.fromOffset(360, 54)
-
-		-- Toasts drop in under the phase banner instead of the bottom-right,
-		-- clear of the mission panel and the jump reserve.
-		self.toastList.AnchorPoint = Vector2.new(0.5, 0)
-		self.toastList.Position = UDim2.new(0.5, 0, 0, 104)
-		self.toastList.Size = UDim2.fromOffset(340, 150)
-		if toastLayout then
-			toastLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-		end
-		self.announcement.Size = UDim2.fromOffset(440, 82)
-
-		-- Side panels that default to the bottom-right corner move up above
-		-- the jump reserve; ghost haunt meter moves under the banner's right
-		-- edge so it cannot collide with the roster column.
-		if rosterPanel then
-			rosterPanel.AnchorPoint = Vector2.new(1, 0)
-			rosterPanel.Position = UDim2.new(1, -6, 0, 132)
-		end
-		if rosterScale then
-			rosterScale.Scale = 0.72
-		end
-		if monsterPanel then
-			monsterPanel.Position = UDim2.new(1, -6, 1, -140)
-		end
-		if hauntPanel then
-			hauntPanel.Position = UDim2.new(1, -140, 0, 110)
-		end
-
-		-- Lobby: compact bottom-centre sheet (hotbar and health are hidden
-		-- during the Lobby phase) with the ready/progress buttons on-screen.
-		if lobby then
-			lobby.AnchorPoint = Vector2.new(0.5, 1)
-			lobby.Position = UDim2.new(0.5, 0, 1, -10)
-			lobby.Size = UDim2.new(0, math.min(520, math.max(300, rightClear - leftClear - 16)), 0, 168)
-			local strip = lobby:FindFirstChild("HeaderStrip")
-			if strip and strip:IsA("GuiObject") then
-				strip.Size = UDim2.new(1, 0, 0, 32)
-			end
-			local progressionButton = lobby:FindFirstChild("Progression")
-			if progressionButton and progressionButton:IsA("GuiObject") then
-				progressionButton.Position = UDim2.new(0.55, 6, 0, 104)
-				progressionButton.Size = UDim2.new(0.45, -24, 0, 52)
-			end
-			self.lobbyText.Position = UDim2.fromOffset(18, 4)
-			self.lobbyText.Size = UDim2.new(1, -36, 0, 26)
-			self.lobbyRoster.Visible = true
-			self.lobbyRoster.Position = UDim2.fromOffset(18, 36)
-			self.lobbyRoster.Size = UDim2.new(1, -36, 0, 60)
-			self.lobbyTip.Visible = false
-			self.readyButton.Position = UDim2.fromOffset(18, 104)
-			self.readyButton.Size = UDim2.new(0.55, -24, 0, 52)
-		end
-
-		-- Keep the scale-sized modals usable on short viewports.
-		voteMin.MinSize = Vector2.new(440, 300)
-		targetMin.MinSize = Vector2.new(380, 300)
-		resultMin.MinSize = Vector2.new(460, 280)
-	else
-		self.root.AnchorPoint = Vector2.new(0, 0)
-		self.root.Position = UDim2.fromScale(0, 0)
-		topScale.Scale = 1
-		missionScale.Scale = 1
-		if notebookButton then
-			notebookButton.Size = UDim2.fromOffset(130, 40)
-		end
-		if settingsButton then
-			settingsButton.Size = UDim2.fromOffset(130, 40)
-		end
-		if codexButton then
-			codexButton.Size = UDim2.fromOffset(130, 40)
-		end
-		self.healthPanel.AnchorPoint = Vector2.new(0, 1)
-		self.toastList.AnchorPoint = Vector2.new(1, 1)
-		if toastLayout then
-			toastLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-		end
-		if rosterPanel then
-			rosterPanel.AnchorPoint = Vector2.new(1, 1)
-			rosterPanel.Position = UDim2.new(1, -18, 1, -96)
-		end
-		if rosterScale then
-			rosterScale.Scale = 1
-		end
-		if monsterPanel then
-			monsterPanel.Position = UDim2.new(1, -16, 1, -88)
-		end
-		if hauntPanel then
-			hauntPanel.Position = UDim2.new(1, -18, 0, 158)
-		end
-		if lobby then
-			-- Desktop restore matches the compact ready-up card that
-			-- _buildLobby authors. The old values here re-created the retired
-			-- 520x520 layout (buttons at y 446) inside a ~172px panel, pushing
-			-- READY UP off the bottom of the screen.
-			local strip = lobby:FindFirstChild("HeaderStrip")
-			if strip and strip:IsA("GuiObject") then
-				strip.Size = UDim2.new(1, 0, 0, 28)
-			end
-			local progressionButton = lobby:FindFirstChild("Progression")
-			if progressionButton and progressionButton:IsA("GuiObject") then
-				progressionButton.Position = UDim2.fromOffset(12, 98)
-				progressionButton.Size = UDim2.new(1, -24, 0, 44)
-			end
-			self.lobbyText.Position = UDim2.fromOffset(12, 4)
-			self.lobbyText.Size = UDim2.new(1, -24, 0, 20)
-			self.lobbyRoster.Visible = false
-			self.lobbyTip.Visible = false
-			self.readyButton.Position = UDim2.fromOffset(12, 38)
-			self.readyButton.Size = UDim2.new(1, -24, 0, 52)
-		end
-		voteMin.MinSize = Vector2.zero
-		targetMin.MinSize = Vector2.zero
-		resultMin.MinSize = Vector2.zero
-	end
+	LayoutPass.ApplyCompactTouchLayout(self, active, viewport, {
+		isCompactViewport = isCompactViewport,
+		ensureLayoutScale = ensureLayoutScale,
+		ensureMinSizeConstraint = ensureMinSizeConstraint,
+		compactUiScale = COMPACT_UI_SCALE,
+	})
 end
 
 function GameView:_buildNotebook()
-	makeHeader(self.notebook, "EVIDENCE NOTEBOOK", function()
-		setModalVisible(self.notebook, false)
-	end)
-	local rules = Instance.new("Frame")
-	rules.Name = "NotebookRules"
-	rules.Position = UDim2.fromOffset(0, 58)
-	rules.Size = UDim2.new(1, 0, 1, -58)
-	rules.BackgroundTransparency = 1
-	rules.BorderSizePixel = 0
-	rules.ClipsDescendants = true
-	rules.ZIndex = 0
-	rules.Parent = self.notebook
-	for index = 0, 32 do
-		local line = Instance.new("Frame")
-		line.Name = "Rule_" .. tostring(index + 1)
-		line.Position = UDim2.fromOffset(
-			14,
-			index * Theme.Notebook.LineHeight
-		)
-		line.Size = UDim2.new(1, -28, 0, 1)
-		line.BackgroundColor3 = Theme.Notebook.PageLines
-		line.BackgroundTransparency = 0.58
-		line.BorderSizePixel = 0
-		line.ZIndex = 0
-		line.Parent = rules
-	end
-	local header = self.notebook:FindFirstChild("Header")
-	if header and header:IsA("GuiObject") then
-		header.ZIndex = 3
-		local headerTitle = header:FindFirstChild("Title")
-		if headerTitle and headerTitle:IsA("TextLabel") then
-			headerTitle.TextColor3 = Theme.Notebook.InkColor
-		end
-	end
-	local summary = Components.Label(
-		self.notebook,
-		"Summary",
-		"Clues are separated from monster identification evidence.",
-		14
-	)
-	summary.Position = UDim2.fromOffset(20, 58)
-	summary.Size = UDim2.new(1, -40, 0, 48)
-	summary.TextColor3 = Theme.Notebook.InkMuted
-	summary.ZIndex = 2
-	self.evidenceSummary = summary
-
-	local list = Instance.new("ScrollingFrame")
-	list.Name = "EvidenceList"
-	list.Position = UDim2.fromOffset(18, 108)
-	list.Size = UDim2.new(1, -36, 1, -126)
-	list.BackgroundTransparency = 1
-	list.BorderSizePixel = 0
-	list.ScrollBarThickness = 5
-	list.ScrollBarImageColor3 = Theme.Notebook.InkMuted
-	list.CanvasSize = UDim2.fromOffset(0, 0)
-	list.ZIndex = 2
-	list.Parent = self.notebook
-	local layout = Components.List(list, 9)
-	addCanvasSizing(list, layout)
-	self.evidenceList = list
+	NotebookView.Build(self, {
+		makeHeader = makeHeader,
+		setModalVisible = setModalVisible,
+		addCanvasSizing = addCanvasSizing,
+	})
 end
 
 function GameView:_buildSettings()
@@ -1803,62 +1440,12 @@ function GameView:_buildSettings()
 end
 
 function GameView:_buildVote()
-	makeHeader(self.voteModal, "CAMPFIRE ACCUSATION", function()
-		if self.localVoteHasLocked then
-			setModalVisible(self.voteModal, false)
-		else
-			local voteReqPlayer = if type(self.currentState) == "table" then self.currentState.player else nil
-			local voteReqBody = if readString(voteReqPlayer, "role", "") == "Murderer"
-				then "Name someone before the fire goes out. Redirect suspicion — every vote matters."
-				else "Choose one suspect before the fire goes out."
-			self:Notify("Vote required", voteReqBody, "Warning")
-		end
-	end)
-	local voteHeader = self.voteModal:FindFirstChild("Header")
-	if voteHeader and voteHeader:IsA("Frame") then
-		local voteHeaderTitle = voteHeader:FindFirstChild("Title")
-		if voteHeaderTitle and voteHeaderTitle:IsA("TextLabel") then
-			-- Reserve 88px for the count and 8px gaps on both sides.
-			voteHeaderTitle.Size = UDim2.new(1, -212, 1, 0)
-			self.voteModalTitleLabel = voteHeaderTitle
-		end
-	end
-	local voteCountLabel = Components.Label(
-		self.voteModal,
-		"VoteCountLabel",
-		"",
-		11,
-		Enum.Font.GothamBold
-	)
-	voteCountLabel.AnchorPoint = Vector2.new(1, 0)
-	voteCountLabel.Position = UDim2.new(1, -96, 0, 18)
-	voteCountLabel.Size = UDim2.fromOffset(88, 20)
-	voteCountLabel.TextXAlignment = Enum.TextXAlignment.Right
-	voteCountLabel.TextColor3 = Theme.Colors.TextMuted
-	self.voteCountLabel = voteCountLabel
-	local warning = Components.Label(
-		self.voteModal,
-		"Warning",
-		"One vote. No take-backs. A tie favors the Murderer.",
-		14
-	)
-	warning.Position = UDim2.fromOffset(20, 58)
-	warning.Size = UDim2.new(1, -40, 0, 44)
-	warning.TextColor3 = Theme.Colors.Amber
-	warning.TextXAlignment = Enum.TextXAlignment.Center
-	self.voteWarningLabel = warning
-	local list = Instance.new("ScrollingFrame")
-	list.Name = "Suspects"
-	list.Position = UDim2.fromOffset(18, 106)
-	list.Size = UDim2.new(1, -36, 1, -124)
-	list.BackgroundTransparency = 1
-	list.BorderSizePixel = 0
-	list.ScrollBarThickness = 5
-	list.CanvasSize = UDim2.fromOffset(0, 0)
-	list.Parent = self.voteModal
-	local layout = Components.List(list, 8)
-	addCanvasSizing(list, layout)
-	self.voteList = list
+	VoteView.Build(self, {
+		makeHeader = makeHeader,
+		setModalVisible = setModalVisible,
+		addCanvasSizing = addCanvasSizing,
+		readString = readString,
+	})
 end
 
 function GameView:_buildResults()
@@ -1900,6 +1487,24 @@ function GameView:_buildResults()
 	})
 	continue.Activated:Connect(function()
 		setModalVisible(self.resultModal, false)
+	end)
+	local playAgain = Components.Button(self.resultModal, {
+		name = "PlayAgain",
+		text = "PLAY AGAIN",
+		size = UDim2.fromOffset(170, 44),
+		position = UDim2.new(0.5, -178, 1, -64),
+		color = Theme.Colors.Success,
+	})
+	playAgain.Activated:Connect(function()
+		self.lastActionControl = playAgain
+		local sent, reason = self.actionHandler("RematchReady", {})
+		if sent then
+			setModalVisible(self.resultModal, false)
+		else
+			Motion.Shake(playAgain)
+			self.lastActionControl = nil
+			self:Notify("Not available", reason or "Rematch sign-up is closed.", "Warning")
+		end
 	end)
 	local progression = Components.Button(self.resultModal, {
 		name = "Progression",
@@ -2071,20 +1676,25 @@ function GameView:_updateProgression(state: any)
 	local equipped = if type(profile.equippedCosmetics) == "table" then profile.equippedCosmetics else {}
 	local equipEnabled = self:_available(state, "EquipCosmetic")
 	local unlockEnabled = self:_available(state, "UnlockCosmetic")
+	local featuredId = CosmeticCatalog.GetFeaturedCosmeticId()
+	local featuredDiscount = ProgressionConfig.featuredTokenDiscount
 	for _, definition in CosmeticCatalog.definitions do
 		local isOwned = owned[definition.id] == true
 		local isEquipped = equipped[definition.category] == definition.id
+		local isFeatured = definition.id == featuredId
+		local tokenPrice = CosmeticCatalog.GetTokenPrice(definition, featuredDiscount)
 		local canUnlock = not isOwned
 			and definition.unlockKind == "CampTokens"
-			and tokens >= definition.unlockAmount
+			and tokens >= tokenPrice
 			and unlockEnabled
 		local buttonText = if isEquipped
 			then "EQUIPPED"
 			elseif isOwned then "EQUIP"
 			elseif definition.unlockKind == "CampTokens"
-				then "UNLOCK " .. tostring(definition.unlockAmount)
+				then "UNLOCK " .. tostring(tokenPrice)
 			else "LOCKED"
 		local statusText = definition.category .. "  |  "
+			.. (if isFeatured then "FEATURED  |  " else "")
 			.. (if isEquipped
 				then "Equipped"
 				elseif isOwned then "Owned"
@@ -2092,10 +1702,20 @@ function GameView:_updateProgression(state: any)
 					then "Requires level " .. tostring(definition.unlockAmount)
 				elseif definition.unlockKind == "Streak"
 					then "Play " .. tostring(definition.unlockAmount) .. " days in a row"
+				elseif isFeatured and tokenPrice < definition.unlockAmount
+					then tostring(tokenPrice)
+						.. " tokens (was "
+						.. tostring(definition.unlockAmount)
+						.. ")"
 				else tostring(definition.unlockAmount) .. " tokens")
+		local displayName = if isFeatured
+			then definition.displayName .. " ★"
+			else definition.displayName
 		self:_progressionCard(
-			definition.displayName,
-			"Earned cosmetic - no Robux purchase required.",
+			displayName,
+			if isFeatured
+				then "Weekly featured cosmetic — discounted camp tokens, no Robux."
+				else "Earned cosmetic - no Robux purchase required.",
 			statusText,
 			buttonText,
 			(isOwned and not isEquipped and equipEnabled) or canUnlock,
@@ -2165,7 +1785,7 @@ function GameView:_codexCard(
 	end
 	local card = Components.Panel(list, "CodexCard")
 	card:SetAttribute("Generated", true)
-	card.Size = UDim2.new(1, -8, 0, 132)
+	card.Size = UDim2.new(1, -8, 0, 148)
 
 	local silhouette = Instance.new("Frame")
 	silhouette.Name = "Silhouette"
@@ -2197,7 +1817,7 @@ function GameView:_codexCard(
 
 	local body = Components.Label(card, "Body", bodyText, 12)
 	body.Position = UDim2.fromOffset(132, 35)
-	body.Size = UDim2.new(1, -144, 0, 70)
+	body.Size = UDim2.new(1, -144, 0, 84)
 	body.TextColor3 = Theme.Colors.TextMuted
 	body.Font = Theme.Typography.CaptionFont
 	body.TextSize = Theme.Typography.CaptionSize
@@ -2205,7 +1825,7 @@ function GameView:_codexCard(
 	body.TextTruncate = Enum.TextTruncate.AtEnd
 
 	local counters = Components.Label(card, "Counters", countersText, 12, Enum.Font.GothamBold)
-	counters.Position = UDim2.fromOffset(132, 107)
+	counters.Position = UDim2.fromOffset(132, 122)
 	counters.Size = UDim2.new(1, -144, 0, 18)
 	counters.TextColor3 = if discovered then Theme.Colors.Text else Theme.Colors.TextMuted
 end
@@ -2222,25 +1842,62 @@ function GameView:_updateCodex(state: any)
 		then profile.monsterStats
 		else {}
 	local discoveredCount = 0
+	local challengesComplete = 0
+	local challengesTotal = #CodexConfig.challenges
 	for _, monsterId in MonsterOrder do
 		local definition = PublicMonsterCatalog[monsterId]
 		local record = monsterStats[monsterId]
 		local encounters = math.floor(readNumber(record, "encounters", 0))
 		local survivalCount = math.floor(readNumber(record, "survivals", 0))
 		local identificationCount = math.floor(readNumber(record, "identifications", 0))
+		local mastery = CodexConfig.masteryTier(
+			encounters,
+			survivalCount,
+			identificationCount
+		)
+		local masteryLabel = CodexConfig.masteryTierLabels[mastery] or "Unseen"
+		local challengeLines: { string } = {}
+		local monsterChallenges = CodexConfig.byMonsterId[monsterId]
+		if monsterChallenges then
+			for _, challenge in monsterChallenges do
+				local current, target, done = CodexConfig.challengeProgress(challenge, {
+					encounters = encounters,
+					survivals = survivalCount,
+					identifications = identificationCount,
+				})
+				if done then
+					challengesComplete += 1
+				end
+				table.insert(
+					challengeLines,
+					string.format(
+						"%s %d/%d%s",
+						challenge.title,
+						math.min(current, target),
+						target,
+						if done then " ✓" else ""
+					)
+				)
+			end
+		end
 		if encounters > 0 and definition then
 			discoveredCount += 1
+			local challengeText = if #challengeLines > 0
+				then "\n" .. table.concat(challengeLines, " · ")
+				else ""
 			self:_codexCard(
 				definition.displayName,
 				string.format(
-					"%s\nMovement: %s (%s)\nCounter: %s",
+					"%s\nMovement: %s (%s)\nCounter: %s%s",
 					definition.description,
 					definition.movement.style,
 					definition.movement.speed,
-					definition.counterplay.summary
+					definition.counterplay.summary,
+					challengeText
 				),
 				string.format(
-					"Encounters %d · Survived %d · Identified %d",
+					"Mastery %s · Encounters %d · Survived %d · Identified %d",
+					masteryLabel,
 					encounters,
 					survivalCount,
 					identificationCount
@@ -2259,9 +1916,11 @@ function GameView:_updateCodex(state: any)
 	local summary = self.codexSummary
 	if summary then
 		summary.Text = string.format(
-			"MONSTERS DISCOVERED  %d / %d\nSurvive the hunt and expose the culprit to fill each file.",
+			"MONSTERS DISCOVERED  %d / %d\nChallenges %d / %d — survive hunts and expose culprits to master each file.",
 			discoveredCount,
-			#MonsterOrder
+			#MonsterOrder,
+			challengesComplete,
+			challengesTotal
 		)
 	end
 end
@@ -2563,146 +2222,13 @@ function GameView:_buildAnnouncements()
 end
 
 function GameView:_buildLobby()
-	-- Compact bottom-right ready-up card. The original 520x520 center panel
-	-- (roster, camp tip, buttons at y 446) never survived _applyLayout: every
-	-- branch shrank the panel to ~104px while the children kept their tall
-	-- offsets, so READY UP rendered ~320px BELOW the screen edge and was
-	-- unclickable. The card now owns a layout that fits the size the relayout
-	-- actually gives it; the roster and tip stay as hidden data targets.
-	local lobby = Components.Panel(self.root, "Lobby")
-	lobby.AnchorPoint = Vector2.new(1, 1)
-	lobby.Position = UDim2.new(1, -18, 1, -18)
-	lobby.Size = UDim2.fromOffset(300, 172)
-	-- Rustic cabin-wood header strip across the top of the lobby panel
-	local headerStrip = Instance.new("Frame")
-	headerStrip.Name = "HeaderStrip"
-	headerStrip.Size = UDim2.new(1, 0, 0, 28)
-	headerStrip.Position = UDim2.fromOffset(0, 0)
-	headerStrip.BackgroundColor3 = Theme.Colors.WoodRust
-	headerStrip.BackgroundTransparency = 0.30
-	headerStrip.BorderSizePixel = 0
-	headerStrip.ZIndex = 1
-	headerStrip.Parent = lobby
-	Components.Corner(headerStrip)
-	local text = Components.Label(
-		lobby,
-		"LobbyText",
-		"CAMPERS ARE ARRIVING",
-		Theme.Typography.CaptionSize,
-		Theme.Typography.HeadingFont
-	)
-	text.Position = UDim2.fromOffset(12, 4)
-	text.Size = UDim2.new(1, -24, 0, 20)
-	text.TextXAlignment = Enum.TextXAlignment.Center
-	text.TextColor3 = Theme.Colors.Gold
-	text.ZIndex = 2
-
-	local roster = Instance.new("ScrollingFrame")
-	roster.Name = "Roster"
-	roster.Position = UDim2.fromOffset(18, 50)
-	roster.Size = UDim2.new(1, -36, 0, 254)
-	roster.BackgroundTransparency = 1
-	roster.BorderSizePixel = 0
-	roster.CanvasSize = UDim2.fromOffset(0, 0)
-	roster.ScrollBarThickness = 4
-	roster.Visible = false
-	roster.Parent = lobby
-	local rosterLayout = Components.List(roster, 6)
-	addCanvasSizing(roster, rosterLayout)
-
-	local tip = Components.Panel(lobby, "CampTip")
-	tip.Position = UDim2.fromOffset(18, 312)
-	tip.Size = UDim2.new(1, -36, 0, 118)
-	tip.Visible = false
-	tip.BackgroundColor3 = Theme.Colors.MossStone
-	local tipCategory = Components.Label(
-		tip,
-		"Category",
-		"",
-		Theme.Typography.CaptionSize,
-		Theme.Typography.CaptionFont
-	)
-	tipCategory.Position = UDim2.fromOffset(14, 9)
-	tipCategory.Size = UDim2.new(1, -28, 0, 20)
-	tipCategory.TextColor3 = Theme.Colors.Gold
-	local tipBody = Components.Label(
-		tip,
-		"Body",
-		"",
-		Theme.Typography.BodySize,
-		Theme.Typography.BodyFont
-	)
-	tipBody.Position = UDim2.fromOffset(14, 31)
-	tipBody.Size = UDim2.new(1, -28, 0, 74)
-	tipBody.TextWrapped = true
-	tipBody.TextYAlignment = Enum.TextYAlignment.Top
-
-	local ready = Components.Button(lobby, {
-		name = "Ready",
-		text = "SIGN UP TONIGHT",
-		size = UDim2.new(1, -24, 0, 52),
-		position = UDim2.fromOffset(12, 38),
-		color = Theme.Colors.Success,
+	LobbyView.Build(self, {
+		addCanvasSizing = addCanvasSizing,
+		readNumber = readNumber,
+		readString = readString,
+		readBoolean = readBoolean,
+		asTable = asTable,
 	})
-	ready.Activated:Connect(function()
-		-- Opt-in mystery: the card routes through Enroll/Withdraw so a
-		-- cancel is an explicit "not tonight" (blocks auto/Studio re-ready).
-		local enrolling = ready.Text ~= "WITHDRAW"
-		self.lastActionControl = ready
-		local sent, reason = self.actionHandler(
-			if enrolling then "Enroll" else "Withdraw",
-			{}
-		)
-		if not sent then
-			Motion.Shake(ready)
-			self.lastActionControl = nil
-			self:Notify("Not available", reason or "Sign-up is not active.", "Warning")
-		end
-	end)
-	local progression = Components.Button(lobby, {
-		name = "Progression",
-		text = "PROGRESS",
-		size = UDim2.new(1, -24, 0, 44),
-		position = UDim2.fromOffset(12, 98),
-		color = Theme.Colors.Gold,
-	})
-	progression.TextColor3 = Theme.Colors.Background
-	progression.Activated:Connect(function()
-		self:ToggleProgression()
-	end)
-
-	local countdown = Components.Label(
-		self.root,
-		"LobbyCountdown",
-		"",
-		Theme.Typography.DisplaySize * 2,
-		Theme.Typography.DisplayFont
-	)
-	countdown.AnchorPoint = Vector2.new(0.5, 0.5)
-	countdown.Position = UDim2.fromScale(0.5, 0.26)
-	countdown.Size = UDim2.fromOffset(220, 90)
-	countdown.TextXAlignment = Enum.TextXAlignment.Center
-	countdown.TextColor3 = Theme.Colors.Gold
-	countdown.Visible = false
-	countdown.ZIndex = 45
-	local countdownScale = Instance.new("UIScale")
-	countdownScale.Scale = 1
-	countdownScale.Parent = countdown
-
-	self.readyButton = ready
-	self.lobbyText = text
-	self.lobbyRoster = roster
-	self.lobbyTip = tip
-	self.lobbyTipCategory = tipCategory
-	self.lobbyTipBody = tipBody
-	self.lobbyCountdown = countdown
-	self.lobbyCountdownScale = countdownScale
-	self.lobbyPanel = lobby
-	local firstTip = TipCatalog.definitions[1]
-	if firstTip then
-		tipCategory.Text = firstTip.category
-		tipBody.Text = firstTip.body
-	end
 end
 
 function GameView:_activateRoleAbility(abilityId: string)
@@ -3069,12 +2595,39 @@ function GameView:_rebuildSettings()
 	self:_settingRow("Mouse sensitivity", "mouseSensitivity", false, 0.1, 3)
 	self:_settingRow("Controller sensitivity", "controllerSensitivity", false, 0.1, 3)
 	self:_settingRow("Toggle sprint", "sprintToggle", true)
+	local replay = Components.Button(self.settingsList, {
+		name = "ReplayTutorial",
+		text = "REPLAY CAMP BRIEFING",
+		size = UDim2.new(1, -8, 0, 44),
+		position = UDim2.fromOffset(0, 0),
+		color = Theme.Colors.Info,
+	})
+	replay:SetAttribute("Generated", true)
+	replay.Activated:Connect(function()
+		setModalVisible(self.settings, false)
+		local replayCallback = self.tutorialReplayCallback
+		if replayCallback then
+			replayCallback()
+		end
+		self:_send("SetSettings", { settings = { tutorialCompleted = false } })
+		self:Notify("Briefing reset", "Camp tips will walk you through the next phases.", "Info")
+	end)
 end
 
 function GameView:SetAudioSettingCallback(
 	callback: ((key: string, value: any) -> ())?
 )
 	self.audioSettingCallback = callback
+end
+
+function GameView:SetTutorialModalNotifier(notifier: ((blocked: boolean) -> ())?)
+	tutorialModalNotifier = notifier
+	tutorialModalOwner = self
+	notifyTutorialModalBlock()
+end
+
+function GameView:SetTutorialReplayCallback(callback: (() -> ())?)
+	self.tutorialReplayCallback = callback
 end
 
 function GameView:_setSetting(key: string, value: any)
@@ -3100,180 +2653,27 @@ function GameView:_setSetting(key: string, value: any)
 end
 
 function GameView:_rebuildLobbyRoster(lobby: any)
-	local players = asTable(lobby.players)
-	local target = math.max(#players, math.floor(readNumber(lobby, "standardTarget", 10)))
-	local signatureParts: { string } = { tostring(target) }
-	for _, entry in players do
-		if type(entry) == "table" then
-			table.insert(signatureParts, string.format(
-				"%d:%s:%s",
-				math.floor(readNumber(entry, "userId", 0)),
-				readString(entry, "displayName", ""),
-				readString(entry, "status", "Waiting")
-			))
-		end
-	end
-	local signature = table.concat(signatureParts, "|")
-	if signature == self.lobbyRosterSignature then
-		return
-	end
-	local previousSignature = self.lobbyRosterSignature
-	self.lobbyRosterSignature = signature
-	Components.ClearGenerated(self.lobbyRoster)
-	local nextReadyStates: { [number]: boolean } = {}
-	for index = 1, target do
-		local entry = players[index]
-		local card = Components.Panel(self.lobbyRoster, "RosterCard_" .. tostring(index))
-		card:SetAttribute("Generated", true)
-		card.LayoutOrder = index
-		card.Size = UDim2.new(1, -8, 0, 48)
-		card.BackgroundColor3 = Theme.Notebook.PageColor
-		card.BackgroundTransparency = 0
-		local name = Components.Label(
-			card,
-			"DisplayName",
-			"Waiting for players...",
-			Theme.Typography.BodySize,
-			Theme.Typography.BodyFont
-		)
-		name.Position = UDim2.fromOffset(16, 0)
-		name.Size = UDim2.new(1, -58, 1, 0)
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.TextColor3 = Theme.Notebook.InkMuted
-		local dot = Instance.new("Frame")
-		dot.Name = "ReadyDot"
-		dot.AnchorPoint = Vector2.new(0.5, 0.5)
-		dot.Position = UDim2.new(1, -24, 0.5, 0)
-		dot.Size = UDim2.fromOffset(12, 12)
-		dot.BackgroundColor3 = Theme.Colors.Border
-		dot.BorderSizePixel = 0
-		dot.Parent = card
-		Components.Corner(dot, 6)
-		if type(entry) == "table" then
-			local userId = math.floor(readNumber(entry, "userId", 0))
-			local isReady = readBoolean(entry, "isReady", false)
-				or readString(entry, "status", "Waiting") == "Locked"
-			nextReadyStates[userId] = isReady
-			name.Text = readString(entry, "displayName", "Player")
-			name.TextColor3 = Theme.Notebook.InkColor
-			dot.BackgroundColor3 = if isReady then Theme.Colors.Success else Theme.Colors.Border
-			if isReady and self.lobbyReadyStates[userId] ~= true then
-				dot.BackgroundColor3 = Theme.Colors.Gold
-				Motion.PopIn(card)
-				if self.settingsValues.reducedMotion ~= true then
-					TweenService:Create(
-						dot,
-						TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-						{ BackgroundColor3 = Theme.Colors.Success, Size = UDim2.fromOffset(16, 16) }
-					):Play()
-					task.delay(0.42, function()
-						if dot.Parent then
-							TweenService:Create(
-								dot,
-								TweenInfo.new(0.16),
-								{ Size = UDim2.fromOffset(12, 12) }
-							):Play()
-						end
-					end)
-				else
-					dot.BackgroundColor3 = Theme.Colors.Success
-				end
-			end
-		end
-	end
-	self.lobbyReadyStates = nextReadyStates
-	if previousSignature ~= "" then
-		Motion.StaggerChildren(self.lobbyRoster, {
-			preset = "PopIn",
-		})
-	end
+	LobbyView.RebuildRoster(self, lobby, {
+		addCanvasSizing = addCanvasSizing,
+		readNumber = readNumber,
+		readString = readString,
+		readBoolean = readBoolean,
+		asTable = asTable,
+	})
 end
 
 function GameView:_shimmerLobbyRoster()
-	local reducedMotion = self.settingsValues.reducedMotion == true
-	for _, child in self.lobbyRoster:GetChildren() do
-		if child:IsA("Frame") and child:GetAttribute("Generated") == true then
-			if reducedMotion then
-				child.BackgroundColor3 = Theme.Notebook.PageColor
-			else
-				local gold = TweenService:Create(
-					child,
-					TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-					{ BackgroundColor3 = Theme.Colors.Gold }
-				)
-				local cream = TweenService:Create(
-					child,
-					TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
-					{ BackgroundColor3 = Theme.Notebook.PageColor }
-				)
-				gold.Completed:Connect(function(playbackState: Enum.PlaybackState)
-					if playbackState == Enum.PlaybackState.Completed and child.Parent then
-						cream:Play()
-					end
-				end)
-				gold:Play()
-			end
-		end
-	end
+	LobbyView.ShimmerRoster(self)
 end
 
 function GameView:_updateLobby(state: any, phase: string)
-	local lobby = if type(state) == "table" then state.lobby else nil
-	local parent = self.readyButton.Parent
-	if not parent or not parent:IsA("GuiObject") then
-		return
-	end
-	local inLobby = phase == "Lobby"
-	if inLobby then
-		Motion.Cancel(parent)
-		parent.Visible = true
-		parent.BackgroundTransparency = Theme.PanelTransparency
-	elseif self.lobbyWasVisible and parent.Visible then
-		Motion.FadeOut(parent, {
-			duration = 0.4,
-			onComplete = function(_completed: boolean)
-				if parent.Parent and not self.lobbyWasVisible then
-					parent.Visible = false
-				end
-			end,
-		})
-	else
-		parent.Visible = false
-	end
-	self.lobbyWasVisible = inLobby
-	self.healthPanel.Visible = phase ~= "Lobby"
-	self.hotbar.Visible = phase ~= "Lobby"
-	if not inLobby then
-		self.lobbyCountdown.Visible = false
-		self.lobbyCountdownSecond = -1
-		return
-	end
-	if type(lobby) ~= "table" then
-		self.lobbyText.Text = "The next mystery begins soon."
-		Components.SetButtonEnabled(self.readyButton, false)
-		return
-	end
-	local humans = readNumber(lobby, "humanCount", 0)
-	local readyCount = readNumber(lobby, "readyCount", 0)
-	local target = readNumber(lobby, "standardTarget", 10)
-	self.lobbyText.Text = string.format("CAMPERS  %d/%d     READY  %d", humans, target, readyCount)
-	local players = asTable(lobby.players)
-	self:_rebuildLobbyRoster(lobby)
-	local isReady = false
-	for _, entry in players do
-		if type(entry) == "table" and entry.userId == Players.LocalPlayer.UserId then
-			isReady = readBoolean(entry, "isReady", false)
-			break
-		end
-	end
-	self.readyButton.Text = if isReady then "WITHDRAW" else "SIGN UP TONIGHT"
-	Components.SetButtonEnabled(self.readyButton, true)
-	local fillStartedAt = readNumber(lobby, "fillStartedAt", 0)
-	local fillSignature = if fillStartedAt > 0 then tostring(fillStartedAt) else ""
-	if fillSignature ~= "" and fillSignature ~= self.lobbyFillSignature then
-		self:_shimmerLobbyRoster()
-	end
-	self.lobbyFillSignature = fillSignature
+	LobbyView.Update(self, state, phase, {
+		addCanvasSizing = addCanvasSizing,
+		readNumber = readNumber,
+		readString = readString,
+		readBoolean = readBoolean,
+		asTable = asTable,
+	})
 end
 
 function GameView:_updateInventory(state: any)
@@ -4237,11 +3637,31 @@ function GameView:_updateEvidence(state: any, round: any)
 			end)
 		end
 	end
-	for _, record in culprit do
-		addEvidence(record, "CULPRIT")
+	if #culprit == 0 then
+		NotebookView.AddSectionHeader(
+			self.evidenceList,
+			"CULPRIT CLUES",
+			Theme.Colors.Gold,
+			"Search camp and town sockets during Investigation. Culprit clues narrow who committed the murder."
+		)
+	else
+		NotebookView.AddSectionHeader(self.evidenceList, "CULPRIT CLUES", Theme.Colors.Gold, nil)
+		for _, record in culprit do
+			addEvidence(record, "CULPRIT")
+		end
 	end
-	for _, record in monster do
-		addEvidence(record, "MONSTER")
+	if #monster == 0 then
+		NotebookView.AddSectionHeader(
+			self.evidenceList,
+			"MONSTER CLUES",
+			Theme.Colors.Ghost,
+			"Monster clues reveal which supernatural form is hunting — separate channel from the human culprit."
+		)
+	else
+		NotebookView.AddSectionHeader(self.evidenceList, "MONSTER CLUES", Theme.Colors.Ghost, nil)
+		for _, record in monster do
+			addEvidence(record, "MONSTER")
+		end
 	end
 	self.evidenceStatuses = nextEvidenceStatuses
 	local mysteryClues = if type(mystery) == "table" then asTable(mystery.clues) else {}
@@ -4604,7 +4024,7 @@ function GameView:_ensureDiscussionPanel()
 	title.Size = UDim2.new(1, -24, 0, 34)
 	title.Position = UDim2.fromOffset(12, 8)
 	title.Font = Enum.Font.GothamBold
-	title.Text = "CAMPFIRE DISCUSSION"
+	title.Text = "PRESENT EVIDENCE"
 	title.TextColor3 = Color3.fromRGB(244, 224, 176)
 	title.TextSize = 20
 	title.TextXAlignment = Enum.TextXAlignment.Left
@@ -4616,7 +4036,7 @@ function GameView:_ensureDiscussionPanel()
 	hint.Size = UDim2.new(1, -24, 0, 44)
 	hint.Position = UDim2.fromOffset(12, 42)
 	hint.Font = Enum.Font.Gotham
-	hint.Text = "Talk it over in chat, and present your strongest evidence from the notebook [N]. Voting opens when the discussion timer ends."
+	hint.Text = "Present your strongest notebook evidence [N]. Rebuttal comes next, then votes lock."
 	hint.TextColor3 = Color3.fromRGB(214, 219, 212)
 	hint.TextSize = 14
 	hint.TextWrapped = true
@@ -4642,7 +4062,7 @@ function GameView:_ensureDiscussionPanel()
 	self.discussionLogList = log
 end
 
-function GameView:_setDiscussionVisible(visible: boolean, round: any)
+function GameView:_setDiscussionVisible(visible: boolean, round: any, campfireStage: string?)
 	if not visible then
 		if self.discussionPanel then
 			self.discussionPanel.Visible = false
@@ -4656,6 +4076,8 @@ function GameView:_setDiscussionVisible(visible: boolean, round: any)
 		return
 	end
 	panel.Visible = true
+	local stage = campfireStage or readString(round, "campfireStage", "PresentEvidence")
+	VoteView.ApplyCampfireStage(self, stage)
 	Components.ClearGenerated(log)
 	local entries = asTable(round.discussionLog)
 	if next(entries) == nil then
@@ -4722,24 +4144,38 @@ function GameView:_updateVote(round: any, player: any)
 	if type(vote) == "table" and type(vote.targetParticipantId) == "string" then
 		voteTargetId = vote.targetParticipantId
 	end
-	if phase ~= "Campfire" or not alive or isGhost then
+	local role = readString(player, "role", "")
+	local canVote = alive and not isGhost and role ~= "Spectator"
+	if phase ~= "Campfire" then
 		setModalVisible(self.voteModal, false)
 		self:_setDiscussionVisible(false, round)
 		self.currentVoteSignature = ""
 		self.localVoteHasLocked = false
 		return
 	end
-	-- Older snapshots have no campfireStage; treat them as open voting.
+	-- Older snapshots: missing stage ⇒ open voting. "Discussion" is a legacy present beat.
 	local campfireStage = readString(round, "campfireStage", "Voting")
-	if campfireStage == "Discussion" then
+	VoteView.ApplyCampfireStage(self, campfireStage)
+	local isTalkStage = campfireStage == "PresentEvidence"
+		or campfireStage == "Discussion"
+		or campfireStage == "Rebuttal"
+	if isTalkStage then
 		setModalVisible(self.voteModal, false)
-		self:_setDiscussionVisible(true, round)
+		self:_setDiscussionVisible(true, round, campfireStage)
 		self.currentVoteSignature = ""
 		return
 	end
 	self:_setDiscussionVisible(false, round)
-	self.localVoteHasLocked = self.localVoteHasLocked or hasVoted
-	if not self.localVoteHasLocked then
+	if canVote then
+		self.localVoteHasLocked = self.localVoteHasLocked or hasVoted
+	end
+	if not canVote then
+		if self.voteWarningLabel then
+			self.voteWarningLabel.Text =
+				"Observe only — living campers cast the accusation. Clues show why each name is suspicious."
+		end
+		setModalVisible(self.voteModal, true)
+	elseif canVote and not self.localVoteHasLocked then
 		setModalVisible(self.voteModal, true)
 	end
 	local suspects = asTable(round.suspects)
@@ -4756,6 +4192,30 @@ function GameView:_updateVote(round: any, player: any)
 	self.currentVoteSignature = signature
 	Components.ClearGenerated(self.voteList)
 	local localParticipantKey = readString(player, "participantId", "")
+	local state = self.currentState
+	local board = if type(state) == "table" then state.evidence else nil
+	local function suspectSupport(suspectKey: string): (number, string)
+		local count = 0
+		local topName = ""
+		if type(board) ~= "table" then
+			return count, topName
+		end
+		for _, record in asTable(board.culpritEvidence) do
+			if type(record) == "table" then
+				local weights = record.suspectWeights
+				if type(weights) == "table" then
+					local weight = weights[suspectKey]
+					if type(weight) == "number" and weight > 0 then
+						count += 1
+						if topName == "" then
+							topName = readString(record, "displayName", "clue")
+						end
+					end
+				end
+			end
+		end
+		return count, topName
+	end
 	for _, suspect in suspects do
 		if type(suspect) == "table" then
 			local key = readString(suspect, "key", readString(suspect, "participantId", ""))
@@ -4764,19 +4224,38 @@ function GameView:_updateVote(round: any, player: any)
 			local labelText = if isSelf then name .. " (you)" else name
 			local isMyVote = hasVoted and voteTargetId ~= "" and key == voteTargetId
 			local isOtherVote = hasVoted and not isMyVote
+			local clueCount, topClue = suspectSupport(key)
+			local whyLine = if clueCount > 0
+				then string.format("%d culprit clue(s) — e.g. %s", clueCount, topClue)
+				else "No culprit clues point here yet"
 			local button = Components.Button(self.voteList, {
 				name = "Vote_" .. key:gsub("[^%w]", "_"),
 				text = if isMyVote then labelText .. "  ✓ YOUR VOTE" else labelText,
-				size = UDim2.new(1, -8, 0, 48),
+				size = UDim2.new(1, -8, 0, 64),
 				color = if isMyVote
 					then Theme.Colors.Gold
 					elseif isOtherVote then Theme.Colors.Panel
 					else Theme.Colors.Danger,
 			})
 			button:SetAttribute("Generated", true)
+			local whyLabel = Components.Label(
+				button,
+				"WhyAccuse",
+				whyLine,
+				11,
+				Theme.Typography.CaptionFont
+			)
+			whyLabel.AnchorPoint = Vector2.new(0, 1)
+			whyLabel.Position = UDim2.new(0, 10, 1, -6)
+			whyLabel.Size = UDim2.new(1, -14, 0, 18)
+			whyLabel.TextXAlignment = Enum.TextXAlignment.Left
+			whyLabel.TextColor3 = Theme.Colors.TextMuted
+			whyLabel.ZIndex = button.ZIndex + 1
 			-- The server rejects self-votes, so never offer yourself as a live choice
-			Components.SetButtonEnabled(button, not hasVoted and not isSelf)
-			if isOtherVote then
+			Components.SetButtonEnabled(button, canVote and not hasVoted and not isSelf)
+			if not canVote then
+				button.BackgroundTransparency = 0.55
+			elseif isOtherVote then
 				button.BackgroundTransparency = 0.7
 			elseif isMyVote then
 				button.BackgroundTransparency = 0
@@ -4784,6 +4263,9 @@ function GameView:_updateVote(round: any, player: any)
 				button.TextColor3 = Theme.Colors.Background
 			end
 			button.Activated:Connect(function()
+				if not canVote then
+					return
+				end
 				self.lastActionControl = button
 				local sent, reason = self.actionHandler("Vote", {
 					targetKey = key,
@@ -5234,43 +4716,20 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		local isGhostPlayer = readBoolean(player, "isGhost", false)
-		if localRole == "Spectator" then
-			self.progressLabel.Text = string.format(
-				"Camp work %d/%d  |  Witnesses %d/%d",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-			self.objectiveText.Text = string.format(
-				"OBSERVING\nCamp work: %d of %d. Witnesses: %d of %d.",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-		elseif isGhostPlayer then
-			self.progressLabel.Text = string.format(
-				"Camp work %d/%d  |  Witnesses %d/%d",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-			self.objectiveText.Text = string.format(
-				"OBSERVING\nYou are a ghost. Camp work: %d of %d. Witnesses: %d of %d.",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-		elseif localRole == "Murderer" then
-			self.progressLabel.Text = string.format(
-				"Camp work %d/%d  |  Witnesses %d/%d  — blend in.",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-			self.objectiveText.Text = string.format(
-				"DAY COVER\nCamp work: %d of %d. Witnesses: %d of %d. Act natural.",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-		else
-			self.progressLabel.Text = string.format(
-				"Camp work %d/%d  |  Witnesses %d/%d",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-			self.objectiveText.Text = string.format(
-				"DAY OBJECTIVE\nCamp work: %d of %d\nInterview witnesses: %d of %d",
-				objectiveDone, objectiveGoal, witnessFound, witnessTotal
-			)
-		end
+		local roleTone = if localRole == "Spectator"
+			then "Spectator"
+			elseif isGhostPlayer then "Ghost"
+			elseif localRole == "Murderer" then "Murderer"
+			else "Camper"
+		local progressLine, objectiveBody = MissionView.DayProgressCopy(
+			objectiveDone,
+			objectiveGoal,
+			witnessFound,
+			witnessTotal,
+			roleTone
+		)
+		self.progressLabel.Text = progressLine
+		self.objectiveText.Text = objectiveBody
 		self:_setObjectiveFill(objectiveDone / objectiveGoal)
 		local roundNum = readNumber(round, "roundNumber", 0)
 		local aliveNotGhost = readBoolean(player, "alive", false)
@@ -5287,13 +4746,13 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			if isMurdererAlive then
 				self:Notify(
 					"Day objectives complete",
-					"Campers are ready. Investigation begins soon — stay composed.",
+					"Campers locked generator, firewood, and supplies stakes. Investigation begins soon — stay composed.",
 					"Warning"
 				)
 			else
 				self:Notify(
 					"Day objectives complete",
-					"All camp work done and witnesses interviewed. Investigation begins soon.",
+					"Camp work done — lights, fire, and flares are set. Witnesses interviewed. Night payoff incoming.",
 					"Success"
 				)
 			end
@@ -5473,9 +4932,11 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		local isMonsterPlayer = type(privateMonster) == "table" or localRole == "Murderer"
+		local dayOutcomes = MissionView.ReadDayOutcomes(round)
 		if readBoolean(player, "isGhost", false) then
-			self.progressLabel.Text = "Night has fallen."
-			self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch the hunt from beyond."
+			local progressLine, objectiveBody = MissionView.NightPayoffCopy(dayOutcomes, "Ghost")
+			self.progressLabel.Text = progressLine
+			self.objectiveText.Text = objectiveBody
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		elseif isMonsterPlayer then
 			local nightMurderPlan = if type(state) == "table" then state.murderPlan else nil
@@ -5497,19 +4958,23 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 					end
 				end
 			end
-			self.progressLabel.Text = "The transformation is complete. The town awaits."
+			local _, payoffBody = MissionView.NightPayoffCopy(dayOutcomes, "Murderer")
+			self.progressLabel.Text = "The transformation is complete. Hunt the gaps day work left open."
 			self.objectiveText.Text = string.format(
-				"YOU ARE THE MONSTER\nThe town is yours. Hunt %s — the campers will fight back.",
+				"%s\nHunt %s — the campers will fight back.",
+				payoffBody,
 				nightVictimName
 			)
 			self.objectiveFill.Size = UDim2.fromScale(1, 1)
 		elseif localRole == "Spectator" then
-			self.progressLabel.Text = "Night has fallen."
-			self.objectiveText.Text = "OBSERVING\nThe night phase has begun. Watch what unfolds."
+			local progressLine, objectiveBody = MissionView.NightPayoffCopy(dayOutcomes, "Spectator")
+			self.progressLabel.Text = progressLine
+			self.objectiveText.Text = objectiveBody
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		else
-			self.progressLabel.Text = "The town has appeared. Stay close to your group."
-			self.objectiveText.Text = "NIGHT BEGINS\nThe abandoned town has merged with the camp. The monster is somewhere inside."
+			local progressLine, objectiveBody = MissionView.NightPayoffCopy(dayOutcomes, "Camper")
+			self.progressLabel.Text = progressLine
+			self.objectiveText.Text = objectiveBody
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		end
 	elseif phase == "Rewards" then
@@ -5610,6 +5075,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		self.objectiveText.Text = "CURRENT MISSION\nFollow the phase instructions and stay alert."
 		self.objectiveFill.Size = UDim2.fromScale(0, 1)
 	end
+	MissionView.ApplyKeybindLabel(self.missionKeybindLabel, phase)
 
 	local role = readString(player, "role", "Spectator")
 	local roleImage = self.resolveImage(imageKey("Role", role))
@@ -7942,6 +7408,7 @@ function GameView:Destroy()
 	end
 	self.lastRosterSignature = ""
 	self.voteModalTitleLabel = nil
+	self.voteStageLabel = nil
 	self.voteCountLabel = nil
 	self.voteWarningLabel = nil
 	self.localVoteHasLocked = false

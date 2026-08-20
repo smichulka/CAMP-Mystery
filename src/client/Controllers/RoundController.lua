@@ -990,24 +990,33 @@ local function updateReleaseExperience(
 			end
 			if phaseName == "NightTransform" and not reconnect then
 				local playerIsGhost = type(player) == "table" and player.isGhost == true
+				local dayOutcomes = if type(round) == "table" then round.dayOutcomes else nil
+				local generatorOn = type(dayOutcomes) == "table" and dayOutcomes.generator == true
+				local firewoodOn = type(dayOutcomes) == "table" and dayOutcomes.firewood == true
+				local suppliesOn = type(dayOutcomes) == "table" and dayOutcomes.supplies == true
+				local payoffLine = table.concat({
+					if generatorOn then "Lights ON" else "Lights OUT",
+					if firewoodOn then "Fire haven" else "Fire cold",
+					if suppliesOn then "Flares ready" else "No flares",
+				}, " · ")
 				if not playerIsGhost then
 					if roleName == "Murderer" then
 						currentView:Notify(
 							"Your moment is now",
-							"Strike true. The camp is yours.",
+							string.format("Strike true. Day payoff: %s.", payoffLine),
 							"DangerBright"
 						)
 					elseif roleName ~= "Spectator" then
 						currentView:Notify(
-							"Night falls",
-							"Stay alert. Someone won't make it to morning.",
+							"Night falls — day work pays off",
+							string.format("%s. Stay alert — someone won't make it to morning.", payoffLine),
 							"Warning"
 						)
 					end
 				else
 					currentView:Notify(
-						"Night falls",
-						"Watch from beyond. The hunt begins.",
+						"Night falls — day work pays off",
+						string.format("%s. Watch from beyond. The hunt begins.", payoffLine),
 						"Info"
 					)
 				end
@@ -1557,13 +1566,23 @@ function RoundController.Start()
 		end
 	end)
 	local tutorialController = TutorialController.new(gameView.root, {
-		onCompleted = function(_skipped: boolean)
+		onCompleted = function(skipped: boolean)
 			requestAction("SetSettings", {
-				settings = { tutorialCompleted = true },
+				settings = {
+					tutorialCompleted = true,
+					tutorialSkipped = skipped == true,
+				},
 			})
 		end,
 	})
 	tutorial = tutorialController
+	gameView:SetTutorialModalNotifier(function(blocked: boolean)
+		tutorialController:SetModalBlocked(blocked)
+	end)
+	gameView:SetTutorialReplayCallback(function()
+		tutorialController:SetCompleted(false)
+		tutorialController:Reset()
+	end)
 	local audioController = AudioController.new({
 		onSubtitle = function(text: string, duration: number)
 			if accessibilityController:AreSubtitlesEnabled() then

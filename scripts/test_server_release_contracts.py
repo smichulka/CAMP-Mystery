@@ -29,6 +29,40 @@ class ServerReleaseContracts(unittest.TestCase):
             r"pcall\(function\(\)\s+return runtime:HandleAction",
         )
         self.assertIn("Action payload is invalid or too large", bootstrap)
+        self.assertIn('WaitForChild("AnalyticsService")', bootstrap)
+        self.assertNotIn("MarketplaceService", bootstrap)
+
+    def test_funnel_telemetry_instrumentation(self) -> None:
+        analytics = source("Services/AnalyticsService.lua")
+        self.assertIn("LogCustomEvent", analytics)
+        self.assertIn("FireCustomEvent", analytics)
+        self.assertIn("pcall", analytics)
+        for event in (
+            "JoinLobby",
+            "Ready",
+            "RosterLock",
+            "PhaseEnter",
+            "VoteCast",
+            "Rematch",
+            "TutorialComplete",
+            "TutorialSkip",
+            "QuickCampToggle",
+        ):
+            self.assertIn(event, analytics)
+        runtime = source("Services/GameRuntimeService.lua")
+        for token in (
+            "AnalyticsService.Events.PhaseEnter",
+            "AnalyticsService.Events.Ready",
+            "AnalyticsService.Events.VoteCast",
+            "AnalyticsService.Events.Rematch",
+            "AnalyticsService.Events.TutorialComplete",
+            "AnalyticsService.Events.TutorialSkip",
+            "AnalyticsService.Events.QuickCampToggle",
+        ):
+            self.assertIn(token, runtime)
+        matchmaking = source("Services/MatchmakingService.lua")
+        self.assertIn("AnalyticsService.Events.JoinLobby", matchmaking)
+        self.assertIn("AnalyticsService.Events.RosterLock", matchmaking)
 
     def test_round_runner_cannot_advance_after_stop(self) -> None:
         runtime = source("Services/GameRuntimeService.lua")
@@ -85,8 +119,26 @@ class ServerReleaseContracts(unittest.TestCase):
             "TweenService:Create(Lighting",
             "interactiveDoors",
             'createPrompt(fire, "Tend Fire"',
+            # Wave 4: streaming soak honors FarDress; lighting stays owned here
+            "FarDress",
+            "_trimSmallPartShadows",
         ):
             self.assertIn(token, world)
+        world_kit = (
+            ROOT / "src" / "server" / "Services" / "Map" / "WorldKit.lua"
+        ).read_text(encoding="utf-8")
+        self.assertIn("function WorldKit.farDress", world_kit)
+        circus = (
+            ROOT / "src" / "server" / "Services" / "Map" / "SpookyCircus.lua"
+        ).read_text(encoding="utf-8")
+        self.assertIn("CircusAudioDefaults", circus)
+        self.assertIn("WorldKit.farDress", circus)
+        self.assertIn("MIDWAY FESTIVAL", circus)
+        self.assertIn("StreamingMinRadius", circus)
+        defaults = (
+            ROOT / "src" / "server" / "Config" / "CircusAudioDefaults.lua"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Calliope", defaults)
 
     def test_disconnect_transfers_every_deduction_identity(self) -> None:
         runtime = source("Services/GameRuntimeService.lua")
@@ -304,7 +356,7 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("participant.isGhost\n\t\t\tand participant.role == \"Protector\"", score_block)
         # Strategic lie injection in Discuss phase is Murderer-only
         lie_start = bot.index('"strategic-lie:"')
-        lie_guard = bot[lie_start - 400:lie_start]
+        lie_guard = bot[max(0, lie_start - 1600):lie_start]
         self.assertIn('participant.role == "Murderer"', lie_guard)
         self.assertIn("ALLOWED_PHASES.Discuss[context.phase]", lie_guard)
 
@@ -436,8 +488,13 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("for _, monsterId in MonsterOrder do", codex_block)
         self.assertIn("PublicMonsterCatalog[monsterId]", codex_block)
         self.assertIn('"Face this monster to unlock its file."', codex_block)
-        self.assertIn('"Encounters %d · Survived %d · Identified %d"', codex_block)
+        self.assertIn("Mastery %s · Encounters %d · Survived %d · Identified %d", view)
+        self.assertIn("CodexConfig.masteryTier", view)
+        self.assertIn("CodexConfig.challengeProgress", view)
         self.assertIn("function GameView:ToggleCodex()", codex_block)
+        codex_config = (ROOT / "src/shared/Config/CodexConfig.lua").read_text(encoding="utf-8")
+        self.assertIn("wendigo-survive-3", codex_config)
+        self.assertIn("Survive 3 nights against the Wendigo.", codex_config)
 
 
     def test_request_0105_available_actions_ghost_spectator_root_gate(self) -> None:
@@ -741,6 +798,7 @@ class ServerReleaseContracts(unittest.TestCase):
         # Vote: Campfire phase only; accelerates phase end when all votes in
         self.assertIn('if self.phase ~= "Campfire" then', action_block)
         self.assertIn('"Voting is not active"', action_block)
+        self.assertIn('"Voting opens after the rebuttal"', action_block)
         self.assertIn("self.voting:IsComplete()", action_block)
         self.assertIn("self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 1)", action_block)
         # UseMonsterAbility: Murderer only
@@ -1947,7 +2005,9 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('if isEquipped\n\t\t\tthen "EQUIPPED"', prog_block)
         self.assertIn('elseif isOwned then "EQUIP"', prog_block)
         self.assertIn('elseif definition.unlockKind == "CampTokens"', prog_block)
-        self.assertIn('"UNLOCK " .. tostring(definition.unlockAmount)', prog_block)
+        self.assertIn('"UNLOCK " .. tostring(tokenPrice)', prog_block)
+        self.assertIn("CosmeticCatalog.GetTokenPrice", prog_block)
+        self.assertIn("GetFeaturedCosmeticId", prog_block)
         self.assertIn('else "LOCKED"', prog_block)
         # Status text: Level-gated vs token-gated fallback
         self.assertIn('elseif definition.unlockKind == "Level"', prog_block)
@@ -1955,7 +2015,7 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('tostring(definition.unlockAmount) .. " tokens"', prog_block)
         # canUnlock: not owned, CampTokens kind, enough tokens
         self.assertIn('definition.unlockKind == "CampTokens"', prog_block)
-        self.assertIn("tokens >= definition.unlockAmount", prog_block)
+        self.assertIn("tokens >= tokenPrice", prog_block)
         # Unlock action sends cosmeticId
         self.assertIn('"UnlockCosmetic", { cosmeticId = definition.id }', prog_block)
         self.assertIn('"EquipCosmetic", { cosmeticId = definition.id }', prog_block)
@@ -2605,6 +2665,36 @@ class ServerReleaseContracts(unittest.TestCase):
             '"World relocation and rollback failed: "',
             set_night_fn,
         )
+
+        # Wave 5: public snapshot exposes seeded nightRoute / worldId (same Place)
+        snapshot_start = world.index("function WorldService:GetPublicSnapshot()")
+        snapshot_end = world.index(
+            "\nfunction WorldService.PreviewRouteForRound(", snapshot_start
+        )
+        snapshot_fn = world[snapshot_start:snapshot_end]
+        for token in (
+            "nightRoute = nightRoute,",
+            "worldRoute = nightRoute,",
+            "worldId = WorldManifest.worldId,",
+        ):
+            self.assertIn(token, snapshot_fn)
+        self.assertIn("function WorldService.PreviewRouteForRound(roundId: number)", world)
+
+        manifest = (ROOT / "src/server/Config/WorldManifest.lua").read_text(encoding="utf-8")
+        self.assertIn('worldId = "CampMystery"', manifest)
+        self.assertIn('id = "TownVariantD"', manifest)
+        self.assertIn('nightRoute = "BackcountryNight"', manifest)
+        self.assertIn('id = "BackcountryNight"', manifest)
+        for route in (
+            "MainStreet",
+            "FactoryDetour",
+            "OutskirtsFirst",
+            "BackcountryNight",
+        ):
+            self.assertIn(f'nightRoute = "{route}"', manifest)
+        types = (ROOT / "src/shared/Types/WorldTypes.lua").read_text(encoding="utf-8")
+        self.assertIn("nightRoute: NightRouteId,", types)
+        self.assertIn("worldId: string,", types)
 
     def test_request_0148_round_lifecycle_event_names_emit_isolation_and_disconnect(
         self,
@@ -3509,7 +3599,7 @@ class ServerReleaseContracts(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         # --- currentContext: type guards ---
-        ctx_start = tut.index("local function currentContext(state: any)")
+        ctx_start = tut.index("local function currentContext(state: any, seen:")
         ctx_end = tut.index("\nfunction TutorialController.new(", ctx_start)
         ctx_fn = tut[ctx_start:ctx_end]
         self.assertIn('type(state) ~= "table"', ctx_fn)
@@ -3532,10 +3622,16 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('return "InvestigationMurderer"', ctx_fn)
         self.assertIn('return "VoteMurderer"', ctx_fn)
 
-        # Investigation: Evidence context when evidenceFound > 0
+        # Investigation: Evidence then Deduction when evidenceFound > 0
         self.assertIn('readNumber(round, "evidenceFound", 0)', ctx_fn)
         self.assertIn("if evidenceFound > 0 then", ctx_fn)
         self.assertIn('return "Evidence"', ctx_fn)
+        self.assertIn('return "Deduction"', ctx_fn)
+        self.assertIn("TutorialController.StepIds.Evidence", ctx_fn)
+        self.assertIn("TutorialController.StepIds.Deduction", ctx_fn)
+        # Ghost context when isGhost / healthState Ghost
+        self.assertIn('return "Ghost"', ctx_fn)
+        self.assertIn("playerIsGhost", ctx_fn)
         # Falls back to Investigation when evidenceFound == 0
         self.assertIn('return "Investigation"', ctx_fn)
 
@@ -3567,7 +3663,7 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('return role ~= "Murderer"', all_fn)
         # _allSeen returns false when any applicable step is unseen
         self.assertIn(
-            "if stepApplies(step.id, role) and not self.seen[step.id] then", all_fn
+            "if stepApplies(step.id, role, isGhost) and not self.seen[step.id] then", all_fn
         )
         self.assertIn("return false", all_fn)
         # Progress numbering counts only steps applicable to the viewer's role
@@ -3587,7 +3683,11 @@ class ServerReleaseContracts(unittest.TestCase):
         upd_start = tut.index("function TutorialController:Update(")
         upd_end = tut.index("\nfunction TutorialController:Advance(", upd_start)
         upd_fn = tut[upd_start:upd_end]
-        self.assertIn("if self.completed or self.destroyed then", upd_fn)
+        self.assertIn("if self.destroyed or self.modalBlocked then", upd_fn)
+        # Ghost briefing can still fire after the rest of the tutorial finished.
+        self.assertIn("ghostOverride", upd_fn)
+        self.assertIn("if self.completed and not ghostOverride then", upd_fn)
+        # 2026-08-19: modalBlocked suppresses tutorial while vote/target modals are open.
         self.assertIn("self.lastState = state", upd_fn)
         # Same context: early return
         self.assertIn("if active.context == context then", upd_fn)
@@ -3595,7 +3695,7 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("self.seen[active.id] = true", upd_fn)
         self.assertIn("self.activeStep = nil", upd_fn)
         # If no step found and all seen: _finish(false)
-        self.assertIn("elseif self:_allSeen() then", upd_fn)
+        self.assertIn("elseif not self.completed and self:_allSeen() then", upd_fn)
         self.assertIn("self:_finish(false)", upd_fn)
 
         # --- Advance: marks seen, hides, then re-runs Update ---
@@ -3620,10 +3720,13 @@ class ServerReleaseContracts(unittest.TestCase):
         sc_start = tut.index("function TutorialController:SetCompleted(")
         sc_end = tut.index("\nfunction TutorialController:IsCompleted(", sc_start)
         sc_fn = tut[sc_start:sc_end]
-        self.assertIn("if completed and not self.completed then", sc_fn)
+        self.assertIn("if completed then", sc_fn)
+        self.assertIn("if not self.completed then", sc_fn)
         self.assertIn("self.completed = true", sc_fn)
         self.assertIn("self.view:Hide()", sc_fn)
-        # onCompleted must NOT be called (silent sync — not a real completion)
+        self.assertIn("self.completed = false", sc_fn)
+        self.assertIn("table.clear(self.seen)", sc_fn)
+        # 2026-08-19: replay path clears seen without firing onCompleted.
         self.assertNotIn("self.onCompleted", sc_fn)
 
         # --- UIAssetController: normalizeAssetId guards ---
@@ -3863,11 +3966,11 @@ class ServerReleaseContracts(unittest.TestCase):
         # ProductionMapService: weather fog stacks multiplicatively with the
         # generator consequence instead of replacing it
         self.assertIn(
-            "FogStart = (if powered then 160 else 110) * weather.fogStartMultiplier",
+            "FogStart = (if powered then 150 else 100) * weather.fogStartMultiplier",
             map_service,
         )
         self.assertIn(
-            "FogEnd = (if powered then 1200 else 900) * weather.fogEndMultiplier",
+            "FogEnd = (if powered then 1150 else 860) * weather.fogEndMultiplier",
             map_service,
         )
         # Rain emitter, seeded storm lightning, and blood-moon night palette
@@ -4114,6 +4217,12 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("for _, alibiPair in self.canoeAlibiPairs do", campfire_block)
         self.assertIn('"Verified alibi"', campfire_block)
         self.assertIn('"%s and %s worked the canoe together during the day."', campfire_block)
+        # Wave 3: PresentEvidence → Rebuttal → Voting theater beats
+        self.assertIn('self.campfireStage = "PresentEvidence"', campfire_block)
+        self.assertIn('self.campfireStage = "Rebuttal"', campfire_block)
+        self.assertIn('self.campfireStage = "Voting"', campfire_block)
+        self.assertIn("campfireTheaterSeconds()", campfire_block)
+        self.assertIn('"Rebuttal is over — lock in your accusation."', campfire_block)
 
         # Bots pair with anyone standing nearby and otherwise wait holding an end
         bot_start = runtime.index("function GameRuntimeService:_botCanoePress(")

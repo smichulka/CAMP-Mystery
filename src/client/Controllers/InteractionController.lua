@@ -60,6 +60,18 @@ local function inputLabel(
 		then prompt.GamepadKeyCode
 		else prompt.KeyboardKeyCode
 	if key ~= Enum.KeyCode.Unknown then
+		if key == Enum.KeyCode.ButtonSelect then
+			return "VIEW"
+		end
+		if key == Enum.KeyCode.ButtonStart then
+			return "MENU"
+		end
+		if key == Enum.KeyCode.ButtonL1 then
+			return "LB"
+		end
+		if key == Enum.KeyCode.ButtonR1 then
+			return "RB"
+		end
 		return string.upper(key.Name:gsub("^Button", ""))
 	end
 	return "USE"

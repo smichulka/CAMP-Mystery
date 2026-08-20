@@ -32,6 +32,7 @@ local WeatherConfig = require(
 		:WaitForChild("Config")
 		:WaitForChild("WeatherConfig")
 )
+local WorldKit = require(script.Parent:WaitForChild("WorldKit"))
 
 -- Audio-slot convention (matches MonsterAudioConfig): the asset id comes from
 -- a SoundService attribute so live Studio experiments can wire real audio.
@@ -92,8 +93,10 @@ local PUDDLE_SPOTS: { { position: Vector3, diameter: number } } = {
 }
 
 -- Far mountain silhouette ridgeline: a few huge dark low-detail slabs at
--- 700-900 studs. Deliberately does NOT include a radio-tower pin light — the
--- real tower at (140, ~, -380) carries its own blinking beacon (another pack).
+-- 700-900 studs. Tagged FarDress for StreamingMinRadius=128 soak (see
+-- ProductionMapService:_trimSmallPartShadows). Deliberately does NOT include
+-- a radio-tower pin light — the real tower at (140, ~, -380) carries its own
+-- blinking beacon (another pack).
 local RIDGE_SLABS: { { size: Vector3, cframe: CFrame } } = {
 	{
 		size = Vector3.new(420, 190, 80),
@@ -402,6 +405,8 @@ local function buildFarScenery(dayCamp: Instance)
 					* CFrame.Angles(0, side * math.rad(90), 0)
 				flank.Color = color
 				flank.Material = Enum.Material.SmoothPlastic
+				-- Far horizon ridges: WorldKit.farDress for shadow soak + no collide
+				WorldKit.farDress(flank)
 				flank.Parent = folder
 			end
 		end

@@ -5,6 +5,10 @@
 -- never as literals in service code, and every cue resolves as
 --   SoundService attribute ("Circus<Slot>AssetId") -> this default -> silent.
 --
+-- Client AudioController owns separate FairgroundsAmbienceAssetId /
+-- CircusStingAssetId slots (nil placeholders) for phase overlays; those are
+-- not listed here — world-spatial Calliope/carnie cues stay server-side.
+--
 -- Calliope is APM Music's "My Carrousel"; the effects are Pro Sound Effects
 -- (both verified Creator Store libraries, free — the same licensing class as
 -- the monster hunt loops). Override any slot live via SoundService

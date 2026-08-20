@@ -34,12 +34,16 @@ class ClientReleaseContractTests(unittest.TestCase):
 
     def test_ui_uses_safe_insets_and_explicit_responsive_layouts(self) -> None:
         source = read("src/client/UI/GameView.lua")
+        layout = read("src/client/UI/LayoutPass.lua")
         self.assertIn("Enum.ScreenInsets.CoreUISafeInsets", source)
-        self.assertIn("local narrow = viewport.X < 560", source)
-        self.assertIn("local compact =", source)
-        self.assertIn("self.uiScale.Scale = 1", source)
+        # 2026-08-19: breakpoints moved to Theme.Breakpoints (narrow=560, compact=850).
+        self.assertIn("Theme.Breakpoints.narrow", layout)
+        self.assertIn("Theme.Breakpoints.compact", layout)
+        self.assertIn("local compact =", layout)
+        self.assertIn("self.uiScale.Scale = 1", layout)
         self.assertIn("Workspace:GetPropertyChangedSignal(\"CurrentCamera\")", source)
         self.assertIn('currentCamera:GetPropertyChangedSignal("ViewportSize")', source)
+        self.assertIn("LayoutPass.UpdateLayout", source)
         self.assertIn("function GameView:Destroy()", source)
         self.assertIn("connection:Disconnect()", source)
 
@@ -234,16 +238,21 @@ class ClientReleaseContractTests(unittest.TestCase):
         # The role filter lives in the shared stepApplies predicate, which both
         # _allSeen and _displayNumbering consume.
         applies = re.search(
-            r"local function stepApplies\((?P<body>.*?)\nend",
+            r"local function stepApplies\((?P<body>.*?)\nend\n\nfunction TutorialController:_allSeen",
             tutorial,
             flags=re.DOTALL,
         )
         self.assertIsNotNone(applies, "stepApplies function not found")
         body = applies.group("body")  # type: ignore[union-attr]
 
-        # Evidence skip for murderers
+        # Evidence / Deduction skip for murderers
         self.assertIn("StepIds.Evidence", body)
+        self.assertIn("StepIds.Deduction", body)
         self.assertIn('role ~= "Murderer"', body)
+
+        # Ghost step only applies while the viewer is a ghost
+        self.assertIn("StepIds.Ghost", body)
+        self.assertIn("return isGhost", body)
 
         # Spectator skip for non-lobby, non-spectator steps
         self.assertIn('role == "Spectator"', body)
@@ -251,7 +260,10 @@ class ClientReleaseContractTests(unittest.TestCase):
         self.assertIn("StepIds.Spectator", body)
 
         # _allSeen consumes the predicate
-        self.assertIn("if stepApplies(step.id, role) and not self.seen[step.id] then", tutorial)
+        self.assertIn(
+            "if stepApplies(step.id, role, isGhost) and not self.seen[step.id] then",
+            tutorial,
+        )
 
 
 if __name__ == "__main__":

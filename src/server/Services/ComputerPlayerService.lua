@@ -78,6 +78,7 @@ local ALLOWED_PHASES: { [ActionType]: { [PhaseName]: boolean } } = {
 	Discuss = {
 		Day = true,
 		Investigation = true,
+		Campfire = true,
 	},
 	VerifyEvidence = {
 		Investigation = true,
@@ -586,15 +587,34 @@ function ComputerPlayerService:ChooseAction(
 			then self.participantService:GetById(lieTargetId)
 			else nil
 		if lieTargetId and lieTarget then
+			local lieEvidenceId = nil
+			for _, existing in candidates do
+				if
+					existing.actionType == "Discuss"
+					and existing.targetParticipantId == lieTargetId
+					and type(existing.evidenceId) == "string"
+					and existing.evidenceId ~= ""
+				then
+					lieEvidenceId = existing.evidenceId
+					break
+				end
+			end
+			local lieText = if lieEvidenceId
+				then string.format(
+					"That notebook clue [%s] still points at %s.",
+					lieEvidenceId,
+					lieTarget.displayName
+				)
+				else "I found something suspicious about " .. lieTarget.displayName .. "."
 			table.insert(candidates, {
 				id = "strategic-lie:" .. lieTargetId,
 				actionType = "Discuss",
 				baseUtility = 8,
 				targetParticipantId = lieTargetId,
 				objectiveId = nil,
-				evidenceId = nil,
+				evidenceId = lieEvidenceId,
 				abilityId = nil,
-				discussionText = "I found something suspicious about " .. lieTarget.displayName .. ".",
+				discussionText = lieText,
 				isDeceptive = true,
 				risk = 0.35,
 				informationValue = 0,

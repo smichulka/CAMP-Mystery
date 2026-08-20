@@ -18,6 +18,7 @@ export type ActionName =
 	"Ready"
 	| "Enroll"
 	| "Withdraw"
+	| "RematchReady"
 	| "SetMurderPlan"
 	| "CompleteObjective"
 	| "DiscoverEvidence"

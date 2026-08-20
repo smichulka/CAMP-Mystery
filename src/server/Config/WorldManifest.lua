@@ -1,5 +1,9 @@
 --!strict
 
+-- Wave 5 worlds stay in ONE Place. Day uses the camp + Midway Festival
+-- Fairgrounds; night investigation routes are seeded TownVariant picks
+-- (including BackcountryNight). No multi-place teleport.
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -9,6 +13,7 @@ type WorldManifestDefinition = WorldTypes.WorldManifestDefinition
 
 local manifest: WorldManifestDefinition = {
 	seedSalt = 271_828,
+	worldId = "CampMystery",
 	camp = {
 		id = "Camp",
 		displayName = "CAMP-Mystery Camp",
@@ -137,6 +142,7 @@ local manifest: WorldManifestDefinition = {
 		{
 			id = "TownVariantA",
 			displayName = "Main Street",
+			nightRoute = "MainStreet",
 			districtOrder = {
 				"MainRoad",
 				"TownSquare",
@@ -151,6 +157,7 @@ local manifest: WorldManifestDefinition = {
 		{
 			id = "TownVariantB",
 			displayName = "Factory Detour",
+			nightRoute = "FactoryDetour",
 			districtOrder = {
 				"MainRoad",
 				"ResidentialQuarter",
@@ -165,6 +172,7 @@ local manifest: WorldManifestDefinition = {
 		{
 			id = "TownVariantC",
 			displayName = "Outskirts First",
+			nightRoute = "OutskirtsFirst",
 			districtOrder = {
 				"MainRoad",
 				"DesertedOutskirts",
@@ -176,6 +184,30 @@ local manifest: WorldManifestDefinition = {
 			},
 			blockedRouteIds = { "water-tower-industrial-link" },
 		},
+		-- Wave 5 World C: Backcountry-leaning night start — after camp entry,
+		-- investigation pushes north toward water-tower / outskirts wild edge
+		-- (the day Backcountry trails feed that approach). Same Place.
+		{
+			id = "TownVariantD",
+			displayName = "Backcountry Night",
+			nightRoute = "BackcountryNight",
+			districtOrder = {
+				"MainRoad",
+				"WaterTowerNeighborhood",
+				"DesertedOutskirts",
+				"ResidentialQuarter",
+				"TownSquare",
+				"PoliceStation",
+				"IndustrialDistrict",
+			},
+			blockedRouteIds = { "outskirts-industrial-link", "police-industrial-link" },
+		},
+	},
+	nightRoutes = {
+		{ id = "MainStreet", variantId = "TownVariantA", displayName = "Main Street" },
+		{ id = "FactoryDetour", variantId = "TownVariantB", displayName = "Factory Detour" },
+		{ id = "OutskirtsFirst", variantId = "TownVariantC", displayName = "Outskirts First" },
+		{ id = "BackcountryNight", variantId = "TownVariantD", displayName = "Backcountry Night" },
 	},
 }
 
@@ -199,5 +231,10 @@ for _, variant in manifest.variants do
 	table.freeze(variant)
 end
 table.freeze(manifest.variants)
+
+for _, route in manifest.nightRoutes do
+	table.freeze(route)
+end
+table.freeze(manifest.nightRoutes)
 
 return table.freeze(manifest)

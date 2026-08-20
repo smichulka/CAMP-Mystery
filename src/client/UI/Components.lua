@@ -72,6 +72,21 @@ function Components.Padding(parent: GuiObject, horizontal: number, vertical: num
 	return padding
 end
 
+function Components.DropShadow(parent: GuiObject, elevationKey: string?): Frame
+	local elevation = Theme.Elevation[elevationKey or "raised"] or Theme.Elevation.raised
+	local shadow = Instance.new("Frame")
+	shadow.Name = "DropShadow"
+	shadow.BackgroundColor3 = Theme.Colors.Black
+	shadow.BackgroundTransparency = elevation.shadowTransparency
+	shadow.BorderSizePixel = 0
+	shadow.Size = UDim2.fromScale(1, 1)
+	shadow.Position = UDim2.fromOffset(elevation.shadowOffset, elevation.shadowOffset)
+	shadow.ZIndex = math.max(0, parent.ZIndex - 1)
+	shadow.Parent = parent
+	Components.Corner(shadow, Theme.CornerRadius)
+	return shadow
+end
+
 function Components.Panel(parent: Instance, name: string): Frame
 	local panel = Instance.new("Frame")
 	panel.Name = name
@@ -80,18 +95,26 @@ function Components.Panel(parent: Instance, name: string): Frame
 	panel.BorderSizePixel = 0
 	panel.Parent = parent
 	Components.Corner(panel)
-	Components.Stroke(panel)
+	Components.Stroke(panel, Theme.Colors.Border, 1)
 	local gradient = Instance.new("UIGradient")
 	gradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.55, Color3.fromRGB(210, 220, 215)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
 	})
 	gradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(1, 0.96),
+		NumberSequenceKeypoint.new(0, 0.88),
+		NumberSequenceKeypoint.new(0.5, 0.93),
+		NumberSequenceKeypoint.new(1, 0.97),
 	})
 	gradient.Rotation = 90
 	gradient.Parent = panel
+	return panel
+end
+
+function Components.ElevatedPanel(parent: Instance, name: string, elevationKey: string?): Frame
+	local panel = Components.Panel(parent, name)
+	Components.DropShadow(panel, elevationKey or "raised")
 	return panel
 end
 

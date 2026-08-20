@@ -30,33 +30,34 @@ local INTERIOR: { { any } } = {
 	{ 102.7, -2, -37.4, 22 }, -- mines bluff (sealed rock rooms inside)
 }
 
--- Fourth-expansion boundary ring (the 800x620 slab's north/west edges plus
--- the northeast span along x ~250). Creek gate open at x ~112..168 north.
+-- Fifth-expansion boundary ring (830x670 slab north/west edges plus northeast
+-- span along x ~250). Creek gate open at x ~112..168 north.
 local OUTER: { { any } } = {
 	{ 250, -3, 196, 30 },
 	{ 252, -2, 258, 32 },
 	{ 249, -3, 320, 30 },
 	{ 251, -2, 382, 32 },
-	{ 246, -3, 436, 32 }, -- northeast corner
-	{ 198, -3, 464, 30 }, -- east bank of the creek's north gate
-	{ 92, -2, 466, 30 }, -- west bank of the creek's north gate
-	{ 24, -2, 466, 32, true },
-	{ -48, -3, 470, 32 },
-	{ -120, -2, 464, 34 },
-	{ -192, -3, 468, 32, true },
-	{ -264, -2, 460, 34 },
-	{ -336, -3, 466, 32 },
-	{ -408, -2, 458, 34, true },
-	{ -472, -3, 448, 32 }, -- turning the northwest corner
-	{ -516, -2, 396, 34 },
-	{ -534, -3, 330, 32, true },
-	{ -524, -2, 264, 34 },
-	{ -536, -3, 198, 32 },
-	{ -526, -2, 132, 34, true },
-	{ -534, -3, 66, 32 },
-	{ -524, -2, 0, 34 },
-	{ -532, -3, -66, 32, true },
-	{ -488, -2, -118, 32 }, -- southwest corner above the town's west strip
+	{ 246, -3, 436, 32 },
+	{ 248, -2, 486, 34 }, -- northeast corner
+	{ 198, -3, 514, 30 }, -- east bank of the creek's north gate
+	{ 92, -2, 516, 30 }, -- west bank of the creek's north gate
+	{ 24, -2, 516, 32, true },
+	{ -48, -3, 520, 32 },
+	{ -120, -2, 514, 34 },
+	{ -192, -3, 518, 32, true },
+	{ -264, -2, 510, 34 },
+	{ -336, -3, 516, 32 },
+	{ -408, -2, 508, 34, true },
+	{ -472, -3, 498, 32 }, -- turning the northwest corner
+	{ -516, -2, 446, 34 },
+	{ -534, -3, 380, 32, true },
+	{ -524, -2, 314, 34 },
+	{ -536, -3, 248, 32 },
+	{ -526, -2, 182, 34, true },
+	{ -534, -3, 116, 32 },
+	{ -524, -2, 50, 34 },
+	{ -532, -3, -16, 32, true },
+	{ -566, -2, -68, 32 }, -- southwest corner above the town's west strip
 }
 
 -- Far-shore ridge enclosing the lake from the east. The old northeast corner

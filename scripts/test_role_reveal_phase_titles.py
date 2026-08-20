@@ -412,9 +412,11 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         night_end = controller.index("-- Keybind hint", night_start)
         night = controller[night_start:night_end]
         self.assertIn('"Your moment is now"', night)
-        self.assertIn('"Strike true. The camp is yours."', night)
-        self.assertIn('"Stay alert. Someone won\'t make it to morning."', night)
-        self.assertIn('"Watch from beyond. The hunt begins."', night)
+        self.assertIn("Strike true. Day payoff:", night)
+        self.assertIn("Night falls — day work pays off", night)
+        self.assertIn("Stay alert — someone won't make it to morning.", night)
+        self.assertIn("Watch from beyond. The hunt begins.", night)
+        self.assertIn("dayOutcomes", night)
         self.assertIn('elseif roleName ~= "Spectator" then', night)
         # Keybind hints are suppressed for ghosts and Spectators
         self.assertIn("and not hintIsGhost", controller)
@@ -589,12 +591,19 @@ class RoleRevealPhaseTitleTests(unittest.TestCase):
         # Murderer phase block appears before the standard camper phase keys
         role_reveal_idx = tutorial.index('if phase == "RoleReveal"', murderer_idx)
         self.assertLess(murderer_idx, role_reveal_idx)
-        # Camper Investigation context: evidenceFound > 0 switches context to "Evidence"
+        # Camper Investigation context: evidenceFound > 0 switches to Evidence,
+        # then Deduction before Vote; Ghost fires when isGhost.
         inv_camper_idx = tutorial.index(
             'return "Evidence"', role_reveal_idx
         )
         self.assertIn('readNumber(round, "evidenceFound", 0)', tutorial[role_reveal_idx:inv_camper_idx])
         self.assertIn("evidenceFound > 0", tutorial[role_reveal_idx:inv_camper_idx])
+        self.assertIn('Deduction = "deduction"', tutorial)
+        self.assertIn('Ghost = "ghost"', tutorial)
+        self.assertIn('return "Deduction"', tutorial)
+        self.assertIn('return "Ghost"', tutorial)
+        self.assertIn("COMPARE THREE CLUES BEFORE YOU ACCUSE", tutorial)
+        self.assertIn("STAY USEFUL AFTER DEATH", tutorial)
 
 
 if __name__ == "__main__":

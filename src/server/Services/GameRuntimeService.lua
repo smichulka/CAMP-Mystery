@@ -32,6 +32,7 @@ local CounselorTypes = require(Shared.Types:WaitForChild("CounselorTypes"))
 local EquipmentTypes = require(Shared.Types:WaitForChild("EquipmentTypes"))
 local EvidenceTypes = require(Shared.Types:WaitForChild("EvidenceTypes"))
 local GameTypes = require(Shared.Types:WaitForChild("GameTypes"))
+local MatchTypes = require(Shared.Types:WaitForChild("MatchTypes"))
 local MonsterTypes = require(Shared.Types:WaitForChild("MonsterTypes"))
 local MysteryTypes = require(Shared.Types:WaitForChild("MysteryTypes"))
 local ParticipantTypes = require(Shared.Types:WaitForChild("ParticipantTypes"))
@@ -57,6 +58,7 @@ local RoundLifecycle = require(services:WaitForChild("RoundLifecycle"))
 local StatusEffectService = require(services:WaitForChild("StatusEffectService"))
 local VotingService = require(services:WaitForChild("VotingService"))
 local WorldService = require(services:WaitForChild("WorldService"))
+local AnalyticsService = require(services:WaitForChild("AnalyticsService"))
 local BotRosterSystem = require(systems:WaitForChild("BotRosterSystem"))
 
 type ActionName = RuntimeTypes.ActionName
@@ -288,6 +290,10 @@ local SEARCH_LOCATIONS = {
 	-- Fourth expansion (HighFrontier pack).
 	"frontier-watch-cache",
 	"logging-camp-ledger",
+	-- Spooky Circus Fairgrounds (soft mystery sockets; scare stays opt-in).
+	"circus-ticket-booth",
+	"midway-prize-counter",
+	"fair-supplies",
 }
 local MONSTER_ORDER: { MonsterId } = require(Shared.Config:WaitForChild("MonsterOrder"))
 
@@ -500,12 +506,73 @@ local function unobstructed(
 	return (result.Position - toPosition).Magnitude <= 1.5
 end
 
+local function quickCampEnabled(): boolean
+	return ReplicatedStorage:GetAttribute("QuickCamp") == true
+end
+
+function GameRuntimeService:_syncQuickCampFromRoster(roster: MatchTypes.LockedRoster)
+	local preferCount = 0
+	local humanCount = 0
+	for _, rosterParticipant in roster.participants do
+		if rosterParticipant.controllerKind == "Human" then
+			local userId = rosterParticipant.userId
+			if userId then
+				local player = Players:GetPlayerByUserId(userId)
+				if player then
+					humanCount += 1
+					local snapshot = self.profile:GetSnapshot(player)
+					if snapshot.profile.settings.preferQuickCamp then
+						preferCount += 1
+					end
+				end
+			end
+		end
+	end
+	local enable = humanCount > 0 and preferCount >= math.ceil(humanCount / 2)
+	ReplicatedStorage:SetAttribute("QuickCamp", enable)
+end
+
+function GameRuntimeService:_lobbySnapshotForBroadcast(): MatchTypes.LobbySnapshot
+	local lobby = self.matchmaking:GetLobbySnapshot()
+	local preferCount = 0
+	local readyCampCount = 0
+	for _, entry in lobby.players do
+		if entry.isReady then
+			readyCampCount += 1
+			local player = Players:GetPlayerByUserId(entry.userId)
+			if player then
+				local profileSnapshot = self.profile:GetSnapshot(player)
+				if profileSnapshot.profile.settings.preferQuickCamp then
+					preferCount += 1
+				end
+			end
+		end
+	end
+	lobby.quickCampPreferCount = preferCount
+	lobby.quickCampReadyCount = readyCampCount
+	-- Wave 5: seed-preview the next night route while still in lobby (same Place).
+	local nextRoundId = math.max(1, self.roundId + 1)
+	local preview = WorldService.PreviewRouteForRound(nextRoundId)
+	lobby.nightRoute = preview.nightRoute
+	lobby.worldRoute = preview.worldRoute
+	lobby.worldId = preview.worldId
+	lobby.nightRouteDisplayName = preview.displayName
+	return lobby
+end
+
 local function phaseDuration(phase: PhaseName): number
 	for _, config in RoundConfig.phases do
 		if config.name == phase then
+			local anyConfig = config :: any
 			local studioDuration = config.studioDurationSeconds
 			if RunService:IsStudio() and studioDuration then
 				return studioDuration
+			end
+			if quickCampEnabled() then
+				local quickDuration = anyConfig.quickCampDurationSeconds
+				if type(quickDuration) == "number" then
+					return quickDuration
+				end
 			end
 			return config.durationSeconds
 		end
@@ -513,18 +580,59 @@ local function phaseDuration(phase: PhaseName): number
 	error("Missing phase configuration for " .. phase)
 end
 
-local function campfireDiscussionSeconds(): number
+-- Returns PresentEvidence seconds, Rebuttal seconds for campfire theater.
+local function campfireTheaterSeconds(): (number, number)
 	for _, config in RoundConfig.phases do
 		if config.name == "Campfire" then
 			local anyConfig = config :: any
-			local studioSeconds = anyConfig.studioDiscussionSeconds
-			if RunService:IsStudio() and studioSeconds then
-				return studioSeconds
+			if RunService:IsStudio() then
+				local present = anyConfig.studioPresentEvidenceSeconds
+				local rebuttal = anyConfig.studioRebuttalSeconds
+				if type(present) == "number" and type(rebuttal) == "number" then
+					return present, rebuttal
+				end
+				local studioTotal = anyConfig.studioDiscussionSeconds
+				if type(studioTotal) == "number" and studioTotal > 0 then
+					local presentSplit = math.floor(studioTotal * 0.6)
+					return presentSplit, studioTotal - presentSplit
+				end
 			end
-			return anyConfig.discussionSeconds or 0
+			if quickCampEnabled() then
+				local present = anyConfig.quickCampPresentEvidenceSeconds
+				local rebuttal = anyConfig.quickCampRebuttalSeconds
+				if type(present) == "number" and type(rebuttal) == "number" then
+					return present, rebuttal
+				end
+				local quickTotal = anyConfig.quickCampDiscussionSeconds
+				if type(quickTotal) == "number" and quickTotal > 0 then
+					local presentSplit = math.floor(quickTotal * 0.6)
+					return presentSplit, quickTotal - presentSplit
+				end
+			end
+			local present = anyConfig.presentEvidenceSeconds
+			local rebuttal = anyConfig.rebuttalSeconds
+			if type(present) == "number" and type(rebuttal) == "number" then
+				return present, rebuttal
+			end
+			local total = anyConfig.discussionSeconds or 0
+			local presentSplit = math.floor(total * 0.6)
+			return presentSplit, total - presentSplit
 		end
 	end
-	return 0
+	return 0, 0
+end
+
+local function campfireDiscussionSeconds(): number
+	local presentSeconds, rebuttalSeconds = campfireTheaterSeconds()
+	return presentSeconds + rebuttalSeconds
+end
+
+local function isCampfirePresentationStage(stage: string?): boolean
+	return stage == "PresentEvidence" or stage == "Discussion"
+end
+
+local function isCampfireTalkStage(stage: string?): boolean
+	return isCampfirePresentationStage(stage) or stage == "Rebuttal"
 end
 
 local function phaseDisplayName(phase: PhaseName): string
@@ -1346,6 +1454,7 @@ function GameRuntimeService:_participantIdsForRound(): { string }
 		return {}
 	end
 	self.activeMatchRoundId = roster.roundId
+	self:_syncQuickCampFromRoster(roster)
 	local ids: { string } = {}
 	for _, rosterParticipant in roster.participants do
 		if rosterParticipant.controllerKind == "Human" then
@@ -2202,6 +2311,11 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	self.botTaskById = {}
 	self.campfireStage = nil
 	self.votingOpensAt = nil
+	AnalyticsService.LogFunnel(nil, AnalyticsService.Events.PhaseEnter, {
+		phase = phase,
+		from = tostring(previousPhase),
+		roundId = tostring(self.roundId),
+	})
 	if self.roundId > 0 then
 		self.counselors:SetPhase(phase, self.phaseStartedAt)
 		self.characters:ApplyCounselorSnapshot(self.counselors:GetPublicSnapshot())
@@ -2264,16 +2378,16 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		end
 		local nightSummary = table.concat({
 			if outcomes.generator
-				then "Generator ON — the camp stays lit."
-				else "Generator DEAD — darkness takes the camp.",
+				then "GENERATOR ON — the camp stays lit."
+				else "GENERATOR DEAD — darkness takes the camp.",
 			if outcomes.firewood
-				then "The campfire blazes — its light is a haven."
-				else "The fire gutters — even the campfire is not safe.",
+				then "FIREWOOD STOCKED — the campfire is a haven."
+				else "FIREWOOD MISSING — even the campfire is not safe.",
 			if outcomes.supplies
-				then "Supplies secured — every camper got a bonus flare."
-				else "Supplies unsecured — no extra gear tonight.",
-		}, " ")
-		self:_announce("Warning", "Night falls on camp", nightSummary, 8)
+				then "SUPPLIES SECURED — every camper got a bonus flare."
+				else "SUPPLIES UNSECURED — no extra gear tonight.",
+		}, "\n")
+		self:_announce("Warning", "NIGHT FALLS — DAY WORK PAYS OFF", nightSummary, 10)
 		local privateMonster = self.monster:GetPrivateSnapshot()
 		local monsterId = privateMonster.monsterId
 		local participantId = privateMonster.participantId
@@ -2371,26 +2485,47 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 				6
 			)
 		end
-		self.campfireStage = "Discussion"
-		local discussionSeconds = campfireDiscussionSeconds()
-		self.votingOpensAt = self.phaseStartedAt + discussionSeconds
+		-- Theater beats: PresentEvidence → Rebuttal → Voting.
+		-- Legacy clients that only know "Discussion" still treat talk stages as non-voting.
+		self.campfireStage = "PresentEvidence"
+		local presentSeconds, rebuttalSeconds = campfireTheaterSeconds()
+		self.votingOpensAt = self.phaseStartedAt + campfireDiscussionSeconds()
 		local generation = self.generation
 		local campfireRoundId = self.roundId
-		task.delay(discussionSeconds, function()
+		task.delay(presentSeconds, function()
 			if not self.running or self.generation ~= generation then
 				return
 			end
 			if self.roundId ~= campfireRoundId or self.phase ~= "Campfire" then
 				return
 			end
-			if self.campfireStage ~= "Discussion" then
+			if not isCampfirePresentationStage(self.campfireStage) then
+				return
+			end
+			self.campfireStage = "Rebuttal"
+			self:_announce(
+				"Info",
+				"Rebuttal",
+				"Challenge the evidence before votes open.",
+				5
+			)
+			self:Broadcast()
+		end)
+		task.delay(presentSeconds + rebuttalSeconds, function()
+			if not self.running or self.generation ~= generation then
+				return
+			end
+			if self.roundId ~= campfireRoundId or self.phase ~= "Campfire" then
+				return
+			end
+			if self.campfireStage ~= "Rebuttal" and not isCampfirePresentationStage(self.campfireStage) then
 				return
 			end
 			self.campfireStage = "Voting"
 			self:_announce(
 				"Info",
 				"Voting is open",
-				"Discussion is over — lock in your accusation.",
+				"Rebuttal is over — lock in your accusation.",
 				5
 			)
 			self:Broadcast()
@@ -2407,6 +2542,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		})
 		self.counselors:EndRound(now())
 	elseif phase == "Lobby" and previousPhase ~= "Lobby" then
+		ReplicatedStorage:SetAttribute("QuickCamp", false)
 		self.world:ResetRound()
 		self.characters:Reset()
 		self.weatherId = "Clear"
@@ -2513,6 +2649,15 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 		weather = if self.roundId > 0 and self.phase ~= "Lobby"
 			then self.weatherId
 			else nil,
+		nightRoute = if self.roundId > 0
+			then self.world:GetPublicSnapshot().nightRoute
+			else nil,
+		worldRoute = if self.roundId > 0
+			then self.world:GetPublicSnapshot().worldRoute
+			else nil,
+		worldId = if self.roundId > 0
+			then self.world:GetPublicSnapshot().worldId
+			else nil,
 		campfireStage = self.campfireStage,
 		votingOpensAt = self.votingOpensAt,
 		discussionLog = self.discussionLog,
@@ -2531,6 +2676,7 @@ function GameRuntimeService:_availableActions(
 		"Ready",
 		"Enroll",
 		"Withdraw",
+		"RematchReady",
 		"SetMurderPlan",
 		"CompleteObjective",
 		"DiscoverEvidence",
@@ -2574,6 +2720,8 @@ function GameRuntimeService:_availableActions(
 				)
 		elseif name == "Withdraw" then
 			enabled = self.phase == "Lobby"
+		elseif name == "RematchReady" then
+			enabled = self.phase == "Rewards" or self.phase == "Resolution"
 		elseif name == "SetMurderPlan" then
 			enabled = active
 				and self.phase == "MurderPlanning"
@@ -2609,7 +2757,7 @@ function GameRuntimeService:_availableActions(
 		elseif name == "PresentEvidence" then
 			enabled = active
 				and self.phase == "Campfire"
-				and self.campfireStage == "Discussion"
+				and isCampfirePresentationStage(self.campfireStage)
 		elseif name == "UseMonsterAbility" then
 			enabled = active
 				and self.phase == "Investigation"
@@ -2665,7 +2813,7 @@ function GameRuntimeService:GetGameState(player: Player): GameState
 	return {
 		serverNow = now(),
 		round = self:GetRoundSnapshot(),
-		lobby = self.matchmaking:GetLobbySnapshot(),
+		lobby = self:_lobbySnapshotForBroadcast(),
 		participants = self.participants:SerializeAllPublic(),
 		player = if participant then self.participants:SerializePrivate(participant) else nil,
 		inventory = if participantId then self.inventory:GetSnapshot(participantId) else nil,
@@ -2861,6 +3009,37 @@ function GameRuntimeService:_completeObjective(
 		-- A bot finishing the pile while a human carries a crate would strand
 		-- the welded prop; completion always clears the carry state.
 		self:_resetSupplyCarry()
+	end
+	if objectiveId == "generator" then
+		self:_announce(
+			"Success",
+			"GENERATOR ONLINE",
+			string.format(
+				"%s repaired the generator — camp lights will stay lit tonight!",
+				participant.displayName
+			),
+			7
+		)
+	elseif objectiveId == "firewood" then
+		self:_announce(
+			"Success",
+			"FIREWOOD STOCKED",
+			string.format(
+				"%s stacked the firewood — the campfire will be a safe haven tonight!",
+				participant.displayName
+			),
+			7
+		)
+	elseif objectiveId == "supplies" then
+		self:_announce(
+			"Success",
+			"SUPPLIES SECURED",
+			string.format(
+				"%s secured the supply run — every camper gets a bonus flare at nightfall!",
+				participant.displayName
+			),
+			7
+		)
 	end
 	if self:_objectiveCount() >= RoundConfig.objectiveGoal then
 		self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 1)
@@ -3817,7 +3996,7 @@ function GameRuntimeService:_handleParticipantAction(
 			return actionRejected("Voting is not active")
 		end
 		if self.campfireStage ~= "Voting" then
-			return actionRejected("Voting opens after the discussion")
+			return actionRejected("Voting opens after the rebuttal")
 		end
 		local targetId = getString(payload, "targetParticipantId")
 			or getString(payload, "targetKey")
@@ -3825,6 +4004,11 @@ function GameRuntimeService:_handleParticipantAction(
 			return actionRejected("Vote target is required")
 		end
 		local cast, reason = self.voting:CastVote(participant.participantId, targetId)
+		if cast then
+			AnalyticsService.LogFunnel(player, AnalyticsService.Events.VoteCast, {
+				phase = self.phase,
+			})
+		end
 		if cast and self.voting:IsComplete() then
 			self.phaseEndsAt = math.min(self.phaseEndsAt, now() + 1)
 		end
@@ -3887,8 +4071,8 @@ function GameRuntimeService:_handleParticipantAction(
 		if self.phase ~= "Campfire" then
 			return actionRejected("Evidence can only be presented at the campfire")
 		end
-		if self.campfireStage ~= "Discussion" then
-			return actionRejected("Presentations happen during the discussion")
+		if not isCampfirePresentationStage(self.campfireStage) then
+			return actionRejected("Presentations happen during the evidence beat")
 		end
 		local itemId = getString(payload, "evidenceId") or getString(payload, "clueId")
 		if not itemId then
@@ -4371,6 +4555,9 @@ function GameRuntimeService:HandleAction(
 		local readyValue = request.ready
 		local ready = if typeof(readyValue) == "boolean" then readyValue else true
 		local set, reason = self.matchmaking:SetReady(player, ready)
+		if set and ready then
+			AnalyticsService.LogFunnel(player, AnalyticsService.Events.Ready)
+		end
 		return {
 			accepted = set,
 			reason = reason,
@@ -4390,6 +4577,9 @@ function GameRuntimeService:HandleAction(
 			-- in-boot 2026-08-10 — the check rejected every re-enrollment).
 			self.lobby:SetWithdrawn(player, false)
 			local set, reason = self.matchmaking:SetReady(player, true)
+			if set then
+				AnalyticsService.LogFunnel(player, AnalyticsService.Events.Ready)
+			end
 			return {
 				accepted = set,
 				reason = reason,
@@ -4443,16 +4633,59 @@ function GameRuntimeService:HandleAction(
 			state = self:GetGameState(player),
 			data = nil,
 		}
+	elseif actionName == "RematchReady" then
+		if self.phase ~= "Rewards" and self.phase ~= "Resolution" then
+			return actionRejected("Rematch sign-up opens after the verdict")
+		end
+		local queued = self.lobby:SetWantsRematch(player, true)
+		if queued then
+			AnalyticsService.LogFunnel(player, AnalyticsService.Events.Rematch)
+			self:_noticePlayer(
+				player,
+				"Success",
+				"See you at the fire",
+				"You will auto sign up when the lobby returns.",
+				4
+			)
+		end
+		return {
+			accepted = queued,
+			reason = if queued then nil else "PlayerNotInLobby",
+			state = self:GetGameState(player),
+			data = nil,
+		}
 	elseif actionName == "SetSettings" then
 		local request = clonePayload(payload)
 		local settings = request.settings
 		if typeof(settings) ~= "table" then
 			return actionRejected("Settings patch is required")
 		end
-		local mutation = self.profile:UpdateSettings(
-			player,
-			settings :: { [string]: unknown }
-		)
+		local settingsTable = settings :: { [string]: unknown }
+		local previousSnapshot = self.profile:GetSnapshot(player)
+		local previousSettings = previousSnapshot.profile.settings
+		local mutation = self.profile:UpdateSettings(player, settingsTable)
+		if mutation.applied then
+			if settingsTable.tutorialCompleted == true
+				and previousSettings.tutorialCompleted ~= true
+			then
+				local skipped = settingsTable.tutorialSkipped == true
+				AnalyticsService.LogFunnel(
+					player,
+					if skipped
+						then AnalyticsService.Events.TutorialSkip
+						else AnalyticsService.Events.TutorialComplete
+				)
+			end
+			if typeof(settingsTable.preferQuickCamp) == "boolean"
+				and settingsTable.preferQuickCamp ~= previousSettings.preferQuickCamp
+			then
+				AnalyticsService.LogFunnel(player, AnalyticsService.Events.QuickCampToggle, {
+					enabled = if settingsTable.preferQuickCamp == true
+						then "true"
+						else "false",
+				})
+			end
+		end
 		return {
 			accepted = mutation.applied,
 			reason = mutation.reason,
@@ -5179,13 +5412,24 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 		end
 	elseif phase == "Campfire" then
 		local publicSuspicion: { [string]: number } = {}
+		local publicClueBySuspect: { [string]: { clueId: string, title: string } } = {}
+		local anyPublicClue: { clueId: string, title: string }? = nil
 		if self.mysteryReady then
 			local publicMystery = self.mystery:GetPublicSnapshot()
 			for _, clue in publicMystery.clues do
+				if anyPublicClue == nil then
+					anyPublicClue = { clueId = clue.clueId, title = clue.title }
+				end
 				if clue.channel == "Culprit" then
 					for _, suspectId in clue.suspectCandidateIds do
 						publicSuspicion[suspectId] =
 							(publicSuspicion[suspectId] or 0) + 1
+						if publicClueBySuspect[suspectId] == nil then
+							publicClueBySuspect[suspectId] = {
+								clueId = clue.clueId,
+								title = clue.title,
+							}
+						end
 					end
 				end
 			end
@@ -5198,17 +5442,76 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 				end
 			end
 		end
+		-- Posted board evidence titles also count as citeable notebook phrases.
+		for _, summary in self:_evidenceSummaries() do
+			if anyPublicClue == nil then
+				anyPublicClue = { clueId = summary.id, title = summary.displayName }
+			end
+		end
 		-- Evidence presented aloud during the discussion carries extra weight
 		-- with bot voters.
 		for suspectId, weight in self.presentedSuspicion do
 			publicSuspicion[suspectId] = (publicSuspicion[suspectId] or 0) + weight * 1.25
+		end
+		-- Sparse-lobby social theater: speak/present during Present + Rebut beats.
+		if isCampfireTalkStage(self.campfireStage) then
+			local isPresentBeat = isCampfirePresentationStage(self.campfireStage)
+			for _, suspect in self:_suspects() do
+				if suspect.key ~= participant.participantId then
+					local cite = publicClueBySuspect[suspect.key] or anyPublicClue
+					local phrase = if cite then cite.title else nil
+					local clueId = if cite then cite.clueId else nil
+					local talkText: string
+					if isPresentBeat then
+						talkText = if phrase
+							then string.format(
+								"Presenting notebook clue [%s]: %s points at %s.",
+								clueId or "board",
+								phrase,
+								suspect.displayName
+							)
+							else string.format(
+								"I want to talk about %s before we vote.",
+								suspect.displayName
+							)
+					else
+						talkText = if phrase
+							then string.format(
+								"Rebuttal on [%s]: %s still implicates %s.",
+								clueId or "board",
+								phrase,
+								suspect.displayName
+							)
+							else string.format(
+								"I'm not convinced %s is clear yet.",
+								suspect.displayName
+							)
+					end
+					table.insert(actions, {
+						id = (if isPresentBeat then "present-talk:" else "rebut-talk:")
+							.. suspect.key,
+						actionType = "Discuss",
+						baseUtility = if isPresentBeat then 9 else 7,
+						targetParticipantId = suspect.key,
+						evidenceId = if isPresentBeat then clueId else nil,
+						discussionText = talkText,
+						risk = 0.1,
+						informationValue = if phrase then 0.85 else 0.35,
+						teamValue = 0.7,
+					})
+				end
+			end
 		end
 		-- Bots hold their votes until voting opens (plus a personal stagger)
 		-- so human accusations lead and bot votes follow.
 		local votingOpensAt = self.votingOpensAt
 			or (self.phaseStartedAt + 0.5 * (self.phaseEndsAt - self.phaseStartedAt))
 		local voteReadyAt = votingOpensAt + voteStagger(participant.participantId)
-		if not self.voting.votes[participant.participantId] and now() >= voteReadyAt then
+		if
+			self.campfireStage == "Voting"
+			and not self.voting.votes[participant.participantId]
+			and now() >= voteReadyAt
+		then
 			local humanVotes: { [string]: number } = {}
 			for _, other in self.participants:GetAll() do
 				local vote = other.vote
@@ -5233,11 +5536,22 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 					then
 						caseUtility = 24
 					end
+					local cite = publicClueBySuspect[suspect.key] or anyPublicClue
+					local voteText = if cite
+						then string.format(
+							"Voting %s — citing notebook clue [%s]: %s",
+							suspect.displayName,
+							cite.clueId,
+							cite.title
+						)
+						else string.format("Voting %s on suspicion alone.", suspect.displayName)
 					table.insert(actions, {
 						id = "vote:" .. suspect.key,
 						actionType = "Vote",
 						baseUtility = 10 + caseUtility,
 						targetParticipantId = suspect.key,
+						evidenceId = if cite then cite.clueId else nil,
+						discussionText = voteText,
 						risk = 0,
 						informationValue = 0.7,
 						teamValue = 1,
@@ -5384,7 +5698,27 @@ function GameRuntimeService:_ExecuteBotAction(
 			payload.monsterId = if plan then plan.monsterId else nil
 			payload.frameParticipantId = if plan then plan.frameParticipantId else nil
 		end
-	elseif candidate.actionType == "Idle" or candidate.actionType == "Discuss" then
+	elseif candidate.actionType == "Idle" then
+		return true
+	elseif candidate.actionType == "Discuss" then
+		local evidenceId = candidate.evidenceId
+		if
+			evidenceId
+			and self.phase == "Campfire"
+			and isCampfirePresentationStage(self.campfireStage)
+		then
+			local presented = self:_handleParticipantAction(participant, "PresentEvidence", {
+				evidenceId = evidenceId,
+				clueId = evidenceId,
+			})
+			if presented.accepted then
+				return true
+			end
+		end
+		local talk = candidate.discussionText
+		if type(talk) == "string" and talk ~= "" then
+			self:_announce("Info", participant.displayName, talk, 4)
+		end
 		return true
 	else
 		return false
@@ -5448,6 +5782,25 @@ function GameRuntimeService:_ExecuteBotAction(
 				return accepted
 			end
 		)
+	elseif actionName == "Vote" then
+		local accepted = self:_handleParticipantAction(participant, actionName, payload).accepted
+		if accepted then
+			local talk = candidate.discussionText
+			if type(talk) == "string" and talk ~= "" then
+				self:_announce("Info", participant.displayName .. " votes", talk, 4)
+			else
+				local targetId = candidate.targetParticipantId
+				local target = if targetId then self.participants:GetById(targetId) else nil
+				local targetName = if target then target.displayName else "someone"
+				self:_announce(
+					"Info",
+					participant.displayName .. " votes",
+					"Accusing " .. targetName .. ".",
+					4
+				)
+			end
+		end
+		return accepted
 	end
 	return self:_handleParticipantAction(participant, actionName, payload).accepted
 end

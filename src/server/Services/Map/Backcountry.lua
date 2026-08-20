@@ -350,7 +350,7 @@ local function buildScatter(parent: Instance)
 		local z = 12 + math.sin(angle) * radius
 		-- z bound covers the water-sports basin's north lobe (water to z 190,
 		-- carve to 193)
-		local inLakeSector = x > 82 and z < 200
+		local inLakeSector = x > 78 and z < 210
 		local inCreekRun = x > 74 and z < -55
 		local inCreekNorthRun = x > 60 and x < 150 and z > 160
 		-- With the south boundary domes gone, scatter there would stand on the

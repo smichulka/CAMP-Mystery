@@ -64,6 +64,10 @@ export type RoundSnapshot = {
 	dayOutcomes: DayOutcomeSnapshot?,
 	-- Seeded round weather (WeatherConfig.WeatherId); nil before a round.
 	weather: string?,
+	-- Wave 5: seeded night route / single-Place world id (nil in empty lobby).
+	nightRoute: string?,
+	worldRoute: string?,
+	worldId: string?,
 	campfireStage: string?,
 	votingOpensAt: number?,
 	discussionLog: { DiscussionEntry }?,

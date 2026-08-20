@@ -43,8 +43,27 @@ AudioController.CueIds = table.freeze({
 	VoteOpen = "VoteOpen",
 	MonsterActive = "MonsterActive",
 	Reward = "Reward",
+	CircusSting = "CircusSting",
 })
 
+-- Cue inventory resolution (strict order, never invent live asset ids here):
+--   1) SoundService:GetAttribute(<Slot>AssetId)  — Studio / live override
+--   2) definition.defaultAssetId                — repo placeholder (may be nil)
+--   3) empty SoundId                            — cue stays silent
+--
+-- Core music/ambience placeholders below are Creator Store stand-ins until
+-- final banks land. Fairgrounds/circus *world* loops live server-side in
+-- Map/SpookyCircus.lua via Config/CircusAudioDefaults (attributes
+-- CircusCalliopeAssetId, CircusTicketChimeAssetId, CircusCarnieScreechAssetId,
+-- CircusBarkerCallAssetId). Client FairgroundsAmbience / CircusSting slots
+-- below are optional overlays for phase switches — leave attributes unset
+-- until real assets exist (nil default = silent, no fake id).
+--
+-- Override attributes: LobbyMusicAssetId, CampMusicAssetId, NightMusicAssetId,
+-- ResultsMusicAssetId, CampAmbienceAssetId, NightAmbienceAssetId,
+-- FairgroundsAmbienceAssetId, PhaseChimeAssetId, EvidenceFoundAssetId,
+-- VoteOpenAssetId, MonsterActiveAssetId, RewardAssetId, HeartbeatAssetId,
+-- CircusStingAssetId, plus UI click/impact/danger ids via UISoundMap.
 local DEFINITIONS: { SoundDefinition } = {
 	{
 		name = "LobbyMusic",
@@ -89,6 +108,15 @@ local DEFINITIONS: { SoundDefinition } = {
 		defaultAssetId = "rbxassetid://9112762653", -- placeholder: replace with final asset
 	},
 	{
+		-- Optional Investigation overlay when FairgroundsAmbienceAssetId is set.
+		-- Stays silent with no placeholder so we never invent a fake id.
+		name = "FairgroundsAmbience",
+		channel = "Ambience",
+		attribute = "FairgroundsAmbienceAssetId",
+		looped = true,
+		defaultAssetId = nil,
+	},
+	{
 		name = "PhaseChime",
 		channel = "UI",
 		attribute = "PhaseChimeAssetId",
@@ -127,6 +155,15 @@ local DEFINITIONS: { SoundDefinition } = {
 		looped = false,
 		subtitle = "Round rewards received.",
 		defaultAssetId = "rbxassetid://97881181065416", -- placeholder: replace with final asset
+	},
+	{
+		-- One-shot fairgrounds sting on Investigation entry when attribute set.
+		name = "CircusSting",
+		channel = "Effects",
+		attribute = "CircusStingAssetId",
+		looped = false,
+		subtitle = "The fairgrounds stirs.",
+		defaultAssetId = nil,
 	},
 }
 
@@ -167,10 +204,13 @@ for monsterId, displayName in MONSTER_DISPLAY_NAMES do
 end
 
 local DEFAULT_SETTINGS: { [string]: any } = {
-	masterVolume = 0.8,
-	musicVolume = 0.65,
-	ambienceVolume = 0.7,
-	effectsVolume = 0.9,
+	-- Group volumes: Music/Ambience sit slightly under Effects/UI so stings
+	-- and proximity loops stay readable over beds. Master multiplies all four
+	-- SoundGroups in _updateGroupVolumes (do not also scale individual Sounds).
+	masterVolume = 0.82,
+	musicVolume = 0.62,
+	ambienceVolume = 0.72,
+	effectsVolume = 0.92,
 	uiVolume = 0.9,
 	subtitles = true,
 }
@@ -197,6 +237,12 @@ local PHASE_AMBIENCE: { [string]: string } = {
 	Campfire = "CampAmbience",
 	Resolution = "CampAmbience",
 	Rewards = "CampAmbience",
+}
+
+-- Ambience loops that may layer under the phase bed (not displaced by
+-- _switchLoop). FairgroundsAmbience is the Investigation Fairgrounds overlay.
+local AMBIENCE_OVERLAYS: { [string]: boolean } = {
+	FairgroundsAmbience = true,
 }
 
 local function clampVolume(value: any, fallback: number): number
@@ -355,7 +401,14 @@ function AudioController:_switchLoop(channel: string, name: string?)
 	for _, definition in DEFINITIONS do
 		if definition.channel == channel and definition.looped then
 			local sound = self.sounds[definition.name]
-			if sound and sound.IsPlaying and definition.name ~= name then
+			-- Overlay ambience (Fairgrounds) layers under the phase bed and
+			-- must not be stopped when NightAmbience / CampAmbience switches.
+			if
+				sound
+				and sound.IsPlaying
+				and definition.name ~= name
+				and not AMBIENCE_OVERLAYS[definition.name]
+			then
 				sound:Stop()
 			end
 		end
@@ -365,6 +418,23 @@ function AudioController:_switchLoop(channel: string, name: string?)
 		if sound and self:_configured(sound) and not sound.IsPlaying then
 			sound:Play()
 		end
+	end
+end
+
+function AudioController:_setFairgroundsAmbience(enabled: boolean)
+	local sound = self.sounds.FairgroundsAmbience
+	if not sound then
+		return
+	end
+	if enabled and self:_configured(sound) then
+		if not sound.IsPlaying then
+			-- Soft under the night bed so Calliope (server CircusAudioDefaults)
+			-- remains the loud fairgrounds voice when players are near the lot.
+			sound.Volume = 0.55
+			sound:Play()
+		end
+	elseif sound.IsPlaying then
+		sound:Stop()
 	end
 end
 
@@ -494,6 +564,9 @@ function AudioController:Update(state: any)
 		self.currentMusic = PHASE_MUSIC[phase]
 		self:_switchLoop("Music", self.currentMusic)
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[phase])
+		-- Investigation: optional Fairgrounds overlay + CircusSting when
+		-- SoundService attributes are set (silent placeholders otherwise).
+		self:_setFairgroundsAmbience(phase == "Investigation")
 		if not firstSnapshot then
 			if phase == "Campfire" then
 				local voteSubtitle = if localRole == "Murderer"
@@ -502,10 +575,15 @@ function AudioController:Update(state: any)
 				self:PlayCue("VoteOpen", voteSubtitle)
 			elseif phase == "Rewards" then
 				self:PlayCue("Reward")
+			elseif phase == "Investigation" then
+				local phaseSubtitle: string? = if localRole == "Murderer"
+					then "Investigation begun. Maintain your cover."
+					else nil
+				self:PlayCue("PhaseChime", phaseSubtitle)
+				self:PlayCue("CircusSting")
 			else
 				local phaseSubtitle: string? = if localRole == "Murderer"
 					then if phase == "Day" then "Daytime. Stay composed."
-						elseif phase == "Investigation" then "Investigation begun. Maintain your cover."
 						elseif phase == "MurderPlanning" then "You chose your prey. Prepare before dawn."
 						elseif phase == "NightTransform" then "You are the monster. The hunt begins."
 						else nil

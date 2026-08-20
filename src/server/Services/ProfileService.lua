@@ -369,6 +369,8 @@ local function sanitizeProfile(rawValue: unknown): (PlayerProfile?, string?)
 			safeBoolean(raw.settings.tutorialCompleted, defaults.tutorialCompleted)
 		profile.settings.autoEnroll =
 			safeBoolean(raw.settings.autoEnroll, defaults.autoEnroll)
+		profile.settings.preferQuickCamp =
+			safeBoolean(raw.settings.preferQuickCamp, defaults.preferQuickCamp)
 	end
 
 	local receiptSet: { [string]: boolean } = {}
@@ -812,6 +814,10 @@ function ProfileService:UpdateSettings(
 				recognized = true
 				changed = changed or value ~= profile.settings.autoEnroll
 				profile.settings.autoEnroll = value
+			elseif key == "preferQuickCamp" and typeof(value) == "boolean" then
+				recognized = true
+				changed = changed or value ~= profile.settings.preferQuickCamp
+				profile.settings.preferQuickCamp = value
 			end
 		end
 		if not recognized then
@@ -903,10 +909,14 @@ function ProfileService:UnlockCosmetic(
 				return false, "StreakRequired"
 			end
 		elseif definition.unlockKind == "CampTokens" then
-			if profile.campTokens < definition.unlockAmount then
+			local price = CosmeticCatalog.GetTokenPrice(
+				definition,
+				ProgressionConfig.featuredTokenDiscount
+			)
+			if profile.campTokens < price then
 				return false, "NotEnoughCampTokens"
 			end
-			profile.campTokens -= definition.unlockAmount
+			profile.campTokens -= price
 		end
 		profile.ownedCosmetics[definition.id] = true
 		return true, nil

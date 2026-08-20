@@ -8,6 +8,7 @@ local configFolder = Shared:WaitForChild("Config")
 local typesFolder = Shared:WaitForChild("Types")
 local MatchConfig = require(configFolder:WaitForChild("MatchConfig"))
 local Types = require(typesFolder:WaitForChild("MatchTypes"))
+local AnalyticsService = require(script.Parent:WaitForChild("AnalyticsService"))
 
 type Clock = () -> number
 type LobbyService = {
@@ -231,6 +232,9 @@ end
 
 function MatchmakingService:AddPlayer(player: Player)
 	local restoredLockedPlayer = self.lobbyService:AddPlayer(player)
+	AnalyticsService.LogFunnel(player, AnalyticsService.Events.JoinLobby, {
+		restored = if restoredLockedPlayer then "true" else "false",
+	})
 	if restoredLockedPlayer then
 		self:_RestoreLockedParticipant(player)
 		return
@@ -477,6 +481,18 @@ function MatchmakingService:_TryLockRoster(): (Types.LockedRoster?, string?)
 	self.lobbyService:LockRoster(roundId, humans)
 	local snapshot = self:GetActiveRoster()
 	assert(snapshot, "Locked roster disappeared")
+	for _, human in humans do
+		local userId = human.userId
+		if userId then
+			local player = Players:GetPlayerByUserId(userId)
+			if player then
+				AnalyticsService.LogFunnel(player, AnalyticsService.Events.RosterLock, {
+					roundId = roundId,
+					size = tostring(targetSize),
+				})
+			end
+		end
+	end
 	local lockedHook = self.onRosterLocked
 	if lockedHook then
 		lockedHook(snapshot)

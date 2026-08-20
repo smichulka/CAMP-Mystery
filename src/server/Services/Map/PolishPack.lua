@@ -1,12 +1,15 @@
 --!strict
 
--- PolishPack: one hundred numbered world enhancements, built after the other
+-- PolishPack: one hundred five numbered world enhancements, built after the other
 -- district packs so it can decorate their structures. Every item is a small,
 -- self-contained builder run under pcall — a single failure skips that item
 -- and the build reports how many of the hundred landed.
 --
 -- Conventions follow WorldKit: anchored parts, CampLamp for night lighting,
 -- HidingSpot for hide registry, engine-shipped particle textures only.
+-- Streaming soak: decorative hosts set CanCollide=false + CastShadow=false
+-- (and FarDress where they are pure scenery) so StreamingMinRadius=128 stays
+-- viable on phones — see ProductionMapService:_trimSmallPartShadows.
 
 local TweenService = game:GetService("TweenService")
 
@@ -99,6 +102,7 @@ local function emitterAt(
 	host.CanQuery = false
 	host.CanTouch = false
 	host.CastShadow = false
+	WorldKit.farDress(host)
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Texture = spec.texture
 	emitter.Color = spec.color
@@ -126,7 +130,7 @@ local function smokeColumn(parent: Instance, name: string, position: Vector3, sc
 			NumberSequenceKeypoint.new(0, 0.62),
 			NumberSequenceKeypoint.new(1, 1),
 		}),
-		rate = 2.4,
+		rate = 1.6,
 		speed = NumberRange.new(0.8, 1.4),
 		lifetime = NumberRange.new(3.5, 5.5),
 		acceleration = Vector3.new(0.35, 0.6, 0.1),
@@ -183,7 +187,7 @@ local function pathStrip(
 	local strip = WorldKit.part(parent, name, Vector3.new(width, 0.3, length),
 		CFrame.lookAt((flatFrom + flatTo) / 2, flatTo),
 		Color3.fromRGB(128, 108, 78), Enum.Material.Ground)
-	strip.CanCollide = false
+	WorldKit.farDress(strip)
 	strip.CanQuery = false
 end
 
@@ -1283,7 +1287,7 @@ local builders: { Builder } = {
 			CFrame.new(108, 4.32, 61) * CFrame.Angles(0, math.rad(14), 0),
 			Color3.fromRGB(214, 228, 244), Enum.Material.Neon)
 		shimmer.Transparency = 0.88
-		shimmer.CanCollide = false
+		WorldKit.farDress(shimmer)
 		shimmer.CanQuery = false
 	end },
 	{ label = "82 aurora ruin wisps", build = function(dayCamp, _)
@@ -1538,6 +1542,107 @@ local builders: { Builder } = {
 		end
 		if placed == 0 then
 			error("no picnic tables found")
+		end
+	end },
+	{ label = "101 lake pier lanterns", build = function(dayCamp, _)
+		local dock = dayCamp:FindFirstChild("MainDock", true)
+		if not (dock and dock:IsA("BasePart")) then
+			return
+		end
+		local m = WorldKit.model(dayCamp, "PolishLakeLanterns")
+		for i = -2, 2 do
+			local post = WorldKit.part(m, "LakeLanternPost" .. i,
+				Vector3.new(0.35, 4.2, 0.35),
+				dock.CFrame * CFrame.new(i * 3.8, 2.2, 2.2),
+				WOOD_DARK, Enum.Material.WoodPlanks)
+			local lampHead = WorldKit.part(m, "LakeLanternHead" .. i,
+				Vector3.new(0.75, 0.9, 0.75),
+				post.CFrame * CFrame.new(0, 2.2, 0),
+				Color3.fromRGB(248, 222, 168), Enum.Material.Neon)
+			lampHead.CanCollide = false
+			WorldKit.lamp(lampHead, { brightness = 1.2, range = 14 })
+		end
+	end },
+	{ label = "102 cabin window flower boxes", build = function(dayCamp, _)
+		local m = WorldKit.model(dayCamp, "PolishFlowerBoxes")
+		for _, cabinName in { "PineCabin", "CreekCabin", "SupplyCabin" } do
+			local cabin = dayCamp:FindFirstChild(cabinName)
+			if cabin then
+				local floor = cabin:FindFirstChild("Floor")
+				if floor and floor:IsA("BasePart") then
+					for side = -1, 1, 2 do
+						local box = WorldKit.part(m, cabinName .. "FlowerBox" .. side,
+							Vector3.new(2.4, 0.45, 0.55),
+							floor.CFrame * CFrame.new(side * 4.2, 4.8, -7.8),
+							WOOD, Enum.Material.WoodPlanks)
+						for petal = -1, 1 do
+							local bloom = WorldKit.part(m, cabinName .. "Bloom" .. side .. petal,
+								Vector3.new(0.35, 0.35, 0.35),
+								box.CFrame * CFrame.new(petal * 0.55, 0.45, 0),
+								Color3.fromRGB(196 + petal * 18, 88, 112), Enum.Material.Grass, Enum.PartType.Ball)
+							bloom.CanCollide = false
+						end
+					end
+				end
+			end
+		end
+	end },
+	{ label = "103 town window glow", build = function(_, nightTown)
+		for _, building in nightTown:GetChildren() do
+			if building:IsA("Model") then
+				for _, part in building:GetDescendants() do
+					if part:IsA("BasePart") and part.Name == "WindowGlass" then
+						local glow = Instance.new("PointLight")
+						glow.Name = "WindowGlow"
+						glow.Color = Color3.fromRGB(255, 214, 148)
+						glow.Brightness = 0.35
+						glow.Range = 8
+						glow.Shadows = false
+						glow.Enabled = false
+						glow:SetAttribute("CampLamp", true)
+						glow.Parent = part
+					end
+				end
+			end
+		end
+	end },
+	{ label = "104 trail cairn markers", build = function(dayCamp, _)
+		local m = WorldKit.model(dayCamp, "PolishTrailCairns")
+		local points = {
+			Vector3.new(-220, 2.5, 280),
+			Vector3.new(-280, 2.5, 360),
+			Vector3.new(-340, 2.5, 420),
+		}
+		for index, point in points do
+			for layer = 1, 3 do
+				local rock = WorldKit.part(m, "Cairn" .. index .. "Rock" .. layer,
+					Vector3.new(1.6 - layer * 0.25, 0.55, 1.4 - layer * 0.2),
+					CFrame.new(point + Vector3.new(0, layer * 0.35, 0))
+						* CFrame.Angles(0, math.rad(index * 18 + layer * 12), 0),
+					STONE, Enum.Material.Slate)
+				WorldKit.farDress(rock)
+			end
+		end
+	end },
+	{ label = "105 camp banner strings", build = function(dayCamp, _)
+		local m = WorldKit.model(dayCamp, "PolishBannerStrings")
+		local plaza = dayCamp:FindFirstChild("CampfirePlaza")
+		if not (plaza and plaza:IsA("BasePart")) then
+			return
+		end
+		for i = 0, 5 do
+			local banner = WorldKit.part(m, "FestiveBanner" .. i,
+				Vector3.new(2.8, 0.08, 1.1),
+				plaza.CFrame * CFrame.new(-8 + i * 3.2, 7.5, -2)
+					* CFrame.Angles(0, 0, math.rad(-8 + (i % 2) * 16)),
+				if i % 2 == 0 then RED else Color3.fromRGB(228, 184, 88),
+				Enum.Material.Fabric)
+			WorldKit.farDress(banner)
+			local rope = WorldKit.part(m, "BannerRope" .. i,
+				Vector3.new(0.06, 0.06, 3.6),
+				banner.CFrame * CFrame.new(0, 0.5, 0),
+				WOOD_PALE, Enum.Material.Rope)
+			WorldKit.farDress(rope)
 		end
 	end },
 }

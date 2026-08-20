@@ -15,6 +15,7 @@ local DEFAULT_SETTINGS = table.freeze({
 	sprintToggle = false,
 	tutorialCompleted = false,
 	autoEnroll = false,
+	preferQuickCamp = false,
 })
 
 local REWARDS = table.freeze({
@@ -38,6 +39,9 @@ local REWARDS = table.freeze({
 	-- tomorrow and the campfire pays a little better.
 	streakPerDayBonus = 0.10,
 	streakBonusMaxDays = 5,
+	-- Weekly featured cosmetic (CosmeticCatalog rotation): slight camp-token
+	-- discount only — never Robux or paid purchases.
+	featuredTokenDiscount = 0.15,
 })
 
 local function levelFromXP(xp: number): number
@@ -94,4 +98,5 @@ return table.freeze({
 	}),
 	levelFromXP = levelFromXP,
 	roleLevelFromXP = roleLevelFromXP,
+	featuredTokenDiscount = REWARDS.featuredTokenDiscount,
 })

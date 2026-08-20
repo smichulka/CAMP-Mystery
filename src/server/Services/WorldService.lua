@@ -131,15 +131,39 @@ function WorldService.new(
 end
 
 function WorldService:GetPublicSnapshot(): WorldPublicSnapshot
+	local nightRoute = self.variant.nightRoute
 	return {
 		roundId = self.roundId,
 		revision = self.revision,
 		roundSeed = self.roundSeed,
 		variantId = self.variant.id,
+		nightRoute = nightRoute,
+		worldRoute = nightRoute,
+		worldId = WorldManifest.worldId,
 		isNight = self.isNight,
 		transitionState = self.transitionState,
 		activeDistrictIds = cloneDistrictIds(self.activeDistrictIds),
 		evidenceActive = self.evidenceActive,
+	}
+end
+
+-- Preview the seeded night route for a future roundId without mutating state.
+-- Used by lobby chips before BeginRound / PrepareRound.
+function WorldService.PreviewRouteForRound(roundId: number): {
+	variantId: string,
+	nightRoute: WorldTypes.NightRouteId,
+	worldRoute: WorldTypes.NightRouteId,
+	worldId: string,
+	displayName: string,
+}
+	assert(roundId > 0 and roundId % 1 == 0, "roundId must be a positive integer")
+	local variant = selectVariant(deriveSeed(roundId))
+	return {
+		variantId = variant.id,
+		nightRoute = variant.nightRoute,
+		worldRoute = variant.nightRoute,
+		worldId = WorldManifest.worldId,
+		displayName = variant.displayName,
 	}
 end
 

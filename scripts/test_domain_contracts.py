@@ -203,6 +203,33 @@ class DomainContractTests(unittest.TestCase):
         )
         self.assertIn('return false, "StreakRequired"', profile_service)
 
+    def test_wave6_live_ops_surface(self) -> None:
+        catalog = read("src/shared/Config/CosmeticCatalog.lua")
+        for token in (
+            "FEATURED_ROTATION",
+            "GetFeaturedCosmeticId",
+            "GetTokenPrice",
+            "featuredWeek",
+        ):
+            self.assertIn(token, catalog)
+        progression = read("src/shared/Config/ProgressionConfig.lua")
+        self.assertIn("featuredTokenDiscount = 0.15", progression)
+        codex = read("src/shared/Config/CodexConfig.lua")
+        self.assertIn("wendigo-survive-3", codex)
+        self.assertIn("masteryTier", codex)
+        analytics = read("src/server/Services/AnalyticsService.lua")
+        self.assertIn("LogCustomEvent", analytics)
+        self.assertIn("JoinLobby", analytics)
+        self.assertNotIn("MarketplaceService", analytics)
+        soft_launch = read("docs/SOFT_LAUNCH_GATES.md")
+        self.assertIn("JoinLobby", soft_launch)
+        self.assertIn("MarketplaceService", soft_launch)
+        tips = read("src/shared/Config/TipCatalog.lua")
+        self.assertIn('category = "COUNTERPLAY"', tips)
+        self.assertIn("Monster Codex", tips)
+        profile_service = read("src/server/Services/ProfileService.lua")
+        self.assertIn("CosmeticCatalog.GetTokenPrice", profile_service)
+
     def test_launch_has_no_monetization_surface(self) -> None:
         forbidden = {
             "MarketplaceService",
@@ -231,6 +258,7 @@ class DomainContractTests(unittest.TestCase):
         source = read("src/server/Bootstrap.server.lua")
         for token in (
             'WaitForChild("GameRuntimeService")',
+            'WaitForChild("AnalyticsService")',
             "getGameState.OnServerInvoke",
             "requestAction.OnServerInvoke",
             "gameStateChanged:FireClient",
@@ -239,6 +267,7 @@ class DomainContractTests(unittest.TestCase):
         ):
             self.assertIn(token, source)
         self.assertNotIn("RoundService.new()", source)
+        self.assertNotIn("MarketplaceService", source)
 
     def test_runtime_closes_authority_and_moderation_gaps(self) -> None:
         source = read("src/server/Services/GameRuntimeService.lua")

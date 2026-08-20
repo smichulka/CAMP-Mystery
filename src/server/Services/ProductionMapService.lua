@@ -91,10 +91,10 @@ export type ProductionMapService = typeof(
 	setmetatable({} :: ProductionMapServiceState, ProductionMapService)
 )
 
-local DAY_AMBIENT = Color3.fromRGB(128, 139, 121)
+local DAY_AMBIENT = Color3.fromRGB(134, 144, 126)
 -- Full-moon night: bright enough to read the whole map, cool blue so it
 -- still reads as night rather than an underexposed day.
-local NIGHT_AMBIENT = Color3.fromRGB(94, 104, 130)
+local NIGHT_AMBIENT = Color3.fromRGB(98, 110, 138)
 local DOOR_TWEEN = TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 -- Baseline day fog distances used when weather thickens the air; clear days
 -- keep fog pushed out past the horizon.
@@ -382,6 +382,28 @@ local SEARCH_TARGETS = {
 		-- Open on its lectern at the old logging camp in the west reach.
 		position = Vector3.new(-419, 3.9, 173),
 		color = Color3.fromRGB(112, 92, 62),
+	},
+	-- Spooky Circus Fairgrounds (opt-in scare; soft mystery sockets only).
+	{
+		id = "circus-ticket-booth",
+		name = "Circus Ticket Booth",
+		-- Midway ticket counter; flat fairground slab seats near y 2.5.
+		position = Vector3.new(170, 5.9, 267),
+		color = Color3.fromRGB(148, 72, 86),
+	},
+	{
+		id = "midway-prize-counter",
+		name = "Midway Prize Counter",
+		-- Beside the bottle-toss games on the Midnight Circus midway.
+		position = Vector3.new(174, 5.7, 279.2),
+		color = Color3.fromRGB(96, 128, 118),
+	},
+	{
+		id = "fair-supplies",
+		name = "Fair Supplies Crate",
+		-- Daytime Midway Festival crate beside the bottle-toss row.
+		position = Vector3.new(178, 4.9, 274),
+		color = Color3.fromRGB(132, 108, 72),
 	},
 }
 
@@ -720,7 +742,7 @@ local function createCabin(
 	-- Stone foundation strip around the base
 	createPart(model, "Foundation", Vector3.new(width + 1.2, 1.8, 17.4),
 		CFrame.new(position + Vector3.new(0, -0.55, 0)),
-		stoneColor, Enum.Material.SmoothPlastic)
+		stoneColor, Enum.Material.Cobblestone)
 
 	local floor = createPart(
 		model,
@@ -1359,10 +1381,26 @@ local function createBuilding(
 	createPart(
 		model,
 		"Roof",
-		Vector3.new(size.X + 2, 1.5, size.Z + 2),
-		base * CFrame.new(0, size.Y + 0.75, 0),
-		Color3.fromRGB(41, 43, 46),
+		Vector3.new(size.X + 4, 1.8, size.Z + 4),
+		base * CFrame.new(0, size.Y + 0.9, 0),
+		Color3.fromRGB(36, 38, 42),
 		Enum.Material.Slate
+	)
+	createPart(
+		model,
+		"RoofCap",
+		Vector3.new(size.X + 2.4, 0.45, size.Z + 2.4),
+		base * CFrame.new(0, size.Y + 0.15, 0),
+		Color3.fromRGB(52, 54, 58),
+		Enum.Material.Metal
+	)
+	createPart(
+		model,
+		"Fascia",
+		Vector3.new(size.X + 1.6, 0.55, 0.65),
+		base * CFrame.new(0, size.Y + 0.1, -size.Z / 2 - 0.25),
+		Color3.fromRGB(58, 52, 46),
+		Enum.Material.WoodPlanks
 	)
 	local doorState = createInteractiveDoor(
 		model,
@@ -1382,14 +1420,37 @@ local function createBuilding(
 	)
 	createSign(sign, signText, Color3.fromRGB(194, 202, 191))
 	for column = -1, 1, 2 do
+		local frameColor = Color3.fromRGB(62, 54, 46)
+		local winY = size.Y * 0.48
+		local winX = column * size.X * 0.23
 		createPart(
 			model,
-			"BoardedWindow",
-			Vector3.new(5, 4, 0.4),
-			base * CFrame.new(column * size.X * 0.23, size.Y * 0.48, -size.Z / 2 - 0.25),
-			Color3.fromRGB(75, 63, 50),
+			"WindowFrame",
+			Vector3.new(5.4, 4.4, 0.35),
+			base * CFrame.new(winX, winY, -size.Z / 2 - 0.22),
+			frameColor,
 			Enum.Material.WoodPlanks
 		)
+		local glass = createPart(
+			model,
+			"WindowGlass",
+			Vector3.new(4.6, 3.6, 0.12),
+			base * CFrame.new(winX, winY, -size.Z / 2 - 0.28),
+			Color3.fromRGB(168, 198, 212),
+			Enum.Material.Glass,
+			0.42
+		)
+		glass.CanCollide = false
+		if math.abs(column) == 1 then
+			createPart(
+				model,
+				"WindowShutter",
+				Vector3.new(5.2, 4.2, 0.28),
+				base * CFrame.new(winX, winY, -size.Z / 2 - 0.32),
+				Color3.fromRGB(75, 63, 50),
+				Enum.Material.WoodPlanks
+			)
+		end
 	end
 	-- Crumbling plaster patches: exposed dark brick where facade has fallen off (Old Town 2/3 reference)
 	local damageC = Color3.fromRGB(46, 40, 35)
@@ -1449,8 +1510,8 @@ local function createStreetlight(parent: Instance, position: Vector3, startsDark
 	glow.Shape = Enum.PartType.Ball
 	-- Warm amber point light (matches Old Town 1 reference lamp colour)
 	local light = Instance.new("PointLight")
-	light.Brightness = 1.6
-	light.Range = 30
+	light.Brightness = 2.0
+	light.Range = 34
 	light.Color = Color3.fromRGB(255, 205, 140)
 	light.Parent = glow
 	if startsDark then
@@ -1501,22 +1562,23 @@ local function createPineTree(
 		Enum.Material.Wood
 	)
 	trunk:SetAttribute("Occluder", true)
-	for layer = 1, 5 do
-		local width = 13 - layer * 1.45
+	for layer = 1, 6 do
+		local width = 14 - layer * 1.35
+		local layerMaterial = if layer >= 5 then Enum.Material.LeafyGrass else Enum.Material.Grass
 		local canopy = createPart(
 			parent,
 			"PineCanopy",
-			Vector3.new(width, 5.2, width),
+			Vector3.new(width, 5.4, width),
 			CFrame.new(
 				position
 					+ Vector3.new(
 						if layer % 2 == 0 then 0.7 else -0.5,
-						height * 0.42 + layer * 2.65,
+						height * 0.40 + layer * 2.55,
 						if layer % 3 == 0 then 0.6 else -0.35
 					)
 			),
-			canopyColor:Lerp(Color3.fromRGB(26, 61, 39), layer * 0.035),
-			Enum.Material.Grass
+			canopyColor:Lerp(Color3.fromRGB(26, 61, 39), layer * 0.028),
+			layerMaterial
 		)
 		canopy.Shape = Enum.PartType.Ball
 		canopy.CanCollide = false
@@ -1639,11 +1701,16 @@ local function buildWaterTower(parent: Instance, position: Vector3)
 	createSign(signPlate, "WATER", Color3.fromRGB(148, 158, 148))
 end
 
+-- Daytime lighting baseline (boot + day reset). Tuned for a warm camp read
+-- without pushing Atmosphere density past the mobile fog budget; SetNight
+-- tweens from these values into the cooler night look.
 local function configureLighting()
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.32
-	Lighting.EnvironmentDiffuseScale = 0.35
-	Lighting.EnvironmentSpecularScale = 0.55
+	Lighting.ShadowSoftness = 0.18
+	Lighting.EnvironmentDiffuseScale = 0.48
+	Lighting.EnvironmentSpecularScale = 0.78
+	Lighting.Brightness = 2.55
+	Lighting.OutdoorAmbient = Color3.fromRGB(132, 142, 152)
 
 	local atmosphere = Lighting:FindFirstChild("CampAtmosphere")
 	if not atmosphere or not atmosphere:IsA("Atmosphere") then
@@ -1654,12 +1721,12 @@ local function configureLighting()
 		atmosphere.Name = "CampAtmosphere"
 		atmosphere.Parent = Lighting
 	end
-	atmosphere.Density = 0.28
-	atmosphere.Offset = 0.05
-	atmosphere.Color = Color3.fromRGB(192, 208, 196)
-	atmosphere.Decay = Color3.fromRGB(88, 108, 95)
-	atmosphere.Glare = 0.06
-	atmosphere.Haze = 1.85
+	atmosphere.Density = 0.34
+	atmosphere.Offset = 0.09
+	atmosphere.Color = Color3.fromRGB(204, 218, 206)
+	atmosphere.Decay = Color3.fromRGB(88, 108, 94)
+	atmosphere.Glare = 0.12
+	atmosphere.Haze = 2.4
 
 	local color = Lighting:FindFirstChild("CampColor")
 	if not color or not color:IsA("ColorCorrectionEffect") then
@@ -1670,10 +1737,10 @@ local function configureLighting()
 		color.Name = "CampColor"
 		color.Parent = Lighting
 	end
-	color.Brightness = 0.02
-	color.Contrast = 0.08
-	color.Saturation = -0.04
-	color.TintColor = Color3.fromRGB(255, 244, 221)
+	color.Brightness = 0.05
+	color.Contrast = 0.14
+	color.Saturation = 0.06
+	color.TintColor = Color3.fromRGB(255, 248, 230)
 
 	local bloom = Lighting:FindFirstChild("CampBloom")
 	if not bloom or not bloom:IsA("BloomEffect") then
@@ -1684,9 +1751,9 @@ local function configureLighting()
 		bloom.Name = "CampBloom"
 		bloom.Parent = Lighting
 	end
-	bloom.Intensity = 0.22
-	bloom.Size = 24
-	bloom.Threshold = 1.15
+	bloom.Intensity = 0.38
+	bloom.Size = 32
+	bloom.Threshold = 1.0
 
 	local rays = Lighting:FindFirstChild("CampSunRays")
 	if not rays or not rays:IsA("SunRaysEffect") then
@@ -1697,8 +1764,23 @@ local function configureLighting()
 		rays.Name = "CampSunRays"
 		rays.Parent = Lighting
 	end
-	rays.Intensity = 0.08
-	rays.Spread = 0.75
+	rays.Intensity = 0.18
+	rays.Spread = 0.86
+
+	local depth = Lighting:FindFirstChild("CampDepthOfField")
+	if not depth or not depth:IsA("DepthOfFieldEffect") then
+		if depth then
+			depth:Destroy()
+		end
+		depth = Instance.new("DepthOfFieldEffect")
+		depth.Name = "CampDepthOfField"
+		depth.Parent = Lighting
+	end
+	depth.Enabled = true
+	depth.FarIntensity = 0.10
+	depth.FocusDistance = 130
+	depth.InFocusRadius = 50
+	depth.NearIntensity = 0
 end
 
 local function hideDefaultBaseplate()
@@ -1713,15 +1795,14 @@ local function hideDefaultBaseplate()
 end
 
 -- World footprint. The original camp shipped on a 250x205 slab; the world-x2
--- pass grew it to 450x320; the third expansion to 560x440. This FOURTH
--- expansion doubles the play area: 800x620 (x -550..250, z -148..472), still
--- growing only NORTH and WEST. The south edge stays at -148 — Hollow Creek
--- town owns everything past it and extending the slab south buries the town's
--- street grid (learned the hard way, 2026-08-04). The east edge stays at 250
--- where the far-shore ridge walls the lake; north of the lake the ridge now
--- continues as boundary domes up to the new north edge.
-local WORLD_SLAB_CFRAME = CFrame.new(-150, -3.5, 162)
-local WORLD_SLAB_SIZE = Vector3.new(800, 8, 620)
+-- pass grew it to 450x320; the third expansion to 560x440; the fourth to
+-- 800x620. This FIFTH pass modestly grows north and west again: 830x670
+-- (x -580..250, z -148..522), still growing only NORTH and WEST. The south
+-- edge stays at -148 — Hollow Creek town owns everything past it and extending
+-- the slab south buries the town's street grid (learned the hard way, 2026-08-04).
+-- The east edge stays at 250 where the far-shore ridge walls the lake.
+local WORLD_SLAB_CFRAME = CFrame.new(-165, -3.5, 187)
+local WORLD_SLAB_SIZE = Vector3.new(830, 8, 670)
 
 -- Outer boundary hill ring. The original 14-dome ring stays put as interior
 -- foothills (the ranger station stilts and several props sit on those slopes),
@@ -1896,9 +1977,9 @@ local function buildCampTerrain(parent: Instance)
 	-- Widen the creek into a proper lake bay east of camp, with a sandy
 	-- beach along the western shore. Carve away any neighboring hill spill
 	-- above the waterline first so the bay stays open water.
-	terrain:FillCylinder(CFrame.new(105, 13, 48), 24, 42, Enum.Material.Air)
-	terrain:FillCylinder(CFrame.new(105, -0.8, 48), 4.8, 36, Enum.Material.Water)
-	terrain:FillCylinder(CFrame.new(112, -0.8, 22), 4.8, 26, Enum.Material.Water)
+	terrain:FillCylinder(CFrame.new(105, 13, 48), 24, 48, Enum.Material.Air)
+	terrain:FillCylinder(CFrame.new(105, -0.8, 48), 4.8, 42, Enum.Material.Water)
+	terrain:FillCylinder(CFrame.new(112, -0.8, 22), 4.8, 32, Enum.Material.Water)
 	-- Sand needs full voxel depth to dominate the grass at terrain resolution;
 	-- a thin cap simply blends away
 	terrain:FillCylinder(CFrame.new(78, -3.2, 48), 8.5, 16, Enum.Material.Sand)
@@ -1923,9 +2004,9 @@ local function buildCampTerrain(parent: Instance)
 	-- at z 190 (carve 193) short of Backcountry's extended scatter skip
 	-- (z < 200) and west of it the creek keeps an 8-stud bank (creek carve
 	-- reaches x ~137 there). Same vertical band as every other lake fill.
-	terrain:FillBlock(CFrame.new(170, 13, 122), Vector3.new(82, 24, 94), Enum.Material.Air)
-	terrain:FillBlock(CFrame.new(178, 13, 178), Vector3.new(66, 24, 30), Enum.Material.Air)
-	terrain:FillBlock(CFrame.new(203, 13, 20), Vector3.new(26, 24, 146), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(170, 13, 122), Vector3.new(94, 24, 106), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(178, 13, 186), Vector3.new(74, 24, 34), Enum.Material.Air)
+	terrain:FillBlock(CFrame.new(203, 13, 20), Vector3.new(30, 24, 152), Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(170, 13, -68), 24, 45, Enum.Material.Air)
 	terrain:FillCylinder(CFrame.new(158, 13, -36), 24, 33, Enum.Material.Air)
 	terrain:FillBlock(CFrame.new(120.5, 13, -72), Vector3.new(22, 24, 28), Enum.Material.Air)
@@ -1934,17 +2015,17 @@ local function buildCampTerrain(parent: Instance)
 	terrain:FillCylinder(CFrame.new(192, 0, 84), 8, 20, Enum.Material.Water) -- northeast corner
 	terrain:FillBlock(
 		CFrame.new(170, 0, 122),
-		Vector3.new(76, 8, 88),
+		Vector3.new(88, 8, 100),
 		Enum.Material.Water
 	) -- water-sports basin, main body
 	terrain:FillBlock(
-		CFrame.new(178, 0, 178),
-		Vector3.new(60, 8, 24),
+		CFrame.new(178, 0, 186),
+		Vector3.new(68, 8, 28),
 		Enum.Material.Water
 	) -- water-sports basin, north lobe
 	terrain:FillBlock(
 		CFrame.new(203, 0, 20),
-		Vector3.new(22, 8, 140),
+		Vector3.new(26, 8, 148),
 		Enum.Material.Water
 	) -- east channel behind Aurora
 	terrain:FillCylinder(CFrame.new(170, 0, -68), 8, 42, Enum.Material.Water) -- south basin
@@ -1958,10 +2039,11 @@ local function buildCampTerrain(parent: Instance)
 	-- The old north-basin-head beach at (160, 149) is open water now; its
 	-- replacement sits on the water-sports basin's north shore, plus a cove
 	-- on the east strip below the Aurora Overlook.
-	terrain:FillCylinder(CFrame.new(97, -3.2, 70), 8.5, 8, Enum.Material.Sand) -- swimming-hole cove
-	terrain:FillCylinder(CFrame.new(133, -3.2, -52), 8.5, 9, Enum.Material.Sand) -- south basin head
-	terrain:FillCylinder(CFrame.new(172, -3.2, 192), 8.5, 8, Enum.Material.Sand) -- north-shore beach
-	terrain:FillCylinder(CFrame.new(206, -3.2, 120), 8.5, 8, Enum.Material.Sand) -- overlook cove
+	terrain:FillCylinder(CFrame.new(97, -3.2, 70), 8.5, 10, Enum.Material.Sand) -- swimming-hole cove
+	terrain:FillCylinder(CFrame.new(133, -3.2, -52), 8.5, 11, Enum.Material.Sand) -- south basin head
+	terrain:FillCylinder(CFrame.new(172, -3.2, 200), 8.5, 10, Enum.Material.Sand) -- north-shore beach
+	terrain:FillCylinder(CFrame.new(206, -3.2, 120), 8.5, 10, Enum.Material.Sand) -- overlook cove
+	terrain:FillCylinder(CFrame.new(188, -3.2, 148), 8.5, 9, Enum.Material.Sand) -- east basin cove
 
 	-- Sits below the storm-cellar tunnel (floor ~-6.9) so the passage can be
 	-- carved through the terrain block above it
@@ -1989,8 +2071,8 @@ local function buildCampTerrain(parent: Instance)
 		-- Wider than the slab: the far-shore ridge dome bulges past the east
 		-- edge and its outer flank would otherwise walk around the wall's end.
 		-- Width tracks the fourth-expansion slab (x -550..250).
-		Vector3.new(900, 34, 2),
-		CFrame.new(-150, 13, -110),
+		Vector3.new(930, 34, 2),
+		CFrame.new(-165, 13, -110),
 		Color3.fromRGB(59, 82, 52),
 		Enum.Material.SmoothPlastic,
 		1
@@ -2255,9 +2337,9 @@ function ProductionMapService:Build()
 		-- moved boundary domes instead of drowning in them.
 		local boundaryRuns: { { number } } = {
 			-- { fromX, fromZ, toX, toZ }
-			{ -510, 446, 228, 446 }, -- north edge
-			{ -512, -120, -512, 432 }, -- west edge
-			{ 234, 200, 234, 428 }, -- northeast span, north of the lake
+			{ -540, 496, 228, 496 }, -- north edge
+			{ -542, -120, -542, 482 }, -- west edge
+			{ 234, 200, 234, 478 }, -- northeast span, north of the lake
 		}
 		for runIndex, run in boundaryRuns do
 			local fromX, fromZ, toX, toZ = run[1], run[2], run[3], run[4]
@@ -3826,6 +3908,12 @@ function ProductionMapService:Build()
 	self:_trimSmallPartShadows()
 end
 
+-- Streaming soak helpers (Workspace StreamingMinRadius = 128 in
+-- default.project.json under Workspace.$properties): keep far dressing cheap
+-- so chunk streaming on phones stays smooth. Small parts and anything tagged
+-- FarDress skip the shadow atlas; FarDress also drops collision when packs
+-- forgot CanCollide. Prefer WorldKit.farDress(part) when authoring scenery.
+--
 -- One post-build pass: small dressing parts (weeds, corn blades, road
 -- stripes, balusters, pebbles — a few thousand across both districts) each
 -- get drawn into the shadow atlas despite casting shadows nobody can see.
@@ -3834,11 +3922,22 @@ end
 function ProductionMapService:_trimSmallPartShadows()
 	local trimmed = 0
 	for _, descendant in self.mapFolder:GetDescendants() do
-		if descendant:IsA("BasePart") and descendant.CastShadow then
-			local size = descendant.Size
-			if size.X * size.Y * size.Z < 1.5 then
-				descendant.CastShadow = false
-				trimmed += 1
+		if descendant:IsA("BasePart") then
+			local farDress = descendant:GetAttribute("FarDress") == true
+			if farDress then
+				if descendant.CastShadow then
+					descendant.CastShadow = false
+					trimmed += 1
+				end
+				if descendant.CanCollide then
+					descendant.CanCollide = false
+				end
+			elseif descendant.CastShadow then
+				local size = descendant.Size
+				if size.X * size.Y * size.Z < 1.5 then
+					descendant.CastShadow = false
+					trimmed += 1
+				end
 			end
 		end
 	end
@@ -4611,51 +4710,52 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		Enum.EasingDirection.InOut
 	)
 	if isNight then
-		Lighting.ClockTime = 1.25
+		Lighting.ClockTime = 1.15
 		-- Weather fog stacks multiplicatively with the generator consequence:
 		-- a powered camp still sees farther through the same weather.
 		TweenService:Create(Lighting, transition, {
-			Brightness = (if powered then 1.85 else 1.55)
+			Brightness = (if powered then 1.95 else 1.62)
 				* weather.brightnessMultiplier,
 			Ambient = weather.nightAmbientOverride
 				or scaleColor(NIGHT_AMBIENT, weather.ambientMultiplier),
 			OutdoorAmbient = weather.nightOutdoorAmbientOverride
 				or scaleColor(
 					if powered
-						then Color3.fromRGB(126, 138, 170)
-						else Color3.fromRGB(104, 116, 148),
+						then Color3.fromRGB(132, 146, 178)
+						else Color3.fromRGB(108, 122, 156),
 					weather.ambientMultiplier
 				),
-			FogColor = weather.nightFogColorOverride or Color3.fromRGB(52, 62, 82),
-			FogStart = (if powered then 160 else 110) * weather.fogStartMultiplier,
-			FogEnd = (if powered then 1200 else 900) * weather.fogEndMultiplier,
+			FogColor = weather.nightFogColorOverride or Color3.fromRGB(48, 58, 78),
+			FogStart = (if powered then 150 else 100) * weather.fogStartMultiplier,
+			FogEnd = (if powered then 1150 else 860) * weather.fogEndMultiplier,
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = math.min(0.26 * weather.atmosphereDensityMultiplier, 0.55),
+				-- Cap density so storm multipliers cannot white-out phones.
+				Density = math.min(0.28 * weather.atmosphereDensityMultiplier, 0.55),
 				Offset = 0,
 				Color = weather.nightAtmosphereColorOverride
-					or Color3.fromRGB(118, 132, 152),
+					or Color3.fromRGB(112, 128, 152),
 				Decay = weather.nightAtmosphereDecayOverride
-					or Color3.fromRGB(48, 58, 84),
-				Glare = 0.14,
-				Haze = 1.6,
+					or Color3.fromRGB(44, 54, 80),
+				Glare = 0.16,
+				Haze = 1.85,
 			}):Play()
 		end
 		if color and color:IsA("ColorCorrectionEffect") then
 			TweenService:Create(color, transition, {
-				Brightness = 0.05,
-				Contrast = 0.16,
+				Brightness = 0.04,
+				Contrast = 0.18,
 				-- The blood moon keeps more color so the red reads as red.
-				Saturation = if weather.nightTintOverride then -0.18 else -0.26,
+				Saturation = if weather.nightTintOverride then -0.14 else -0.22,
 				TintColor = weather.nightTintOverride
-					or Color3.fromRGB(172, 192, 220),
+					or Color3.fromRGB(168, 190, 222),
 			}):Play()
 		end
 		if bloom and bloom:IsA("BloomEffect") then
 			TweenService:Create(bloom, transition, {
-				Intensity = 0.42,
-				Threshold = 0.82,
+				Intensity = 0.48,
+				Threshold = 0.78,
 			}):Play()
 		end
 		if rays and rays:IsA("SunRaysEffect") then
@@ -4665,13 +4765,13 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		Lighting.ClockTime = 14.2
 		local weatherFoggedDay = weather.fogEndMultiplier < 1
 		TweenService:Create(Lighting, transition, {
-			Brightness = 2.1 * weather.brightnessMultiplier,
+			Brightness = 2.35 * weather.brightnessMultiplier,
 			Ambient = scaleColor(DAY_AMBIENT, weather.ambientMultiplier),
 			OutdoorAmbient = scaleColor(
-				Color3.fromRGB(135, 142, 128),
+				Color3.fromRGB(138, 146, 132),
 				weather.ambientMultiplier
 			),
-			FogColor = Color3.fromRGB(188, 201, 188),
+			FogColor = Color3.fromRGB(192, 206, 192),
 			FogStart = if weatherFoggedDay
 				then DAY_WEATHER_FOG_START * weather.fogStartMultiplier
 				else 0,
@@ -4681,26 +4781,26 @@ function ProductionMapService:SetNight(isNight: boolean, options: NightOptions?)
 		}):Play()
 		if atmosphere and atmosphere:IsA("Atmosphere") then
 			TweenService:Create(atmosphere, transition, {
-				Density = math.min(0.22 * weather.atmosphereDensityMultiplier, 0.45),
-				Offset = 0.05,
-				Color = Color3.fromRGB(199, 213, 200),
-				Decay = Color3.fromRGB(92, 111, 98),
-				Glare = 0.08,
-				Haze = 1.15,
+				Density = math.min(0.24 * weather.atmosphereDensityMultiplier, 0.45),
+				Offset = 0.08,
+				Color = Color3.fromRGB(204, 218, 206),
+				Decay = Color3.fromRGB(88, 108, 94),
+				Glare = 0.11,
+				Haze = 1.35,
 			}):Play()
 		end
 		if color and color:IsA("ColorCorrectionEffect") then
 			TweenService:Create(color, transition, {
-				Brightness = 0.02,
-				Contrast = 0.08,
-				Saturation = -0.04,
-				TintColor = Color3.fromRGB(255, 244, 221),
+				Brightness = 0.04,
+				Contrast = 0.12,
+				Saturation = 0.02,
+				TintColor = Color3.fromRGB(255, 246, 226),
 			}):Play()
 		end
 		if bloom and bloom:IsA("BloomEffect") then
 			TweenService:Create(bloom, transition, {
-				Intensity = 0.22,
-				Threshold = 1.15,
+				Intensity = 0.30,
+				Threshold = 1.05,
 			}):Play()
 		end
 		if rays and rays:IsA("SunRaysEffect") then

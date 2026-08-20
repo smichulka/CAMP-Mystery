@@ -31,6 +31,14 @@ export type LobbySnapshot = {
 	serverNow: number,
 	activeRoundId: string?,
 	players: { LobbyPlayerSnapshot },
+	-- Ready players who toggled Quick Camp in the lobby card (Track B pacing).
+	quickCampPreferCount: number?,
+	quickCampReadyCount: number?,
+	-- Wave 5: preview of the next seeded night route (same Place).
+	nightRoute: string?,
+	worldRoute: string?,
+	worldId: string?,
+	nightRouteDisplayName: string?,
 }
 
 export type RosterParticipant = {
