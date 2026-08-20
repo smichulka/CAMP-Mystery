@@ -249,6 +249,21 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("self.counselorAnimationTracks = {}", characters)
         self.assertIn("self.monsterAnimationTrack = nil", characters)
 
+    def test_camper_look_applied_only_after_torso_weld(self) -> None:
+        character = source("Services/CharacterService.lua")
+        project = (ROOT / "default.project.json").read_text(encoding="utf-8")
+        self.assertIn('"LoadCharacterAppearance": true', project)
+        self.assertIn("resolveTorso", character)
+        self.assertIn("weldAccent(", character)
+        self.assertIn('band:FindFirstChild("AccentWeld")', character)
+        weld_call = character.index("weldAccent(")
+        accent_check = character.index('band:FindFirstChild("AccentWeld")')
+        post_weld_applied = character.index(
+            'SetAttribute("CamperLookApplied", true)',
+            accent_check,
+        )
+        self.assertLess(weld_call, accent_check)
+        self.assertLess(accent_check, post_weld_applied)
 
     def test_request_0090_reward_calculation_role_split(self) -> None:
         reward = (ROOT / "src/server/Systems/RewardCalculation.lua").read_text(encoding="utf-8")

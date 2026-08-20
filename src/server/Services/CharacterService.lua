@@ -79,18 +79,35 @@ local function weldAccent(
 	part.Parent = character
 end
 
+local function resolveTorso(character: Model): BasePart?
+	local existing = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	if existing and existing:IsA("BasePart") then
+		return existing
+	end
+	-- Prefer UpperTorso for R15, but do not burn a full timeout when the rig is R6.
+	local upper = character:WaitForChild("UpperTorso", 8)
+	if upper and upper:IsA("BasePart") then
+		return upper
+	end
+	local classic = character:FindFirstChild("Torso") or character:WaitForChild("Torso", 2)
+	if classic and classic:IsA("BasePart") then
+		return classic
+	end
+	return nil
+end
+
 local function applyCamperLook(player: Player, character: Model)
 	if character:GetAttribute("CamperLookApplied") then
 		return
 	end
 
-	local humanoidInstance = character:WaitForChild("Humanoid", 10)
-	local torso = character:WaitForChild("UpperTorso", 10)
-		or character:WaitForChild("Torso", 10)
+	local humanoidInstance = character:FindFirstChildOfClass("Humanoid")
+		or character:WaitForChild("Humanoid", 10)
+	local torso = resolveTorso(character)
 	if
 		not humanoidInstance
 		or not humanoidInstance:IsA("Humanoid")
-		or not (torso and torso:IsA("BasePart"))
+		or not torso
 		or not character.Parent
 	then
 		return
@@ -102,18 +119,24 @@ local function applyCamperLook(player: Player, character: Model)
 	local colorName = PALETTE_COLOR_NAMES[outfitSlot] or string.format("Slot%d", outfitSlot)
 	character:SetAttribute("CamperOutfitColor", colorName)
 	character:SetAttribute("CamperOutfitSlot", outfitSlot)
-	character:SetAttribute("CamperLookApplied", true)
 
 	if character:FindFirstChild("CampArmband") then
+		character:SetAttribute("CamperLookApplied", true)
 		return
 	end
+
 	local band = makeAccentPart("CampArmband", Vector3.new(0.55, 0.18, 0.08), outfitColor)
 	weldAccent(
 		character,
-		torso :: BasePart,
+		torso,
 		band,
-		CFrame.new(-((torso :: BasePart).Size.X * 0.5 + 0.08), (torso :: BasePart).Size.Y * 0.18, 0)
+		CFrame.new(-(torso.Size.X * 0.5 + 0.08), torso.Size.Y * 0.18, 0)
 	)
+
+	-- Only mark applied after the torso weld path completed successfully.
+	if band.Parent == character and band:FindFirstChild("AccentWeld") then
+		character:SetAttribute("CamperLookApplied", true)
+	end
 end
 
 function CharacterService.new(): CharacterService
