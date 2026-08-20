@@ -125,6 +125,11 @@ class PhaseCinematicsTests(unittest.TestCase):
             "self.evidenceStatuses[evidenceKey]",
             "self.evidenceStatuses = nextEvidenceStatuses",
             "Motion.StaggerChildren(evidenceList",
+            '"DeductionHint"',
+            "Planted clues frame someone. Real clues converge.",
+            "NotebookView.ShouldShowDeductionHint",
+            "NotebookView.ApplyDeductionHint",
+            "function GameView:_updateDeductionHint",
         ):
             self.assertIn(token, combined)
 
@@ -573,19 +578,27 @@ class PhaseCinematicsTests(unittest.TestCase):
             '"HUNT OBJECTIVE\\nEliminate %s. Avoid discovery. Use your ability when the time is right."',
             '"NIGHT OBJECTIVE\\nCollect and post clues: %d of %d"',
             '"OBSERVING\\nYou joined mid-round. Watch the investigation unfold."',
-            '"OBSERVING\\nYou are a ghost. Watch as the survivors investigate."',
+            "MissionView.GhostMissionCopy(",
+            "GHOST OBJECTIVE",
+            "Help camp",
             '"All clues collected. Return for the Campfire."',
             "All evidence is on the board. Stay composed",
         ):
-            self.assertIn(token, view)
+            self.assertTrue(
+                token in view or token in mission,
+                f"missing investigation token: {token}",
+            )
         # MurderPlanning phase: four-role objective labels
         for token in (
             '"MURDERER OBJECTIVE\\nEliminate %s. Frame the evidence."',
             '"PREPARATION\\nSomething is coming. Secure your equipment and stay alert."',
-            '"OBSERVING\\nYou are a ghost. Watch the night unfold."',
+            "MissionView.GhostMissionCopy(",
             '"OBSERVING\\nThe night phase is beginning. Watch what unfolds."',
         ):
-            self.assertIn(token, view)
+            self.assertTrue(
+                token in view or token in mission,
+                f"missing murder-planning token: {token}",
+            )
         # NightTransform phase: louder day→night payoff via MissionView
         for token in (
             "MissionView.NightPayoffCopy(",

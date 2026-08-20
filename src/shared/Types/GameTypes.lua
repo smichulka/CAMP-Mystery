@@ -70,6 +70,7 @@ export type RoundSnapshot = {
 	worldId: string?,
 	campfireStage: string?,
 	votingOpensAt: number?,
+	campfireStageEndsAt: number?,
 	discussionLog: { DiscussionEntry }?,
 }
 

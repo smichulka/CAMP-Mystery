@@ -714,6 +714,12 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('participant.role == "Murderer"', campfire_block)
         self.assertIn("self.murderPlan.frameParticipantId", campfire_block)
         self.assertIn("caseUtility = 24", campfire_block)
+        # Cycle 4: varied cite strings + rebuttal contradicts known planted/fake
+        self.assertIn("campfireCiteReason(", campfire_block)
+        self.assertIn('Presenting "%s" — %s. That points at %s.', campfire_block)
+        self.assertIn('VerifiedFake', campfire_block)
+        self.assertIn('authenticity == "Planted"', campfire_block)
+        self.assertIn('That clue looks planted:', campfire_block)
         # addRoleAction: Detective/Medium have high informationValue; Murderer has zero teamValue
         self.assertIn(
             'if participant.role == "Detective" or participant.role == "Medium"',
@@ -4222,6 +4228,7 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('self.campfireStage = "Rebuttal"', campfire_block)
         self.assertIn('self.campfireStage = "Voting"', campfire_block)
         self.assertIn("campfireTheaterSeconds()", campfire_block)
+        self.assertIn("self.campfireStageEndsAt = self.phaseStartedAt + presentSeconds", campfire_block)
         self.assertIn('"Rebuttal is over — lock in your accusation."', campfire_block)
 
         # Bots pair with anyone standing nearby and otherwise wait holding an end

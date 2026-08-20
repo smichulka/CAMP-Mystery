@@ -5,11 +5,58 @@ local Theme = require(script.Parent:WaitForChild("Theme"))
 
 local NotebookView = {}
 
+NotebookView.DEDUCTION_HINT = "Planted clues frame someone. Real clues converge."
+NotebookView.DEDUCTION_HINT_FAKE =
+	"A planted clue was contradicted — frames someone. Real clues converge."
+NotebookView.DEDUCTION_HINT_COMPARE =
+	"Compare three clues. Planted clues frame someone; real clues converge."
+
 type BuildDeps = {
 	makeHeader: (parent: Instance, title: string, closeCallback: () -> ()) -> (),
 	setModalVisible: (modal: GuiObject, visible: boolean) -> (),
 	addCanvasSizing: (scroll: ScrollingFrame, layout: UIListLayout) -> (),
 }
+
+function NotebookView.ShouldShowDeductionHint(phase: string): boolean
+	return phase == "Investigation" or phase == "Campfire"
+end
+
+function NotebookView.DeductionHintCopy(
+	hasVerifiedFake: boolean,
+	compareCallout: boolean
+): string
+	if hasVerifiedFake then
+		return NotebookView.DEDUCTION_HINT_FAKE
+	end
+	if compareCallout then
+		return NotebookView.DEDUCTION_HINT_COMPARE
+	end
+	return NotebookView.DEDUCTION_HINT
+end
+
+function NotebookView.ApplyDeductionHint(
+	self: any,
+	visible: boolean,
+	text: string?
+)
+	local hint = self.deductionHint
+	local list = self.evidenceList
+	if not hint or not list then
+		return
+	end
+	hint.Visible = visible
+	if visible and type(text) == "string" and text ~= "" then
+		hint.Text = text
+	end
+	-- Keep the ruled list clear of the teaching strip when it is showing.
+	if visible then
+		list.Position = UDim2.fromOffset(18, 142)
+		list.Size = UDim2.new(1, -36, 1, -160)
+	else
+		list.Position = UDim2.fromOffset(18, 108)
+		list.Size = UDim2.new(1, -36, 1, -126)
+	end
+end
 
 function NotebookView.Build(self: any, deps: BuildDeps)
 	deps.makeHeader(self.notebook, "EVIDENCE NOTEBOOK", function()
@@ -54,6 +101,31 @@ function NotebookView.Build(self: any, deps: BuildDeps)
 	summary.TextColor3 = Theme.Notebook.InkMuted
 	summary.ZIndex = 2
 	self.evidenceSummary = summary
+
+	-- Teaching strip: planted-vs-real drill during Investigation / Campfire.
+	local deductionHint = Components.Label(
+		self.notebook,
+		"DeductionHint",
+		NotebookView.DEDUCTION_HINT,
+		12,
+		Enum.Font.GothamBold
+	)
+	deductionHint.Position = UDim2.fromOffset(20, 108)
+	deductionHint.Size = UDim2.new(1, -40, 0, 28)
+	deductionHint.TextColor3 = Theme.Colors.Amber
+	deductionHint.TextWrapped = true
+	deductionHint.TextXAlignment = Enum.TextXAlignment.Left
+	deductionHint.TextYAlignment = Enum.TextYAlignment.Center
+	deductionHint.BackgroundColor3 = Theme.Notebook.TapeColor
+	deductionHint.BackgroundTransparency = 0.35
+	deductionHint.Visible = false
+	deductionHint.ZIndex = 2
+	Components.Corner(deductionHint, 6)
+	local hintPad = Instance.new("UIPadding")
+	hintPad.PaddingLeft = UDim.new(0, 10)
+	hintPad.PaddingRight = UDim.new(0, 10)
+	hintPad.Parent = deductionHint
+	self.deductionHint = deductionHint
 
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "EvidenceList"

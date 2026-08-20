@@ -102,6 +102,11 @@ type GameViewState = {
 	hauntPanel: Frame?,
 	hauntFill: Frame?,
 	hauntHint: TextLabel?,
+	ghostObjectiveStrip: TextLabel?,
+	deductionHint: TextLabel?,
+	deductionCompareCalloutShown: boolean,
+	deductionComparePending: boolean,
+	deductionCompareSticky: boolean,
 	eliminatedBanner: Frame?,
 	eliminatedMode: boolean,
 	hotbar: ScrollingFrame,
@@ -1069,6 +1074,28 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 	hauntFill.Parent = hauntTrack
 	Components.Corner(hauntFill, 4)
 
+	-- Persistent ghost duty strip (help / protect / observe).
+	local ghostObjectiveStrip = Components.Label(
+		root,
+		"GhostObjectiveStrip",
+		MissionView.GhostAgencyStrip("Camper"),
+		10,
+		Theme.Typography.CaptionFont
+	)
+	ghostObjectiveStrip.AnchorPoint = Vector2.new(1, 0)
+	ghostObjectiveStrip.Position = UDim2.new(1, -18, 0, 216)
+	ghostObjectiveStrip.Size = UDim2.fromOffset(220, 36)
+	ghostObjectiveStrip.BackgroundColor3 = Theme.Colors.Panel
+	ghostObjectiveStrip.BackgroundTransparency = 0.08
+	ghostObjectiveStrip.TextColor3 = Theme.Colors.Ghost
+	ghostObjectiveStrip.TextWrapped = true
+	ghostObjectiveStrip.TextXAlignment = Enum.TextXAlignment.Center
+	ghostObjectiveStrip.TextYAlignment = Enum.TextYAlignment.Center
+	ghostObjectiveStrip.Visible = false
+	ghostObjectiveStrip.ZIndex = 35
+	Components.Corner(ghostObjectiveStrip, 8)
+	Components.Stroke(ghostObjectiveStrip, Theme.Colors.Ghost, 1)
+
 	local hauntHint = Components.Label(
 		hauntPanel,
 		"HauntHint",
@@ -1201,6 +1228,11 @@ function GameView.new(actionHandler: ActionHandler, imageResolver: ImageResolver
 		hauntPanel = hauntPanel,
 		hauntFill = hauntFill,
 		hauntHint = hauntHint,
+		ghostObjectiveStrip = ghostObjectiveStrip,
+		deductionHint = nil :: any,
+		deductionCompareCalloutShown = false,
+		deductionComparePending = false,
+		deductionCompareSticky = false,
 		eliminatedBanner = nil,
 		eliminatedMode = false,
 		hotbar = hotbar,
@@ -1445,6 +1477,7 @@ function GameView:_buildVote()
 		setModalVisible = setModalVisible,
 		addCanvasSizing = addCanvasSizing,
 		readString = readString,
+		readNumber = readNumber,
 	})
 end
 
@@ -2204,6 +2237,7 @@ function GameView:_buildAnnouncements()
 	body.Position = UDim2.fromOffset(18, 40)
 	body.Size = UDim2.new(1, -36, 0, 32)
 	body.TextXAlignment = Enum.TextXAlignment.Center
+	body.TextWrapped = true
 	body.ZIndex = 31
 	self.announcement = banner
 	self.announcementTitle = title
@@ -4018,23 +4052,47 @@ function GameView:_ensureDiscussionPanel()
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = panel
+	local accent = Instance.new("Frame")
+	accent.Name = "StageAccent"
+	accent.BackgroundColor3 = Theme.Colors.Gold
+	accent.BorderSizePixel = 0
+	accent.Position = UDim2.fromOffset(0, 0)
+	accent.Size = UDim2.new(0, 6, 1, 0)
+	accent.ZIndex = panel.ZIndex + 1
+	accent.Parent = panel
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"
 	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, -24, 0, 34)
-	title.Position = UDim2.fromOffset(12, 8)
-	title.Font = Enum.Font.GothamBold
+	title.Size = UDim2.new(0.58, -20, 0, 28)
+	title.Position = UDim2.fromOffset(18, 10)
+	title.Font = Enum.Font.GothamBlack
 	title.Text = "PRESENT EVIDENCE"
-	title.TextColor3 = Color3.fromRGB(244, 224, 176)
+	title.TextColor3 = Theme.Colors.Gold
 	title.TextSize = 20
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextStrokeColor3 = Theme.Colors.Black
+	title.TextStrokeTransparency = 0.35
 	title.ZIndex = panel.ZIndex + 1
 	title.Parent = panel
+	local countdown = Instance.new("TextLabel")
+	countdown.Name = "StageCountdown"
+	countdown.BackgroundTransparency = 1
+	countdown.AnchorPoint = Vector2.new(1, 0)
+	countdown.Size = UDim2.new(0.42, -16, 0, 28)
+	countdown.Position = UDim2.new(1, -12, 0, 10)
+	countdown.Font = Enum.Font.GothamBold
+	countdown.Text = ""
+	countdown.TextColor3 = Theme.Colors.Text
+	countdown.TextSize = 13
+	countdown.TextXAlignment = Enum.TextXAlignment.Right
+	countdown.ZIndex = panel.ZIndex + 1
+	countdown.Parent = panel
+	self.discussionStageCountdown = countdown
 	local hint = Instance.new("TextLabel")
 	hint.Name = "Hint"
 	hint.BackgroundTransparency = 1
-	hint.Size = UDim2.new(1, -24, 0, 44)
-	hint.Position = UDim2.fromOffset(12, 42)
+	hint.Size = UDim2.new(1, -30, 0, 44)
+	hint.Position = UDim2.fromOffset(18, 42)
 	hint.Font = Enum.Font.Gotham
 	hint.Text = "Present your strongest notebook evidence [N]. Rebuttal comes next, then votes lock."
 	hint.TextColor3 = Color3.fromRGB(214, 219, 212)
@@ -4047,8 +4105,8 @@ function GameView:_ensureDiscussionPanel()
 	log.Name = "DiscussionLog"
 	log.BackgroundTransparency = 1
 	log.BorderSizePixel = 0
-	log.Size = UDim2.new(1, -24, 1, -100)
-	log.Position = UDim2.fromOffset(12, 92)
+	log.Size = UDim2.new(1, -30, 1, -100)
+	log.Position = UDim2.fromOffset(18, 92)
 	log.CanvasSize = UDim2.new(0, 0, 0, 0)
 	log.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	log.ScrollBarThickness = 4
@@ -4155,7 +4213,7 @@ function GameView:_updateVote(round: any, player: any)
 	end
 	-- Older snapshots: missing stage ⇒ open voting. "Discussion" is a legacy present beat.
 	local campfireStage = readString(round, "campfireStage", "Voting")
-	VoteView.ApplyCampfireStage(self, campfireStage)
+	VoteView.ApplyCampfireStage(self, campfireStage, round)
 	local isTalkStage = campfireStage == "PresentEvidence"
 		or campfireStage == "Discussion"
 		or campfireStage == "Rebuttal"
@@ -4336,6 +4394,15 @@ function GameView:SetGhostMode(active: boolean)
 	if not active and self.hauntPanel then
 		self.hauntPanel.Visible = false
 	end
+	local ghostStrip = self.ghostObjectiveStrip
+	if ghostStrip then
+		ghostStrip.Visible = active
+		if active then
+			local player = if type(self.currentState) == "table" then self.currentState.player else nil
+			local role = readString(player, "role", "")
+			ghostStrip.Text = MissionView.GhostAgencyStrip(role)
+		end
+	end
 	self.interaction.BackgroundTransparency = if active then 0.45 else Theme.PanelTransparency
 	self.interactionKey.TextTransparency = if active then 0.5 else 0
 	self.interactionText.TextTransparency = if active then 0.5 else 0
@@ -4357,11 +4424,15 @@ function GameView:UpdateGhostHaunt(ghost: any)
 	local panel = self.hauntPanel
 	local fill = self.hauntFill
 	local hint = self.hauntHint
+	local strip = self.ghostObjectiveStrip
 	if not panel or not fill or not hint then
 		return
 	end
 	if not self.ghostMode or type(ghost) ~= "table" then
 		panel.Visible = false
+		if strip and not self.ghostMode then
+			strip.Visible = false
+		end
 		return
 	end
 	local meter = if type(ghost.hauntMeter) == "number" then ghost.hauntMeter else 0
@@ -4371,6 +4442,7 @@ function GameView:UpdateGhostHaunt(ghost: any)
 	local fraction = math.clamp(meter / maximum, 0, 1)
 	panel.Visible = true
 	fill.Size = UDim2.fromScale(fraction, 1)
+	local progress = MissionView.GhostSnapshotProgress(ghost)
 	if ghost.hauntReady == true then
 		hint.Text = "HAUNT READY — press H"
 		hint.TextColor3 = Theme.Colors.Gold
@@ -4381,6 +4453,69 @@ function GameView:UpdateGhostHaunt(ghost: any)
 		)
 		hint.TextColor3 = Theme.Colors.TextMuted
 	end
+	local player = if type(self.currentState) == "table" then self.currentState.player else nil
+	local role = readString(player, "role", "")
+	if strip then
+		strip.Visible = true
+		strip.Text = MissionView.GhostAgencyStrip(role) .. "\n" .. progress
+	end
+	-- Keep mission panel ghost goals live while HauntSync ticks.
+	local round = if type(self.currentState) == "table" then self.currentState.round else nil
+	local phase = readString(round, "phase", "")
+	if phase == "Investigation" or phase == "Campfire" or phase == "Day"
+		or phase == "MurderPlanning" or phase == "NightTransform"
+	then
+		local progressLine, objectiveBody = MissionView.GhostMissionCopy(ghost, role, phase)
+		self.progressLabel.Text = progressLine
+		self.objectiveText.Text = objectiveBody
+	end
+end
+
+function GameView:_updateDeductionHint(state: any, round: any)
+	local phase = readString(round, "phase", "")
+	local show = NotebookView.ShouldShowDeductionHint(phase)
+	local hasVerifiedFake = false
+	local clueCount = 0
+	local board = if type(state) == "table" then state.evidence else nil
+	local mystery = if type(state) == "table" then state.mystery else nil
+	if type(board) == "table" then
+		for _, record in asTable(board.culpritEvidence) do
+			if type(record) == "table" then
+				clueCount += 1
+				if readString(record, "verificationState", "") == "VerifiedFake" then
+					hasVerifiedFake = true
+				end
+			end
+		end
+		for _, record in asTable(board.monsterEvidence) do
+			if type(record) == "table" then
+				clueCount += 1
+				if readString(record, "verificationState", "") == "VerifiedFake" then
+					hasVerifiedFake = true
+				end
+			end
+		end
+	end
+	if type(mystery) == "table" then
+		clueCount += #asTable(mystery.clues)
+	end
+	-- Arm a one-time compare drill once the board has enough material.
+	if show and clueCount >= 2 and not self.deductionCompareCalloutShown then
+		self.deductionComparePending = true
+	end
+	local notebookOpen = modalTargetVisible(self.notebook)
+	if not notebookOpen then
+		self.deductionCompareSticky = false
+	end
+	local compareCallout = self.deductionCompareSticky == true
+	if notebookOpen and self.deductionComparePending == true then
+		compareCallout = true
+		self.deductionComparePending = false
+		self.deductionCompareCalloutShown = true
+		self.deductionCompareSticky = true
+	end
+	local text = NotebookView.DeductionHintCopy(hasVerifiedFake, compareCallout)
+	NotebookView.ApplyDeductionHint(self, show, text)
 end
 
 function GameView:_animateRewards(targetXP: number, targetTokens: number, suffix: string?)
@@ -4721,13 +4856,32 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			elseif isGhostPlayer then "Ghost"
 			elseif localRole == "Murderer" then "Murderer"
 			else "Camper"
-		local progressLine, objectiveBody = MissionView.DayProgressCopy(
-			objectiveDone,
-			objectiveGoal,
-			witnessFound,
-			witnessTotal,
-			roleTone
-		)
+		local progressLine, objectiveBody
+		if isGhostPlayer then
+			local ghostSnapshot = if type(state) == "table" then state.ghost else nil
+			progressLine, objectiveBody = MissionView.GhostMissionCopy(
+				ghostSnapshot,
+				localRole,
+				"Day"
+			)
+			-- Keep the loud day stakes line in the progress strip.
+			local dayProgress = MissionView.DayProgressCopy(
+				objectiveDone,
+				objectiveGoal,
+				witnessFound,
+				witnessTotal,
+				"Ghost"
+			)
+			progressLine = dayProgress
+		else
+			progressLine, objectiveBody = MissionView.DayProgressCopy(
+				objectiveDone,
+				objectiveGoal,
+				witnessFound,
+				witnessTotal,
+				roleTone
+			)
+		end
 		self.progressLabel.Text = progressLine
 		self.objectiveText.Text = objectiveBody
 		self:_setObjectiveFill(objectiveDone / objectiveGoal)
@@ -4797,12 +4951,14 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 		else
 			local isGhostPlayer = readBoolean(player, "isGhost", false)
 			if isGhostPlayer then
-				self.progressLabel.Text = string.format(
-					"Evidence %d/%d collected by survivors.",
-					evidenceFound,
-					evidenceGoal
+				local ghostSnapshot = if type(state) == "table" then state.ghost else nil
+				local progressLine, objectiveBody = MissionView.GhostMissionCopy(
+					ghostSnapshot,
+					localRole,
+					"Investigation"
 				)
-				self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch as the survivors investigate."
+				self.progressLabel.Text = progressLine
+				self.objectiveText.Text = objectiveBody
 				self:_setObjectiveFill(evidenceFound / evidenceGoal)
 			else
 				self.progressLabel.Text = string.format(
@@ -4870,11 +5026,14 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 				survivorPhrase
 			)
 		elseif isGhostPlayer then
-			self.progressLabel.Text = string.format("Votes locked %d/%d - watching.", cast, eligible)
-			self.objectiveText.Text = string.format(
-				"OBSERVING\n%s. Watch the vote decide the verdict.",
-				survivorPhrase
+			local ghostSnapshot = if type(state) == "table" then state.ghost else nil
+			local _, objectiveBody = MissionView.GhostMissionCopy(
+				ghostSnapshot,
+				localRole,
+				"Campfire"
 			)
+			self.progressLabel.Text = string.format("Votes locked %d/%d - watching.", cast, eligible)
+			self.objectiveText.Text = objectiveBody
 		elseif localRole == "Murderer" then
 			self.progressLabel.Text = string.format("Votes locked %d/%d - stay calm.", cast, eligible)
 			self.objectiveText.Text = string.format(
@@ -4894,8 +5053,14 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			then player.role
 			else ""
 		if readBoolean(player, "isGhost", false) then
-			self.progressLabel.Text = "Night is coming."
-			self.objectiveText.Text = "OBSERVING\nYou are a ghost. Watch the night unfold."
+			local ghostSnapshot = if type(state) == "table" then state.ghost else nil
+			local progressLine, objectiveBody = MissionView.GhostMissionCopy(
+				ghostSnapshot,
+				localRole,
+				"MurderPlanning"
+			)
+			self.progressLabel.Text = progressLine
+			self.objectiveText.Text = objectiveBody
 			self.objectiveFill.Size = UDim2.fromScale(0, 1)
 		elseif localRole == "Murderer" then
 			local murderPlan = if type(state) == "table" then state.murderPlan else nil
@@ -5049,6 +5214,9 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 			self.objectiveFill.Size = UDim2.fromScale(if campersWon then 1 else 0, 1)
 		end
 	elseif phase == "Lobby" then
+		self.deductionCompareCalloutShown = false
+		self.deductionComparePending = false
+		self.deductionCompareSticky = false
 		local lobbyRole = if type(player) == "table" and type(player.role) == "string"
 			then player.role
 			else ""
@@ -5229,6 +5397,7 @@ function GameView:Update(state: any, legacyRound: any, legacyPlayer: any)
 	self:_updateRoster(state)
 	self:_updateInventory(state)
 	self:_updateEvidence(state, round)
+	self:_updateDeductionHint(state, round)
 	self:_updateVote(round, player)
 	if modalTargetVisible(self.progression) then
 		self:_updateProgression(state)
@@ -5659,6 +5828,8 @@ function GameView:ToggleNotebook()
 		if self.notebookBadge then
 			self.notebookBadge.Visible = false
 		end
+		local round = if type(currentState) == "table" then currentState.round else nil
+		self:_updateDeductionHint(currentState, round)
 	end
 end
 

@@ -164,6 +164,7 @@ type GameRuntimeServiceState = {
 	weatherId: string,
 	weatherSeed: number,
 	campfireStage: string?,
+	campfireStageEndsAt: number?,
 	discussionLog: { GameTypes.DiscussionEntry },
 	presentedSuspicion: { [string]: number },
 	presentedItems: { [string]: boolean },
@@ -633,6 +634,23 @@ end
 
 local function isCampfireTalkStage(stage: string?): boolean
 	return isCampfirePresentationStage(stage) or stage == "Rebuttal"
+end
+
+local CAMPFIRE_CITE_REASONS = {
+	"timing clashes with their story",
+	"places them near the scene",
+	"doesn't match a clean alibi",
+	"keeps turning up around their name",
+	"fits the pattern against them",
+	"line up with what counselors already said",
+}
+
+local function campfireCiteReason(seed: string): string
+	local hash = 0
+	for index = 1, #seed do
+		hash = (hash * 31 + string.byte(seed, index)) % 2147483647
+	end
+	return CAMPFIRE_CITE_REASONS[(hash % #CAMPFIRE_CITE_REASONS) + 1]
 end
 
 local function phaseDisplayName(phase: PhaseName): string
@@ -2173,6 +2191,7 @@ function GameRuntimeService:BeginRound(
 	self.votingOpensAt = nil
 	self.dayOutcomes = nil
 	self.campfireStage = nil
+	self.campfireStageEndsAt = nil
 	self.discussionLog = {}
 	self.presentedSuspicion = {}
 	self.presentedItems = {}
@@ -2310,6 +2329,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 	self.phaseEndsAt = self.phaseStartedAt + phaseDuration(phase)
 	self.botTaskById = {}
 	self.campfireStage = nil
+	self.campfireStageEndsAt = nil
 	self.votingOpensAt = nil
 	AnalyticsService.LogFunnel(nil, AnalyticsService.Events.PhaseEnter, {
 		phase = phase,
@@ -2490,6 +2510,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 		self.campfireStage = "PresentEvidence"
 		local presentSeconds, rebuttalSeconds = campfireTheaterSeconds()
 		self.votingOpensAt = self.phaseStartedAt + campfireDiscussionSeconds()
+		self.campfireStageEndsAt = self.phaseStartedAt + presentSeconds
 		local generation = self.generation
 		local campfireRoundId = self.roundId
 		task.delay(presentSeconds, function()
@@ -2503,6 +2524,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 				return
 			end
 			self.campfireStage = "Rebuttal"
+			self.campfireStageEndsAt = self.votingOpensAt
 			self:_announce(
 				"Info",
 				"Rebuttal",
@@ -2522,6 +2544,7 @@ function GameRuntimeService:EnterPhase(phase: PhaseName)
 				return
 			end
 			self.campfireStage = "Voting"
+			self.campfireStageEndsAt = self.phaseEndsAt
 			self:_announce(
 				"Info",
 				"Voting is open",
@@ -2660,6 +2683,7 @@ function GameRuntimeService:GetRoundSnapshot(): RoundSnapshot
 			else nil,
 		campfireStage = self.campfireStage,
 		votingOpensAt = self.votingOpensAt,
+		campfireStageEndsAt = self.campfireStageEndsAt,
 		discussionLog = self.discussionLog,
 	}
 end
@@ -4120,8 +4144,8 @@ function GameRuntimeService:_handleParticipantAction(
 		end
 		self:_announce(
 			"Info",
-			participant.displayName .. " presents evidence",
-			itemName,
+			participant.displayName .. " presents",
+			string.format('"%s"', itemName),
 			4
 		)
 		return { accepted = true, reason = nil, state = nil, data = nil }
@@ -5456,47 +5480,104 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 		-- Sparse-lobby social theater: speak/present during Present + Rebut beats.
 		if isCampfireTalkStage(self.campfireStage) then
 			local isPresentBeat = isCampfirePresentationStage(self.campfireStage)
+			local knownFakeById: { [string]: string } = {}
+			for _, record in self.evidence:GetAllServer() do
+				if record.posted and record.verificationState == "VerifiedFake" then
+					knownFakeById[record.evidenceId] = record.displayName
+				end
+			end
+			local knownPlantedById: { [string]: string } = {}
+			if self.mysteryReady then
+				for _, clue in self.mystery:GetPrivateSnapshot().clues do
+					if
+						clue.discoveryState == "Discovered"
+						and clue.authenticity == "Planted"
+					then
+						knownPlantedById[clue.clueId] = clue.title
+					end
+				end
+			end
 			for _, suspect in self:_suspects() do
 				if suspect.key ~= participant.participantId then
 					local cite = publicClueBySuspect[suspect.key] or anyPublicClue
 					local phrase = if cite then cite.title else nil
 					local clueId = if cite then cite.clueId else nil
+					local reason = campfireCiteReason(
+						(clueId or phrase or "board") .. "|" .. suspect.key
+					)
 					local talkText: string
-					if isPresentBeat then
-						talkText = if phrase
-							then string.format(
-								"Presenting notebook clue [%s]: %s points at %s.",
-								clueId or "board",
-								phrase,
+					local contradictKnown = false
+					if not isPresentBeat and participant.role ~= "Murderer" then
+						local fakeName = if clueId then knownFakeById[clueId] else nil
+						local plantedName = if clueId then knownPlantedById[clueId] else nil
+						if fakeName == nil then
+							for _, displayName in knownFakeById do
+								fakeName = displayName
+								break
+							end
+						end
+						if plantedName == nil then
+							for _, title in knownPlantedById do
+								plantedName = title
+								break
+							end
+						end
+						if fakeName then
+							contradictKnown = true
+							talkText = string.format(
+								'Verified fake: "%s" was planted to smear someone. Don\'t pin %s with it.',
+								fakeName,
 								suspect.displayName
 							)
-							else string.format(
-								"I want to talk about %s before we vote.",
+						elseif plantedName then
+							contradictKnown = true
+							talkText = string.format(
+								'That clue looks planted: "%s". Don\'t let it frame %s.',
+								plantedName,
 								suspect.displayName
 							)
-					else
-						talkText = if phrase
-							then string.format(
-								"Rebuttal on [%s]: %s still implicates %s.",
-								clueId or "board",
-								phrase,
-								suspect.displayName
-							)
-							else string.format(
-								"I'm not convinced %s is clear yet.",
-								suspect.displayName
-							)
+						end
+					end
+					if not contradictKnown then
+						if isPresentBeat then
+							talkText = if phrase
+								then string.format(
+									'Presenting "%s" — %s. That points at %s.',
+									phrase,
+									reason,
+									suspect.displayName
+								)
+								else string.format(
+									"I want to talk about %s before we vote.",
+									suspect.displayName
+								)
+						else
+							talkText = if phrase
+								then string.format(
+									'Holding on "%s" — %s. Still looking at %s.',
+									phrase,
+									reason,
+									suspect.displayName
+								)
+								else string.format(
+									"I'm not convinced %s is clear yet.",
+									suspect.displayName
+								)
+						end
 					end
 					table.insert(actions, {
 						id = (if isPresentBeat then "present-talk:" else "rebut-talk:")
 							.. suspect.key,
 						actionType = "Discuss",
-						baseUtility = if isPresentBeat then 9 else 7,
+						baseUtility = if contradictKnown
+							then 11
+							elseif isPresentBeat then 9
+							else 7,
 						targetParticipantId = suspect.key,
 						evidenceId = if isPresentBeat then clueId else nil,
 						discussionText = talkText,
 						risk = 0.1,
-						informationValue = if phrase then 0.85 else 0.35,
+						informationValue = if phrase or contradictKnown then 0.85 else 0.35,
 						teamValue = 0.7,
 					})
 				end
@@ -5539,10 +5620,10 @@ function GameRuntimeService:_GetBotActions(participant: ParticipantState, phase:
 					local cite = publicClueBySuspect[suspect.key] or anyPublicClue
 					local voteText = if cite
 						then string.format(
-							"Voting %s — citing notebook clue [%s]: %s",
+							'Voting %s — citing "%s" (%s).',
 							suspect.displayName,
-							cite.clueId,
-							cite.title
+							cite.title,
+							campfireCiteReason(cite.clueId .. "|" .. suspect.key)
 						)
 						else string.format("Voting %s on suspicion alone.", suspect.displayName)
 					table.insert(actions, {
@@ -5717,7 +5798,7 @@ function GameRuntimeService:_ExecuteBotAction(
 		end
 		local talk = candidate.discussionText
 		if type(talk) == "string" and talk ~= "" then
-			self:_announce("Info", participant.displayName, talk, 4)
+			self:_announce("Info", participant.displayName .. " speaks", talk, 5)
 		end
 		return true
 	else

@@ -54,7 +54,7 @@ function MissionView.DayProgressCopy(
 	)
 	local header = if roleTone == "Murderer"
 		then "DAY COVER"
-		elseif roleTone == "Ghost" then "OBSERVING"
+		elseif roleTone == "Ghost" then "GHOST OBJECTIVE"
 		elseif roleTone == "Spectator" then "OBSERVING"
 		else "DAY OBJECTIVE"
 	local body = if roleTone == "Murderer"
@@ -67,8 +67,9 @@ function MissionView.DayProgressCopy(
 			witnessTotal
 		)
 		elseif roleTone == "Ghost" then string.format(
-			"%s\nYou are a ghost. Camp work: %d of %d. Witnesses: %d of %d.\nWatch whether lights, fire, and supplies get secured.",
+			"%s\n%s\nCamp work: %d of %d. Witnesses: %d of %d.\nWatch whether lights, fire, and supplies get secured.",
 			header,
+			MissionView.GhostAgencyStrip("Camper"),
 			objectivesDone,
 			objectiveGoal,
 			witnessFound,
@@ -129,7 +130,7 @@ function MissionView.NightPayoffCopy(outcomes: DayOutcomes?, roleTone: string): 
 	local progress = table.concat({ generatorLine, firewoodLine, suppliesLine }, "  ")
 	local header = if roleTone == "Murderer"
 		then "YOU ARE THE MONSTER"
-		elseif roleTone == "Ghost" then "OBSERVING"
+		elseif roleTone == "Ghost" then "GHOST OBJECTIVE"
 		elseif roleTone == "Spectator" then "OBSERVING"
 		else "NIGHT PAYOFF"
 	local body = if roleTone == "Murderer"
@@ -140,7 +141,15 @@ function MissionView.NightPayoffCopy(outcomes: DayOutcomes?, roleTone: string): 
 			firewoodLine,
 			suppliesLine
 		)
-		elseif roleTone == "Ghost" or roleTone == "Spectator" then string.format(
+		elseif roleTone == "Ghost" then string.format(
+			"%s\n%s\nDay work decided the night:\n%s\n%s\n%s",
+			header,
+			MissionView.GhostAgencyStrip("Camper"),
+			generatorLine,
+			firewoodLine,
+			suppliesLine
+		)
+		elseif roleTone == "Spectator" then string.format(
 			"%s\nDay work decided the night:\n%s\n%s\n%s",
 			header,
 			generatorLine,
@@ -155,6 +164,100 @@ function MissionView.NightPayoffCopy(outcomes: DayOutcomes?, roleTone: string): 
 			suppliesLine
 		)
 	return progress, body
+end
+
+-- Persistent ghost duty line: help camp / protect / observe.
+function MissionView.GhostAgencyStrip(role: string): string
+	if role == "Protector" then
+		return "GHOST DUTY  ·  Help camp  ·  Protect  ·  Observe"
+	end
+	return "GHOST DUTY  ·  Help camp  ·  Observe"
+end
+
+-- Haunt / cold-spot / vigil progress from RuntimeTypes.GhostSnapshot.
+function MissionView.GhostSnapshotProgress(ghost: any?): string
+	if type(ghost) ~= "table" then
+		return "Fill haunt energy: cold spot · vigil · echo"
+	end
+	local meter = if type(ghost.hauntMeter) == "number" then ghost.hauntMeter else 0
+	local maximum = if type(ghost.hauntMeterMax) == "number" and ghost.hauntMeterMax > 0
+		then ghost.hauntMeterMax
+		else 100
+	local fraction = math.clamp(meter / maximum, 0, 1)
+	local cold = if type(ghost.coldSpotSeconds) == "number" then ghost.coldSpotSeconds else 0
+	local coldGoal = if type(ghost.coldSpotGoalSeconds) == "number" and ghost.coldSpotGoalSeconds > 0
+		then ghost.coldSpotGoalSeconds
+		else 10
+	local vigil = if type(ghost.vigilSeconds) == "number" then ghost.vigilSeconds else 0
+	local vigilGoal = if type(ghost.vigilGoalSeconds) == "number" and ghost.vigilGoalSeconds > 0
+		then ghost.vigilGoalSeconds
+		else 20
+	local done = if type(ghost.objectivesCompleted) == "number" then ghost.objectivesCompleted else 0
+	if ghost.hauntReady == true then
+		return string.format(
+			"HAUNT READY  ·  Deeds %d  ·  Cold %.0f/%.0fs  ·  Vigil %.0f/%.0fs",
+			done,
+			cold,
+			coldGoal,
+			vigil,
+			vigilGoal
+		)
+	end
+	return string.format(
+		"Haunt %d%%  ·  Deeds %d  ·  Cold %.0f/%.0fs  ·  Vigil %.0f/%.0fs",
+		math.floor(fraction * 100 + 0.5),
+		done,
+		cold,
+		coldGoal,
+		vigil,
+		vigilGoal
+	)
+end
+
+-- Mission panel copy for ghosts. Prefer GhostSnapshot when Investigation.
+function MissionView.GhostMissionCopy(
+	ghost: any?,
+	role: string,
+	phase: string
+): (string, string)
+	local strip = MissionView.GhostAgencyStrip(role)
+	local progress = MissionView.GhostSnapshotProgress(ghost)
+	if phase == "Investigation" then
+		local body = if role == "Protector"
+			then string.format(
+				"GHOST OBJECTIVE\n%s\nShadow the hunt. Ward a living camper once if you still can.\n%s",
+				strip,
+				progress
+			)
+			else string.format(
+				"GHOST OBJECTIVE\n%s\nCold-spot the monster, hold vigil near survivors, then haunt.\n%s",
+				strip,
+				progress
+			)
+		return progress, body
+	end
+	if phase == "Campfire" then
+		return progress, string.format(
+			"GHOST OBJECTIVE\n%s\nWatch the vote. Call out what you saw during the hunt.",
+			strip
+		)
+	end
+	if phase == "Day" then
+		return progress, string.format(
+			"GHOST OBJECTIVE\n%s\nWatch whether lights, fire, and supplies get secured.",
+			strip
+		)
+	end
+	if phase == "MurderPlanning" or phase == "NightTransform" then
+		return progress, string.format(
+			"GHOST OBJECTIVE\n%s\nNight is coming — stay useful when the hunt begins.",
+			strip
+		)
+	end
+	return progress, string.format(
+		"GHOST OBJECTIVE\n%s\nDeath is not the end of your usefulness.",
+		strip
+	)
 end
 
 return MissionView

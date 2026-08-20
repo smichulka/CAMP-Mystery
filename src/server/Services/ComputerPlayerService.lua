@@ -601,8 +601,7 @@ function ComputerPlayerService:ChooseAction(
 			end
 			local lieText = if lieEvidenceId
 				then string.format(
-					"That notebook clue [%s] still points at %s.",
-					lieEvidenceId,
+					"I keep coming back to that clue — it still points at %s.",
 					lieTarget.displayName
 				)
 				else "I found something suspicious about " .. lieTarget.displayName .. "."

@@ -516,11 +516,12 @@ local function refresh()
 	end
 end
 
--- Applies a fresh ghost snapshot to the haunt meter UI and toasts the two
--- transitions worth celebrating: an objective completing and the meter filling.
+-- Applies a fresh GhostSnapshot (RuntimeTypes) to the haunt meter, ghost
+-- objective strip, and mission panel. Toasts when a deed completes or haunt fills.
 local function applyGhostSnapshot(ghost: any)
 	local currentView = view
 	if currentView then
+		-- Surfaces hauntMeter / coldSpot / vigil goals via GameView + MissionView.
 		currentView:UpdateGhostHaunt(ghost)
 	end
 	if type(ghost) ~= "table" then
@@ -541,7 +542,7 @@ local function applyGhostSnapshot(ghost: any)
 	if currentCount > previousCount then
 		currentView:Notify(
 			"Haunt energy rises",
-			"Your ghost deed left a chill in the air.",
+			"Ghost deed done — help camp, protect if you can, keep observing.",
 			"Info"
 		)
 	end

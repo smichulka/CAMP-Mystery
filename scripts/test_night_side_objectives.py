@@ -264,6 +264,10 @@ class NightSideObjectiveTests(unittest.TestCase):
             "function GameView:UpdateGhostHaunt(ghost: any)",
             '"HAUNT READY — press H"',
             "if not active and self.hauntPanel then",
+            '"GhostObjectiveStrip"',
+            "MissionView.GhostAgencyStrip",
+            "MissionView.GhostSnapshotProgress",
+            "MissionView.GhostMissionCopy",
         ):
             self.assertIn(token, view)
 

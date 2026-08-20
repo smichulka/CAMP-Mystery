@@ -448,9 +448,12 @@ class GhostDreadTests(unittest.TestCase):
         # Wave 3 theater labels (Present → Rebut → Vote)
         vote_view = read("src/client/UI/VoteView.lua")
         self.assertIn('"PRESENT EVIDENCE"', vote_view)
-        self.assertIn('"REBUT"', vote_view)
+        self.assertIn('"REBUTTAL"', vote_view)
         self.assertIn('"VOTE NOW"', vote_view)
         self.assertIn("function VoteView.ApplyCampfireStage(", vote_view)
+        self.assertIn("HighContrastStroke", vote_view)
+        self.assertIn("campfireStageEndsAt", vote_view)
+        self.assertIn("StageCountdown", vote_view)
         self.assertIn('campfireStage == "PresentEvidence"', vote_block)
         self.assertIn('campfireStage == "Rebuttal"', vote_block)
         # Modal hides outside Campfire; ghosts/spectators get observe-only board

@@ -33,12 +33,25 @@ Evidence record for the continuous designer+developer loop. Do not treat this as
 
 Studio mesh install still optional (`CIRCUS_ASSETS.md`); procedural path is the shippable bar.
 
-## Backlog after Cycle 2
+## Cycle 3 — Deduction notebook drill + ghost agency UX
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| Notebook DeductionHint | Done | Investigation/Campfire strip: planted-vs-real; VerifiedFake banner; one-time compare-three at 2+ clues |
+| Ghost agency UX | Done | MissionView GhostAgencyStrip / GhostMissionCopy / GhostSnapshotProgress; GameView GhostObjectiveStrip; RoundController surfaces GhostSnapshot |
+
+## Cycle 4 — Campfire theater polish + bot discuss quality
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| Theater UI | Done | Stage banners + accent hierarchy; countdown via `campfireStageEndsAt` / `votingOpensAt`; discussion copy matches beat |
+| Bot discuss | Done | Varied title+reason cites; Rebuttal contradicts VerifiedFake / known Planted; clearer announce titles |
+| A11y | Done | High-contrast VoteView stage banner (white on accent + stroke) |
+
+## Backlog after Cycle 4
 
 1. Authored Camp/NightTown + final audio bank (asset pipeline)
 2. Discovery triad: Creator Dashboard icon / thumbnail / 15s trailer
 3. Mobile device soak confirmation before public Quick Camp promo
-4. Deduction notebook drill depth + ghost agency UX (Cycle 3)
-5. Campfire theater polish + bot discuss quality (Cycle 4)
-6. Global/reserved-server matchmaking (post soft-launch)
-7. Cosmetics-only Robux shop allowlist only after D1/retention healthy
+4. Global/reserved-server matchmaking (post soft-launch)
+5. Cosmetics-only Robux shop allowlist only after D1/retention healthy
