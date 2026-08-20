@@ -45,3 +45,17 @@ custom events populate after a published private soak (Studio does not deliver):
 ## After soft launch
 
 Promote only when RELEASE_CHECKLIST is fully checked for the candidate commit.
+
+## Automation
+
+Repository-side soft-launch preflight (no Studio):
+
+```text
+python scripts/soft_launch_preflight.py
+```
+
+Also runs as a step inside `python scripts/run_all_checks.py` after release-readiness
+simulations. Confirms monetization tokens stay banned, `AnalyticsService.Events`
+funnel keys are present, `docs/SOFT_LAUNCH_GATES.md` exists, and Luau compiles
+(or `validate_project.py` when `luau-compile` is not on PATH). Studio soak and
+Creator Dashboard event population remain manual checklist items above.

@@ -3905,6 +3905,7 @@ function ProductionMapService:Build()
 	self:_buildColdCaseCabinet()
 	self:_buildLockedRooms()
 	self:_buildExpansions()
+	self:_bindMidwayFestivalActions()
 	self:_trimSmallPartShadows()
 end
 
@@ -4009,6 +4010,42 @@ function ProductionMapService:_buildExpansions()
 			if not ok then
 				warn("[CAMP-Mystery] WorldAmbience.Start failed: " .. tostring(failure))
 			end
+		end)
+	end
+end
+
+-- Cycle 5: Midway Festival day side actions (fair-supplies / popcorn-restock)
+-- live in SpookyCircus props; wire them into the shared side-objective
+-- handler so GameRuntimeService can announce and pay out.
+function ProductionMapService:_bindMidwayFestivalActions()
+	local circus = optionalMapModule("SpookyCircus")
+	if not circus then
+		return
+	end
+	if typeof(circus.GetFestivalActionParts) == "function" then
+		local parts = circus.GetFestivalActionParts()
+		if type(parts) == "table" then
+			for actionId, part in parts do
+				if type(actionId) == "string" and typeof(part) == "Instance" and part:IsA("BasePart") then
+					self.sideObjectiveParts[actionId] = part
+				end
+			end
+		end
+	end
+	if typeof(circus.SetFestivalActionHandler) == "function" then
+		circus.SetFestivalActionHandler(function(player: Player, actionId: string): boolean
+			if self.sideObjectiveComplete[actionId] then
+				return false
+			end
+			local handler = self.onSideObjective
+			if handler and handler(player, actionId) then
+				self.sideObjectiveComplete[actionId] = true
+				if typeof(circus.MarkFestivalActionComplete) == "function" then
+					circus.MarkFestivalActionComplete(actionId)
+				end
+				return true
+			end
+			return false
 		end)
 	end
 end
@@ -4181,6 +4218,10 @@ function ProductionMapService:ResetSideObjectives()
 		self:_setSideObjectiveLamp(sideObjectiveId, false)
 	end
 	self:_setFactoryStreetlights(false)
+	local circus = optionalMapModule("SpookyCircus")
+	if circus and typeof(circus.ResetFestivalActions) == "function" then
+		circus.ResetFestivalActions()
+	end
 end
 
 -- Filing cabinet inside the police station holding three seeded cold-case

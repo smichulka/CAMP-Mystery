@@ -4961,6 +4961,9 @@ function GameRuntimeService:_reportBody(reporter: Player, victimParticipantId: s
 end
 
 -- Night side-objectives: optional prompt-driven detours during Investigation.
+-- Cycle 5 also routes Midway Festival day actions (fair-supplies /
+-- popcorn-restock) through this path so they share once-per-round claims,
+-- proximity checks, and loud announces.
 -- The ProximityPrompt supplies the hold duration; the server re-validates the
 -- phase, the once-per-round claim, and real proximity before paying out.
 function GameRuntimeService:_handleSideObjective(
@@ -4973,7 +4976,13 @@ function GameRuntimeService:_handleSideObjective(
 	if not participant then
 		return false
 	end
-	if self.phase ~= "Investigation" then
+	local isMidwayDayAction = sideObjectiveId == "fair-supplies"
+		or sideObjectiveId == "popcorn-restock"
+	if isMidwayDayAction then
+		if self.phase ~= "Day" then
+			return false
+		end
+	elseif self.phase ~= "Investigation" then
 		return false
 	end
 	if self.sideObjectivesCompleted[sideObjectiveId] then
@@ -5005,6 +5014,26 @@ function GameRuntimeService:_handleSideObjective(
 			"The mill lights hum back",
 			"Fresh lamplight pools around Mill No. 7 for the rest of the night.",
 			5
+		)
+	elseif sideObjectiveId == "fair-supplies" then
+		self:_announce(
+			"Success",
+			"MIDWAY SUPPLIES CHECKED",
+			string.format(
+				"%s stocked the Midway Festival crates — booths stay ready through dusk!",
+				participant.displayName
+			),
+			7
+		)
+	elseif sideObjectiveId == "popcorn-restock" then
+		self:_announce(
+			"Success",
+			"POPCORN RESTOCKED",
+			string.format(
+				"%s topped off the Midway popcorn bins — the fair smells ready!",
+				participant.displayName
+			),
+			7
 		)
 	end
 	self:Broadcast()

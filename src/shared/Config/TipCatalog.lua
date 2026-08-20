@@ -66,9 +66,10 @@ local definitions: { Tip } = {
 	{ category = "ENVIRONMENT", body = "The old town beyond camp is foggy and abandoned — rusted water towers, crumbling buildings, muddy roads. Cover is plentiful but exits are limited.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Cabin interiors are dark and cluttered. Flashlights are essential once natural light drops at nightfall.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Northeast Fairgrounds: Midway Festival by day (soft rides, prize booths, ticket booth) flips to Midnight Circus after dusk. Tickets are optional — the murder mystery stays separate from the opt-in scare.", excludeRoles = { "Murderer" } },
-	{ category = "ENVIRONMENT", body = "Walk the Midway Festival while the sun is up — check fair supplies, browse the prize counter, and take a Festival Pass if you want the night carnival chase.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Walk the Midway Festival while the sun is up — check fair supplies, restock popcorn, browse the prize counter, and take a Festival Pass if you want the night carnival chase.", excludeRoles = { "Murderer" } },
 	{ category = "EVIDENCE", body = "The midway prize counter, ticket booth, and fair-supplies crate can hold soft clues. Searching Fairgrounds props never makes the circus lethal — the mystery stays separate from the opt-in scare." },
-	{ category = "ENVIRONMENT", body = "Night routes rotate each round in this Place (Main Street, Factory Detour, Outskirts First, Backcountry Night). Check the lobby Route chip before dusk so you know which path the investigation will take.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Night routes rotate each round in this Place (Main Street, Factory Detour, Outskirts First, Backcountry Night, Lakeshore Night). Check the lobby Route chip before dusk so you know which path the investigation will take.", excludeRoles = { "Murderer" } },
+	{ category = "ENVIRONMENT", body = "Rematch? Try a different night route each round — the lobby Route chip preview cycles fairly so Main Street, Factory Detour, Outskirts First, Backcountry Night, and Lakeshore Night stay fresh.", excludeRoles = { "Murderer" } },
 	{ category = "COUNSELORS", body = "Each counselor has a distinct role you can recognise by their look — a wide ranger hat, a medical pack, a tool belt. Their accessories hint at what they know.", excludeRoles = { "Murderer" } },
 }
 

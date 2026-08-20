@@ -2,7 +2,7 @@
 
 -- Wave 5 worlds stay in ONE Place. Day uses the camp + Midway Festival
 -- Fairgrounds; night investigation routes are seeded TownVariant picks
--- (including BackcountryNight). No multi-place teleport.
+-- (including BackcountryNight and LakeshoreNight). No multi-place teleport.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -202,12 +202,30 @@ local manifest: WorldManifestDefinition = {
 			},
 			blockedRouteIds = { "outskirts-industrial-link", "police-industrial-link" },
 		},
+		-- Cycle 5 scenic route: lakeshore-leaning order — residential shore,
+		-- water tower overlook, then square before the wild outskirts edge.
+		{
+			id = "TownVariantE",
+			displayName = "Lakeshore Night",
+			nightRoute = "LakeshoreNight",
+			districtOrder = {
+				"MainRoad",
+				"ResidentialQuarter",
+				"WaterTowerNeighborhood",
+				"TownSquare",
+				"DesertedOutskirts",
+				"PoliceStation",
+				"IndustrialDistrict",
+			},
+			blockedRouteIds = { "water-tower-industrial-link", "outskirts-industrial-link" },
+		},
 	},
 	nightRoutes = {
 		{ id = "MainStreet", variantId = "TownVariantA", displayName = "Main Street" },
 		{ id = "FactoryDetour", variantId = "TownVariantB", displayName = "Factory Detour" },
 		{ id = "OutskirtsFirst", variantId = "TownVariantC", displayName = "Outskirts First" },
 		{ id = "BackcountryNight", variantId = "TownVariantD", displayName = "Backcountry Night" },
+		{ id = "LakeshoreNight", variantId = "TownVariantE", displayName = "Lakeshore Night" },
 	},
 }
 

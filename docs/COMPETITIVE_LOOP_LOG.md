@@ -48,9 +48,33 @@ Studio mesh install still optional (`CIRCUS_ASSETS.md`); procedural path is the 
 | Bot discuss | Done | Varied title+reason cites; Rebuttal contradicts VerifiedFake / known Planted; clearer announce titles |
 | A11y | Done | High-contrast VoteView stage banner (white on accent + stroke) |
 
-## Backlog after Cycle 4
+## Cycle 5 — Night route variety + Midway day actions
 
-1. Authored Camp/NightTown + final audio bank (asset pipeline)
+| Slice | Status | Notes |
+|------|--------|-------|
+| World routes | Done | 5th scenic route `LakeshoreNight` / `TownVariantE`; distinct district order; PreviewRouteForRound cycles via `seed % #variants` |
+| Midway day | Done | `fair-supplies` + `popcorn-restock` day side actions → side-objective handler; loud announces; MissionView Midway Festival copy |
+| Discovery tip | Done | TipCatalog rematch tip to try a different night route each round |
+
+### Gates
+- `compile_luau.py`: pass (112 source files)
+- Contracts: WorldManifest LakeshoreNight; night side-objective Day Midway path; TipCatalog rematch + Midway
+
+## Cycle 6 — Audio atmosphere + soft-launch preflight
+
+| Slice | Status | Notes |
+|------|--------|-------|
+| Investigation audio | Done | FairgroundsAmbience overlay + CircusSting on Investigation; soft Music duck (`INVESTIGATION_MUSIC_DUCK`); attribute inventory header; nil placeholders only |
+| Night ambience | Done | WorldAmbience denser night rope-creak window (14–32s); skipped Atmosphere density tweak |
+| Soft-launch hooks | Done | `scripts/soft_launch_preflight.py` (monetization ban, Analytics Events, gates doc, compile/validate); wired in `run_all_checks.py`; documented in SOFT_LAUNCH_GATES |
+
+### Gates
+- `compile_luau.py` / related contract tests for AudioController + soft-launch preflight
+- `python scripts/soft_launch_preflight.py`
+
+## Backlog after Cycle 6
+
+1. Authored Camp/NightTown + final audio bank (asset pipeline; wire FairgroundsAmbienceAssetId / CircusStingAssetId)
 2. Discovery triad: Creator Dashboard icon / thumbnail / 15s trailer
 3. Mobile device soak confirmation before public Quick Camp promo
 4. Global/reserved-server matchmaking (post soft-launch)

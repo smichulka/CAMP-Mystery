@@ -37,7 +37,8 @@ function MissionView.ApplyKeybindLabel(label: TextLabel?, phase: string)
 end
 
 -- Loud mid-day copy: every camper should feel that generator / firewood /
--- supplies change what night will feel like.
+-- supplies change what night will feel like. Midway Festival is an optional
+-- day detour (fair supplies / popcorn) beside the core camp work.
 function MissionView.DayProgressCopy(
 	objectivesDone: number,
 	objectiveGoal: number,
@@ -46,7 +47,7 @@ function MissionView.DayProgressCopy(
 	roleTone: string
 ): (string, string)
 	local progress = string.format(
-		"Camp work %d/%d  |  Witnesses %d/%d  — night stakes: lights · fire · gear",
+		"Camp work %d/%d  |  Witnesses %d/%d  — night stakes: lights · fire · gear  ·  Midway Festival open",
 		objectivesDone,
 		objectiveGoal,
 		witnessFound,
@@ -59,7 +60,7 @@ function MissionView.DayProgressCopy(
 		else "DAY OBJECTIVE"
 	local body = if roleTone == "Murderer"
 		then string.format(
-			"%s\nCamp work: %d of %d. Witnesses: %d of %d.\nGenerator = lights. Firewood = haven. Supplies = flares. Act natural.",
+			"%s\nCamp work: %d of %d. Witnesses: %d of %d.\nGenerator = lights. Firewood = haven. Supplies = flares. Act natural.\nMidway Festival is optional cover — fair supplies or popcorn if you wander northeast.",
 			header,
 			objectivesDone,
 			objectiveGoal,
@@ -67,7 +68,7 @@ function MissionView.DayProgressCopy(
 			witnessTotal
 		)
 		elseif roleTone == "Ghost" then string.format(
-			"%s\n%s\nCamp work: %d of %d. Witnesses: %d of %d.\nWatch whether lights, fire, and supplies get secured.",
+			"%s\n%s\nCamp work: %d of %d. Witnesses: %d of %d.\nWatch whether lights, fire, and supplies get secured.\nMidway Festival stays open by day — fair supplies and popcorn are optional side work.",
 			header,
 			MissionView.GhostAgencyStrip("Camper"),
 			objectivesDone,
@@ -76,7 +77,7 @@ function MissionView.DayProgressCopy(
 			witnessTotal
 		)
 		elseif roleTone == "Spectator" then string.format(
-			"%s\nCamp work: %d of %d. Witnesses: %d of %d.\nGenerator, firewood, and supplies decide tonight's danger.",
+			"%s\nCamp work: %d of %d. Witnesses: %d of %d.\nGenerator, firewood, and supplies decide tonight's danger.\nMidway Festival (northeast) offers optional fair-supplies and popcorn restock.",
 			header,
 			objectivesDone,
 			objectiveGoal,
@@ -84,7 +85,7 @@ function MissionView.DayProgressCopy(
 			witnessTotal
 		)
 		else string.format(
-			"%s\nCamp work: %d of %d — Generator (lights), Firewood (haven), Supplies (flares).\nInterview witnesses: %d of %d",
+			"%s\nCamp work: %d of %d — Generator (lights), Firewood (haven), Supplies (flares).\nInterview witnesses: %d of %d\nMidway Festival (northeast): check fair supplies or restock popcorn before dusk.",
 			header,
 			objectivesDone,
 			objectiveGoal,

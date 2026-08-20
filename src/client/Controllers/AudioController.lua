@@ -1,5 +1,32 @@
 --!strict
 
+-- CAMP-Mystery client audio beds, phase stings, and UI cues.
+--
+-- Cue resolution (strict order — never invent live rbxassetids in this file):
+--   1) SoundService:GetAttribute(<Slot>AssetId)  — Studio / live override
+--   2) definition.defaultAssetId                — repo placeholder (may be nil)
+--   3) empty SoundId                            — cue stays silent
+--
+-- Overridable SoundService attributes (set on SoundService in Studio):
+--   Music beds:     LobbyMusicAssetId, CampMusicAssetId, NightMusicAssetId,
+--                   ResultsMusicAssetId
+--   Ambience beds:  CampAmbienceAssetId, NightAmbienceAssetId,
+--                   FairgroundsAmbienceAssetId (Investigation overlay; nil default)
+--   Phase / UI:     PhaseChimeAssetId, EvidenceFoundAssetId, VoteOpenAssetId,
+--                   RewardAssetId, CircusStingAssetId (Investigation entry; nil)
+--   Proximity:      MonsterActiveAssetId, MonsterActiveBabyAlienAssetId,
+--                   MonsterActiveScreamerAssetId, MonsterActiveWendigoAssetId,
+--                   MonsterActiveShadowMonsterAssetId,
+--                   MonsterActiveChupacabraAssetId, MonsterActiveDullahanAssetId,
+--                   MonsterActiveEntityAssetId, MonsterActiveBansheeAssetId
+--   UI map:         UIHoverAssetId, UIClickAssetId, UIOpenAssetId, UICloseAssetId,
+--                   UIToastAssetId, UIErrorAssetId, UISuccessAssetId,
+--                   UIPageTurnAssetId, UIStampAssetId
+-- Server fairgrounds world loops (not owned here): CircusCalliopeAssetId,
+-- CircusTicketChimeAssetId, CircusCarnieScreechAssetId, CircusBarkerCallAssetId
+-- (see Config/CircusAudioDefaults + Map/SpookyCircus). AmbienceImpactAssetId is
+-- WorldAmbience floor/rope creaks.
+
 local SoundService = game:GetService("SoundService")
 
 local UISoundMap = require(script.Parent:WaitForChild("UISoundMap"))
@@ -28,6 +55,7 @@ type AudioControllerState = {
 	lastEvidenceFound: number,
 	heartbeatIntensity: number,
 	activeMonsterId: string?,
+	investigationDucking: boolean,
 	onSubtitle: ((text: string, duration: number) -> ())?,
 	destroyed: boolean,
 }
@@ -46,24 +74,13 @@ AudioController.CueIds = table.freeze({
 	CircusSting = "CircusSting",
 })
 
--- Cue inventory resolution (strict order, never invent live asset ids here):
---   1) SoundService:GetAttribute(<Slot>AssetId)  — Studio / live override
---   2) definition.defaultAssetId                — repo placeholder (may be nil)
---   3) empty SoundId                            — cue stays silent
---
 -- Core music/ambience placeholders below are Creator Store stand-ins until
--- final banks land. Fairgrounds/circus *world* loops live server-side in
--- Map/SpookyCircus.lua via Config/CircusAudioDefaults (attributes
--- CircusCalliopeAssetId, CircusTicketChimeAssetId, CircusCarnieScreechAssetId,
--- CircusBarkerCallAssetId). Client FairgroundsAmbience / CircusSting slots
--- below are optional overlays for phase switches — leave attributes unset
--- until real assets exist (nil default = silent, no fake id).
---
--- Override attributes: LobbyMusicAssetId, CampMusicAssetId, NightMusicAssetId,
--- ResultsMusicAssetId, CampAmbienceAssetId, NightAmbienceAssetId,
--- FairgroundsAmbienceAssetId, PhaseChimeAssetId, EvidenceFoundAssetId,
--- VoteOpenAssetId, MonsterActiveAssetId, RewardAssetId, HeartbeatAssetId,
--- CircusStingAssetId, plus UI click/impact/danger ids via UISoundMap.
+-- final banks land. FairgroundsAmbience / CircusSting stay nil until a real
+-- asset is wired via SoundService attributes (no invented fake ids).
+-- Soft Investigation ducking (INVESTIGATION_MUSIC_DUCK) lowers the Music
+-- SoundGroup slightly so optional Fairgrounds overlay + CircusSting read.
+local INVESTIGATION_MUSIC_DUCK = 0.72
+
 local DEFINITIONS: { SoundDefinition } = {
 	{
 		name = "LobbyMusic",
@@ -348,6 +365,7 @@ function AudioController.new(options: AudioOptions?): AudioController
 		lastEvidenceFound = 0,
 		heartbeatIntensity = 0,
 		activeMonsterId = nil,
+		investigationDucking = false,
 		onSubtitle = resolved.onSubtitle,
 		destroyed = false,
 	}, AudioController)
@@ -438,9 +456,22 @@ function AudioController:_setFairgroundsAmbience(enabled: boolean)
 	end
 end
 
+-- Soft Music-group duck for Investigation so FairgroundsAmbience / CircusSting
+-- sit above the night bed without hard-muting. Restored on any other phase.
+function AudioController:_setInvestigationDucking(enabled: boolean)
+	if self.investigationDucking == enabled then
+		return
+	end
+	self.investigationDucking = enabled
+	self:_updateGroupVolumes()
+end
+
 function AudioController:_updateGroupVolumes()
 	local master = clampVolume(self.settings.masterVolume, DEFAULT_SETTINGS.masterVolume)
-	self.groups.Music.Volume = master * clampVolume(self.settings.musicVolume, DEFAULT_SETTINGS.musicVolume)
+	local musicScale = if self.investigationDucking then INVESTIGATION_MUSIC_DUCK else 1
+	self.groups.Music.Volume = master
+		* clampVolume(self.settings.musicVolume, DEFAULT_SETTINGS.musicVolume)
+		* musicScale
 	self.groups.Ambience.Volume = master * clampVolume(
 		self.settings.ambienceVolume,
 		DEFAULT_SETTINGS.ambienceVolume
@@ -564,9 +595,12 @@ function AudioController:Update(state: any)
 		self.currentMusic = PHASE_MUSIC[phase]
 		self:_switchLoop("Music", self.currentMusic)
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[phase])
-		-- Investigation: optional Fairgrounds overlay + CircusSting when
-		-- SoundService attributes are set (silent placeholders otherwise).
-		self:_setFairgroundsAmbience(phase == "Investigation")
+		-- Investigation: soft Music duck + optional Fairgrounds overlay;
+		-- CircusSting on entry when SoundService attributes are set
+		-- (silent placeholders otherwise). Leaving Investigation restores duck.
+		local inInvestigation = phase == "Investigation"
+		self:_setInvestigationDucking(inInvestigation)
+		self:_setFairgroundsAmbience(inInvestigation)
 		if not firstSnapshot then
 			if phase == "Campfire" then
 				local voteSubtitle = if localRole == "Murderer"
@@ -624,6 +658,9 @@ function AudioController:RefreshAssetIds()
 	if self.lastPhase then
 		self:_switchLoop("Music", PHASE_MUSIC[self.lastPhase])
 		self:_switchLoop("Ambience", PHASE_AMBIENCE[self.lastPhase])
+		local inInvestigation = self.lastPhase == "Investigation"
+		self:_setInvestigationDucking(inInvestigation)
+		self:_setFairgroundsAmbience(inInvestigation)
 	end
 	self:SetHeartbeatIntensity(self.heartbeatIntensity)
 end

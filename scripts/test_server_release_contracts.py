@@ -134,6 +134,8 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn("CircusAudioDefaults", circus)
         self.assertIn("WorldKit.farDress", circus)
         self.assertIn("MIDWAY FESTIVAL", circus)
+        self.assertIn("SetFestivalActionHandler", circus)
+        self.assertIn("popcorn-restock", circus)
         self.assertIn("StreamingMinRadius", circus)
         defaults = (
             ROOT / "src" / "server" / "Config" / "CircusAudioDefaults.lua"
@@ -2267,7 +2269,10 @@ class ServerReleaseContracts(unittest.TestCase):
         vol_start = audio.index("function AudioController:_updateGroupVolumes()")
         vol_end = audio.index("\nfunction AudioController:ApplySettingImmediate(", vol_start)
         vol_fn = audio[vol_start:vol_end]
-        for group in ("Music", "Ambience", "Effects", "UI"):
+        self.assertIn("self.groups.Music.Volume = master", vol_fn)
+        self.assertIn("musicScale", vol_fn)
+        self.assertIn("INVESTIGATION_MUSIC_DUCK", vol_fn)
+        for group in ("Ambience", "Effects", "UI"):
             self.assertIn(f'self.groups.{group}.Volume = master *', vol_fn)
 
         # _switchLoop: stops all channel loops that are not the target; starts target if not playing
@@ -2691,16 +2696,24 @@ class ServerReleaseContracts(unittest.TestCase):
         self.assertIn('id = "TownVariantD"', manifest)
         self.assertIn('nightRoute = "BackcountryNight"', manifest)
         self.assertIn('id = "BackcountryNight"', manifest)
+        self.assertIn('id = "TownVariantE"', manifest)
+        self.assertIn('nightRoute = "LakeshoreNight"', manifest)
+        self.assertIn('id = "LakeshoreNight"', manifest)
         for route in (
             "MainStreet",
             "FactoryDetour",
             "OutskirtsFirst",
             "BackcountryNight",
+            "LakeshoreNight",
         ):
             self.assertIn(f'nightRoute = "{route}"', manifest)
         types = (ROOT / "src/shared/Types/WorldTypes.lua").read_text(encoding="utf-8")
         self.assertIn("nightRoute: NightRouteId,", types)
         self.assertIn("worldId: string,", types)
+        self.assertIn('"LakeshoreNight"', types)
+        # Cycle 5: five distinct routes; PreviewRouteForRound indexes variants fairly.
+        self.assertGreaterEqual(manifest.count("nightRoute = "), 5)
+        self.assertIn("(seed % #WorldManifest.variants) + 1", world)
 
     def test_request_0148_round_lifecycle_event_names_emit_isolation_and_disconnect(
         self,

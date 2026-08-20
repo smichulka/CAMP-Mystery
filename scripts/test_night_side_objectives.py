@@ -146,6 +146,24 @@ class NightSideObjectiveTests(unittest.TestCase):
             handler.index("self.sideObjectivesCompleted[sideObjectiveId]"), payout
         )
         self.assertLess(handler.index("SIDE_OBJECTIVE_RANGE_STUDS"), payout)
+        # Cycle 5: Midway Festival day actions share the same payout path.
+        self.assertIn('sideObjectiveId == "fair-supplies"', handler)
+        self.assertIn('sideObjectiveId == "popcorn-restock"', handler)
+        self.assertIn('self.phase ~= "Day"', handler)
+        self.assertIn("MIDWAY SUPPLIES CHECKED", handler)
+        self.assertIn("POPCORN RESTOCKED", handler)
+        circus = read("src/server/Services/Map/SpookyCircus.lua")
+        for token in (
+            "SetFestivalActionHandler",
+            "GetFestivalActionParts",
+            "ResetFestivalActions",
+            "popcorn-restock",
+            "registerFestivalAction",
+        ):
+            self.assertIn(token, circus)
+        map_service = read("src/server/Services/ProductionMapService.lua")
+        self.assertIn("_bindMidwayFestivalActions", map_service)
+        self.assertIn("ResetFestivalActions", map_service)
         # The rescue self-resolves so an empty or solo night can never stall.
         rescue = runtime.split(
             "function GameRuntimeService:_beginCounselorRescue", 1

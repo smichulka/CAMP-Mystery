@@ -57,6 +57,9 @@ local CLUTTER_THROTTLE_SECONDS = 1
 local CLUTTER_IMPACT_SPEED = 8
 local ROPE_SWING_MIN_SECONDS = 20
 local ROPE_SWING_MAX_SECONDS = 40
+-- Cycle 6: slightly denser night rope creaks (atmosphere only; no new assets).
+local ROPE_SWING_NIGHT_MIN_SECONDS = 14
+local ROPE_SWING_NIGHT_MAX_SECONDS = 32
 local ROPE_SWING_POLL_SECONDS = 2
 
 local FOOTPRINT_INTERVAL_SECONDS = 0.6
@@ -615,8 +618,13 @@ local function ropeSwingLoop()
 			elseif now >= nextCreakAt then
 				-- Always reschedule so day-time silence does not queue a burst
 				-- of overdue creaks for the first minute of night.
-				ropeSwingNextCreakAt[part] =
-					now + rng:NextNumber(ROPE_SWING_MIN_SECONDS, ROPE_SWING_MAX_SECONDS)
+				local minSeconds = if nightActive
+					then ROPE_SWING_NIGHT_MIN_SECONDS
+					else ROPE_SWING_MIN_SECONDS
+				local maxSeconds = if nightActive
+					then ROPE_SWING_NIGHT_MAX_SECONDS
+					else ROPE_SWING_MAX_SECONDS
+				ropeSwingNextCreakAt[part] = now + rng:NextNumber(minSeconds, maxSeconds)
 				if nightActive then
 					-- The empty swing creaks by itself in the dark: slow and low.
 					playImpactSound(part, 0.3, 0.55 + rng:NextNumber() * 0.25)

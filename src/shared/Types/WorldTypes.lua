@@ -43,6 +43,7 @@ export type NightRouteId =
 	| "FactoryDetour"
 	| "OutskirtsFirst"
 	| "BackcountryNight"
+	| "LakeshoreNight"
 
 export type WorldVariantDefinition = {
 	id: string,

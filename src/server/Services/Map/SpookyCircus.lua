@@ -5,9 +5,10 @@
 -- hillside east of x 220 is the natural back fence).
 --
 -- Wave 5 World B — Daytime Fairgrounds: by day the Midway Festival is open
--- (bunting, soft ride spin, festival-pass booth, fair-supplies search). At
--- night SetNight escalates to the Midnight Circus — full lights, rides,
--- big-top show, and carnie monsters that chase ticket holders only.
+-- (bunting, soft ride spin, festival-pass booth, fair-supplies + popcorn
+-- restock day side actions). At night SetNight escalates to the Midnight
+-- Circus — full lights, rides, big-top show, and carnie monsters that chase
+-- ticket holders only.
 --
 -- Sign-up is diegetic: the ticket booth prompt stamps a CircusTicket
 -- attribute on your character and welds on a glowing wristband. Carnies
@@ -86,6 +87,11 @@ local state = {
 	approachSign = nil :: Model?,
 	dayBannerLabel = nil :: TextLabel?,
 	festivalProps = nil :: Model?,
+	-- Cycle 5: day Midway side actions (fair-supplies / popcorn-restock).
+	festivalActionHandler = nil :: ((Player, string) -> boolean)?,
+	festivalActionParts = {} :: { [string]: BasePart },
+	festivalActionPrompts = {} :: { [string]: ProximityPrompt },
+	festivalActionComplete = {} :: { [string]: boolean },
 }
 
 -- Rendered-surface seat. The circus site is FLAT slab (renders ~2.5
@@ -416,7 +422,76 @@ local function buildTicketBooth(circus: Model)
 	end)
 end
 
--- Daytime Midway Festival dressing + optional day search (fair-supplies).
+-- Daytime Midway Festival dressing + optional day side actions
+-- (fair-supplies search + popcorn restock). Completions route through
+-- SetFestivalActionHandler so GameRuntimeService can announce loudly.
+local function registerFestivalAction(
+	actionId: string,
+	part: BasePart,
+	prompt: ProximityPrompt,
+	dayTipText: string
+)
+	state.festivalActionParts[actionId] = part
+	state.festivalActionPrompts[actionId] = prompt
+	prompt.Triggered:Connect(function(player: Player)
+		if state.nightActive then
+			prompt.ObjectText = "Midnight Circus"
+			return
+		end
+		if state.festivalActionComplete[actionId] then
+			return
+		end
+		local handler = state.festivalActionHandler
+		local accepted = if handler then handler(player, actionId) else false
+		if not accepted then
+			-- Soft local tip when the runtime is not wired yet (boot / tests).
+			local character = player.Character
+			if character then
+				character:SetAttribute("FairSuppliesChecked", true)
+			end
+			playCircusSound(part, "TicketChime", 0.45)
+			local billboard = part:FindFirstChild("FestivalActionTip")
+			if not (billboard and billboard:IsA("BillboardGui")) then
+				billboard = Instance.new("BillboardGui")
+				billboard.Name = "FestivalActionTip"
+				billboard.Size = UDim2.new(8, 0, 2, 0)
+				billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+				billboard.AlwaysOnTop = true
+				billboard.MaxDistance = 40
+				billboard.Parent = part
+				local label = Instance.new("TextLabel")
+				label.BackgroundTransparency = 0.2
+				label.BackgroundColor3 = Color3.fromRGB(28, 36, 30)
+				label.Size = UDim2.fromScale(1, 1)
+				label.Font = Enum.Font.Gotham
+				label.Text = dayTipText
+				label.TextColor3 = GLOW_AMBER
+				label.TextScaled = true
+				label.TextWrapped = true
+				label.Parent = billboard
+			end
+			task.delay(4, function()
+				local tip = part:FindFirstChild("FestivalActionTip")
+				if tip then
+					tip:Destroy()
+				end
+			end)
+			return
+		end
+		state.festivalActionComplete[actionId] = true
+		prompt.Enabled = false
+		playCircusSound(part, "TicketChime", 0.55)
+		local character = player.Character
+		if character then
+			if actionId == "fair-supplies" then
+				character:SetAttribute("FairSuppliesChecked", true)
+			elseif actionId == "popcorn-restock" then
+				character:SetAttribute("PopcornRestocked", true)
+			end
+		end
+	end)
+end
+
 local function buildDaytimeFestival(circus: Model)
 	local festival = WorldKit.model(circus, "DaytimeFestival")
 	state.festivalProps = festival
@@ -467,7 +542,7 @@ local function buildDaytimeFestival(circus: Model)
 		WorldKit.farDress(balloon)
 	end
 
-	-- Fair supplies crate: day-phase interaction + soft search socket.
+	-- Fair supplies crate: day-phase Midway side action + soft search socket.
 	local sx, sz = 178, 274
 	local sGround = groundY(sx, sz)
 	local crate = WorldKit.part(festival, "FairSuppliesCrate", Vector3.new(3.2, 2.0, 2.4),
@@ -479,43 +554,29 @@ local function buildDaytimeFestival(circus: Model)
 	WorldKit.evidenceSocketMarker(festival, "fair-supplies",
 		Vector3.new(sx, sGround + 2.4, sz))
 	local suppliesPrompt = WorldKit.prompt(crate, "Check Festival Supplies", "Midway Festival", 0.55)
-	suppliesPrompt.Triggered:Connect(function(player: Player)
-		if state.nightActive then
-			suppliesPrompt.ObjectText = "Midnight Circus"
-			return
-		end
-		local character = player.Character
-		if character then
-			character:SetAttribute("FairSuppliesChecked", true)
-		end
-		playCircusSound(crate, "TicketChime", 0.45)
-		local billboard = crate:FindFirstChild("FairSuppliesTip")
-		if not (billboard and billboard:IsA("BillboardGui")) then
-			billboard = Instance.new("BillboardGui")
-			billboard.Name = "FairSuppliesTip"
-			billboard.Size = UDim2.new(8, 0, 2, 0)
-			billboard.StudsOffset = Vector3.new(0, 2.8, 0)
-			billboard.AlwaysOnTop = true
-			billboard.MaxDistance = 40
-			billboard.Parent = crate
-			local label = Instance.new("TextLabel")
-			label.BackgroundTransparency = 0.2
-			label.BackgroundColor3 = Color3.fromRGB(28, 36, 30)
-			label.Size = UDim2.fromScale(1, 1)
-			label.Font = Enum.Font.Gotham
-			label.Text = "Festival stocked — booth stays open after dusk."
-			label.TextColor3 = GLOW_AMBER
-			label.TextScaled = true
-			label.TextWrapped = true
-			label.Parent = billboard
-		end
-		task.delay(4, function()
-			local tip = crate:FindFirstChild("FairSuppliesTip")
-			if tip then
-				tip:Destroy()
-			end
-		end)
-	end)
+	registerFestivalAction(
+		"fair-supplies",
+		crate,
+		suppliesPrompt,
+		"Festival stocked — booth stays open after dusk."
+	)
+
+	-- Popcorn restock cart: second Midway day side action beside the games row.
+	local px, pz = 172, 282
+	local pGround = groundY(px, pz)
+	local cart = WorldKit.part(festival, "PopcornRestockCart", Vector3.new(2.6, 2.2, 1.8),
+		CFrame.new(px, pGround + 1.1, pz) * CFrame.Angles(0, math.rad(-18), 0),
+		WOOD_DARK, Enum.Material.WoodPlanks)
+	WorldKit.part(festival, "PopcornBucket", Vector3.new(1.1, 1.0, 1.1),
+		CFrame.new(px, pGround + 2.5, pz) * CFrame.Angles(0, math.rad(-18), 0),
+		GLOW_AMBER, Enum.Material.SmoothPlastic)
+	local popcornPrompt = WorldKit.prompt(cart, "Restock Popcorn", "Midway Festival", 0.5)
+	registerFestivalAction(
+		"popcorn-restock",
+		cart,
+		popcornPrompt,
+		"Popcorn bins topped off — Midway smells ready for dusk."
+	)
 end
 
 -- BIG TOP + SHOW --------------------------------------------------------------
@@ -1559,6 +1620,36 @@ function SpookyCircus.SetNight(isNight: boolean)
 	if festival then
 		-- Soft day fog stays; night dressing already covers lamps via CampLamp.
 		festival:SetAttribute("FestivalNightEscalated", isNight)
+	end
+	-- Day Midway side actions only while the festival is open.
+	for actionId, prompt in state.festivalActionPrompts do
+		prompt.ObjectText = if isNight then "Midnight Circus" else "Midway Festival"
+		prompt.Enabled = (not isNight) and not state.festivalActionComplete[actionId]
+	end
+end
+
+function SpookyCircus.SetFestivalActionHandler(handler: ((Player, string) -> boolean)?)
+	state.festivalActionHandler = handler
+end
+
+function SpookyCircus.GetFestivalActionParts(): { [string]: BasePart }
+	return state.festivalActionParts
+end
+
+function SpookyCircus.MarkFestivalActionComplete(actionId: string)
+	state.festivalActionComplete[actionId] = true
+	local prompt = state.festivalActionPrompts[actionId]
+	if prompt then
+		prompt.Enabled = false
+	end
+end
+
+function SpookyCircus.ResetFestivalActions()
+	state.festivalActionComplete = {}
+	for actionId, prompt in state.festivalActionPrompts do
+		prompt.Enabled = not state.nightActive
+		prompt.ObjectText = if state.nightActive then "Midnight Circus" else "Midway Festival"
+		local _ = actionId
 	end
 end
 

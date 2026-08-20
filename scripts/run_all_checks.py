@@ -90,6 +90,10 @@ def main() -> None:
         [sys.executable, "scripts/test_release_readiness.py"],
     )
     run(
+        "Soft-launch preflight",
+        [sys.executable, "scripts/soft_launch_preflight.py"],
+    )
+    run(
         "Content manifest validation",
         [sys.executable, "scripts/validate_content_manifest.py"],
     )

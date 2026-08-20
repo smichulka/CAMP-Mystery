@@ -564,6 +564,7 @@ class PhaseCinematicsTests(unittest.TestCase):
         for token in (
             "MissionView.DayProgressCopy(",
             "night stakes: lights",
+            "Midway Festival",
             "Generator = lights. Firewood = haven. Supplies = flares.",
             "Generator (lights), Firewood (haven), Supplies (flares).",
             "Campers locked generator, firewood, and supplies stakes",
@@ -725,6 +726,9 @@ class PhaseCinematicsTests(unittest.TestCase):
         self.assertIn('self:PlayCue("CircusSting")', cue_block)
         self.assertIn("FairgroundsAmbience", audio)
         self.assertIn("FairgroundsAmbienceAssetId", audio)
+        self.assertIn("INVESTIGATION_MUSIC_DUCK", audio)
+        self.assertIn("_setInvestigationDucking", audio)
+        self.assertIn("CircusStingAssetId", audio)
 
 
     def test_request_0095_death_cinematic_and_ghost_transition_notifications(self) -> None:
