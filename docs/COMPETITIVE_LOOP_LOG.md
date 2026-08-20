@@ -114,6 +114,7 @@ Studio mesh install still optional (`CIRCUS_ASSETS.md`); procedural path is the 
 | WorldKit.inspect / seat | Done | Shared helpers for feedback billboards + seats |
 | Creator Store meshes | Studio | PicnicTable, BulletinBoard, RustyRadio, ParkBench quarantined in ServerAssets.Interactables |
 | Tips | Done | ENVIRONMENT tips sell inspectables |
+| Dock / Midway / porch / landmarks | Done | Fishing, dunk tank, prize wheel, Cabin Zero, ranger desk, etc. |
 
 ## Remaining EXTERNAL backlog
 

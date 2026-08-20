@@ -583,6 +583,267 @@ local function buildPlazaBench(parent: Instance, at: CFrame)
 	bump()
 end
 
+local function buildFishingPole(parent: Instance, at: CFrame)
+	local pole = WorldKit.part(parent, "FishingPole", Vector3.new(0.18, 4.6, 0.18), at * CFrame.Angles(0, 0, math.rad(28)), WOOD_DARK, Enum.Material.Wood)
+	WorldKit.part(parent, "FishingReel", Vector3.new(0.35, 0.35, 0.45), at * CFrame.new(0.15, -0.8, 0), METAL, Enum.Material.Metal)
+	feedbackAction(
+		pole,
+		"Try Cast",
+		"Fishing pole",
+		"Line sings out… splash. Nothing bites. Ripples settle into a face-shaped swirl, then gone.",
+		0.4
+	)
+	bump()
+end
+
+local function buildLifeRing(parent: Instance, at: CFrame)
+	local ring = WorldKit.part(parent, "LifeRing", Vector3.new(1.8, 0.35, 1.8), at, RED, Enum.Material.SmoothPlastic)
+	ring.Shape = Enum.PartType.Cylinder
+	WorldKit.inspect(
+		ring,
+		"Life ring",
+		"White lettering: CAMP PROPERTY. Rope frayed where someone clung too hard.",
+		0.4
+	)
+	bump()
+end
+
+local function buildBoatWhistle(parent: Instance, at: CFrame)
+	local whistle = WorldKit.part(parent, "BoatWhistle", Vector3.new(0.7, 0.5, 1.4), at, Color3.fromRGB(210, 200, 80), Enum.Material.Metal)
+	feedbackAction(
+		whistle,
+		"Blow Whistle",
+		"Boat whistle",
+		"TWEEEET — ducks scatter. Across the lake, something answers once… then silence.",
+		0.3
+	)
+	bump()
+end
+
+local function buildDockCooler(parent: Instance, at: CFrame)
+	local cooler = WorldKit.part(parent, "DockCooler", Vector3.new(2.2, 1.4, 1.4), at, Color3.fromRGB(40, 90, 160), Enum.Material.SmoothPlastic)
+	WorldKit.part(parent, "CoolerLid", Vector3.new(2.15, 0.2, 1.35), at * CFrame.new(0, 0.8, 0), Color3.fromRGB(30, 70, 130), Enum.Material.SmoothPlastic)
+	WorldKit.inspect(
+		cooler,
+		"Dock cooler",
+		"Melted ice and one unclaimed soda. Tape on the lid: 'BUDDY SYSTEM — NO SOLO SWIMS.'",
+		0.4
+	)
+	bump()
+end
+
+local function buildSkipRocks(parent: Instance, at: CFrame)
+	local pile = WorldKit.part(parent, "SkipRockPile", Vector3.new(2.4, 0.6, 2.0), at, Color3.fromRGB(120, 118, 110), Enum.Material.Slate)
+	WorldKit.part(parent, "SkipRockA", Vector3.new(0.55, 0.18, 0.45), at * CFrame.new(-0.5, 0.4, 0.2), Color3.fromRGB(140, 138, 130), Enum.Material.Slate)
+	WorldKit.part(parent, "SkipRockB", Vector3.new(0.5, 0.16, 0.4), at * CFrame.new(0.4, 0.38, -0.15), Color3.fromRGB(130, 128, 120), Enum.Material.Slate)
+	feedbackAction(
+		pile,
+		"Play",
+		"Skip-rocks pile",
+		"One… two… three skips. The fourth plink echoes longer than it should.",
+		0.3
+	)
+	bump()
+end
+
+local function buildLakeDockCluster(parent: Instance, origin: Vector3)
+	local dock = WorldKit.model(parent, "InteractableLakeDock")
+	buildFishingPole(dock, CFrame.new(origin + Vector3.new(4, 2.2, -2)) * CFrame.Angles(0, math.rad(-20), 0))
+	buildLifeRing(dock, CFrame.new(origin + Vector3.new(-2, 1.0, 3)) * CFrame.Angles(0, 0, math.rad(90)))
+	buildBoatWhistle(dock, CFrame.new(origin + Vector3.new(1, 1.1, 1)))
+	buildDockCooler(dock, CFrame.new(origin + Vector3.new(-3, 0.9, -1)))
+	buildSkipRocks(dock, CFrame.new(origin + Vector3.new(6, 0.4, 4)))
+	WorldKit.seat(dock, "DockEdgeSeatA", origin + Vector3.new(2, 0.55, -3.5), origin + Vector3.new(12, 0.55, 0), WOOD)
+	WorldKit.seat(dock, "DockEdgeSeatB", origin + Vector3.new(0, 0.55, -3.5), origin + Vector3.new(12, 0.55, 0), WOOD)
+	bump()
+end
+
+local function buildBalloonDart(parent: Instance, at: CFrame)
+	local booth = WorldKit.part(parent, "BalloonDartBooth", Vector3.new(4.8, 3.4, 2.8), at, Color3.fromRGB(200, 60, 90), Enum.Material.WoodPlanks)
+	WorldKit.part(parent, "BalloonBoard", Vector3.new(4.2, 2.6, 0.2), at * CFrame.new(0, 0.2, -1.3), Color3.fromRGB(40, 40, 50), Enum.Material.SmoothPlastic)
+	for i = -1, 1 do
+		local balloon = WorldKit.part(parent, "Balloon" .. tostring(i + 2), Vector3.new(0.7, 0.9, 0.7), at * CFrame.new(i * 1.1, 0.4, -1.35), Color3.fromRGB(255, 80 + i * 40, 120), Enum.Material.SmoothPlastic)
+		balloon.Shape = Enum.PartType.Ball
+		balloon.CanCollide = false
+	end
+	feedbackAction(
+		booth,
+		"Try Throw",
+		"Balloon dart",
+		"Thwick — balloon wobbles, stays whole. Carnie chalk: 'THREE DARTS / ONE PRIZE / NO REFUNDS.'",
+		0.35
+	)
+	bump()
+end
+
+local function buildMilkBottlePyramid(parent: Instance, at: CFrame)
+	local stand = WorldKit.part(parent, "MilkBottleStand", Vector3.new(3.6, 1.0, 2.4), at, WOOD, Enum.Material.WoodPlanks)
+	local colors = {
+		Color3.fromRGB(240, 240, 245),
+		Color3.fromRGB(235, 235, 240),
+		Color3.fromRGB(230, 230, 238),
+	}
+	local offsets = {
+		Vector3.new(-0.7, 1.1, 0),
+		Vector3.new(0.7, 1.1, 0),
+		Vector3.new(0, 1.1, 0.55),
+		Vector3.new(0, 2.0, 0.2),
+	}
+	for i, offset in offsets do
+		WorldKit.part(parent, "MilkBottle" .. tostring(i), Vector3.new(0.55, 1.1, 0.55), at * CFrame.new(offset), colors[((i - 1) % #colors) + 1], Enum.Material.Glass)
+	end
+	feedbackAction(
+		stand,
+		"Knock Down",
+		"Milk bottle pyramid",
+		"Clatter! Two bottles tip… the top one somehow stays. Rigged? Or lucky?",
+		0.4
+	)
+	bump()
+end
+
+local function buildDuckPond(parent: Instance, at: CFrame)
+	local tub = WorldKit.part(parent, "DuckPondTub", Vector3.new(4.5, 1.2, 3.2), at, Color3.fromRGB(50, 120, 170), Enum.Material.Metal)
+	local water = WorldKit.part(parent, "DuckPondWater", Vector3.new(4.0, 0.3, 2.7), at * CFrame.new(0, 0.35, 0), Color3.fromRGB(90, 170, 200), Enum.Material.Glass)
+	water.Transparency = 0.35
+	WorldKit.part(parent, "RubberDuckA", Vector3.new(0.6, 0.5, 0.7), at * CFrame.new(-0.8, 0.55, 0.2), Color3.fromRGB(240, 200, 50), Enum.Material.SmoothPlastic)
+	WorldKit.part(parent, "RubberDuckB", Vector3.new(0.55, 0.45, 0.65), at * CFrame.new(0.9, 0.52, -0.3), Color3.fromRGB(240, 190, 40), Enum.Material.SmoothPlastic)
+	feedbackAction(
+		tub,
+		"Scoop Duck",
+		"Duck pond",
+		"You scoop a smiling duck. Number on the bottom: 7. Prize window closed — 'SEE CARNIE.'",
+		0.35
+	)
+	bump()
+end
+
+local function buildDunkTank(parent: Instance, at: CFrame)
+	local tank = WorldKit.part(parent, "DunkTankFrame", Vector3.new(4.0, 4.5, 3.5), at, Color3.fromRGB(40, 100, 160), Enum.Material.Metal)
+	local glass = WorldKit.part(parent, "DunkTankGlass", Vector3.new(3.4, 3.2, 0.15), at * CFrame.new(0, 0.2, -1.7), Color3.fromRGB(140, 200, 220), Enum.Material.Glass)
+	glass.Transparency = 0.45
+	local seatPos = at.Position + Vector3.new(0, 1.6, 0.4)
+	WorldKit.seat(parent, "DunkTankSeat", seatPos, at.Position + at.LookVector * 6, Color3.fromRGB(180, 60, 50))
+	local lever = WorldKit.part(parent, "DunkTankLever", Vector3.new(0.35, 1.6, 0.35), at * CFrame.new(2.4, 0.2, -1.2), METAL, Enum.Material.Metal)
+	WorldKit.inspect(
+		lever,
+		"Dunk tank lever",
+		"Target plate dented. Note taped on: 'COUNSELOR SHIFT — DON'T ACTUALLY DROP ANYONE.'",
+		0.4
+	)
+	bump()
+	bump()
+end
+
+local function buildPrizeWheel(parent: Instance, at: CFrame)
+	local post = WorldKit.part(parent, "PrizeWheelPost", Vector3.new(0.5, 4.0, 0.5), at, WOOD_DARK, Enum.Material.Wood)
+	local wheel = WorldKit.part(parent, "PrizeWheel", Vector3.new(3.6, 3.6, 0.35), at * CFrame.new(0, 1.4, -0.4), Color3.fromRGB(220, 80, 60), Enum.Material.SmoothPlastic)
+	wheel.Shape = Enum.PartType.Cylinder
+	WorldKit.part(parent, "PrizeWheelHub", Vector3.new(0.6, 0.6, 0.5), at * CFrame.new(0, 1.4, -0.55), Color3.fromRGB(240, 200, 60), Enum.Material.Metal)
+	local spins = {
+		"Click-click-click… lands on FREE POPCORN. The chute is empty.",
+		"Wheel sings. BONUS SPIN — same wedge as last time. Rigged luck?",
+		"Pointer stops on MYSTERY TOKEN. A faded Midway stamp falls out.",
+		"Almost… TRY AGAIN. The carnie mannequin's painted smile widens.",
+		"JACKPOT wedge! Curtain stays shut. A whisper: 'Save it for after dark.'",
+	}
+	local i = 0
+	local prompt = WorldKit.prompt(wheel, "Spin Wheel", "Prize wheel", 0.45)
+	prompt.Triggered:Connect(function()
+		i = (i % #spins) + 1
+		local existing = wheel:FindFirstChild("WheelFeedback")
+		if existing then
+			existing:Destroy()
+		end
+		local feedback = Instance.new("BillboardGui")
+		feedback.Name = "WheelFeedback"
+		feedback.Size = UDim2.new(10, 0, 2.6, 0)
+		feedback.StudsOffset = Vector3.new(0, 3.8, 0)
+		feedback.AlwaysOnTop = true
+		feedback.Enabled = true
+		feedback.Parent = wheel
+		local label = Instance.new("TextLabel")
+		label.BackgroundColor3 = Color3.fromRGB(20, 12, 10)
+		label.BackgroundTransparency = 0.06
+		label.BorderSizePixel = 0
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.GothamMedium
+		label.Text = spins[i]
+		label.TextColor3 = Color3.fromRGB(255, 220, 160)
+		label.TextSize = 15
+		label.TextWrapped = true
+		label.Parent = feedback
+		task.delay(4.2, function()
+			if feedback.Parent then
+				feedback:Destroy()
+			end
+		end)
+	end)
+	bump()
+end
+
+local function buildCabinPorchCluster(parent: Instance, origin: Vector3)
+	local porch = WorldKit.model(parent, "InteractableCabinPorch")
+	WorldKit.part(porch, "RockingChairBase", Vector3.new(1.8, 0.35, 1.6), CFrame.new(origin + Vector3.new(-2.2, 0.5, 0.5)), WOOD, Enum.Material.WoodPlanks)
+	WorldKit.part(porch, "RockingChairBack", Vector3.new(1.8, 1.5, 0.25), CFrame.new(origin + Vector3.new(-2.2, 1.3, 1.15)), WOOD, Enum.Material.WoodPlanks)
+	WorldKit.seat(porch, "RockingSeat", origin + Vector3.new(-2.2, 0.75, 0.4), origin + Vector3.new(-2.2, 0.75, -4), WOOD)
+	bump()
+	WorldKit.part(porch, "PorchSwingBeam", Vector3.new(4.2, 0.3, 0.3), CFrame.new(origin + Vector3.new(2.5, 3.2, -0.5)), WOOD_DARK, Enum.Material.Wood)
+	WorldKit.part(porch, "PorchSwingSeatBoard", Vector3.new(3.4, 0.25, 1.4), CFrame.new(origin + Vector3.new(2.5, 1.0, -0.5)), WOOD, Enum.Material.WoodPlanks)
+	WorldKit.seat(porch, "PorchSwingSeat", origin + Vector3.new(2.5, 1.2, -0.5), origin + Vector3.new(2.5, 1.2, -6), WOOD)
+	bump()
+	local mat = WorldKit.part(porch, "WelcomeMat", Vector3.new(2.4, 0.12, 1.4), CFrame.new(origin + Vector3.new(0, 0.2, 2.2)), Color3.fromRGB(90, 50, 40), Enum.Material.Fabric)
+	WorldKit.inspect(
+		mat,
+		"Welcome mat",
+		"Faded stitchwork: WIPE YOUR FEET. Underside pencil: 'Cabin Zero key still missing.'",
+		0.35
+	)
+	bump()
+	local lantern = WorldKit.part(porch, "PorchLantern", Vector3.new(0.7, 0.9, 0.7), CFrame.new(origin + Vector3.new(4.2, 2.4, 1.2)), Color3.fromRGB(222, 186, 120), Enum.Material.Glass)
+	lantern.Transparency = 0.25
+	WorldKit.part(porch, "PorchLanternPost", Vector3.new(0.3, 3.2, 0.3), CFrame.new(origin + Vector3.new(4.2, 1.6, 1.2)), WOOD_DARK, Enum.Material.Wood)
+	local light = Instance.new("PointLight")
+	light.Name = "PorchLanternLight"
+	light.Color = Color3.fromRGB(255, 204, 138)
+	light.Brightness = 1.6
+	light.Range = 14
+	light.Enabled = true
+	light.Parent = lantern
+	local prompt = WorldKit.prompt(lantern, "Toggle", "Porch lantern", 0.25)
+	prompt.Triggered:Connect(function()
+		light.Enabled = not light.Enabled
+		local existing = lantern:FindFirstChild("LanternFeedback")
+		if existing then
+			existing:Destroy()
+		end
+		local feedback = Instance.new("BillboardGui")
+		feedback.Name = "LanternFeedback"
+		feedback.Size = UDim2.new(7, 0, 1.8, 0)
+		feedback.StudsOffset = Vector3.new(0, 2.8, 0)
+		feedback.AlwaysOnTop = true
+		feedback.Enabled = true
+		feedback.Parent = lantern
+		local label = Instance.new("TextLabel")
+		label.BackgroundColor3 = Color3.fromRGB(13, 17, 16)
+		label.BackgroundTransparency = 0.08
+		label.BorderSizePixel = 0
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.GothamMedium
+		label.Text = if light.Enabled then "Lantern clicks on — warm pool of light on the porch boards." else "Lantern clicks off. Shadows rush back under the swing."
+		label.TextColor3 = Color3.fromRGB(244, 224, 176)
+		label.TextSize = 15
+		label.TextWrapped = true
+		label.Parent = feedback
+		task.delay(2.8, function()
+			if feedback.Parent then
+				feedback:Destroy()
+			end
+		end)
+	end)
+	bump()
+end
+
 function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 	builtCount = 0
 	local day = WorldKit.model(dayCamp, "InteractableWorldDay")
@@ -634,6 +895,12 @@ function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 		bump()
 	end
 
+	-- Lake / dock cluster (east waterfront)
+	buildLakeDockCluster(day, Vector3.new(95, 4, 40))
+
+	-- Cabin porch flavor (west cabins)
+	buildCabinPorchCluster(day, Vector3.new(-40, 4, 50))
+
 	-- Midway / Fairgrounds (day + night flavor — NE meadow)
 	local midway = WorldKit.model(day, "InteractableMidway")
 	buildRingToss(midway, CFrame.new(168, 4.5, 290) * CFrame.Angles(0, math.rad(180), 0))
@@ -643,6 +910,11 @@ function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 	buildCottonCandy(midway, CFrame.new(190, 4.4, 275))
 	buildPlazaBench(midway, CFrame.new(160, 4.0, 300))
 	buildPlazaBench(midway, CFrame.new(205, 4.0, 305) * CFrame.Angles(0, math.rad(90), 0))
+	buildBalloonDart(midway, CFrame.new(185, 4.5, 298) * CFrame.Angles(0, math.rad(15), 0))
+	buildMilkBottlePyramid(midway, CFrame.new(195, 4.2, 312))
+	buildDuckPond(midway, CFrame.new(178, 4.0, 280))
+	buildDunkTank(midway, CFrame.new(210, 4.5, 295) * CFrame.Angles(0, math.rad(-90), 0))
+	buildPrizeWheel(midway, CFrame.new(172, 4.4, 305) * CFrame.Angles(0, math.rad(40), 0))
 
 	-- Night town density
 	buildNewspaperBox(night, CFrame.new(-40, 4.4, -120))
@@ -690,6 +962,82 @@ function InteractableWorld.Build(dayCamp: Folder, nightTown: Folder)
 		bump()
 		local hydrant = WorldKit.part(night, "FireHydrant", Vector3.new(1.2, 1.8, 1.2), CFrame.new(25, 4.0, -175), RED, Enum.Material.Metal)
 		WorldKit.inspect(hydrant, "Fire hydrant", "Paint scraped by claws… or a pry bar. Fresh mud tracks lead toward the square.", 0.35)
+		bump()
+	end
+
+	-- Backcountry / landmarks cluster
+	do
+		local rangerDesk = WorldKit.part(day, "RangerStationDesk", Vector3.new(2.8, 0.35, 1.6), CFrame.new(-84.5, 28.5, -62), WOOD_DARK, Enum.Material.Wood)
+		WorldKit.part(day, "RangerDeskPaper", Vector3.new(1.4, 0.05, 1.0), CFrame.new(-84.5, 28.75, -62), PAPER, Enum.Material.Cardboard)
+		WorldKit.inspect(
+			rangerDesk,
+			"Ranger station desk",
+			"Duty log open to tonight: 'Buddy checks every hour. Cabin Zero stays sealed.' Ink still wet.",
+			0.45
+		)
+		bump()
+
+		local mineCart = WorldKit.part(day, "MineCartBody", Vector3.new(3.2, 1.4, 4.2), CFrame.new(104, 1.8, -40), RUST, Enum.Material.Metal)
+		WorldKit.part(day, "MineCartWheelFL", Vector3.new(0.5, 0.5, 0.5), CFrame.new(102.6, 1.0, -41.4), METAL, Enum.Material.Metal)
+		WorldKit.part(day, "MineCartWheelFR", Vector3.new(0.5, 0.5, 0.5), CFrame.new(105.4, 1.0, -41.4), METAL, Enum.Material.Metal)
+		WorldKit.part(day, "MineCartWheelBL", Vector3.new(0.5, 0.5, 0.5), CFrame.new(102.6, 1.0, -38.6), METAL, Enum.Material.Metal)
+		WorldKit.part(day, "MineCartWheelBR", Vector3.new(0.5, 0.5, 0.5), CFrame.new(105.4, 1.0, -38.6), METAL, Enum.Material.Metal)
+		WorldKit.hidingSpot(mineCart)
+		WorldKit.inspect(
+			mineCart,
+			"Mine cart",
+			"Ore dust and a half-torn camp roster. Good place to duck out of sight — if you fit.",
+			0.45
+		)
+		bump()
+
+		WorldKit.seat(day, "ChapelPewSeatA", Vector3.new(-32.4, 2.0, 48.4), Vector3.new(-30, 2.0, 55), WOOD_DARK)
+		WorldKit.seat(day, "ChapelPewSeatB", Vector3.new(-27.6, 2.0, 48.4), Vector3.new(-30, 2.0, 55), WOOD_DARK)
+		bump()
+		bump()
+		local candle = WorldKit.part(day, "ChapelCandle", Vector3.new(0.35, 0.9, 0.35), CFrame.new(-30, 3.2, 55.8), CREAM, Enum.Material.SmoothPlastic)
+		local flame = WorldKit.part(day, "ChapelCandleFlame", Vector3.new(0.25, 0.35, 0.25), CFrame.new(-30, 3.85, 55.8), Color3.fromRGB(255, 170, 80), Enum.Material.Neon)
+		flame.CanCollide = false
+		WorldKit.inspect(
+			candle,
+			"Chapel candle",
+			"Wax pooled around a brass holder. Someone whispered a name into the flame and left.",
+			0.4
+		)
+		bump()
+
+		WorldKit.part(day, "LookoutTelescopeStand", Vector3.new(0.45, 2.4, 0.45), CFrame.new(5.4, 35.2, 112.5), METAL, Enum.Material.Metal)
+		local telescope = WorldKit.part(day, "LookoutTelescope", Vector3.new(2.2, 0.55, 0.55), CFrame.new(5.4, 36.6, 112.5) * CFrame.Angles(0, math.rad(40), math.rad(12)), Color3.fromRGB(90, 74, 48), Enum.Material.Metal)
+		feedbackAction(
+			telescope,
+			"Look",
+			"Lookout telescope",
+			"Valley haze. Midway neon to the northeast… and a dark smear near Cabin Zero that might be smoke.",
+			0.4
+		)
+		bump()
+
+		buildRadio(night, CFrame.new(125.5, 3.2, -393), true)
+
+		local cabinDoor = WorldKit.part(day, "CabinZeroDoor", Vector3.new(2.4, 4.2, 0.28), CFrame.new(-63, 4.8, 76.5), Color3.fromRGB(48, 44, 40), Enum.Material.WoodPlanks)
+		WorldKit.part(day, "CabinZeroDoorKnob", Vector3.new(0.2, 0.2, 0.25), CFrame.new(-62.1, 4.5, 76.35), METAL, Enum.Material.Metal)
+		WorldKit.inspect(
+			cabinDoor,
+			"Cabin Zero door",
+			"Do not enter alone. Charred boards nailed shut — a fresh handprint in the soot.",
+			0.5
+		)
+		bump()
+
+		local cairnBase = WorldKit.part(day, "TrailCairnBase", Vector3.new(1.5, 0.55, 1.4), CFrame.new(74, 3.0, -22), Color3.fromRGB(120, 118, 110), Enum.Material.Slate)
+		WorldKit.part(day, "TrailCairnMid", Vector3.new(1.1, 0.45, 1.0), CFrame.new(74, 3.55, -22) * CFrame.Angles(0, 0.7, 0), Color3.fromRGB(110, 108, 102), Enum.Material.Slate)
+		WorldKit.part(day, "TrailCairnTop", Vector3.new(0.7, 0.35, 0.65), CFrame.new(74, 4.0, -22) * CFrame.Angles(0, 1.4, 0), Color3.fromRGB(130, 128, 120), Enum.Material.Slate)
+		WorldKit.inspect(
+			cairnBase,
+			"Trail cairn",
+			"Stacked trail stones. Top rock scratched with an arrow toward the lookout — and a second mark scratched out.",
+			0.4
+		)
 		bump()
 	end
 

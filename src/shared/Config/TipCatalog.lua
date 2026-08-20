@@ -93,6 +93,8 @@ local definitions: { Tip } = {
 	{ category = "ENVIRONMENT", body = "The old town beyond camp is foggy and abandoned — rusted water towers, crumbling buildings, muddy roads. Cover is plentiful but exits are limited.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Almost everything can be inspected — bulletin boards, radios, Midway games, gravestones, and motel guestbooks hide flavor and soft clues." },
 	{ category = "ENVIRONMENT", body = "Sit on benches and picnic seats to rest. Ring the dinner bell, tune camp radios, and try Midway ring-toss or the fortune booth." },
+	{ category = "ENVIRONMENT", body = "At the lake dock: try a fishing cast, inspect the life ring and cooler, blow the boat whistle, skip rocks, or sit on the edge." },
+	{ category = "ENVIRONMENT", body = "Fairgrounds Midway packs more games — balloon darts, milk bottles, duck pond, dunk tank, and a spinning prize wheel with rotating flair." },
 	{ category = "ENVIRONMENT", body = "Cabin interiors are dark and cluttered. Flashlights are essential once natural light drops at nightfall.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Northeast Fairgrounds: Midway Festival by day (soft rides, prize booths, ticket booth) flips to Midnight Circus after dusk. Tickets are optional — the murder mystery stays separate from the opt-in scare.", excludeRoles = { "Murderer" } },
 	{ category = "ENVIRONMENT", body = "Walk the Midway Festival while the sun is up — check fair supplies, restock popcorn, browse the prize counter, and take a Festival Pass if you want the night carnival chase.", excludeRoles = { "Murderer" } },
